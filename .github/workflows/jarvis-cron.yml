@@ -3,7 +3,7 @@ name: Jarvis Full Autonomous Pipeline
 on:
   schedule:
     - cron: '0 8 * * *'
-  workflow_dispatch: # Kézi teszt indítás gomb
+  workflow_dispatch:
 
 jobs:
   run-jarvis-system:
@@ -20,13 +20,21 @@ jobs:
       - name: Install dependencies
         run: pip install supabase requests beautifulsoup4 google-generativeai
 
-      - name: 1. Run Lead Generator (Debrecen Confectioneries)
+      - name: 0. Run Inbox Monitor (Check Replies)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: python inbox_monitor.py
+
+      - name: 1. Run Deep Web Scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python lead_gen.py
 
-      - name: 2. Run Email Sender (Outreach)
+      - name: 2. Run AI Email Sender (Gemini)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -35,7 +43,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python email_sender.py
 
-      - name: 3. Run Follow-up Sender (Emlekezteto)
+      - name: 3. Run Follow-up Sender
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
