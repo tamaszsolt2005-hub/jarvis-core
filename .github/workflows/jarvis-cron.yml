@@ -1,18 +1,19 @@
-name: Jarvis Lead Generator Runner
+name: Jarvis Full Autonomous Pipeline
 
 on:
   schedule:
     - cron: '0 8 * * *'
-  workflow_dispatch: # Kézi indítás lehetősége teszteléshez
+  workflow_dispatch: # Kézi teszt indítás gomb
 
 jobs:
-  run-lead-gen:
+  run-jarvis-system:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
+        uses: python-version: '3.10' # Python beállítás
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -20,8 +21,16 @@ jobs:
       - name: Install dependencies
         run: pip install supabase
 
-      - name: Run Lead Gen Script
+      - name: 1. Run Lead Generator (Debrecen Confectioneries)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python lead_gen.py
+
+      - name: 2. Run Email Sender (Outreach)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: python email_sender.py
