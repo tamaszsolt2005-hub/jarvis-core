@@ -18,7 +18,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install supabase
+        run: pip install supabase requests beautifulsoup4
 
       - name: 1. Run Lead Generator (Debrecen Confectioneries)
         env:
