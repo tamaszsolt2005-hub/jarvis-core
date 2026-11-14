@@ -26,8 +26,7 @@ supabase: Client = create_client(url, key)
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-ai_model = genai.GenerativeModel('gemini-2.5-flash')
-
+ai_model = genai.GenerativeModel('gemini-3.8-flash')
 # Fejléc
 st.title("🛡️ Jarvis AI Business Control Center")
 st.caption("Autonóm B2B Ügyfélszerző & AI Chat Vezérlőpult")
