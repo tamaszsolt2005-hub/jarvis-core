@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from jarvis_common import generate_text, get_secret, get_supabase
+from jarvis_common import generate_text, get_secret, get_supabase, log_event
 
 st.set_page_config(
     page_title="JARVIS | Intelligence Center",
@@ -215,11 +215,50 @@ if page == "Áttekintés":
 elif page == "Leadek":
     st.subheader("Lead-adatbázis")
     st.caption(f"{len(df)} lead található az adatbázisban.")
+
+    with st.expander("＋ Új lead felvétele", expanded=False):
+        with st.form("create_lead_form", clear_on_submit=True):
+            company = st.text_input("Cégnév *")
+            email = st.text_input("Kapcsolattartó e-mail-címe *")
+            website = st.text_input("Weboldal")
+            source = st.text_input("Forrás", placeholder="Pl. ajánlás, weboldal, rendezvény")
+            notes = st.text_area("Megjegyzések")
+            consent_basis = st.text_input(
+                "Kapcsolatfelvétel jogalapja / engedély megjegyzése",
+                help="Rögzítsd a kapcsolatfelvétel jogszerű alapját. A lead alapból nem lesz megkeresésre jóváhagyva.",
+            )
+            approved = st.checkbox("Kapcsolatfelvétel külön ellenőrizve és jóváhagyva", value=False)
+            submitted = st.form_submit_button("Lead mentése", type="primary")
+            if submitted:
+                if not company.strip() or not email.strip():
+                    st.error("A cégnév és az e-mail-cím kötelező.")
+                elif "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+                    st.error("Adj meg érvényesnek tűnő e-mail-címet.")
+                else:
+                    try:
+                        payload = {
+                            "company_name": company.strip(),
+                            "email": email.strip().lower(),
+                            "website": website.strip() or None,
+                            "source": source.strip() or None,
+                            "notes": notes.strip() or None,
+                            "consent_basis": consent_basis.strip() or None,
+                            "approved_to_contact": bool(approved and consent_basis.strip()),
+                            "status": "new",
+                        }
+                        db.table("leads").insert(payload).execute()
+                        log_event(db, "lead_management", f"Új lead létrehozva: {company.strip()}")
+                        st.success("A lead sikeresen elmentve.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("A lead mentése nem sikerült.")
+                        st.caption(f"Technikai részlet: {type(exc).__name__}")
+
     if not df.empty:
         visible = [
             c for c in [
-                "company_name", "email", "website", "status", "reply_category",
-                "created_at", "next_follow_up_at",
+                "company_name", "email", "website", "status", "approved_to_contact",
+                "opted_out", "reply_category", "created_at", "next_follow_up_at",
             ] if c in df
         ]
         search = st.text_input("Keresés cégnév vagy e-mail alapján", placeholder="Kezdj el gépelni…")
@@ -231,6 +270,71 @@ elif page == "Leadek":
             ).any(axis=1)
             view = view[mask]
         st.dataframe(view, use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader("Lead szerkesztése")
+        choices = {
+            f"{row.get('company_name') or 'Névtelen cég'} · {row.get('email') or 'nincs e-mail'} · {str(row.get('id'))[:8]}": row
+            for row in leads
+        }
+        selected_label = st.selectbox("Válaszd ki a módosítandó leadet", list(choices))
+        selected = choices[selected_label]
+        status_options = ["new", "sent", "followed_up", "replied", "opted_out", "qualified", "disqualified"]
+        current_status = selected.get("status") or "new"
+        if current_status not in status_options:
+            status_options.insert(0, current_status)
+        with st.form("edit_lead_form"):
+            edit_company = st.text_input("Cégnév", value=selected.get("company_name") or "")
+            edit_email = st.text_input("E-mail-cím", value=selected.get("email") or "")
+            edit_website = st.text_input("Weboldal", value=selected.get("website") or "")
+            edit_source = st.text_input("Forrás", value=selected.get("source") or "")
+            edit_notes = st.text_area("Megjegyzések", value=selected.get("notes") or "")
+            edit_status = st.selectbox(
+                "Státusz",
+                status_options,
+                index=status_options.index(current_status),
+            )
+            edit_opted_out = st.checkbox("Leiratkozott / nem kereshető", value=bool(selected.get("opted_out")))
+            edit_approved = st.checkbox(
+                "Kapcsolatfelvétel jóváhagyva",
+                value=bool(selected.get("approved_to_contact")),
+            )
+            save = st.form_submit_button("Módosítások mentése", type="primary")
+            if save:
+                if not edit_company.strip() or not edit_email.strip():
+                    st.error("A cégnév és az e-mail-cím nem lehet üres.")
+                elif "@" not in edit_email or "." not in edit_email.rsplit("@", 1)[-1]:
+                    st.error("Adj meg érvényesnek tűnő e-mail-címet.")
+                else:
+                    try:
+                        # A leiratkozást és a tiltást nem engedjük véletlenül feloldani.
+                        updates = {
+                            "company_name": edit_company.strip(),
+                            "email": edit_email.strip().lower(),
+                            "website": edit_website.strip() or None,
+                            "source": edit_source.strip() or None,
+                            "notes": edit_notes.strip() or None,
+                            "status": "opted_out" if edit_opted_out else edit_status,
+                            "opted_out": bool(edit_opted_out or selected.get("opted_out")),
+                            "approved_to_contact": bool(
+                                edit_approved
+                                and not edit_opted_out
+                                and not selected.get("opted_out")
+                                and selected.get("consent_basis")
+                            ),
+                            "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
+                        }
+                        if selected.get("opted_out"):
+                            updates["status"] = "opted_out"
+                            updates["approved_to_contact"] = False
+                        db.table("leads").update(updates).eq("id", selected["id"]).execute()
+                        log_event(db, "lead_management", f"Lead módosítva: {edit_company.strip()} ({selected['id']})")
+                        st.success("A lead módosításai elmentve.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("A módosítás mentése nem sikerült.")
+                        st.caption(f"Technikai részlet: {type(exc).__name__}")
+
         st.download_button(
             "Leadlista letöltése CSV-ben",
             view.to_csv(index=False).encode("utf-8-sig"),
@@ -238,7 +342,7 @@ elif page == "Leadek":
             "text/csv",
         )
     else:
-        st.info("Még nincs lead. Importálj előzetesen ellenőrzött CSV-fájlt.")
+        st.info("Még nincs lead az adatbázisban. Az „Új lead felvétele” résznél hozzáadhatod az elsőt.")
 
 elif page == "Elemzések":
     st.subheader("Értékesítési teljesítmény")
