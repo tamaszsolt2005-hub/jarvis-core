@@ -259,8 +259,10 @@ elif page == "Leadek":
                             "website": website.strip() or None,
                             "source": source.strip() or None,
                             "notes": notes.strip() or None,
-                            "consent_basis": consent_basis.strip() or None,
-                            "approved_to_contact": bool(approved and consent_basis.strip()),
+                            "consent_basis": consent_basis.strip().lower() or None,
+                            "approved_to_contact": bool(approved and consent_basis.strip().lower() == "consent"),
+                            "consent_confirmed_at": datetime.now(timezone.utc).isoformat()
+                                if approved and consent_basis.strip().lower() == "consent" else None,
                             "status": "new",
                         }
                         db.table("leads").insert(payload).execute()
@@ -337,7 +339,8 @@ elif page == "Leadek":
                                 edit_approved
                                 and not edit_opted_out
                                 and not selected.get("opted_out")
-                                and selected.get("consent_basis")
+                                and selected.get("consent_basis") == "consent"
+                                and selected.get("consent_confirmed_at")
                             ),
                             "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
                         }
