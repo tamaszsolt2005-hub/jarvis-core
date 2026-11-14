@@ -180,14 +180,33 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         loaded.append("naplók")
 
     if wants_analytics and wants_leads:
-        # Reuse the schema-tolerant lead snapshot; never require optional columns.
+        # Older installations may not have every optional analytics column.
+        # Missing fields are reported as unavailable rather than crashing the chat.
         frame = pd.DataFrame(rows)
         if not frame.empty:
-            sections.append("ELEMZÉSI ALAPADATOK:\n"
-                            + f"Státuszok: {frame['status'].fillna('unknown').value_counts().to_dict()}\n"
-                            + f"Leiratkozottak: {int(frame['opted_out'].fillna(False).astype(bool).sum())}\n"
-                            + f"Utánkövetések összesen: {int(pd.to_numeric(frame['follow_up_count'], errors='coerce').fillna(0).sum())}\n"
-                            + "Létrehozási dátumok: " + frame["created_at"].fillna("").astype(str).head(500).to_json(orient="values"))
+            status_counts = (
+                frame["status"].fillna("unknown").value_counts().to_dict()
+                if "status" in frame else "nem elérhető"
+            )
+            opted_out_count = (
+                int(frame["opted_out"].fillna(False).astype(bool).sum())
+                if "opted_out" in frame else None
+            )
+            follow_up_total = (
+                int(pd.to_numeric(frame["follow_up_count"], errors="coerce").fillna(0).sum())
+                if "follow_up_count" in frame else None
+            )
+            created_dates = (
+                frame["created_at"].fillna("").astype(str).head(500).to_json(orient="values")
+                if "created_at" in frame else "nem elérhető"
+            )
+            sections.append(
+                "ELEMZÉSI ALAPADATOK:\n"
+                + f"Státuszok: {status_counts}\n"
+                + f"Leiratkozottak: {opted_out_count if opted_out_count is not None else 'az adatbázis-séma nem tartalmazza ezt a mezőt'}\n"
+                + f"Utánkövetések összesen: {follow_up_total if follow_up_total is not None else 'az adatbázis-séma nem tartalmazza ezt a mezőt'}\n"
+                + f"Létrehozási dátumok: {created_dates}"
+            )
         if "elemzési összesítés" not in loaded:
             loaded.append("elemzési összesítés")
 
