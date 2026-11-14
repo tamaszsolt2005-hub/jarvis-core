@@ -26,7 +26,8 @@ supabase: Client = create_client(url, key)
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-ai_model = genai.GenerativeModel('gemini-3.8-flash')
+ai_model = genai.GenerativeModel('gemini-1.5-flash')
+
 # Fejléc
 st.title("🛡️ Jarvis AI Business Control Center")
 st.caption("Autonóm B2B Ügyfélszerző & AI Chat Vezérlőpult")
@@ -110,7 +111,6 @@ with tab_chat:
         with st.chat_message("assistant"):
             with st.spinner("Jarvis gondolkodik és cselekszik..."):
                 try:
-                    # Megvizsgáljuk, hogy a felhasználó célcsoportot akar-e váltani
                     system_prompt = (
                         f"Te vagy Jarvis, egy autonóm B2B értékesítési AI asszisztens. "
                         f"A felhasználó (Tamás) most ezt írta: '{prompt}'. "
@@ -129,7 +129,6 @@ with tab_chat:
                         match = re.search(r'\[UPDATE_NICHE:\s*(.*?)\]', reply_text)
                         if match:
                             new_niche = match.group(1).strip()
-                            # Frissítés Supabase-ben
                             supabase.table("settings").upsert({"key": "target_niche", "value": new_niche}).execute()
                             reply_text = re.sub(r'\[UPDATE_NICHE:.*?\]', '', reply_text).strip()
                             reply_text += f"\n\n✅ *Sikeresen frissítettem a célcsoportot a rendszerben:* **{new_niche}**"
