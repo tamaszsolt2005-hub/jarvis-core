@@ -88,7 +88,7 @@ tab_chat, tab_analytics, tab_leads, tab_logs = st.tabs([
 
 with tab_chat:
     st.subheader("Beszélgetés Jarvisszal (Dinamikus Vezérlés)")
-    st.info(f"🎯 **Aktuális célcsoport / fókusz:** `{settings.get('target_niche', még nincs beállítva)}`")
+    st.info(f"🎯 **Aktuális célcsoport / fókusz:** `{settings.get('target_niche', 'még nincs beállítva')}`")
     
     # Chat üzenetek inicializálása Session State-ben
     if "messages" not in st.session_state:
