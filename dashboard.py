@@ -8,6 +8,8 @@ import plotly.express as px
 import streamlit as st
 
 from jarvis_common import generate_text, get_secret, get_supabase, log_event
+from lead_scoring import score_lead
+from datetime import datetime, timedelta, timezone
 
 st.set_page_config(
     page_title="JARVIS | Intelligence Center",
@@ -117,7 +119,7 @@ st.sidebar.markdown("## ✦ JARVIS")
 st.sidebar.caption("INTELLIGENCE CENTER")
 page = st.sidebar.radio(
     "MUNKATERÜLET",
-    ["Áttekintés", "Leadek", "Elemzések", "AI asszisztens", "Rendszer"],
+    ["Áttekintés", "Leadek", "Értékesítési tölcsér", "Feladatok", "E-mail tervezetek", "Elemzések", "AI asszisztens", "Rendszer"],
     label_visibility="visible",
 )
 st.sidebar.divider()
@@ -158,12 +160,27 @@ if "status" not in df:
 counts = df["status"].fillna("unknown").value_counts().to_dict() if not df.empty else {}
 sent_count = counts.get("sent", 0) + counts.get("followed_up", 0)
 reply_count = counts.get("replied", 0) + counts.get("opted_out", 0)
+for lead in leads:
+    lead["lead_score"] = score_lead(lead)
+try:
+    tasks = db.table("tasks").select("*").order("due_at", desc=False).limit(500).execute().data or []
+    tasks_available = True
+except Exception:
+    tasks, tasks_available = [], False
+try:
+    drafts = db.table("email_drafts").select("*").order("created_at", desc=True).limit(200).execute().data or []
+    drafts_available = True
+except Exception:
+    drafts, drafts_available = [], False
 
 st.markdown('<div class="eyebrow">JARVIS / INTELLIGENCE CENTER</div>', unsafe_allow_html=True)
 st.title(
     {
         "Áttekintés": "Üzleti áttekintés",
         "Leadek": "Leadkezelés",
+        "Értékesítési tölcsér": "Értékesítési tölcsér",
+        "Feladatok": "Feladatközpont",
+        "E-mail tervezetek": "E-mail tervezetek",
         "Elemzések": "Teljesítmény és elemzések",
         "AI asszisztens": "JARVIS AI asszisztens",
         "Rendszer": "Rendszerállapot",
@@ -344,6 +361,102 @@ elif page == "Leadek":
     else:
         st.info("Még nincs lead az adatbázisban. Az „Új lead felvétele” résznél hozzáadhatod az elsőt.")
 
+elif page == "Értékesítési tölcsér":
+    st.subheader("Pipeline áttekintés")
+    stages = ["new", "qualified", "sent", "followed_up", "replied", "opted_out", "disqualified"]
+    cols = st.columns(len(stages))
+    for col, stage in zip(cols, stages):
+        with col:
+            st.metric(stage.replace("_", " ").title(), counts.get(stage, 0))
+    ranked = sorted(leads, key=lambda x: x.get("lead_score", 0), reverse=True)
+    if ranked:
+        st.subheader("Prioritási lista")
+        st.dataframe(pd.DataFrame([{
+            "Cég": x.get("company_name"), "E-mail": x.get("email"),
+            "Pontszám": x.get("lead_score"), "Státusz": x.get("status"),
+            "Jóváhagyva": bool(x.get("approved_to_contact")),
+        } for x in ranked[:25]]), use_container_width=True, hide_index=True)
+    st.caption("A pontszám prioritási becslés, nem kapcsolatfelvételi engedély.")
+
+elif page == "Feladatok":
+    st.subheader("Feladatok és utánkövetés")
+    if not tasks_available:
+        st.warning("A feladatmodul táblája még nincs telepítve. Futtasd a frissített supabase/schema.sql fájlt a Supabase SQL Editorban.")
+    else:
+        with st.expander("＋ Új feladat", expanded=True):
+            with st.form("create_task_form", clear_on_submit=True):
+                task_title = st.text_input("Feladat címe *")
+                task_options = ["— nincs lead —"] + [f"{x.get('company_name')} · {x.get('id')}" for x in leads]
+                task_lead = st.selectbox("Kapcsolódó lead", task_options)
+                task_due = st.date_input("Határidő", value=datetime.now().date() + timedelta(days=1))
+                task_priority = st.selectbox("Prioritás", ["normal", "high", "urgent"])
+                task_notes = st.text_area("Leírás")
+                task_submit = st.form_submit_button("Feladat létrehozása", type="primary")
+                if task_submit:
+                    if not task_title.strip():
+                        st.error("A feladat címe kötelező.")
+                    else:
+                        linked_id = task_lead.rsplit(" · ", 1)[-1] if task_lead != "— nincs lead —" else None
+                        try:
+                            db.table("tasks").insert({
+                                "title": task_title.strip(), "lead_id": linked_id,
+                                "due_at": datetime.combine(task_due, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+                                "priority": task_priority, "notes": task_notes.strip() or None, "status": "open",
+                            }).execute()
+                            log_event(db, "tasks", f"Feladat létrehozva: {task_title.strip()}")
+                            st.success("Feladat elmentve."); st.rerun()
+                        except Exception as exc:
+                            st.error("A feladat mentése nem sikerült."); st.caption(type(exc).__name__)
+        if tasks:
+            task_df = pd.DataFrame(tasks)
+            st.dataframe(task_df[[c for c in ["title", "status", "priority", "due_at", "lead_id", "notes"] if c in task_df]],
+                         use_container_width=True, hide_index=True)
+            open_tasks = [t for t in tasks if t.get("status") == "open"]
+            if open_tasks:
+                task_map = {f"{t.get('title')} · {str(t.get('id'))[:8]}": t for t in open_tasks}
+                chosen = st.selectbox("Lezárandó feladat", list(task_map))
+                if st.button("Feladat készre állítása"):
+                    item = task_map[chosen]
+                    db.table("tasks").update({"status": "done", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
+                    log_event(db, "tasks", f"Feladat lezárva: {item.get('title')}")
+                    st.rerun()
+        else:
+            st.info("Még nincs feladat.")
+
+elif page == "E-mail tervezetek":
+    st.subheader("AI-alapú e-mail-tervező")
+    st.warning("Ez a modul kizárólag piszkozatot készít és ment. E-mailt nem küld.")
+    if not drafts_available:
+        st.warning("A piszkozatok táblája még nincs telepítve. Futtasd a frissített supabase/schema.sql fájlt.")
+    elif leads:
+        chosen_lead = st.selectbox("Címzett lead", leads, format_func=lambda x: f"{x.get('company_name')} · {x.get('email')}")
+        goal = st.text_input("E-mail célja", value="Rövid szakmai bemutatkozás")
+        if st.button("Piszkozat generálása", type="primary"):
+            try:
+                generated = generate_text(
+                    "Írj magyar, tényszerű B2B e-mail PISZKOZATOT. Ne találj ki tényt, ne állíts "
+                    "nem igazolt személyre szabást. Adj tárgyat és törzset. Ne küldd el. "
+                    + "Cég: " + str(chosen_lead.get("company_name"))
+                    + "; weboldal: " + str(chosen_lead.get("website") or "nincs")
+                    + "; cél: " + goal
+                )
+                db.table("email_drafts").insert({
+                    "lead_id": chosen_lead.get("id"), "recipient": chosen_lead.get("email"),
+                    "subject": "JARVIS tervezet – ellenőrizendő", "body": generated[:8000], "status": "draft",
+                }).execute()
+                log_event(db, "email_drafts", f"Piszkozat készült: {chosen_lead.get('company_name')}")
+                st.success("Piszkozat elmentve. Küldés nem történt."); st.rerun()
+            except Exception as exc:
+                st.error("A piszkozat generálása nem sikerült."); st.caption(type(exc).__name__)
+        if drafts:
+            st.subheader("Mentett piszkozatok")
+            for item in drafts:
+                with st.expander(f"{item.get('recipient')} · {item.get('created_at')}"):
+                    st.text_area("Tartalom", value=item.get("body") or "", height=180, key=f"draft_{item.get('id')}")
+                    st.caption("Piszkozat – manuális ellenőrzés szükséges.")
+    else:
+        st.info("Előbb vegyél fel legalább egy leadet.")
+
 elif page == "Elemzések":
     st.subheader("Értékesítési teljesítmény")
     if counts:
@@ -394,9 +507,9 @@ elif page == "AI asszisztens":
                 answer = generate_text(
                     "Te vagy JARVIS, magyar B2B üzleti asszisztens. "
                     "Válaszolj magyarul, világosan és tömören. "
-                    "Fontos képességhatárok: ebben az alkalmazásban jelenleg csak a kapott összesített "
+                    "Fontos képességhatárok: ebben az alkalmazásban a kapott összesített "
                     "leadstátuszokat és naplószámot látod. Csak elemzést, javaslatot és szövegtervezetet "
-                    "adhatsz. Nem tudsz leadet létrehozni vagy módosítani, státuszt átírni, e-mailt küldeni, "
+                    "adhatsz. Nem hajthatsz végre közvetlen adatbázis-műveletet és nem küldhetsz e-mailt; "
                     "emlékeztetőt vagy feladatot létrehozni, illetve aktivitást rögzíteni. Soha ne állítsd, "
                     "hogy ilyen műveletet elvégeztél. Ha ilyet kérnek, mondd el, hogy ez a funkció még nincs "
                     "bekötve, és ajánlj biztonságos következő lépést. Ne találj ki adatot vagy rendszerfunkciót.\n"
