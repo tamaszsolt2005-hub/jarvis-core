@@ -1,6 +1,5 @@
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
 
 def audit_company_website(url):
     """Megvizsgálja a célpont weboldalát, és visszatér egy rövid elemzéssel a Gemini számára."""
@@ -14,11 +13,9 @@ def audit_company_website(url):
             return "A weboldal nehezen tölthető be vagy hiányos."
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Cím és meta leírás kinyerése
         title = soup.title.string if soup.title else "Nincs megadva cím"
-        text_sample = ' '.join([p.text for p in soup.find_all('p')[:5]]) # Első pár bekezdés
+        text_sample = ' '.join([p.text for p in soup.find_all('p')[:3]])
         
-        return f"Weboldal címe: {title}. Tartalom minta: {text_sample[:300]}..."
+        return f"Weboldal címe: {title}. Tartalom minta: {text_sample[:250]}..."
     except Exception as e:
-        return "Nem sikerült elemezni a weboldalt (lehet, hogy védett)."
+        return "Nem sikerült elemezni a weboldalt (lehet, hogy védett vagy offline)."
