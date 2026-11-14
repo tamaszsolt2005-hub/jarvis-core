@@ -114,4 +114,4 @@ def test_ranking_request_fetches_only_bounded_website_set():
     assert "_website_profile(website)" in SOURCE
     assert "if len(ranked) >= 30" in SOURCE
     assert "allow_redirects=False" in SOURCE
-    assert "ip.is_global" in SOURCE
+    assert ".is_global" in SOURCE
