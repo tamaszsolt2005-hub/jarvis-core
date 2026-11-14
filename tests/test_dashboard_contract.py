@@ -15,20 +15,29 @@ def _function_node(source: str, name: str):
     )
 
 
+def _called_methods(node):
+    return {
+        call.func.attr
+        for call in ast.walk(node)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+    }
+
+
 def test_dashboard_compiles_and_has_read_only_retrieval():
     source = DASHBOARD.read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    retrieval = next(
-        node for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "retrieve_context"
-    )
-    called_methods = {
-        node.func.attr
-        for node in ast.walk(retrieval)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    retrieval = _function_node(source, "retrieve_context")
+    safe_query = _function_node(source, "_safe_rows")
+
+    # Supabase reads are intentionally centralized in _safe_rows; the
+    # retrieval function calls that helper instead of querying tables inline.
+    assert "_safe_rows" in {
+        call.func.id
+        for call in ast.walk(retrieval)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
     }
-    assert "select" in called_methods
-    assert not ({"insert", "update", "upsert", "delete"} & called_methods)
+    assert "select" in _called_methods(safe_query)
+    assert not ({"insert", "update", "upsert", "delete"} & _called_methods(retrieval))
+    assert not ({"insert", "update", "upsert", "delete"} & _called_methods(safe_query))
 
 
 def test_dashboard_uses_chat_input_as_primary_interaction():
