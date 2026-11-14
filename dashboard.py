@@ -122,8 +122,91 @@ def _safe_rows(db: Any, table: str, columns: str, limit: int = 500) -> list[dict
     return db.table(table).select(columns).limit(limit).execute().data or []
 
 
+def _public_http_url(value: Any) -> str | None:
+    """Accept only public HTTP(S) website URLs; reject local/private destinations."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    raw = str(value or "").strip()
+    if not raw or len(raw) > 2048:
+        return None
+    candidate = raw if "://" in raw else "https://" + raw
+    try:
+        parsed = urlparse(candidate)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            return None
+        host = parsed.hostname.rstrip(".")
+        addresses = [item[4][0] for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)]
+        if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+            return None
+        return candidate
+    except (ValueError, OSError):
+        return None
+
+
+def _website_profile(url: Any) -> dict[str, Any]:
+    """Fetch a bounded public HTML page and score useful business information."""
+    import requests
+    from bs4 import BeautifulSoup
+
+    safe_url = _public_http_url(url)
+    if not safe_url:
+        return {"status": "nincs biztonságos, érvényes webcím", "score": 0, "url": str(url or "")[:200]}
+    try:
+        response = requests.get(safe_url, timeout=(3, 6), allow_redirects=False, stream=True,
+                                headers={"User-Agent": "JARVIS-Business-Research/1.0"})
+        if response.status_code >= 300:
+            response.close()
+            return {"status": f"HTTP {response.status_code}; átirányítás vagy hiba", "score": 0, "url": safe_url}
+        content_type = response.headers.get("Content-Type", "").lower()
+        if "text/html" not in content_type and "application/xhtml" not in content_type:
+            response.close()
+            return {"status": "nem HTML weboldal", "score": 0, "url": safe_url}
+        chunks, total = [], 0
+        for chunk in response.iter_content(chunk_size=16384):
+            if not chunk:
+                continue
+            remaining = 180_000 - total
+            chunks.append(chunk[:remaining])
+            total += min(len(chunk), remaining)
+            if total >= 180_000:
+                break
+        response.close()
+        soup = BeautifulSoup(b"".join(chunks), "html.parser")
+        for node in soup(["script", "style", "noscript", "svg"]):
+            node.decompose()
+        title = soup.title.get_text(" ", strip=True) if soup.title else ""
+        meta = soup.find("meta", attrs={"name": lambda value: value and value.lower() == "description"})
+        description = meta.get("content", "").strip() if meta else ""
+        text = " ".join(soup.stripped_strings)[:12000]
+        body = (title + " " + description + " " + text).casefold()
+        signals = {
+            "szolgaltatasok_vagy_termekek": any(x in body for x in ("szolgáltatás", "megoldás", "services", "solutions", "termék", "products")),
+            "kapcsolat": any(x in body for x in ("kapcsolat", "contact", "elérhetőség", "telefon", "phone")),
+            "cegbemutatas": any(x in body for x in ("rólunk", "about us", "cégün", "vállalkozás", "company")),
+            "referenciak": any(x in body for x in ("referencia", "ügyfeleink", "testimonials", "case study", "partnereink")),
+            "ajanlatkeres_cta": any(x in body for x in ("ajánlatkérés", "request a quote", "book a call", "időpontfoglalás", "kapcsolatfelvétel")),
+        }
+        score = (10 if safe_url.startswith("https://") else 0)
+        score += 10 if title else 0
+        score += 10 if description else 0
+        score += 15 if len(text) >= 500 else (7 if len(text) >= 150 else 0)
+        score += 15 if signals["szolgaltatasok_vagy_termekek"] else 0
+        score += 10 if signals["kapcsolat"] else 0
+        score += 10 if signals["cegbemutatas"] else 0
+        score += 10 if signals["referenciak"] else 0
+        score += 10 if signals["ajanlatkeres_cta"] else 0
+        score += 10 if len(text) >= 1500 else 0
+        return {"status": "sikeresen beolvasva", "url": safe_url, "score": min(score, 100),
+                "title": title[:300], "description": description[:500], "signals": signals,
+                "content_excerpt": text[:3500]}
+    except requests.RequestException as exc:
+        return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": safe_url}
+
+
 def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
-    """Choose only the datasets relevant to the user's natural-language question."""
+    """Choose relevant datasets and score public lead websites on ranking requests."""
     q = question.casefold()
     sections: list[str] = []
     loaded: list[str] = []
@@ -134,6 +217,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     wants_drafts = wants_all or any(x in q for x in ("piszkozat", "tervezet", "e-mail", "email", "levél"))
     wants_logs = wants_all or any(x in q for x in ("napló", "aktivit", "hiba", "rendszer"))
     wants_analytics = any(x in q for x in ("elemz", "analíz", "analiz", "teljesít", "trend", "statiszt", "arány"))
+    wants_ranking = any(x in q for x in ("rangsor", "rangsorol", "pontoz", "priorit", "legjobb lead", "legjobb cég", "melyik lead", "weboldal"))
 
     # A generic business question receives a compact overview, not an empty context.
     if not any((wants_leads, wants_tasks, wants_drafts, wants_logs)):
@@ -146,7 +230,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         # website that may not exist in an older database.
         raw_rows = _safe_rows(db, "leads", "*", 1500)
         allowed_lead_fields = {
-            "id", "company_name", "source", "status", "approved_to_contact",
+            "id", "company_name", "website", "source", "status", "approved_to_contact",
             "opted_out", "reply_category", "created_at", "next_follow_up_at",
             "follow_up_count",
         }
@@ -157,8 +241,32 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         frame = pd.DataFrame(rows)
         counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
         # Deliberately exclude personal email addresses and free-text notes from model context.
-        sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
-                        + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\n"
+        if wants_ranking:
+            ranked = []
+            # Inspect at most 30 lead websites per explicit ranking request.
+            for lead in rows[:500]:
+                website = lead.get("website")
+                if not website:
+                    continue
+                profile = _website_profile(website)
+                ranked.append({
+                    "company_name": lead.get("company_name"),
+                    "lead_id": lead.get("id"),
+                    "lead_status": lead.get("status"),
+                    "website_profile": profile,
+                })
+                if len(ranked) >= 30:
+                    break
+            ranked.sort(key=lambda item: item["website_profile"].get("score", 0), reverse=True)
+            sections.append(
+                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; a pontszám a weboldal teljességét és üzleti információtartalmát jelzi, nem bizonyít vásárlási szándékot):\\n"
+                + pd.DataFrame(ranked).to_json(orient="records", force_ascii=False)
+                + "\\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
+                + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben."
+            )
+            loaded.append("lead-weboldalak és rangsorolás")
+        sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\\n"
+                        + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\\n"
                         + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("leadek")
 
