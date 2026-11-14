@@ -20,43 +20,78 @@ from jarvis_common import generate_text, get_secret, get_supabase
 st.set_page_config(
     page_title="JARVIS | AI Workspace",
     page_icon="✦",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 st.markdown(
     """
     <style>
-    :root { color-scheme:dark; --ink:#e8eefb; --muted:#91a0ba; --line:rgba(145,166,205,.17); --panel:rgba(15,25,45,.82); --accent:#69a7ff; }
-    .stApp { background:radial-gradient(ellipse at 50% -18%, #1b3762 0%, #0b1425 47%, #070d18 100%); color:var(--ink); }
-    [data-testid="stHeader"] { background:transparent; }
-    [data-testid="stToolbar"] { right:1rem; }
-    .block-container { max-width:980px; padding-top:2.1rem; padding-bottom:7rem; }
-    h1,h2,h3,p,label,span { color:var(--ink); }
-    h1 { font-weight:760; letter-spacing:-.045em; }
-    .jarvis-topbar { display:flex; align-items:center; gap:13px; padding:13px 16px; margin-bottom:2.1rem; border:1px solid var(--line); border-radius:18px; background:rgba(10,20,38,.66); box-shadow:0 12px 44px rgba(0,0,0,.18); backdrop-filter:blur(16px); }
-    .jarvis-mark { width:39px; height:39px; display:grid; place-items:center; border-radius:13px; color:#dceaff; font-size:21px; background:linear-gradient(145deg,#2f72d5,#61b5ff); box-shadow:0 0 25px rgba(67,145,255,.34); }
-    .jarvis-brand { font-weight:800; letter-spacing:.17em; font-size:.86rem; color:#f2f6ff; }
-    .jarvis-brand-sub { font-size:.68rem; letter-spacing:.11em; color:#8296b6; margin-top:2px; }
-    .jarvis-live { margin-left:auto; color:#9fd8c0; font-size:.69rem; letter-spacing:.1em; border:1px solid rgba(91,205,155,.25); background:rgba(44,155,111,.1); padding:6px 10px; border-radius:30px; }
-    .jarvis-hero { text-align:center; padding:1.25rem 0 1.65rem; }
-    .jarvis-orb { width:72px; height:72px; margin:0 auto 1.15rem; display:grid; place-items:center; border-radius:24px; font-size:34px; color:#eaf4ff; background:radial-gradient(circle at 32% 25%,#79c6ff,#3677dc 58%,#173c79); box-shadow:0 0 0 8px rgba(76,143,239,.07),0 0 55px rgba(53,132,240,.28); }
-    .jarvis-kicker { color:#77b5ff; font-size:.68rem; font-weight:800; letter-spacing:.23em; margin-bottom:.7rem; }
-    .jarvis-hero h1 { font-size:clamp(2rem,5vw,3.1rem); margin:0 0 .55rem; color:#f2f6ff; }
-    .jarvis-hero p { max-width:610px; margin:0 auto; color:#9aabc5; font-size:.96rem; line-height:1.65; }
-    .jarvis-prompts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:1rem 0 2rem; }
-    .jarvis-prompt { padding:13px 14px; border:1px solid var(--line); border-radius:14px; background:rgba(16,29,51,.68); color:#b8c8e0; font-size:.81rem; line-height:1.5; }
-    [data-testid="stChatMessage"] { border:1px solid var(--line); border-radius:18px; background:rgba(14,25,44,.83); padding:1rem 1.1rem; backdrop-filter:blur(12px); }
-    [data-testid="stChatMessage"][data-testid="chat-message-assistant"] { border-color:rgba(87,157,255,.23); }
-    [data-testid="stChatInput"] { border:1px solid rgba(112,164,231,.32); border-radius:18px; background:rgba(12,23,41,.96); box-shadow:0 10px 42px rgba(0,0,0,.25); }
-    [data-testid="stChatInput"] textarea { color:#edf4ff !important; }
-    [data-testid="stChatInput"] button { color:#82bdff !important; }
-    [data-testid="stMarkdownContainer"] p { line-height:1.68; }
-    [data-testid="stCaptionContainer"] p { color:#8295b2; font-size:.7rem; }
-    div.stButton > button { border:1px solid var(--line); border-radius:12px; background:rgba(18,33,56,.78); color:#c6d5ec; }
-    div.stButton > button:hover { border-color:rgba(105,167,255,.6); color:white; }
-    .jarvis-footer { text-align:center; color:#647895; font-size:.69rem; letter-spacing:.07em; margin-top:2rem; }
-    @media(max-width:700px) { .block-container{padding:1rem 1rem 6rem;} .jarvis-prompts{grid-template-columns:1fr;} .jarvis-topbar{margin-bottom:1.2rem;} }
+    :root { color-scheme:dark; --ink:#edf4ff; --muted:#9bb0ce; --line:rgba(91,160,238,.24); --blue:#168cff; }
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"], .stApp,
+    [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
+        background:#041326 !important; color:var(--ink) !important;
+    }
+    [data-testid="stHeader"] { background:transparent !important; }
+    [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer { visibility:hidden !important; }
+    [data-testid="stSidebar"], [data-testid="collapsedControl"] { display:none !important; }
+    .block-container { max-width:1220px !important; padding:1.8rem 2rem 9rem !important; }
+    .jarvis-topbar { display:flex; align-items:center; gap:14px; padding:14px 18px; margin:0 auto 1rem;
+        max-width:1120px; border:1px solid rgba(94,163,239,.2); border-radius:18px;
+        background:linear-gradient(110deg,rgba(9,36,68,.96),rgba(7,23,44,.88));
+        box-shadow:0 12px 45px rgba(0,0,0,.2); }
+    .jarvis-mark { width:42px;height:42px;display:grid;place-items:center;border-radius:14px;
+        color:white;font-size:24px;background:linear-gradient(145deg,#36a4ff,#0755bd);
+        box-shadow:0 0 28px rgba(28,137,255,.42); }
+    .jarvis-brand { color:#f2f7ff;font-weight:850;letter-spacing:.24em;font-size:.9rem; }
+    .jarvis-brand-sub { color:#819cbd;font-size:.62rem;letter-spacing:.16em;margin-top:3px; }
+    .jarvis-live { margin-left:auto;color:#a6e4ce;font-size:.68rem;letter-spacing:.13em;
+        padding:7px 12px;border-radius:30px;border:1px solid rgba(86,213,164,.3);background:rgba(29,155,111,.12); }
+    .jarvis-hero { text-align:center; padding:3.2rem 0 1.2rem; }
+    .jarvis-orb-wrap { width:190px;height:190px;margin:0 auto 2rem;display:grid;place-items:center;
+        border-radius:50%;position:relative;background:radial-gradient(circle,rgba(34,139,255,.22),rgba(13,65,132,.12) 58%,transparent 72%);
+        filter:drop-shadow(0 0 38px rgba(19,117,255,.25)); }
+    .jarvis-orb { width:154px;height:154px;border-radius:50%;display:grid;place-items:center;position:relative;
+        color:#f3fbff;font-size:65px;
+        background:radial-gradient(circle at 32% 24%,#55c8ff 0%,#126bd0 27%,#061b4c 62%,#020b20 100%);
+        border:2px solid rgba(89,190,255,.9);
+        box-shadow:inset -15px -18px 34px rgba(0,0,0,.65),inset 9px 8px 22px rgba(99,203,255,.5),
+        0 0 0 10px rgba(31,130,255,.08),0 0 55px rgba(20,132,255,.42); }
+    .jarvis-orb:before { content:"";position:absolute;inset:13px;border-radius:50%;border:1px solid rgba(132,211,255,.36);
+        box-shadow:0 0 22px rgba(64,169,255,.22); }
+    .jarvis-kicker { color:#69b8ff;font-size:.7rem;font-weight:850;letter-spacing:.27em;margin-bottom:1rem; }
+    .jarvis-hero h1 { color:#f0f6ff;font-size:clamp(2.2rem,5vw,4rem);font-weight:820;letter-spacing:-.055em;margin:0 0 .75rem; }
+    .jarvis-hero h1 span { background:linear-gradient(90deg,#d8eaff,#64b7ff);-webkit-background-clip:text;background-clip:text;color:transparent; }
+    .jarvis-hero p { max-width:690px;margin:0 auto;color:#a3b5ce;font-size:1rem;line-height:1.75; }
+    .jarvis-prompts { display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin:2rem auto 1.5rem;max-width:920px; }
+    .jarvis-prompt { border:1px solid rgba(65,153,239,.34);border-radius:999px;padding:11px 17px;
+        background:linear-gradient(180deg,rgba(16,63,112,.72),rgba(7,31,60,.88));color:#d2e6ff;
+        font-size:.82rem;box-shadow:inset 0 1px rgba(255,255,255,.05); }
+    [data-testid="stChatMessage"] { background:rgba(7,28,52,.9) !important;border:1px solid rgba(67,150,232,.28) !important;
+        border-radius:18px !important;padding:1rem 1.15rem !important;color:#eaf3ff !important; }
+    [data-testid="stChatMessage"] p,[data-testid="stChatMessage"] li { color:#eaf3ff !important;line-height:1.7; }
+    [data-testid="stBottom"] { background:linear-gradient(180deg,rgba(4,19,38,0),#041326 32%) !important;
+        border-top:0 !important;padding:1.2rem 1rem 1.6rem !important; }
+    [data-testid="stBottom"] > div { max-width:960px !important; }
+    [data-testid="stChatInput"],[data-testid="stChatInput"] > div { background:rgba(5,27,53,.98) !important;
+        border:1px solid rgba(58,157,255,.62) !important;border-radius:22px !important;
+        box-shadow:0 12px 48px rgba(0,0,0,.42),0 0 24px rgba(20,116,226,.12) !important; }
+    [data-testid="stChatInput"] textarea { color:#f0f7ff !important;caret-color:#5bb8ff !important; }
+    [data-testid="stChatInput"] textarea::placeholder { color:#8ba7c8 !important; }
+    [data-testid="stChatInput"] button { color:#6dbaff !important; }
+    [data-testid="stMarkdownContainer"] p { line-height:1.7; }
+    [data-testid="stCaptionContainer"] p { color:#7f9bbb !important;font-size:.7rem; }
+    .jarvis-footer { text-align:center;color:#6684a7;font-size:.65rem;letter-spacing:.15em;margin:2.2rem 0 1rem; }
+    @media(max-width:700px) {
+        .block-container { padding:1rem 1rem 8rem !important; }
+        .jarvis-topbar { margin-bottom:.4rem;padding:11px 13px; }
+        .jarvis-hero { padding:2.2rem 0 1rem; }
+        .jarvis-orb-wrap { width:145px;height:145px;margin-bottom:1.4rem; }
+        .jarvis-orb { width:118px;height:118px;font-size:48px; }
+        .jarvis-prompts { gap:8px;margin-top:1.3rem; }
+        .jarvis-prompt { font-size:.74rem;padding:9px 13px; }
+        [data-testid="stBottom"] { padding:1rem .7rem 1.2rem !important; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -159,27 +194,22 @@ st.markdown(
     '<div class="jarvis-live">● READY</div></div>',
     unsafe_allow_html=True,
 )
-head_left, head_right = st.columns([7, 1])
-with head_left:
-    st.markdown(
-        '<div class="jarvis-hero"><div class="jarvis-orb">✦</div>'
-        '<div class="jarvis-kicker">YOUR AI BUSINESS PARTNER</div>'
-        '<h1>Jó napot. Miben segíthetek?</h1>'
-        '<p>Kérdezz az üzleti működésedről. Lekérdezem a releváns adatokat, összefüggéseket keresek, '
-        'és érthető, döntéstámogató elemzést készítek.</p></div>',
-        unsafe_allow_html=True,
-    )
-with head_right:
-    if st.button("Kilépés", help="Kijelentkezés"):
-        st.session_state.clear()
-        st.rerun()
+st.markdown(
+    '<div class="jarvis-hero"><div class="jarvis-orb-wrap"><div class="jarvis-orb">✦</div></div>'
+    '<div class="jarvis-kicker">YOUR AI BUSINESS PARTNER</div>'
+    '<h1>Welcome to <span>JARVIS</span></h1>'
+    '<p>Kérdezz az üzleti működésedről. JARVIS valós időben lekérdezi a releváns adatokat, '
+    'összefüggéseket tár fel, és döntéstámogató elemzést készít.</p></div>',
+    unsafe_allow_html=True,
+)
+
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
         '<div class="jarvis-prompts">'
-        '<div class="jarvis-prompt">⌁ &nbsp; Elemezd az értékesítési teljesítményünket és a fő trendeket.</div>'
-        '<div class="jarvis-prompt">◈ &nbsp; Mely területeken van a legnagyobb növekedési lehetőség?</div>'
-        '<div class="jarvis-prompt">⌖ &nbsp; Készíts áttekintést a leadek állapotáról és a következő teendőkről.</div>'
+        '<div class="jarvis-prompt">✧ &nbsp; Értékesítési elemzés</div>'
+        '<div class="jarvis-prompt">◈ &nbsp; Növekedési lehetőségek</div>'
+        '<div class="jarvis-prompt">⌖ &nbsp; Lead- és pipeline áttekintés</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -233,4 +263,4 @@ if prompt:
         st.session_state.chat.append(("assistant", "Most nem sikerült lekérdeznem vagy elemeznem az adatokat. Ellenőrizd a kapcsolatot, majd próbáld újra."))
 
 
-st.markdown('<div class="jarvis-footer">JARVIS INTELLIGENCE CORE &nbsp;·&nbsp; READ-ONLY DATA ACCESS &nbsp;·&nbsp; HUMAN-LED DECISIONS</div>', unsafe_allow_html=True)
+st.markdown('<div class="jarvis-footer">J.A.R.V.I.S &nbsp;·&nbsp; BUSINESS INTELLIGENCE &nbsp;·&nbsp; SECURE SESSION</div>', unsafe_allow_html=True)
