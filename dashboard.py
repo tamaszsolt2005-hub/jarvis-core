@@ -289,7 +289,13 @@ elif page == "AI asszisztens":
             try:
                 answer = generate_text(
                     "Te vagy JARVIS, magyar B2B üzleti asszisztens. "
-                    "Válaszolj magyarul, világosan és tömören.\n"
+                    "Válaszolj magyarul, világosan és tömören. "
+                    "Fontos képességhatárok: ebben az alkalmazásban jelenleg csak a kapott összesített "
+                    "leadstátuszokat és naplószámot látod. Csak elemzést, javaslatot és szövegtervezetet "
+                    "adhatsz. Nem tudsz leadet létrehozni vagy módosítani, státuszt átírni, e-mailt küldeni, "
+                    "emlékeztetőt vagy feladatot létrehozni, illetve aktivitást rögzíteni. Soha ne állítsd, "
+                    "hogy ilyen műveletet elvégeztél. Ha ilyet kérnek, mondd el, hogy ez a funkció még nincs "
+                    "bekötve, és ajánlj biztonságos következő lépést. Ne találj ki adatot vagy rendszerfunkciót.\n"
                     + context
                     + "\nBeszélgetési előzmény: "
                     + "\n".join(f"{r}: {m}" for r, m in st.session_state.chat[-8:])
