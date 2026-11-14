@@ -1,51 +1,55 @@
-import os
-import imaplib
-from supabase import create_client, Client
+"""Read recent Gmail replies, classify them and stop future outreach."""
+from __future__ import annotations
+import email,imaplib
+from email.header import decode_header
+from email.utils import parseaddr
+from jarvis_common import get_secret,get_supabase,log_event
+from reply_analyzer import classify_reply
 
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
+def _decode(value):
+    if not value: return ""
+    out=[]
+    for part,enc in decode_header(value):
+        out.append(part.decode(enc or "utf-8",errors="replace") if isinstance(part,bytes) else part)
+    return " ".join(out)
 
-EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+def _body(msg):
+    chunks=[]
+    for part in msg.walk() if msg.is_multipart() else [msg]:
+        if part.get_content_type()=="text/plain" and part.get_content_disposition()!="attachment":
+            payload=part.get_payload(decode=True)
+            if payload: chunks.append(payload.decode(part.get_content_charset() or "utf-8",errors="replace"))
+    return "\n".join(chunks)[:10000]
 
-def check_inbox_replies():
-    print("Inbox Monitor (Válasz-figyelő) modul elindult...")
+def run():
+    user,password=get_secret("EMAIL_USER"),get_secret("EMAIL_PASSWORD")
+    if not user or not password:
+        print("Inbox monitor kihagyva: hiányzik az EMAIL_USER vagy EMAIL_PASSWORD."); return
+    db=get_supabase()
+    leads=db.table("leads").select("*").in_("status",["sent","followed_up"]).limit(300).execute().data or []
+    mail=imaplib.IMAP4_SSL(get_secret("IMAP_HOST","imap.gmail.com"),int(get_secret("IMAP_PORT","993")))
     try:
-        # Csatlakozás az IMAP szerverhez (Gmail)
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(EMAIL_USER, EMAIL_PASSWORD)
-        mail.select("inbox")
+        mail.login(user,password); mail.select("INBOX")
+        for lead in leads:
+            address=str(lead.get("email") or "").replace('"',"")
+            if not address: continue
+            status,data=mail.search(None,"FROM",f'"{address}"')
+            if status!="OK" or not data or not data[0]: continue
+            for msg_id in data[0].split()[-5:]:
+                status,raw=mail.fetch(msg_id,"(RFC822)")
+                if status!="OK" or not raw or not isinstance(raw[0],tuple): continue
+                msg=email.message_from_bytes(raw[0][1])
+                mid=msg.get("Message-ID")
+                if mid and mid==lead.get("last_inbound_message_id"): continue
+                if parseaddr(msg.get("From",""))[1].lower()!=address.lower(): continue
+                category=classify_reply(_body(msg))
+                db.table("leads").update({"status":"opted_out" if category=="opt_out" else "replied",
+                    "reply_category":category,"last_inbound_message_id":mid,
+                    "opted_out":category=="opt_out","next_follow_up_at":None}).eq("id",lead["id"]).execute()
+                log_event(db,"inbox_monitor",f"Válasz feldolgozva ({category}): {lead.get('company_name')}")
+                break
+    finally:
+        try: mail.logout()
+        except Exception: pass
 
-        # Aktív, megkeresett leidek lekérdezése
-        response = supabase.table("leads").select("*").in_("status", ["sent", "followed_up"]).execute()
-        active_leads = response.data
-
-        if not active_leads:
-            print("Nincs figyelt lead a postaládában.")
-            mail.logout()
-            return
-
-        for lead in active_leads:
-            sender_email = lead["email"]
-            # Keresés az e-mail cím alapján a bejövők között
-            status, messages = mail.search(None, f'(FROM "{sender_email}")')
-            
-            if status == "OK" and messages[0]:
-                print(f"Válasz érkezett ettől a leidtől: {sender_email} ({lead['company_name']})!")
-                
-                # Státusz frissítése 'replied'-ra (megállítja a további follow-upokat)
-                supabase.table("leads").update({"status": "replied"}).eq("id", lead["id"]).execute()
-                
-                supabase.table("logs").insert({
-                    "module": "inbox_monitor",
-                    "message": f"Válasz érkezett, státusz frissítve 'replied'-ra: {lead['company_name']}"
-                }).execute()
-
-        mail.logout()
-        print("Inbox monitor futás sikeresen lefutott.")
-    except Exception as e:
-        print(f"Hiba az inbox monitorban: {e}")
-
-if __name__ == "__main__":
-    check_inbox_replies()
+if __name__=="__main__": run()
