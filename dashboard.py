@@ -259,14 +259,14 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                     break
             ranked.sort(key=lambda item: item["website_profile"].get("score", 0), reverse=True)
             sections.append(
-                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; a pontszám a weboldal teljességét és üzleti információtartalmát jelzi, nem bizonyít vásárlási szándékot):\\n"
+                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; a pontszám a weboldal teljességét és üzleti információtartalmát jelzi, nem bizonyít vásárlási szándékot):\n"
                 + pd.DataFrame(ranked).to_json(orient="records", force_ascii=False)
-                + "\\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
+                + "\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
                 + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben."
             )
             loaded.append("lead-weboldalak és rangsorolás")
-        sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\\n"
-                        + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\\n"
+        sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
+                        + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\n"
                         + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("leadek")
 
@@ -407,7 +407,7 @@ if prompt:
     except Exception as exc:
         # Show actionable diagnostics without ever printing configured credentials.
         import re
-        detail = str(exc).replace("\\n", " ").strip()
+        detail = str(exc).replace("\n", " ").strip()
         detail = re.sub(r"(?i)(api[_ -]?key|service[_ -]?role[_ -]?key|password|token)(\\s*[:=]\\s*)\\S+", r"\\1\\2[REDACTED]", detail)
         detail = re.sub(r"(?i)eyJ[A-Za-z0-9_-]{20,}\\.?[A-Za-z0-9_.-]*", "[REDACTED_TOKEN]", detail)
         detail = detail[:500] or "Nincs további hibaüzenet."
