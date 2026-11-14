@@ -1,0 +1,2 @@
+company_name,email,website,notes,source,consent_basis,approved_to_contact,consent_confirmed_at
+Example Kft.,contact@example.org,https://example.org,Sample row only,manual_review,consent,true,2026-01-01T10:00:00+00:00

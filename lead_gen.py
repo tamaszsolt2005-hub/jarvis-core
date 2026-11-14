@@ -1,71 +1,30 @@
-import os
-import time
-import requests
-from bs4 import BeautifulSoup
-from supabase import create_client, Client
-
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
-
-def deep_scrape_leads():
-    print("Mély weboldal-elemző Scraper modul elindult...")
-    
-    # Célpontok weboldalakkal és kiinduló adatokkal
-    target_leads = [
-        {
-            "company_name": "Süti Varázs Debrecen", 
-            "email": "kapcsolat@sutivarazs.hu", 
-            "website": "https://example.com", 
-            "status": "new", 
-            "notes": "Hagyományos felület, nincs online asztalfoglalás."
-        },
-        {
-            "company_name": "Mézeskalács Műhely Debrecen", 
-            "email": "info@mezeskalacsmuhely.hu", 
-            "website": "https://example.com", 
-            "status": "new", 
-            "notes": "Közösségi médiára fókuszálnak, hiányzik a modern webshop."
-        }
-    ]
-    
-    added_count = 0
-    skipped_count = 0
-
-    for lead in target_leads:
-        try:
-            # Szigorú duplikációszűrés
-            existing = supabase.table("leads").select("*").eq("company_name", lead["company_name"]).execute()
-            
-            if not existing.data:
-                # Weboldal mélyebb elemzése (Deep Scraping szimuláció)
-                try:
-                    res = requests.get(lead["website"], timeout=5)
-                    soup = BeautifulSoup(res.text, 'html.parser')
-                    title = soup.title.string if soup.title else "Nincs cím"
-                    lead["notes"] += f" [Elemzett oldal címe: {title}]"
-                except:
-                    pass
-
-                supabase.table("leads").insert(lead).execute()
-                print(f"Új lead mentve mély web-elemzéssel: {lead['company_name']}")
-                
-                supabase.table("logs").insert({
-                    "module": "deep_scraper", 
-                    "message": f"Mélyelemzéssel mentve: {lead['company_name']}"
-                }).execute()
-                
-                added_count += 1
-            else:
-                print(f"Már létezik az adatbázisban, kihagyva: {lead['company_name']}")
-                skipped_count += 1
-                
-            time.sleep(1)
-            
-        except Exception as e:
-            print(f"Hiba a mély web-elemzés során ({lead['company_name']}): {e}")
-            
-    print(f"Adatgyűjtés kész. Új hozzáadva: {added_count}, Kihagyva: {skipped_count}")
-
-if __name__ == "__main__":
-    deep_scrape_leads()
+"""Import manually reviewed CSV records; never invent prospect identities."""
+from __future__ import annotations
+import csv,re
+from datetime import datetime
+from jarvis_common import get_supabase,log_event
+EMAIL_RE=re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+def _truth(value): return str(value).strip().lower() in {"true","1","yes","igen"}
+def run(path="data/leads.csv"):
+    db=get_supabase(); imported=skipped=0
+    with open(path,newline="",encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            company=(row.get("company_name") or "").strip()
+            address=(row.get("email") or "").strip().lower()
+            basis=(row.get("consent_basis") or "").strip().lower()
+            approved=_truth(row.get("approved_to_contact",""))
+            confirmed=(row.get("consent_confirmed_at") or "").strip()
+            try: datetime.fromisoformat(confirmed.replace("Z","+00:00")); valid_time=True
+            except ValueError: valid_time=False
+            if not company or not EMAIL_RE.fullmatch(address) or basis!="consent" or not approved or not valid_time:
+                skipped+=1; continue
+            exists=db.table("leads").select("id").eq("email",address).limit(1).execute().data
+            if exists: skipped+=1; continue
+            db.table("leads").insert({"company_name":company,"email":address,"website":(row.get("website") or "").strip(),
+                "notes":(row.get("notes") or "").strip(),"source":(row.get("source") or "reviewed_csv").strip(),
+                "consent_basis":"consent","approved_to_contact":True,"consent_confirmed_at":confirmed,
+                "opted_out":False,"status":"new"}).execute()
+            imported+=1
+    log_event(db,"lead_gen",f"CSV import: {imported} új lead, {skipped} kihagyva.")
+    print(f"Import kész: {imported} új, {skipped} kihagyott rekord.")
+if __name__=="__main__": run()

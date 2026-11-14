@@ -1,98 +1,57 @@
-import os
-import smtplib
-import time
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from supabase import create_client, Client
-import google.generativeai as genai
-
-from web_auditor import audit_company_website
+"""Send first-contact emails only for reviewed, timestamp-consented records."""
+from __future__ import annotations
+import re, time
+from datetime import datetime, timedelta, timezone
+from email_utils import send_email
+from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event
 from lead_scoring import score_lead
+from web_auditor import audit_company_website
 
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
-EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
-
-def send_ai_outreach_emails():
-    print("AI Alapú E-mail Küldő (Fejlett modulok) elindult...")
-    
+def _valid_consent(lead: dict) -> bool:
+    if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True or lead.get("opted_out") is True:
+        return False
     try:
-        response = supabase.table("leads").select("*").eq("status", "new").execute()
-        leads = response.data
-        
-        if not leads:
-            print("Nincs új, kiküldésre váró lead.")
-            return
+        datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z","+00:00"))
+        return True
+    except (TypeError,ValueError):
+        return False
 
-        # Leidek rendezése pontszám szerint (a legjobbakat küldjük előre)
-        for lead in leads:
-            lead["calculated_score"] = score_lead(lead)
-        
-        leads.sort(key=lambda x: x["calculated_score"], reverse=True)
-        
-        # Biztonságos batch limit: maximum 3 darab futásonként
-        batch_leads = leads[:3]
-        print(f"Ebben a körben feldolgozott top leidek száma: {len(batch_leads)}")
+def _draft(lead: dict) -> tuple[str,str]:
+    audit = audit_company_website(lead.get("website"))
+    prompt = ("Írj rövid, tényszerű, magyar B2B bemutatkozó e-mailt. Ne találj ki tényeket. "
+              "Legyen udvarias, átlátható, és tartalmazzon egyszerű leiratkozási lehetőséget. "
+              f"Cég: {lead.get('company_name')}\nWeboldal audit: {audit}\n"
+              f"Ajánlatunk: {get_secret('OFFER_DESCRIPTION','üzleti automatizációs megoldás')}")
+    text = generate_text(prompt)
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    subject = lines[0].removeprefix("Tárgy:").strip()[:180] if lines else "Rövid szakmai bemutatkozás"
+    body = "\n".join(lines[1:])[:5000] if len(lines)>1 else text[:5000]
+    return subject,body
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
+def run() -> None:
+    if not env_bool("AUTO_SEND_ENABLED",False):
+        print("Biztonsági mód: AUTO_SEND_ENABLED nem true, e-mail nem kerül kiküldésre."); return
+    db=get_supabase()
+    rows=db.table("leads").select("*").eq("status","new").limit(100).execute().data or []
+    eligible=[x for x in rows if _valid_consent(x) and EMAIL_RE.fullmatch(str(x.get("email") or ""))]
+    eligible.sort(key=score_lead,reverse=True)
+    for lead in eligible[:env_int("SEND_MAX_PER_RUN",3,1,10)]:
+        try:
+            subject,body=_draft(lead)
+            claim=db.table("leads").update({"status":"sending"}).eq("id",lead["id"]).eq("status","new").select("id").execute()
+            if not claim.data: continue
+            msgid=send_email(lead["email"],subject,body)
+            now=datetime.now(timezone.utc)
+            db.table("leads").update({"status":"sent","first_sent_at":now.isoformat(),
+                "next_follow_up_at":(now+timedelta(days=env_int("FOLLOW_UP_DAYS",5,2,30))).isoformat(),
+                "last_message_id":msgid}).eq("id",lead["id"]).execute()
+            log_event(db,"email_sender",f"Első levél elküldve: {lead.get('company_name')}")
+            time.sleep(env_int("SEND_DELAY_SECONDS",30,10,600))
+        except Exception as exc:
+            log_event(db,"email_sender",f"Küldési hiba ({lead.get('company_name')}): {type(exc).__name__}","error")
+            try: db.table("leads").update({"status":"send_error"}).eq("id",lead["id"]).eq("status","sending").execute()
+            except Exception: pass
 
-        for lead in batch_leads:
-            company_name = lead["company_name"]
-            recipient_email = lead["email"]
-            company_url = lead.get("website", "")
-
-            # Webhely elemzése az egyedi érvekhez
-            audit_info = audit_company_website(company_url)
-            
-            prompt = (
-                f"Írj egy nagyon rövid, barátságos és közvetlen B2B hideg megkereső e-mailt magyarul "
-                f"a '{company_name}' nevű debreceni cégnek. "
-                f"Weboldal elemzés / háttér info: {audit_info}. "
-                f"Ajánld fel a webfejlesztési és AI chatbot/automatizációs megoldásainkat. "
-                f"Ne használj helyőrzőket, hanem írd alá közvetlenül Tomként (Vantrox / SoftScale). "
-                f"Legyen természetes és modern hangvételű."
-            )
-            
-            ai_response = model.generate_content(prompt)
-            email_body = ai_response.text
-
-            msg = MIMEMultipart()
-            msg["From"] = EMAIL_USER
-            msg["To"] = recipient_email
-            msg["Subject"] = f"Fejlesztési ötlet a(z) {company_name} online rendszeréhez"
-            msg.attach(MIMEText(email_body, "plain", "utf-8"))
-
-            server.sendmail(EMAIL_USER, recipient_email, msg.as_string())
-            print(f"Személyre szabott e-mail elküldve ide: {recipient_email} ({company_name})")
-
-            # Státusz frissítése és pontszám mentése
-            supabase.table("leads").update({
-                "status": "sent",
-                "score": lead["calculated_score"]
-            }).eq("id", lead["id"]).execute()
-
-            supabase.table("logs").insert({
-                "module": "advanced_email_sender", 
-                "message": f"Személyre szabott levél elküldve: {company_name} (Pontszám: {lead['calculated_score']})"
-            }).execute()
-
-            print("Várakozás a következő levél előtt...")
-            time.sleep(30)
-
-        server.quit()
-        print("A batch küldés sikeresen lefutott.")
-
-    except Exception as e:
-        print(f"Hiba történt az e-mailek küldése során: {e}")
-
-if __name__ == "__main__":
-    send_ai_outreach_emails()
+if __name__=="__main__": run()
