@@ -1,10 +1,10 @@
 # JARVIS – Business Intelligence & Sales Operations
 
-A projekt Streamlit dashboardot, Supabase adatbázist és Google Gemini AI-t használ. Az automatikus e-mailküldés biztonsági okból alapértelmezetten ki van kapcsolva.
+A projekt Streamlit dashboardot, Supabase adatbázist és Google Gemini AI-t használ. A dashboard leadkezelést, prioritási pontozást, értékesítési tölcsért, feladatközpontot és AI-alapú e-mail-piszkozatokat tartalmaz. Az automatikus e-mailküldés biztonsági okból alapértelmezetten ki van kapcsolva.
 
 ## Biztonságos telepítés
 1. Készíts Supabase adatbázismentést.
-2. Futtasd a `supabase/schema.sql` fájlt a Supabase SQL Editorban.
+2. Futtasd a `supabase/schema.sql` fájlt a Supabase SQL Editorban. Ez létrehozza a lead-, napló-, feladat- és e-mail-piszkozat táblákat.
 3. Állítsd be a GitHub Actions Secrets értékeit: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `EMAIL_USER`, `EMAIL_PASSWORD`.
 4. A Codespaces Streamlit titkokhoz használd a `.streamlit/secrets.toml.example` fájlt mintaként. A valódi titkokat soha ne commitold.
 5. Hagyd az `AUTO_SEND_ENABLED=false` értéket, amíg a beállításokat, jogalapot és címzettlistát nem ellenőrizted.
@@ -18,5 +18,6 @@ A `lead_gen.py` csak a felülvizsgált `data/leads.csv` fájlt importálja. Köt
 - `python email_sender.py`: első levelek (csak explicit engedélyezéskor).
 - `python follow_up.py`: esedékes utánkövetés (csak explicit engedélyezéskor).
 - `streamlit run dashboard.py`: dashboard a 8501-es porton.
+- A Feladatok és E-mail tervezetek modulok csak a frissített `supabase/schema.sql` telepítése után használhatók. A piszkozatgenerálás nem küld levelet; a küldő modul továbbra is külön, alapértelmezetten tiltott.
 
 A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a célország szerinti marketingjogi ellenőrzést. Használj jogszerű adatforrást, átlátható azonosítást és egyértelmű leiratkozási lehetőséget.
