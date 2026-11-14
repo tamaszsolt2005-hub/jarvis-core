@@ -227,40 +227,53 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    stage = "Supabase-kapcsolat"
     try:
         db = st.session_state.get("_jarvis_db")
         if db is None:
             db = get_supabase()
             st.session_state["_jarvis_db"] = db
+
+        stage = "Supabase-adatlekérdezés"
         with st.spinner("JARVIS lekérdezi a szükséges adatokat és elemez…"):
             context, loaded_sources = retrieve_context(db, prompt)
-            history = "\n".join(
-                f"{role}: {message}" for role, message in st.session_state.chat[-9:-1]
-            )
-            answer = generate_text(
-                "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
-                "A felhasználó kérdésére a mellékelt, élő adatbázisból lekért kontextus alapján válaszolj. "
-                "Ha elemzést kér, ténylegesen elemezd az adatokat: mutass számokat, arányokat, trendeket, "
-                "korlátokat és konkrét, rangsorolt javaslatokat. Ne találj ki hiányzó adatot; jelezd, ha "
-                "valami nem számítható ki. A személyes adatokat ne következtesd ki. "
-                "Nem hozhatsz létre vagy módosíthatsz rekordot, nem küldhetsz e-mailt, és ne állítsd, hogy "
-                "ilyen műveletet elvégeztél. Az automatikus e-mail-küldés nincs engedélyezve. "
-                "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva.\n\n"
-                f"LEKÉRDEZETT ADATFORRÁSOK: {', '.join(loaded_sources) or 'nincs'}\n"
-                f"AKTUÁLIS ADATOK:\n{context}\n\n"
-                f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
-                f"FELHASZNÁLÓ KÉRDÉSE: {prompt}"
-            )
+
+        stage = "Gemini AI-szolgáltatás"
+        history = "\n".join(
+            f"{role}: {message}" for role, message in st.session_state.chat[-9:-1]
+        )
+        answer = generate_text(
+            "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
+            "A felhasználó kérdésére a mellékelt, élő adatbázisból lekért kontextus alapján válaszolj. "
+            "Ha elemzést kér, ténylegesen elemezd az adatokat: mutass számokat, arányokat, trendeket, "
+            "korlátokat és konkrét, rangsorolt javaslatokat. Ne találj ki hiányzó adatot; jelezd, ha "
+            "valami nem számítható ki. A személyes adatokat ne következtesd ki. "
+            "Nem hozhatsz létre vagy módosíthatsz rekordot, nem küldhetsz e-mailt, és ne állítsd, hogy "
+            "ilyen műveletet elvégeztél. Az automatikus e-mail-küldés nincs engedélyezve. "
+            "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva.\n\n"
+            f"LEKÉRDEZETT ADATFORRÁSOK: {', '.join(loaded_sources) or 'nincs'}\n"
+            f"AKTUÁLIS ADATOK:\n{context}\n\n"
+            f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
+            f"FELHASZNÁLÓ KÉRDÉSE: {prompt}"
+        )
         if not answer:
-            answer = "Nem kaptam értékelhető választ az AI-szolgáltatástól. Kérlek, próbáld újra."
+            raise RuntimeError("A Gemini üres választ adott vissza.")
         st.session_state.chat.append(("assistant", answer))
         with st.chat_message("assistant"):
             st.markdown(answer)
             st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
+
     except Exception as exc:
-        st.error("A lekérdezés vagy az AI-elemzés nem sikerült.")
-        st.caption(f"Technikai hibakód: {type(exc).__name__}. Titkos kulcsot ne másolj ide.")
-        st.session_state.chat.append(("assistant", "Most nem sikerült lekérdeznem vagy elemeznem az adatokat. Ellenőrizd a kapcsolatot, majd próbáld újra."))
+        # Show actionable diagnostics without ever printing configured credentials.
+        import re
+        detail = str(exc).replace("\\n", " ").strip()
+        detail = re.sub(r"(?i)(api[_ -]?key|service[_ -]?role[_ -]?key|password|token)(\\s*[:=]\\s*)\\S+", r"\\1\\2[REDACTED]", detail)
+        detail = re.sub(r"(?i)eyJ[A-Za-z0-9_-]{20,}\\.?[A-Za-z0-9_.-]*", "[REDACTED_TOKEN]", detail)
+        detail = detail[:500] or "Nincs további hibaüzenet."
+        st.error(f"A JARVIS művelet a következő szakaszban állt meg: {stage}.")
+        st.warning(f"Hiba típusa: {type(exc).__name__} · Részlet: {detail}")
+        st.info("A fenti hibaüzenet alapján célzottan javítható a kapcsolat vagy a konfiguráció. API-kulcsot és jelszót ne küldj be.")
+        st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. Hibatípus: {type(exc).__name__}. A részletes hiba a képernyőn látható."))
 
 
 st.markdown('<div class="jarvis-footer">J.A.R.V.I.S &nbsp;·&nbsp; BUSINESS INTELLIGENCE &nbsp;·&nbsp; SECURE SESSION</div>', unsafe_allow_html=True)
