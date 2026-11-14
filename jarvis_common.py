@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 from google import genai
@@ -63,9 +64,44 @@ def get_model_name() -> str:
 
 
 def generate_text(prompt: str, client: genai.Client | None = None) -> str:
+    """Generate a response with bounded retries for temporary Gemini overloads.
+
+    Retries only transient rate-limit / availability failures. Configuration,
+    authentication and malformed-request errors are raised immediately.
+    """
     client = client or get_gemini_client()
-    response = client.models.generate_content(model=get_model_name(), contents=prompt)
-    return (getattr(response, "text", None) or "").strip()
+    model = get_model_name()
+    max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 3, minimum=1, maximum=5)
+    last_error: Exception | None = None
+
+    for attempt in range(max_attempts):
+        try:
+            response = client.models.generate_content(model=model, contents=prompt)
+            text = (getattr(response, "text", None) or "").strip()
+            if not text:
+                raise RuntimeError("A Gemini API üres választ adott vissza.")
+            return text
+        except Exception as exc:
+            last_error = exc
+            code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            status = str(getattr(exc, "status", "") or "").upper()
+            message = str(exc).upper()
+            transient = (
+                code in (429, 500, 502, 503, 504)
+                or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
+                or any(marker in message for marker in (
+                    "429", "500", "502", "503", "504", "UNAVAILABLE",
+                    "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED",
+                ))
+            )
+            if not transient or attempt >= max_attempts - 1:
+                raise
+            # Short exponential backoff: 1s, 2s, 4s (bounded by 5 attempts).
+            time.sleep(min(2 ** attempt, 8))
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("A Gemini kérés nem fejeződött be.")
 
 
 def log_event(supabase: Client, module: str, message: str, level: str = "info") -> None:
