@@ -140,11 +140,20 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         wants_leads = wants_tasks = True
 
     if wants_leads:
-        rows = _safe_rows(
-            db, "leads",
-            "id,company_name,website,source,status,approved_to_contact,opted_out,reply_category,created_at,next_follow_up_at,follow_up_count",
-            1500,
-        )
+        # Existing Supabase projects may have an older leads schema. Read the
+        # actual row shape, then pass only explicitly approved, non-personal fields
+        # into the model context. This avoids failing on optional columns such as
+        # website that may not exist in an older database.
+        raw_rows = _safe_rows(db, "leads", "*", 1500)
+        allowed_lead_fields = {
+            "id", "company_name", "source", "status", "approved_to_contact",
+            "opted_out", "reply_category", "created_at", "next_follow_up_at",
+            "follow_up_count",
+        }
+        rows = [
+            {key: value for key, value in row.items() if key in allowed_lead_fields}
+            for row in raw_rows
+        ]
         frame = pd.DataFrame(rows)
         counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
         # Deliberately exclude personal email addresses and free-text notes from model context.
@@ -171,7 +180,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         loaded.append("naplók")
 
     if wants_analytics and wants_leads:
-        rows = _safe_rows(db, "leads", "status,created_at,reply_category,follow_up_count,opted_out", 1500)
+        # Reuse the schema-tolerant lead snapshot; never require optional columns.
         frame = pd.DataFrame(rows)
         if not frame.empty:
             sections.append("ELEMZÉSI ALAPADATOK:\n"
