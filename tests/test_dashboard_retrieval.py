@@ -9,6 +9,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "dashboard.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
+_NAMESPACE = {"Any": Any, "pd": pd}
 
 
 def _load_function(name):
@@ -17,9 +18,8 @@ def _load_function(name):
         if isinstance(item, ast.FunctionDef) and item.name == name
     )
     module = ast.Module(body=[node], type_ignores=[])
-    namespace = {"Any": Any, "pd": pd}
-    exec(compile(module, str(ROOT / "dashboard.py"), "exec"), namespace)
-    return namespace[name]
+    exec(compile(module, str(ROOT / "dashboard.py"), "exec"), _NAMESPACE)
+    return _NAMESPACE[name]
 
 
 _safe_rows = _load_function("_safe_rows")
