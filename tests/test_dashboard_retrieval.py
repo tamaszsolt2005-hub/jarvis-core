@@ -98,3 +98,20 @@ def test_empty_lead_table_returns_valid_context():
 
     assert "Összes lead: 0" in context
     assert sources == ["leadek", "feladatok", "e-mail-piszkozatok", "naplók"]
+
+
+
+def test_website_url_filter_rejects_non_http_and_local_targets():
+    public_http_url = _load_function("_public_http_url")
+    assert public_http_url("file:///etc/passwd") is None
+    assert public_http_url("http://127.0.0.1") is None
+    assert public_http_url("http://localhost") is None
+
+
+def test_ranking_request_fetches_only_bounded_website_set():
+    assert "wants_ranking" in SOURCE
+    assert '"website"' in SOURCE
+    assert "_website_profile(website)" in SOURCE
+    assert "if len(ranked) >= 30" in SOURCE
+    assert "allow_redirects=False" in SOURCE
+    assert "ip.is_global" in SOURCE
