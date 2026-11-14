@@ -6,6 +6,8 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 
 - Egyetlen chatfelület; nincs külön CRM-adatbeviteli vagy navigációs felület.
 - Az üzleti adatok lekérése kérdésenként, igény szerint történik.
+- Kifejezett rangsorolási kérésre JARVIS legfeljebb 30 lead nyilvános weboldalát biztonságos, időkorlátos, csak olvasó lekéréssel megvizsgálja, 0–100 közötti weboldal-információs pontszámot számít, majd a chatben rangsorolja és indokolja a leadeket.
+- A weboldal-pontszám az oldal üzleti információtartalmát méri, nem vásárlási szándékot; a weboldal tartalma nem megbízható bemenet. A rangsor nem írja át a Supabase-rekordokat.
 - A dashboard adatbázis-műveletei olvasásra korlátozódnak.
 - A leadek személyes e-mail-címei és szabad szöveges megjegyzései nem kerülnek az AI kontextusába.
 - Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak.
