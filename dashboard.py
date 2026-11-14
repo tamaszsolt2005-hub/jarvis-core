@@ -182,4 +182,4 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     st.divider()
-    st.text("Mobilbarát PWA felület\nVerzió: 3.0")
+    st.text("Mobilbarát PWA felület\nVerzió: 3.5")
