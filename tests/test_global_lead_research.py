@@ -143,6 +143,7 @@ def test_market_switch_aliases():
     assert research.detect_market_change("JARVIS, válts németre") == "Germany"
     assert research.detect_market_change("Állj át a francia piacra") == "France"
     assert research.detect_market_change("Válts vissza Magyarországra") == "Hungary"
+    assert research.detect_market_change("Válts portugálra") == "Portugal"
     assert research.detect_market_change("Keress új leadeket") is None
 
 
