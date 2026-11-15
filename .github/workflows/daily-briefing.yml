@@ -43,6 +43,9 @@ jobs:
       - name: Generate read-only daily briefing
         if: steps.config.outputs.ready == 'true'
         run: python daily_briefing.py
+      - name: Show report in workflow summary
+        if: steps.config.outputs.ready == 'true'
+        run: cat daily_briefing.md >> "$GITHUB_STEP_SUMMARY"
       - name: Publish report artifact
         if: steps.config.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
