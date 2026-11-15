@@ -26,6 +26,15 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - A napi háttérkutatáshoz a GitHub repository **Settings → Secrets and variables → Actions** részében külön be kell állítani a `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (vagy `SUPABASE_KEY`) és `GEMINI_API_KEY` titkokat. A Codespaces Secrets nem öröklődik automatikusan a GitHub Actions környezetbe; hiányzó titkok esetén a napi feladat biztonságosan kihagyja a futást.
 - A Supabase SQL Editorban egyszer futtasd a frissített `supabase/schema.sql` fájlt, hogy a `leads.email` mező üresen is tárolható legyen a cégszintű kutatási rekordoknál.
 
+## Célpiac váltása chatből
+
+- Az alapértelmezett leadkutatási célpiac Magyarország (`Hungary`).
+- A chatben például ezekkel lehet váltani: `JARVIS, válts németre`, `állj át a francia piacra`, `válts vissza Magyarországra`, `keress világszerte`.
+- A célpiac a Supabase `settings` táblájában tartósan mentésre kerül; a napi GitHub Actions kutatás minden futáskor ezt az értéket olvassa ki.
+- Országváltás után az új leadkutatás az adott országban működő cégekre összpontosít, iparági és cégméret-korlátozás nélkül. A korábban rögzített leadeket nem törli.
+- Ha nincs mentett beállítás, Magyarország az alapértelmezett piac. A `settings` tábla már szerepel a `supabase/schema.sql` fájlban.
+- A célpiac megváltoztatása nem engedélyezi az e-mail-küldést.
+
 ## Telepítés és indítás
 
 1. A Supabase SQL Editorban futtasd a `supabase/schema.sql` fájlt.
