@@ -132,7 +132,16 @@ def main() -> None:
 
     db = get_supabase()
     report = build_daily_briefing(db)
-    report += "\n" + run_proactive_monitor(db)
+    try:
+        report += "\n" + run_proactive_monitor(db)
+    except Exception as exc:
+        # The proactive snapshot table is provisioned separately. Keep the
+        # executive report available while that one-time setup is pending.
+        report += (
+            "\n## Proaktív változásfigyelés\n"
+            f"- A monitor most nem futott le ({type(exc).__name__}). "
+            "Ellenőrizd, hogy a frissített Supabase-séma telepítve van-e.\n"
+        )
     Path("daily_briefing.md").write_text(report, encoding="utf-8")
     print(report)
 
