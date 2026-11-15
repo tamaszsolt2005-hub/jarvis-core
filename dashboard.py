@@ -22,6 +22,7 @@ from jarvis_memory import memory_command, save_memory, get_memories, forget_memo
 from intelligent_lead_scoring import rank_researched_leads
 from daily_briefing import build_daily_briefing
 from business_learning import build_business_learning
+from task_actions import parse_task_command, execute_task_action
 
 
 st.set_page_config(
@@ -556,6 +557,7 @@ if prompt:
         approval_notice = ""
         market_change = None
         research_prompt = None
+        task_action = None
         if q in {"elutasítom", "elutasitom", "mégse", "megse", "ne hajtsd végre", "ne hajtsd vegre"}:
             if pending_action:
                 st.session_state.pop("_jarvis_pending_action", None)
@@ -566,17 +568,37 @@ if prompt:
             if pending_action:
                 market_change = pending_action.get("market")
                 research_prompt = pending_action.get("research_prompt")
+                task_action = pending_action.get("task_action")
                 st.session_state.pop("_jarvis_pending_action", None)
-                approval_notice = "A jóváhagyott művelet végrehajtása elindult."
+                if task_action:
+                    stage = "Jóváhagyott feladatművelet"
+                    approval_notice = execute_task_action(db, task_action)
+                else:
+                    approval_notice = "A jóváhagyott művelet végrehajtása elindult."
             else:
                 approval_notice = "Nincs függőben jóváhagyásra váró művelet, ezért nem indítottam el semmit."
         else:
+            requested_task_action = parse_task_command(prompt)
             requested_market = detect_market_change(prompt)
             requested_research = prompt if _wants_global_research(prompt) else None
-            if requested_market or requested_research:
+            if requested_task_action and requested_task_action.get("error"):
+                approval_notice = "A feladatparancsot nem készítettem elő: " + requested_task_action["error"]
+            elif requested_task_action:
+                task_action = requested_task_action
+                st.session_state["_jarvis_pending_action"] = {
+                    "market": None, "research_prompt": None, "task_action": task_action,
+                }
+                descriptions = {
+                    "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
+                    "close": f"feladat lezárása: {task_action['id']}",
+                    "update": f"feladat módosítása: {task_action['id']} – {task_action['updates']}",
+                }
+                approval_notice = "Jóváhagyásra váró feladatművelet: " + descriptions.get(task_action["type"], "feladatművelet") + ". Írd be: „Jóváhagyom” vagy „Elutasítom”."
+            elif requested_market or requested_research:
                 st.session_state["_jarvis_pending_action"] = {
                     "market": requested_market,
                     "research_prompt": requested_research,
+                    "task_action": None,
                 }
                 parts = []
                 if requested_market:
