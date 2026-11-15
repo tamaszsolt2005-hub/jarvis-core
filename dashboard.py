@@ -289,6 +289,8 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     wants_leads = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("lead", "ügyfél", "cég", "pipeline", "értékesít", "konverz"))
     wants_tasks = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("feladat", "határid", "teendő", "utánkövet"))
     wants_drafts = wants_all or any(x in q for x in ("piszkozat", "tervezet", "e-mail", "email", "levél"))
+    if wants_drafts:
+        wants_leads = True
     wants_logs = wants_all or any(x in q for x in ("napló", "aktivit", "hiba", "rendszer"))
     wants_analytics = any(x in q for x in ("elemz", "analíz", "analiz", "teljesít", "trend", "statiszt", "arány"))
     wants_ranking = any(x in q for x in ("rangsor", "rangsorol", "pontoz", "priorit", "legjobb lead", "legjobb cég", "melyik lead", "weboldal"))
