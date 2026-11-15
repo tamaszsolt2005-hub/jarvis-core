@@ -15,7 +15,11 @@ def run() -> None:
         if lead.get("opted_out") or lead.get("reply_category"): continue
         try: due_at=datetime.fromisoformat(str(lead.get("next_follow_up_at")).replace("Z","+00:00"))
         except (TypeError,ValueError): continue
-        if due_at<=now and int(lead.get("follow_up_count") or 0)<1: due.append(lead)
+        try:
+            follow_up_count = int(lead.get("follow_up_count") or 0)
+        except (TypeError, ValueError):
+            continue
+        if due_at<=now and follow_up_count<1: due.append(lead)
     for lead in due[:env_int("FOLLOW_UP_MAX_PER_RUN",3,1,10)]:
         try:
             body=generate_text("Írj rövid, udvarias, nem sürgető magyar utánkövető e-mailt. Ne találj ki tényt; legyen benne leiratkozási lehetőség. Cég: "+str(lead.get("company_name")))[:4500]
