@@ -14,7 +14,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     """Build a concise daily report; this function never writes to Supabase."""
     today = today or datetime.now(LOCAL_TZ).date()
     leads = db.table("leads").select(
-        "id,company_name,website,status,approved_to_contact,opted_out,created_at,notes,source"
+        "id,company_name,website,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
     ).order("created_at", desc=True).limit(1500).execute().data or []
     tasks = db.table("tasks").select(
         "id,title,status,priority,due_at,completed_at,lead_id"
@@ -46,6 +46,16 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due == today.isoformat():
             due_today.append(item)
 
+    overdue_followups = [
+        {"company_name": str(lead.get("company_name") or "Ismeretlen cég"),
+         "due": str(lead.get("next_follow_up_at") or "")[:10]}
+        for lead in leads
+        if lead.get("approved_to_contact") is True
+        and not bool(lead.get("opted_out", False))
+        and str(lead.get("next_follow_up_at") or "")[:10]
+        and str(lead.get("next_follow_up_at"))[:10] < today.isoformat()
+    ]
+
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
     priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1,
                                        str(x.get("due_at") or "9999")))
@@ -64,7 +74,8 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         f"- Nyitott feladatok: {len(open_tasks)}",
         f"- Lejárt feladatok: {len(overdue)}",
         f"- Ma esedékes feladatok: {len(due_today)}",
-        f"- Ma rögzített cégek: {len(fresh_today)}", "",
+        f"- Ma rögzített cégek: {len(fresh_today)}",
+        f"- Lejárt, jóváhagyott utánkövetések: {len(overdue_followups)}", "",
         "## Elsőként kezelendő kutatási lehetőségek",
     ]
     if ranked:
@@ -88,6 +99,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     if not overdue:
         lines.append("- Nincs rögzített lejárt, nyitott feladat.")
 
+    lines += ["", "## Lejárt, jóváhagyott utánkövetések"]
+    lines += [f"- **{x['company_name']}** – esedékes: {x['due']}" for x in overdue_followups[:10]]
+    if not overdue_followups:
+        lines.append("- Nincs lejárt, engedélyezett utánkövetés.")
+
     lines += ["", "## Mai teendők"]
     lines += [f"- {x['title']} (prioritás: {x['priority']})" for x in due_today[:10]]
     if not due_today:
@@ -104,6 +120,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         action_items.append(
             f"{len(action_items) + 1}. Rendezd a lejárt feladatot vagy ütemezd újra: "
             f"**{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']})."
+        )
+    for followup in overdue_followups[:2]:
+        action_items.append(
+            f"{len(action_items) + 1}. Vizsgáld felül a jóváhagyott utánkövetést: "
+            f"**{followup['company_name']}** (esedékes: {followup['due']}); küldés előtt ellenőrizd az aktuális engedélyt."
         )
     for task in due_today[:2]:
         action_items.append(
