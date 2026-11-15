@@ -13,8 +13,8 @@ def _valid_consent(lead: dict) -> bool:
     if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True or lead.get("opted_out") is True:
         return False
     try:
-        datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z","+00:00"))
-        return True
+        confirmed_at = datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z","+00:00"))
+        return confirmed_at.tzinfo is not None and confirmed_at.utcoffset() is not None
     except (TypeError,ValueError):
         return False
 
