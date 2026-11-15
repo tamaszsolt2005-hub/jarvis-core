@@ -140,7 +140,7 @@ def test_ranking_request_fetches_only_bounded_website_set():
     assert '"website"' in SOURCE
     assert "_website_profile(website)" in SOURCE
     assert "if len(ranked) >= 30" in SOURCE
-    assert "allow_redirects=False" in SOURCE
+    assert "allow_redirects=False" in (ROOT / "safe_http.py").read_text(encoding="utf-8")
     assert ".is_global" in SOURCE
 
 
@@ -185,7 +185,7 @@ def test_website_profile_safely_follows_public_redirect(monkeypatch):
     assert result["status"] == "sikeresen beolvasva"
     assert result["url"] == "https://www.example.com/company"
     assert len(calls) == 2
-    assert all(call[1]["allow_redirects"] is False for call in calls)
+    assert all("allow_redirects" not in call[1] for call in calls)
 
 
 def test_website_error_question_loads_leads_and_website_profiles(monkeypatch):
