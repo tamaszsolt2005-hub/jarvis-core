@@ -105,9 +105,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         "",
         "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
     ]
-    return "
-".join(lines) + "
-"
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
@@ -117,8 +115,7 @@ def main() -> None:
 
     db = get_supabase()
     report = build_daily_briefing(db)
-    report += "
-" + run_proactive_monitor(db)
+    report += "\n" + run_proactive_monitor(db)
     Path("daily_briefing.md").write_text(report, encoding="utf-8")
     print(report)
 
