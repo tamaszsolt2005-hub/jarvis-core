@@ -11,9 +11,9 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Proaktív üzleti kérésnél JARVIS a lead- és feladatadatokból jelzi a lejárt feladatokat, valamint kizárólag a kifejezetten jóváhagyott és le nem iratkozott leadek esedékes utánkövetését. A jelzések nem indítanak automatikus műveletet.
 - Lehetőségeket és következő lépéseket a meglévő cég-, státusz-, weboldal- és feladatadatok alapján javasol; a hiányzó információt bizonytalanságként jelzi.
 - Kérésre e-mail- vagy utánkövetési szövegtervezetet készít a chatben, másolható formában. A tervezet nem kerül adatbázisba, címzettet nem talál ki, és semmilyen e-mailt nem küld el.
-- A dashboard adatbázis-műveletei olvasásra korlátozódnak.
+- Az alapértelmezett adatlekérdezés csak olvas; kivétel a felhasználó által kifejezetten kért memória mentése/törlése, a külön jóváhagyott feladatművelet és a jóváhagyott, kizárólag céges leadkutatási rekord beszúrása.
 - A leadek személyes e-mail-címei és szabad szöveges megjegyzései, valamint az e-mail-piszkozatok címzettjei nem kerülnek az AI kontextusába.
-- Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. Kizárólag a globális, céges adatokat gyűjtő leadkutatási workflow fut naponta; a régi duplikált pipeline hatástalanított.
+- Az e-mail-küldés kódszinten is le van tiltva: sem az `AUTO_SEND_ENABLED=true` beállítás, sem a közvetlen SMTP-függvényhívás nem indíthat küldést. Feloldás csak külön, felülvizsgált kódmódosítással lehetséges. Kizárólag a globális, céges adatokat gyűjtő leadkutatási workflow fut naponta; a régi duplikált pipeline hatástalanított.
 - A Supabase és Gemini hitelesítő adatait kizárólag Codespaces Secrets / Streamlit secrets konfigurációban tárold. Soha ne commitold őket.
 
 ## Globális leadkutatás
@@ -25,13 +25,13 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Stratégiai/piaci kérdésnél JARVIS a korábban mentett, forrással alátámasztott leadkutatási rekordokat iparág és ország szerint összesíti. Megmutatja a mintanagyságot, az átlagos üzleti illeszkedési becslést és a kutatási bizonyosságot, majd óvatos fókuszjavaslatot ad. Az összesítés leíró minta, nem reprezentatív piackutatás; kis elemszámnál ezt külön jelzi.
 - A stratégiai elemzés nem ír adatbázist, nem módosít leadeket, és nem használja fel a kézzel rögzített CRM-megjegyzéseket. Kizárólag a saját leadkutatási modul strukturált kutatási összefoglalóira épül.
 - A célpiac és az iparági keresési brief természetes nyelven megadható, például: válts németre és keress autóipari beszállítókat; keress magyar építőipari cégeket; válts franciára; keress világszerte AI szoftvercégeket.
-- Napi összefoglaló/jelentésküldés nem készül; a meglévő napi háttérkutatás ettől függetlenül megmarad.
+- Napi jelentés készül a külön napi briefing workflow-ban; ez a GitHub Actions összefoglalójában és 14 napig artifactként érhető el, nem e-mailben.
 - A GitHub Actions naponta 08:00 UTC-kor legfeljebb 15 új céget kutat az aktuálisan mentett célpiacon; kézzel is indítható. A duplikátumokat cégnév és domain alapján szűri.
 - A kutatás kizárólag vállalati adatokat ment (cégnév, hivatalos weboldal, ország, iparág, rövid üzleti profil és forrás). Személyes neveket, személyes e-mail-címeket és telefonszámokat nem gyűjt.
 - A kutatásból létrejövő lead e-mail-címe üres, státusza `research`, `approved_to_contact=false`, `consent_basis=null`. A megtalált cég nem válik automatikusan megkereshetővé.
 - **Az e-mail-küldés továbbra is tiltva van.** A napi kutatási workflow nem hívja az e-mail-küldő vagy utánkövető modult.
 - A napi háttérkutatáshoz a GitHub repository **Settings → Secrets and variables → Actions** részében külön be kell állítani a `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (vagy `SUPABASE_KEY`) és `GEMINI_API_KEY` titkokat. A Codespaces Secrets nem öröklődik automatikusan a GitHub Actions környezetbe; hiányzó titkok esetén a napi feladat biztonságosan kihagyja a futást.
-- A Supabase SQL Editorban egyszer futtasd a frissített `supabase/schema.sql` fájlt, hogy a `leads.email` mező üresen is tárolható legyen a cégszintű kutatási rekordoknál.
+- A Supabase SQL Editorban futtasd a frissített `supabase/schema.sql` fájlt. A migrációs parancsok külön SQL-sorokban szerepelnek, és a `leads.email` mező üresen is tárolható a cégszintű kutatási rekordoknál.
 
 ## Célpiac váltása chatből
 
@@ -66,11 +66,11 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-A tesztek nem igényelnek élő Supabase- vagy Gemini-kapcsolatot, és nem használnak valódi titkokat.
+A tesztek nem igényelnek élő Supabase- vagy Gemini-kapcsolatot, és nem használnak valódi titkokat. A DNS-feloldást mockolják; nem helyettesítik az éles hálózati és adatbázis-integrációs tesztet. A weboldal-lekérések a feloldott, ellenőrzött nyilvános IP-címre rögzítik a kapcsolatot, a TLS-állomásnév ellenőrzésének megtartásával.
 
 ## Adatvédelem és biztonság
 
-A service-role kulcs megkerüli a Supabase Row Level Security szabályait, ezért csak szerveroldali titokként használd, soha ne jelenítsd meg vagy küldd kliensnek. A dashboard kódja kizárólag lekérdezéseket használ, de a service-role kulcs jogosultságait ettől függetlenül védeni kell.
+A service-role kulcs megkerüli a Supabase Row Level Security szabályait, ezért csak szerveroldali titokként használd, soha ne jelenítsd meg vagy küldd kliensnek. A dashboard normál adatlekérdezései olvasási műveletek; a kivételes, explicit felhasználói műveletek a memóriát, a jóváhagyott feladatokat és a céges kutatási rekordokat írhatják. A service-role kulcsot ettől függetlenül védeni kell. A bejelentkezési munkamenet legfeljebb 8 óráig érvényes; lejáratkor a függő jóváhagyás is törlődik.
 
 A projekt különálló import-, inbox- és e-mail-műveleti szkriptjei nem részei a chatfelületnek. A régi pipeline workflow-k teljesen hatástalanítottak: nincs ütemezés, és kézi indítás esetén sem futtatnak adatbázis- vagy e-mail-műveletet.
 
