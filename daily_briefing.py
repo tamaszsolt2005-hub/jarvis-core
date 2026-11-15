@@ -1,15 +1,18 @@
 """Read-only daily executive briefing from existing JARVIS records."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from intelligent_lead_scoring import rank_researched_leads
+
+LOCAL_TZ = ZoneInfo("Europe/Budapest")
 
 
 def build_daily_briefing(db: Any, today: date | None = None) -> str:
     """Build a concise daily report; this function never writes to Supabase."""
-    today = today or datetime.now(timezone.utc).date()
+    today = today or datetime.now(LOCAL_TZ).date()
     leads = db.table("leads").select(
         "id,company_name,website,status,approved_to_contact,opted_out,created_at,notes,source"
     ).order("created_at", desc=True).limit(1500).execute().data or []
@@ -30,39 +33,38 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             })
     ranked = rank_researched_leads(research_leads, limit=10)
 
-    overdue = []
-    due_today = []
-    open_tasks = []
+    overdue, due_today, open_tasks = [], [], []
     for task in tasks:
-        if str(task.get("status") or "open") != "open":
+        if str(task.get("status") or "open").casefold() != "open":
             continue
         open_tasks.append(task)
         due = str(task.get("due_at") or "")[:10]
-        item = {"title": str(task.get("title") or "Névtelen feladat"), "priority": task.get("priority") or "normal"}
+        item = {"title": str(task.get("title") or "Névtelen feladat"),
+                "priority": task.get("priority") or "normal", "due": due}
         if due and due < today.isoformat():
-            overdue.append({**item, "due": due})
+            overdue.append(item)
         elif due == today.isoformat():
             due_today.append(item)
 
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
-    priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, str(x.get("due_at") or "9999")))
-    fresh_today = []
-    for lead in leads:
-        created = str(lead.get("created_at") or "")[:10]
-        if created == today.isoformat():
-            fresh_today.append(str(lead.get("company_name") or "Ismeretlen cég"))
+    priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1,
+                                       str(x.get("due_at") or "9999")))
+    overdue.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x["due"]))
+    due_today.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x["title"]))
+    fresh_today = [
+        str(lead.get("company_name") or "Ismeretlen cég") for lead in leads
+        if str(lead.get("created_at") or "")[:10] == today.isoformat()
+    ]
 
     lines = [
-        f"# JARVIS – napi vezetői jelentés ({today.isoformat()})",
-        "",
+        f"# JARVIS – napi vezetői jelentés ({today.isoformat()})", "",
         "## Vezetői összkép",
         f"- Nyilvántartott cégek: {len(leads)}",
         f"- Strukturált, saját leadkutatásból származó cégek: {len(research_leads)}",
         f"- Nyitott feladatok: {len(open_tasks)}",
         f"- Lejárt feladatok: {len(overdue)}",
         f"- Ma esedékes feladatok: {len(due_today)}",
-        f"- Ma rögzített cégek: {len(fresh_today)}",
-        "",
+        f"- Ma rögzített cégek: {len(fresh_today)}", "",
         "## Elsőként kezelendő kutatási lehetőségek",
     ]
     if ranked:
@@ -98,10 +100,16 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
 
     lines += ["", "## Javasolt napi akcióterv"]
     action_items = []
-    for task in sorted(overdue, key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x.get("due", "")))[:3]:
-        action_items.append(f"{len(action_items) + 1}. Rendezd a lejárt feladatot: **{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']}).")
+    for task in overdue[:3]:
+        action_items.append(
+            f"{len(action_items) + 1}. Rendezd vagy ütemezd újra a lejárt feladatot: "
+            f"**{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']})."
+        )
     for task in due_today[:2]:
-        action_items.append(f"{len(action_items) + 1}. Ma esedékes: **{task['title']}** (prioritás: {task['priority']}).")
+        action_items.append(
+            f"{len(action_items) + 1}. Végezd el vagy delegáld a mai feladatot: "
+            f"**{task['title']}** (prioritás: {task['priority']})."
+        )
     if ranked:
         lead = ranked[0]
         action_items.append(
@@ -112,15 +120,14 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     if not action_items:
         action_items.append("Nincs sürgős, határidős feladat vagy rangsorolt kutatási lehetőség; frissítsd a következő üzleti célt.")
     lines += action_items[:5]
-
     lines += [
-        "",
-        "## Következő javasolt lépések",
+        "", "## Következő javasolt lépések",
         "- Ellenőrizd a magas kutatási prioritású cégek nyilvános bizonyítékait.",
         "- Először a lejárt és sürgős feladatokat rendezd.",
-        "- Kapcsolatfelvétel előtt külön ellenőrizd a jogalapot és az explicit engedélyt.",
-        "",
-        "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
+        "- Kapcsolatfelvétel előtt külön ellenőrizd a jogalapot és az explicit engedélyt.", "",
+        "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. "
+        "A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. "
+        "Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -135,8 +142,6 @@ def main() -> None:
     try:
         report += "\n" + run_proactive_monitor(db)
     except Exception as exc:
-        # The proactive snapshot table is provisioned separately. Keep the
-        # executive report available while that one-time setup is pending.
         report += (
             "\n## Proaktív változásfigyelés\n"
             f"- A monitor most nem futott le ({type(exc).__name__}). "
