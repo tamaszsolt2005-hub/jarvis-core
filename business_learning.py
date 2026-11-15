@@ -7,8 +7,8 @@ from typing import Any
 
 
 def _tag(text: str, name: str) -> str:
-    match = re.search(rf"(?:^|[;|,])\\s*{re.escape(name)}\\s*[:=]\\s*([^;|,]+)", text, re.I)
-    return re.sub(r"\\s+", " ", match.group(1)).strip()[:160] if match else ""
+    match = re.search(rf"(?:^|[;|,])\s*{re.escape(name)}\s*[:=]\s*([^;|,]+)", text, re.I)
+    return re.sub(r"\s+", " ", match.group(1)).strip()[:160] if match else ""
 
 
 def _research_method(note: str) -> str:
@@ -18,19 +18,19 @@ def _research_method(note: str) -> str:
 
 def _outcome_polarity(result: str) -> str:
     """Classify only clearly stated outcomes; negation always takes precedence."""
-    value = re.sub(r"\\s+", " ", (result or "").casefold()).strip()
+    value = re.sub(r"\s+", " ", (result or "").casefold()).strip()
     negative = (
-        r"\\bsikertelen\\b", r"\\bnem (?:volt )?(?:sikeres|működött|mukodott|hozott|teljesült|teljesult)",
-        r"\\bnem hozott (?:eredményt|eredmenyt)\\b", r"\\bveszteség\\b",
-        r"\\bveszteseg\\b", r"\\belmaradt\\b", r"\\bromlott\\b",
+        r"\bsikertelen\b", r"\bnem (?:volt )?(?:sikeres|működött|mukodott|hozott|teljesült|teljesult)",
+        r"\bnem hozott (?:eredményt|eredmenyt)\b", r"\bveszteség\b",
+        r"\bveszteseg\b", r"\belmaradt\b", r"\bromlott\b",
     )
     if any(re.search(pattern, value) for pattern in negative):
         return "negative"
     positive = (
-        r"\\bsikeres\\b", r"\\bműködött\\b", r"\\bmukodott\\b",
-        r"\\bhozott eredményt\\b", r"\\bhozott eredmenyt\\b",
-        r"\\bnyereség\\b", r"\\bnyereseg\\b", r"\\bbevétel nőtt\\b",
-        r"\\bkonverzió nőtt\\b", r"\\bkonverzio nott\\b",
+        r"\bsikeres\b", r"\bműködött\b", r"\bmukodott\b",
+        r"\bhozott eredményt\b", r"\bhozott eredmenyt\b",
+        r"\bnyereség\b", r"\bnyereseg\b", r"\bbevétel nőtt\b",
+        r"\bkonverzió nőtt\b", r"\bkonverzio nott\b",
     )
     if any(re.search(pattern, value) for pattern in positive):
         return "positive"
@@ -45,9 +45,9 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
         note = str(lead.get("research_intelligence") or lead.get("notes") or "")
         if not note.startswith("Leadkutatás;"):
             continue
-        industry_match = re.search(r"iparág:\\s*(.*?)(?:\\.\\s|;)", note, re.I)
+        industry_match = re.search(r"iparág:\s*(.*?)(?:\.\s|;)", note, re.I)
         industry = industry_match.group(1).strip() if industry_match else "Ismeretlen"
-        fit_match = re.search(r"AI üzleti illeszkedési becslés:\\s*(\\d{1,3})/100", note, re.I)
+        fit_match = re.search(r"AI üzleti illeszkedési becslés:\s*(\d{1,3})/100", note, re.I)
         if not fit_match:
             continue
         score = max(0, min(100, int(fit_match.group(1))))
