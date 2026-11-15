@@ -110,15 +110,22 @@ def execute_task_action(db: Any, action: dict[str, Any]) -> str:
     existing = db.table("tasks").select("id,title,status").eq("id", task_id).limit(1).execute().data or []
     if not existing:
         return "A feladat nem található; nem történt módosítás."
+    if str(existing[0].get("status") or "").casefold() != "open":
+        return "A feladat már nem nyitott; az előkészített műveletet nem hajtottam végre."
+    title = existing[0].get("title") or task_id
     if kind == "close":
-        db.table("tasks").update({
-            "status": "done", "completed_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", task_id).execute()
-        return f"Feladat lezárva: **{existing[0].get('title') or task_id}**."
+        now = datetime.now(timezone.utc).isoformat()
+        result = db.table("tasks").update({
+            "status": "done", "completed_at": now, "updated_at": now,
+        }).eq("id", task_id).eq("status", "open").select("id").execute()
+        if not result.data:
+            return "A feladat állapota időközben megváltozott; nem történt lezárás."
+        return f"Feladat lezárva: **{title}**."
     if kind == "update":
         payload = dict(action["updates"])
         payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-        db.table("tasks").update(payload).eq("id", task_id).execute()
-        return f"Feladat módosítva: **{existing[0].get('title') or task_id}**."
+        result = db.table("tasks").update(payload).eq("id", task_id).eq("status", "open").select("id").execute()
+        if not result.data:
+            return "A feladat állapota időközben megváltozott; nem történt módosítás."
+        return f"Feladat módosítva: **{title}**."
     return "Ismeretlen feladatművelet; nem történt módosítás."
