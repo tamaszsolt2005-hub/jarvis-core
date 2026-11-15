@@ -305,7 +305,12 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     loaded: list[str] = []
 
     wants_all = any(x in q for x in ("minden", "teljes", "átfogó", "áttekint", "összes"))
-    wants_opportunities = any(x in q for x in ("lehetőség", "növeked", "kit keressek", "kit érdemes", "prioritás", "következő lépés"))
+    wants_opportunities = any(x in q for x in (
+        "lehetőség", "növeked", "kit keressek", "kit érdemes", "prioritás",
+        "következő lépés", "üzleti potenciál", "piaci potenciál", "melyik iparág",
+        "melyik ország", "milyen szektor", "piaci rés", "hol érdemes",
+        "üzleti lehetőség", "stratégiai javaslat",
+    ))
     wants_warnings = any(x in q for x in ("figyelmezt", "lejárt", "csúszás", "elmaradt", "sürgős", "kockázat", "proaktív"))
     wants_leads = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("lead", "ügyfél", "cég", "pipeline", "értékesít", "konverz"))
     wants_tasks = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("feladat", "határid", "teendő", "utánkövet"))
