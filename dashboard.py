@@ -17,6 +17,7 @@ from jarvis_common import generate_text, get_secret, get_supabase
 from global_lead_research import (
     detect_market_change, get_research_market, research_global_companies, set_research_market,
 )
+from business_strategy import build_market_intelligence
 
 
 st.set_page_config(
@@ -305,7 +306,13 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     loaded: list[str] = []
 
     wants_all = any(x in q for x in ("minden", "teljes", "átfogó", "áttekint", "összes"))
-    wants_opportunities = any(x in q for x in (
+    wants_strategy = any(x in q for x in (
+        "stratégia", "stratégiai", "melyik iparág", "melyik országban",
+        "piaci mintázat", "piaci trend", "tanulj a leadekből", "korábbi kutatás",
+        "hol érdemes terjeszkedni", "mibe érdemes befektetni", "melyik szektorban",
+        "melyik területen érdemes",
+    ))
+    wants_opportunities = wants_strategy or any(x in q for x in (
         "lehetőség", "növeked", "kit keressek", "kit érdemes", "prioritás",
         "következő lépés", "üzleti potenciál", "piaci potenciál", "melyik iparág",
         "melyik ország", "milyen szektor", "piaci rés", "hol érdemes",
@@ -382,6 +389,14 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                         + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\n"
                         + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("leadek")
+
+        if wants_strategy:
+            strategy = build_market_intelligence(rows)
+            sections.append(
+                "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA (leíró, nem reprezentatív minta):\\n"
+                + pd.Series(strategy).to_json(force_ascii=False)
+            )
+            loaded.append("korábbi kutatások piaci mintázatai")
 
     task_rows: list[dict] = []
     if wants_tasks:
