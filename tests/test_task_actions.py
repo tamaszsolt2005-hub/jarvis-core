@@ -8,7 +8,7 @@ def test_parse_create_task_with_deadline_and_priority():
     action = parse_task_command("Hozz létre feladat: Ajánlat ellenőrzése; határidő=2026-12-01; prioritás=high")
     assert action == {
         "type": "create", "title": "Ajánlat ellenőrzése", "priority": "high",
-        "due_at": "2026-12-01T23:59:00+00:00", "notes": "",
+        "due_at": "2026-12-01T23:59:00+01:00", "notes": "",
     }
 
 
