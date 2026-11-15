@@ -105,7 +105,7 @@ def main() -> None:
     from jarvis_common import get_supabase
     from pathlib import Path
 
-    report = build_daily_briefing(get_supabase())
+    db = get_supabase()\n    report = build_daily_briefing(db)\n    from proactive_monitor import run_proactive_monitor\n    report += "\\n" + run_proactive_monitor(db)
     Path("daily_briefing.md").write_text(report, encoding="utf-8")
     print(report)
 
