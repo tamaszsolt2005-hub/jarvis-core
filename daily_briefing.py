@@ -44,7 +44,9 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due == today.isoformat():
             due_today.append(item)
 
-    priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]\n    priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, str(x.get("due_at") or "9999")))\n    fresh_today = []
+    priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
+    priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, str(x.get("due_at") or "9999")))
+    fresh_today = []
     for lead in leads:
         created = str(lead.get("created_at") or "")[:10]
         if created == today.isoformat():
@@ -103,7 +105,9 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         "",
         "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
     ]
-    return "\n".join(lines) + "\n"
+    return "
+".join(lines) + "
+"
 
 
 def main() -> None:
@@ -113,7 +117,8 @@ def main() -> None:
 
     db = get_supabase()
     report = build_daily_briefing(db)
-    report += "\n" + run_proactive_monitor(db)
+    report += "
+" + run_proactive_monitor(db)
     Path("daily_briefing.md").write_text(report, encoding="utf-8")
     print(report)
 
