@@ -35,7 +35,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
     changed_tasks = [
         {"title": x.get("title"), "from": old_tasks[str(x["id"])].get("status"), "to": x.get("status")}
         for x in tasks if x.get("id") and str(x["id"]) in old_tasks
-        and old_tasks[str(x["id"])].get("status") != x.get("status")
+        and any(old_tasks[str(x["id"])].get(field) != x.get(field) for field in ("status", "due_at", "priority"))
     ]
     overdue = [
         x for x in tasks if str(x.get("status") or "open").casefold() == "open"
@@ -64,7 +64,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
     snapshot = {
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "leads": [{"id": x.get("id"), "company_name": x.get("company_name"), "status": x.get("status")} for x in leads if x.get("id")],
-        "tasks": [{"id": x.get("id"), "title": x.get("title"), "status": x.get("status")} for x in tasks if x.get("id")],
+        "tasks": [{"id": x.get("id"), "title": x.get("title"), "status": x.get("status"), "due_at": x.get("due_at"), "priority": x.get("priority")} for x in tasks if x.get("id")],
     }
     db.table("jarvis_proactive_state").upsert({"key": STATE_KEY, "snapshot": snapshot}).execute()
     return "\n".join(lines) + "\n"
