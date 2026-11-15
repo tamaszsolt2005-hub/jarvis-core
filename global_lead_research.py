@@ -143,9 +143,16 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         + market_instruction + " Interpret the user's business context as a broad prospecting brief. Return up to " + str(max(1, min(int(max_results), MAX_RESULTS))) + " distinct companies. "
         "Return ONLY valid JSON: {\"companies\":[{\"company_name\":\"...\","
         "\"website\":\"https://official-domain\",\"country\":\"...\",\"industry\":\"...\","
-        "\"business_summary\":\"short factual summary\",\"potential_fit\":\"why it may fit\","
+        "\"business_summary\":\"factual company profile\",\"potential_fit\":\"specific fit for AI and business automation services\","
+        "\"business_need\":\"observable business problem or opportunity, otherwise unknown\","
+        "\"business_fit_score\":0,\"fit_evidence\":[\"specific public evidence\"],"
+        "\"recommended_next_step\":\"research-only next step\",\"research_confidence\":\"high|medium|low\","
         "\"source_url\":\"URL of a Google Search source supporting this company\"}]}. "
-        "Use official company websites where possible. Do not invent companies, domains or facts. "
+        "Assess fit separately from website quality: business_fit_score is a provisional 0-100 estimate of fit for AI/automation services, "
+        "not purchase intent, financial capacity, or consent. Base it only on explicit public evidence; use a low score or low confidence when evidence is weak. "
+        "Name the evidence behind every score, and never treat absence of evidence as a negative fact. "
+        "Prefer detailed official-company pages, products, workflows, scale indicators and credible public case studies. "
+        "Do not invent companies, domains or facts. "
         "Do not collect personal names, personal email addresses, phone numbers or private data. "
         "A public business contact address is not consent to marketing. Do not infer consent. "
         "User's business/prospecting brief: " + str(request)[:2000]
@@ -189,11 +196,28 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         industry = str(item.get("industry") or "ismeretlen")[:120]
         summary = str(item.get("business_summary") or "")[:700]
         fit = str(item.get("potential_fit") or "")[:700]
+        fit_score_raw = item.get("business_fit_score")
+        try:
+            fit_score = max(0, min(100, int(float(fit_score_raw))))
+        except (TypeError, ValueError, OverflowError):
+            fit_score = None
+        fit_evidence = item.get("fit_evidence")
+        if not isinstance(fit_evidence, list):
+            fit_evidence = [str(fit_evidence)] if fit_evidence else []
+        fit_evidence = [str(value).strip()[:220] for value in fit_evidence[:5] if str(value).strip()]
+        business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
+        next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
+        confidence = str(item.get("research_confidence") or "low").casefold()
+        if confidence not in {"high", "medium", "low"}:
+            confidence = "low"
         notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}. "
             f"Cégprofil: {summary} Lehetséges illeszkedés: {fit} "
+            f"AI üzleti illeszkedési becslés: {fit_score if fit_score is not None else 'nincs adat'}/100; "
+            f"bizonyosság: {confidence}; megfigyelhető üzleti igény: {business_need}; "
+            f"alátámasztó jelek: {'; '.join(fit_evidence)}; javasolt kutatási lépés: {next_step} "
             f"Forrás: {source_url}"
-        )[:2000]
+        )[:3500]
         # No email, no permission, no outreach status: discovery is not consent.
         db.table("leads").insert({
             "company_name": name,
@@ -209,7 +233,10 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         known_names.add(name.casefold())
         known_sites.add(site_domain)
         inserted.append({"company_name": name, "website": website, "country": country,
-                         "industry": industry, "source_url": source_url})
+                         "industry": industry, "business_summary": summary, "potential_fit": fit,
+                         "business_fit_score": fit_score, "fit_evidence": fit_evidence,
+                         "business_need": business_need, "recommended_next_step": next_step,
+                         "research_confidence": confidence, "source_url": source_url})
     result = {
         "searched": True,
         "saved_count": len(inserted),
