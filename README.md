@@ -9,7 +9,7 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Weboldalhibákra vagy rangsorolásra vonatkozó kérdésnél JARVIS automatikusan betölti a leadeket, és legfeljebb 30 nyilvános weboldalt vizsgál meg. A lekérés időkorlátos, a HTTP-átirányítások célját újra ellenőrzi, és 0–100 közötti weboldal-információs pontszámot számít. A hibás HTTP-státuszokat és a nem elérhető oldalakat a chatben külön jelzi.
 - A weboldal-pontszám az oldal üzleti információtartalmát méri, nem vásárlási szándékot; a weboldal tartalma nem megbízható bemenet. A rangsor nem írja át a Supabase-rekordokat.
 - A dashboard adatbázis-műveletei olvasásra korlátozódnak.
-- A leadek személyes e-mail-címei és szabad szöveges megjegyzései nem kerülnek az AI kontextusába.
+- A leadek személyes e-mail-címei és szabad szöveges megjegyzései, valamint az e-mail-piszkozatok címzettjei nem kerülnek az AI kontextusába.
 - Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. A napi háttér-workflow-k ütemezése ki van kapcsolva; a régi duplikált workflow hatástalanított.
 - A Supabase és Gemini hitelesítő adatait kizárólag Codespaces Secrets / Streamlit secrets konfigurációban tárold. Soha ne commitold őket.
 
@@ -43,6 +43,6 @@ A tesztek nem igényelnek élő Supabase- vagy Gemini-kapcsolatot, és nem haszn
 
 A service-role kulcs megkerüli a Supabase Row Level Security szabályait, ezért csak szerveroldali titokként használd, soha ne jelenítsd meg vagy küldd kliensnek. A dashboard kódja kizárólag lekérdezéseket használ, de a service-role kulcs jogosultságait ettől függetlenül védeni kell.
 
-A projekt különálló import-, inbox- és e-mail-műveleti szkriptjei nem részei a chatfelületnek. A GitHub Actions napi ütemezése ki van kapcsolva; a karbantartási workflow csak kézi indítással fut. Az e-mailküldő workflow-lépésekben az `AUTO_SEND_ENABLED` kifejezetten `false`, így a repository-változó nem tudja véletlenül engedélyezni a küldést.
+A projekt különálló import-, inbox- és e-mail-műveleti szkriptjei nem részei a chatfelületnek. A régi pipeline workflow-k teljesen hatástalanítottak: nincs ütemezés, és kézi indítás esetén sem futtatnak adatbázis- vagy e-mail-műveletet.
 
 A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a célország szerinti marketingjogi ellenőrzést.
