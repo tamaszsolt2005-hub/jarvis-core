@@ -78,3 +78,5 @@ def test_safe_transport_rejects_credentials_and_non_http_schemes():
         safe_http.safe_get("file:///etc/passwd")
     with pytest.raises(ValueError):
         safe_http.safe_get("https://user:password@example.com")
+    with pytest.raises(ValueError, match="szabványos"):
+        safe_http.safe_get("https://example.com:8443")
