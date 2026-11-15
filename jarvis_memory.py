@@ -78,11 +78,13 @@ def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     scored = []
     for row in rows:
         content = str(row.get("content") or "")
-        overlap = len(terms & set(re.findall(r"[\\wáéíóöőúüű-]{3,}", content.casefold())))
+        content_terms = set(re.findall(r"[\wáéíóöőúüű-]{3,}", content.casefold()))
+        overlap = len(terms & content_terms)
         if overlap:
-            scored.append((overlap, row))
-    scored.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
-    return [row for _, row in scored[:20]]
+            relevance = overlap / max(1, len(terms | content_terms) ** 0.5)
+            scored.append((relevance, overlap, row))
+    scored.sort(key=lambda item: (item[0], item[1], str(item[2].get("created_at") or "")), reverse=True)
+    return [row for _, _, row in scored[:20]]
 
 
 def forget_memories(db: Any, phrase: str) -> int:
