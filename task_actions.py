@@ -4,10 +4,17 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
 _PRIORITIES = {"normal", "high", "urgent"}
+_LOCAL_TZ = ZoneInfo("Europe/Budapest")
+
+
+def _deadline_iso(value: str) -> str:
+    day = datetime.strptime(value, "%Y-%m-%d").date()
+    return datetime(day.year, day.month, day.day, 23, 59, tzinfo=_LOCAL_TZ).isoformat()
 
 
 def parse_task_command(message: str) -> dict[str, Any] | None:
@@ -48,7 +55,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
             except ValueError:
                 return {"error": "A megadott határidő nem érvényes dátum."}
         return {"type": "create", "title": fields["title"], "priority": priority,
-                "due_at": f"{due_date}T23:59:00+00:00" if due_date else None,
+                "due_at": _deadline_iso(due_date) if due_date else None,
                 "notes": fields.get("notes", "")[:1000]}
 
     close_match = re.match(
@@ -77,7 +84,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
                     datetime.strptime(value, "%Y-%m-%d")
                 except ValueError:
                     return {"error": "A megadott határidő nem érvényes dátum."}
-                updates["due_at"] = f"{value}T23:59:00+00:00"
+                updates["due_at"] = _deadline_iso(value)
             elif key in {"cím", "cim"} and value and len(value) <= 180:
                 updates["title"] = value
             else:
