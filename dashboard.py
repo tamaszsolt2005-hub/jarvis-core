@@ -211,7 +211,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
 
             content_type = response.headers.get("Content-Type", "").lower()
             if "text/html" not in content_type and "application/xhtml" not in content_type:
-                response.close()
+                close_response(response)
                 response = None
                 return {"status": "nem HTML weboldal", "score": 0, "url": current_url}
 
@@ -224,7 +224,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
                 total += min(len(chunk), remaining)
                 if total >= 180_000:
                     break
-            response.close()
+            close_response(response)
             response = None
             soup = BeautifulSoup(b"".join(chunks), "html.parser")
             for node in soup(["script", "style", "noscript", "svg"]):
