@@ -293,7 +293,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         wants_leads = True
     wants_logs = wants_all or any(x in q for x in ("napló", "aktivit", "hiba", "rendszer"))
     wants_analytics = any(x in q for x in ("elemz", "analíz", "analiz", "teljesít", "trend", "statiszt", "arány"))
-    wants_ranking = any(x in q for x in ("rangsor", "rangsorol", "pontoz", "priorit", "legjobb lead", "legjobb cég", "melyik lead", "weboldal"))
+    wants_ranking = wants_opportunities or any(x in q for x in ("rangsor", "rangsorol", "pontoz", "priorit", "legjobb lead", "legjobb cég", "melyik lead", "weboldal"))
     # A website audit request necessarily needs lead rows, even if the user
     # does not explicitly say "lead" or "company" in the question.
     if wants_ranking:
