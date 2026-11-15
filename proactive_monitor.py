@@ -48,6 +48,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
         if changes:
             changed_tasks.append({"title": task.get("title"), "changes": changes})
 
+    status_change_count = sum(1 for item in changed_tasks if any(change.startswith("állapot:") for change in item["changes"]))
     overdue = [
         x for x in tasks if str(x.get("status") or "open").casefold() == "open"
         and str(x.get("due_at") or "")[:10] and str(x.get("due_at"))[:10] < today.isoformat()
@@ -67,6 +68,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
         *[f"  - {x['company']}: {x['from']} → {x['to']}" for x in changed_leads[:10]],
         f"- Új feladatok: {len(new_tasks)}",
         *[f"  - {x.get('title') or 'Névtelen feladat'}" for x in new_tasks[:10]],
+        f"- Feladatstátusz-változások: {status_change_count}",
         f"- Módosult feladatok: {len(changed_tasks)}",
         *[f"  - {x['title']}: {'; '.join(x['changes'])}" for x in changed_tasks[:10]],
         "",
