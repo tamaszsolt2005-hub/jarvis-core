@@ -396,9 +396,9 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         if wants_opportunities:
             priority_rows = rank_researched_leads(rows, limit=20)
             sections.append(
-                "BIZONYÍTÉKALAPÚ LEADPRIORITÁS (0–100; kutatási triázs, nem vásárlási szándék):\\n"
+                "BIZONYÍTÉKALAPÚ LEADPRIORITÁS (0–100; kutatási triázs, nem vásárlási szándék):\n"
                 + pd.DataFrame(priority_rows).to_json(orient="records", force_ascii=False)
-                + "\\nA rangsor az üzleti illeszkedést, a kutatási bizonyosságot és a nyilvános bizonyítékok számát súlyozza. "
+                + "\nA rangsor az üzleti illeszkedést, a kutatási bizonyosságot és a nyilvános bizonyítékok számát súlyozza. "
                 + "Nem méri a fizetőképességet vagy a kapcsolatfelvételi engedélyt."
             )
             loaded.append("bizonyíték-alapú leadprioritás")
@@ -406,7 +406,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         if wants_strategy:
             strategy = build_market_intelligence(rows)
             sections.append(
-                "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA (leíró, nem reprezentatív minta):\\n"
+                "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA (leíró, nem reprezentatív minta):\n"
                 + pd.Series(strategy).to_json(force_ascii=False)
             )
             loaded.append("korábbi kutatások piaci mintázatai")
@@ -562,7 +562,7 @@ if prompt:
             "mai üzleti terv", "napi üzleti terv", "mai prioritások",
         ))
         if daily_report_requested:
-            context += "\\n\\nNAPI VEZETŐI JELENTÉS (csak meglévő adatokat olvas):\\n"
+            context += "\n\nNAPI VEZETŐI JELENTÉS (csak meglévő adatokat olvas):\n"
             context += build_daily_briefing(db)
             loaded_sources.append("napi vezetői jelentés")
         if memory_notice:
