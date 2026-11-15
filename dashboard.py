@@ -184,7 +184,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
         # redirects to localhost, private networks, or cloud metadata endpoints.
         for redirect_count in range(4):
             response = safe_get(
-                current_url, timeout=(3, 6), allow_redirects=False, stream=True,
+                current_url, timeout=(3, 6), stream=True,
                 headers={"User-Agent": "JARVIS-Business-Research/1.0"},
             )
             if 300 <= response.status_code < 400:
