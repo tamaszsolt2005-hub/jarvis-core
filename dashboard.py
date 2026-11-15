@@ -449,8 +449,8 @@ if prompt:
         # Show actionable diagnostics without ever printing configured credentials.
         import re
         detail = str(exc).replace("\n", " ").strip()
-        detail = re.sub(r"(?i)(api[_ -]?key|service[_ -]?role[_ -]?key|password|token)(\\s*[:=]\\s*)\\S+", r"\\1\\2[REDACTED]", detail)
-        detail = re.sub(r"(?i)eyJ[A-Za-z0-9_-]{20,}\\.?[A-Za-z0-9_.-]*", "[REDACTED_TOKEN]", detail)
+        detail = re.sub(r"(?i)(api[_ -]?key|service[_ -]?role[_ -]?key|password|token)(\s*[:=]\s*)\\S+", r"\1\2[REDACTED]", detail)
+        detail = re.sub(r"(?i)eyJ[A-Za-z0-9_-]{20,}\.?[A-Za-z0-9_.-]*", "[REDACTED_TOKEN]", detail)
         detail = detail[:500] or "Nincs további hibaüzenet."
         st.error(f"A JARVIS művelet a következő szakaszban állt meg: {stage}.")
         st.warning(f"Hiba típusa: {type(exc).__name__} · Részlet: {detail}")
