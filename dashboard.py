@@ -24,6 +24,7 @@ from intelligent_lead_scoring import rank_researched_leads
 from daily_briefing import build_daily_briefing
 from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
+from safe_http import safe_get, close_response
 
 
 st.set_page_config(
@@ -181,14 +182,14 @@ def _website_profile(url: Any) -> dict[str, Any]:
         # Follow redirects manually: every destination is revalidated to block
         # redirects to localhost, private networks, or cloud metadata endpoints.
         for redirect_count in range(4):
-            response = requests.get(
+            response = safe_get(
                 current_url, timeout=(3, 6), allow_redirects=False, stream=True,
                 headers={"User-Agent": "JARVIS-Business-Research/1.0"},
             )
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")
                 redirect_status = response.status_code
-                response.close()
+                close_response(response)
                 response = None
                 if not location:
                     return {"status": f"HTTP {redirect_status}; hiányzó átirányítási cím", "score": 0, "url": current_url}
@@ -257,7 +258,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
         return {"status": f"weboldal feldolgozási hiba ({type(exc).__name__})", "score": 0, "url": current_url}
     finally:
         if response is not None:
-            response.close()
+            close_response(response)
 
 
 def _proactive_signals(leads: list[dict], tasks: list[dict]) -> dict[str, Any]:
