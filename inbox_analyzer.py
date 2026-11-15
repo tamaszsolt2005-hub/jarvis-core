@@ -1,28 +1,32 @@
-import google.generativeai as genai
+"""Compatibility wrapper for classifying incoming business replies."""
+from __future__ import annotations
 
-def analyze_incoming_reply(reply_text, gemini_api_key):
-    """Elemzi a beérkező választ a Gemini AI segítségével."""
+from google import genai
+
+
+def analyze_incoming_reply(reply_text: str, gemini_api_key: str) -> str:
+    """Classify a reply using the supported google-genai SDK."""
     if not reply_text:
         return "later"
-        
-    genai.configure(api_key=gemini_api_key)
+
     prompt = (
-        f"Elemezd az alábbi B2B partneri válaszlevelet, és állapítsd meg a szándékát. "
-        f"Válassz pontosan egy kategóriát: [INTERESTED] (ha kér árajánlatot, találkozót vagy érdeklődik), "
-        f"[LATER] (ha később keressük), vagy [REJECTED] (ha nem kéri).\n\n"
-        f"Levél szövege:\n{reply_text}"
+        "Elemezd az alábbi B2B partneri válaszlevelet, és válassz pontosan egy kategóriát: "
+        "[INTERESTED], [LATER] vagy [REJECTED]. "
+        "INTERESTED: árajánlatot, találkozót kér vagy érdeklődik. "
+        "LATER: később keressük. REJECTED: nem kéri.\n\n"
+        f"Levél szövege:\n{reply_text[:5000]}"
     )
-    
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
-        result = response.text.strip().upper()
-        
+        client = genai.Client(api_key=gemini_api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        result = (getattr(response, "text", None) or "").strip().upper()
         if "INTERESTED" in result:
             return "interested"
-        elif "LATER" in result:
+        if "LATER" in result:
             return "later"
-        else:
-            return "rejected"
+        return "rejected"
     except Exception:
         return "later"
