@@ -62,3 +62,15 @@ def test_monitor_records_baseline_and_detects_changes():
     assert "Új cégek: 1" in second
     assert "Másik Kft." in second
     assert "Feladatstátusz-változások: 1" in second
+
+
+def test_monitor_reports_priority_and_deadline_changes_and_recommends_actions():
+    db = FakeDB()
+    run_proactive_monitor(db, today=date(2026, 11, 15))
+    db.rows["tasks"][0]["priority"] = "urgent"
+    db.rows["tasks"][0]["due_at"] = "2026-11-15T10:00:00Z"
+    report = run_proactive_monitor(db, today=date(2026, 11, 15))
+    assert "Módosult feladatok: 1" in report
+    assert "prioritás: high → urgent" in report
+    assert "határidő: 2026-11-14T10:00:00Z → 2026-11-15T10:00:00Z" in report
+    assert "Végezd el vagy delegáld" in report
