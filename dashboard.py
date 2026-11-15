@@ -1,9 +1,8 @@
 """JARVIS — chat-first B2B intelligence workspace.
 
 The UI is intentionally limited to conversation. Business data is retrieved
-on demand from Supabase in response to the user's question; the assistant
-can analyze and explain that data but this interface performs no mutations
-and never sends email.
+on demand; explicit, grounded global-research requests may insert company-only
+prospect records. The application never sends email.
 """
 from __future__ import annotations
 
