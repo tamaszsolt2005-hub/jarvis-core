@@ -68,3 +68,20 @@ def test_daily_briefing_prioritizes_urgent_overdue_tasks():
     report = build_daily_briefing(db, today=date(2026, 11, 15))
     action_section = report.split("## Javasolt napi akcióterv", 1)[1]
     assert action_section.index("Sürgős szerződés") < action_section.index("Ajánlat ellenőrzése")
+
+
+def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
+    db = FakeDB()
+    db.rows["leads"].extend([
+        {"company_name": "Engedélyezett Kft.", "approved_to_contact": True, "opted_out": False,
+         "next_follow_up_at": "2026-11-14T09:00:00Z"},
+        {"company_name": "Nem engedélyezett Kft.", "approved_to_contact": False, "opted_out": False,
+         "next_follow_up_at": "2026-11-13T09:00:00Z"},
+        {"company_name": "Leiratkozott Kft.", "approved_to_contact": True, "opted_out": True,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+    ])
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Lejárt, jóváhagyott utánkövetések: 1" in report
+    assert "Engedélyezett Kft." in report
+    assert "Nem engedélyezett Kft." not in report
+    assert "Leiratkozott Kft." not in report
