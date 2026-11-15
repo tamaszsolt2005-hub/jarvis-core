@@ -36,6 +36,7 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
     outcomes, decisions, lessons = [], [], []
     successful_methods: dict[str, list[str]] = defaultdict(list)
     successful_industries: dict[str, list[str]] = defaultdict(list)
+    successful_decisions: dict[str, list[str]] = defaultdict(list)
     for item in memories:
         category = str(item.get("category") or "")
         content = str(item.get("content") or "").strip()
@@ -49,6 +50,7 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
             outcomes.append(content)
             method = _tag(content, "módszer") or _tag(content, "kutatási módszer")
             industry = _tag(content, "iparág") or _tag(content, "szektor")
+            decision = _tag(content, "döntés") or _tag(content, "dontes")
             result = (_tag(content, "eredmény") or content).casefold()
             is_positive = any(word in result for word in ("sikeres", "működött", "mukodott", "hozott eredményt", "nyereség", "bevétel", "konverzió nőtt"))
             is_negative = any(word in result for word in ("sikertelen", "nem működött", "nem mukodott", "veszteség", "nem hozott"))
@@ -57,6 +59,8 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
                     successful_methods[method].append(content)
                 if industry:
                     successful_industries[industry].append(content)
+                if decision:
+                    successful_decisions[decision].append(content)
 
     def summarize(groups: dict[str, list[int]]) -> list[dict[str, Any]]:
         return [
@@ -71,6 +75,10 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
         "explicitly_successful_methods": [
             {"name": name, "recorded_successes": len(items)} for name, items in
             sorted(successful_methods.items(), key=lambda pair: len(pair[1]), reverse=True)
+        ],
+        "explicitly_successful_decisions": [
+            {"name": name, "recorded_successes": len(items)} for name, items in
+            sorted(successful_decisions.items(), key=lambda pair: len(pair[1]), reverse=True)
         ],
         "explicitly_successful_industries": [
             {"name": name, "recorded_successes": len(items)} for name, items in
