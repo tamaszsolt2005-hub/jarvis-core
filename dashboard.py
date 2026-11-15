@@ -335,10 +335,16 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             "opted_out", "reply_category", "created_at", "next_follow_up_at",
             "follow_up_count",
         }
-        rows = [
-            {key: value for key, value in row.items() if key in allowed_lead_fields}
-            for row in raw_rows
-        ]
+        rows = []
+        for row in raw_rows:
+            safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
+            # Only expose notes created by our own company-only research module.
+            # Human-entered CRM notes remain excluded from every model prompt.
+            source = str(row.get("source") or "")
+            research_note = str(row.get("notes") or "")
+            if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
+                safe_row["research_intelligence"] = research_note[:3500]
+            rows.append(safe_row)
         frame = pd.DataFrame(rows)
         counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
         # Deliberately exclude personal email addresses and free-text notes from model context.
@@ -360,10 +366,11 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                     break
             ranked.sort(key=lambda item: item["website_profile"].get("score", 0), reverse=True)
             sections.append(
-                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; a pontszám a weboldal teljességét és üzleti információtartalmát jelzi, nem bizonyít vásárlási szándékot):\n"
+                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; kizárólag a weboldal teljességét és üzleti információtartalmát méri):\n"
                 + pd.DataFrame(ranked).to_json(orient="records", force_ascii=False)
                 + "\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
-                + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben."
+                + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben. "
+                + "Ez a pontszám nem azonos a leadkutatásban tárolt üzleti illeszkedési becsléssel."
             )
             loaded.append("lead-weboldalak és rangsorolás")
         sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
