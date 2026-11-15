@@ -16,6 +16,16 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. A napi háttér-workflow-k ütemezése ki van kapcsolva; a régi duplikált workflow hatástalanított.
 - A Supabase és Gemini hitelesítő adatait kizárólag Codespaces Secrets / Streamlit secrets konfigurációban tárold. Soha ne commitold őket.
 
+## Globális leadkutatás
+
+- A JARVIS a chatben kifejezett leadkutatási kérésre Google Search groundinggal valós, nyilvános cégeket kereshet világszerte, iparági és cégméret-korlátozás nélkül.
+- A GitHub Actions naponta 08:00 UTC-kor legfeljebb 15 új céget kutat; kézzel is indítható. A duplikátumokat cégnév és domain alapján szűri.
+- A kutatás kizárólag vállalati adatokat ment (cégnév, hivatalos weboldal, ország, iparág, rövid üzleti profil és forrás). Személyes neveket, személyes e-mail-címeket és telefonszámokat nem gyűjt.
+- A kutatásból létrejövő lead e-mail-címe üres, státusza `research`, `approved_to_contact=false`, `consent_basis=null`. A megtalált cég nem válik automatikusan megkereshetővé.
+- **Az e-mail-küldés továbbra is tiltva van.** A napi kutatási workflow nem hívja az e-mail-küldő vagy utánkövető modult.
+- A napi háttérkutatáshoz a GitHub repository **Settings → Secrets and variables → Actions** részében külön be kell állítani a `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (vagy `SUPABASE_KEY`) és `GEMINI_API_KEY` titkokat. A Codespaces Secrets nem öröklődik automatikusan a GitHub Actions környezetbe; hiányzó titkok esetén a napi feladat biztonságosan kihagyja a futást.
+- A Supabase SQL Editorban egyszer futtasd a frissített `supabase/schema.sql` fájlt, hogy a `leads.email` mező üresen is tárolható legyen a cégszintű kutatási rekordoknál.
+
 ## Telepítés és indítás
 
 1. A Supabase SQL Editorban futtasd a `supabase/schema.sql` fájlt.
