@@ -109,3 +109,20 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - A JARVIS relevancia szerint rangsorolja a legfeljebb 100 legutóbbi aktív emlékből kiválasztott, legfeljebb 20 releváns elemet.
 - `Mutasd a memóriádat` listázza az aktív emlékeket; `Felejtsd el a ...` egyes elemeket inaktivál; `Felejtsd el mindent` az összes aktív elemet inaktiválja.
 - A memória csak explicit utasításra változik. Titkokat, jelszavakat, elérhetőségeket és érzékeny személyes adatokat nem tárolhat.
+
+
+## Üzleti tanulómemória és jóváhagyott műveletek
+
+- A JARVIS a mentett, saját leadkutatásokból iparági és kutatási módszermintákat készít.
+- A döntések és az eredmények továbbra is kizárólag kifejezett felhasználói mentéssel kerülnek a memóriába; a rendszer nem következtet automatikusan sikerre vagy oksági kapcsolatra.
+- Javasolt strukturált eredményrögzítés: `Mentsd el a tapasztalatot: iparág=...; módszer=...; döntés=...; eredmény=...`.
+- A hibák/tanulságok rögzítése: `Rögzítsd a tanulságot: ...`. A későbbi stratégiai kérdésekben a JARVIS ezeket figyelembe veszi.
+- A célpiacváltás és a globális leadkutatás kétlépcsős: először megmutatja a tervezett műveletet, majd csak a `Jóváhagyom` üzenetre hajtja végre. `Elutasítom` megszakítja.
+- A jóváhagyási lista szándékosan szűk: célpiacváltás és nyilvános, céges leadkutatás. Nincs automatikus e-mail-küldés, és a JARVIS nem módosít CRM-lead- vagy feladatrekordokat.
+
+## Proaktív változásfigyelés
+
+- A napi vezetői jelentés tartalmazza az előző napi pillanatkép óta létrejött cégeket/feladatokat, a lead- és feladatstátusz-változásokat, valamint a lejárt feladatokat.
+- A GitHub Actions napi 08:30 UTC futása a jelentést artifactként publikálja; ez nem push értesítés és nem e-mail.
+- A pillanatkép kizárólag a `jarvis_proactive_state` technikai táblába kerül. A táblát a frissített `supabase/schema.sql` hozza létre; futtasd le a Supabase SQL Editorban a frissítést.
+- Az első monitorfutásnak nincs korábbi összehasonlítási alapja, ezért az első pillanatkép a már létező rekordokat is újnak mutathatja.
