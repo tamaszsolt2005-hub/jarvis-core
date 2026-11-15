@@ -86,7 +86,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
         "",
         "## Elmaradások és prioritások",
         f"- Lejárt, nyitott feladatok: {len(overdue)}",
-        *[f"  - {x.get('title') or 'Névtelen feladat'} (határidő: {str(x.get('due_at'))[:10]}, prioritás: {x.get('priority') or 'normal'})" for x in overdue[:10]],
+        *[f"  - {x.get('title') or 'Névtelen feladat'} (határidő: {(_local_date(x.get('due_at')) or date.min).isoformat()}, prioritás: {x.get('priority') or 'normal'})" for x in overdue[:10]],
         f"- Ma esedékes nyitott feladatok: {len(due_today)}",
         *[f"  - {x.get('title') or 'Névtelen feladat'} (prioritás: {x.get('priority') or 'normal'})" for x in due_today[:10]],
         f"- Sürgős nyitott feladatok: {len(urgent_open)}",
