@@ -70,6 +70,7 @@ class FakeDB:
     def __init__(self):
         self.created = None
         self.updated = None
+        self.status = "open"
 
     def table(self, _name):
         return Query(self)
