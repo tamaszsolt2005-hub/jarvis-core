@@ -222,7 +222,8 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         if confidence not in {"high", "medium", "low"}:
             confidence = "low"
         notes = (
-            f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}. "
+            f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
+            f"kutatási módszer: Google Search grounding + hivatalos weboldal és forrás-keresztellenőrzés. "
             f"Cégprofil: {summary} Lehetséges illeszkedés: {fit} "
             f"AI üzleti illeszkedési becslés: {fit_score if fit_score is not None else 'nincs adat'}/100; "
             f"bizonyosság: {confidence}; megfigyelhető üzleti igény: {business_need}; "
