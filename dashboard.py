@@ -478,7 +478,7 @@ if prompt:
             context, loaded_sources = retrieve_context(db, prompt)
         if research_result is not None:
             import json
-            context += "\\n\\nAZ AKTUÁLIS GLOBÁLIS LEADKUTATÁS EREDMÉNYE (csak céges adatok; nincs kapcsolatfelvételi engedély):\\n"
+            context += "\n\nAZ AKTUÁLIS GLOBÁLIS LEADKUTATÁS EREDMÉNYE (csak céges adatok; nincs kapcsolatfelvételi engedély):\n"
             context += json.dumps(research_result, ensure_ascii=False)
             loaded_sources.append("Google Search grounding alapú globális leadkutatás")
 
