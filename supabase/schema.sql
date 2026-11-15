@@ -23,7 +23,9 @@ create table if not exists public.leads (
   updated_at timestamptz not null default now()
 );
 
--- Global research stores company-only prospects without an email address or outreach consent.\nalter table public.leads alter column email drop not null;\nalter table public.leads add column if not exists consent_basis text;
+-- Global research stores company-only prospects without an email address or outreach consent.
+alter table public.leads alter column email drop not null;
+alter table public.leads add column if not exists consent_basis text;
 alter table public.leads add column if not exists approved_to_contact boolean not null default false;
 alter table public.leads add column if not exists consent_confirmed_at timestamptz;
 alter table public.leads add column if not exists opted_out boolean not null default false;
