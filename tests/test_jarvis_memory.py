@@ -20,3 +20,20 @@ def test_rejects_secrets_and_contact_details():
     assert not _valid_memory("A jelszó: supersecret123")
     assert not _valid_memory("Kapcsolat: hello@example.com")
     assert _valid_memory("A fő célpiac Németország")
+
+
+
+def test_explicit_decision_and_lesson_commands_are_categorized():
+    assert memory_command("Jegyezd meg a döntést: Németország legyen a második piac") == (
+        "save:decision", "Németország legyen a második piac"
+    )
+    assert memory_command("Rögzítsd a tanulságot: a túl tág célzás gyenge eredményt adott") == (
+        "save:lesson", "a túl tág célzás gyenge eredményt adott"
+    )
+    assert memory_command("Mentsd el a tapasztalatot: a rövidebb brief pontosabb") == (
+        "save:outcome", "a rövidebb brief pontosabb"
+    )
+
+
+def test_forget_all_command():
+    assert memory_command("Felejtsd el mindent") == ("forget", "")
