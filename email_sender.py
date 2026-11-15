@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re, time
 from datetime import datetime, timedelta, timezone
-from email_utils import send_email
+from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event
 from lead_scoring import score_lead
 from web_auditor import audit_company_website
@@ -31,7 +31,7 @@ def _draft(lead: dict) -> tuple[str,str]:
     return subject,body
 
 def run() -> None:
-    if not env_bool("AUTO_SEND_ENABLED",False):
+    if not EMAIL_DELIVERY_ENABLED or not env_bool("AUTO_SEND_ENABLED",False):
         print("Biztonsági mód: AUTO_SEND_ENABLED nem true, e-mail nem kerül kiküldésre."); return
     db=get_supabase()
     rows=db.table("leads").select("*").eq("status","new").limit(100).execute().data or []
