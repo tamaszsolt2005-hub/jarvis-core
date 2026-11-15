@@ -27,3 +27,14 @@ def test_learning_does_not_treat_negative_outcome_as_success():
         {"category": "outcome", "content": "módszer=Hideg megkeresés; eredmény=nem működött"},
     ], [])
     assert result["explicitly_successful_methods"] == []
+
+
+def test_learning_tracks_explicit_negative_and_unclassified_outcomes():
+    result = build_business_learning([
+        {"category": "outcome", "content": "iparág=Gyártás; módszer=Hideg hívás; eredmény=nem volt sikeres, 0 érdeklődő"},
+        {"category": "outcome", "content": "iparág=IT; módszer=Partneri ajánlás; eredmény=sikeres, 4 minősített érdeklődő"},
+        {"category": "outcome", "content": "iparág=Építőipar; módszer=Konferencia; eredmény=2 találkozó"},
+    ], [])
+    assert result["outcome_polarity_counts"] == {"positive": 1, "negative": 1, "unclassified": 1}
+    assert result["explicitly_unsuccessful_methods"][0]["name"] == "Hideg hívás"
+    assert result["explicitly_successful_methods"][0]["name"] == "Partneri ajánlás"
