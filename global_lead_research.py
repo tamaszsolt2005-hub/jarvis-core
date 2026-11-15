@@ -13,6 +13,22 @@ from jarvis_common import get_model_name, log_event
 
 
 MAX_RESULTS = 15
+DEFAULT_MARKET = "Hungary"
+MARKET_ALIASES = {
+    "magyarország": "Hungary", "magyarorszag": "Hungary", "magyar": "Hungary", "hungary": "Hungary",
+    "németország": "Germany", "nemetorszag": "Germany", "német": "Germany", "nemet": "Germany", "germany": "Germany",
+    "franciaország": "France", "franciaorszag": "France", "francia": "France", "france": "France",
+    "ausztria": "Austria", "osztrák": "Austria", "austria": "Austria",
+    "svájc": "Switzerland", "svajc": "Switzerland", "switzerland": "Switzerland",
+    "egyesült királyság": "United Kingdom", "anglia": "United Kingdom", "uk": "United Kingdom",
+    "olaszország": "Italy", "olaszorszag": "Italy", "olasz": "Italy", "italy": "Italy",
+    "spanyolország": "Spain", "spanyolorszag": "Spain", "spanyol": "Spain", "spain": "Spain",
+    "lengyelország": "Poland", "lengyelorszag": "Poland", "lengyel": "Poland", "poland": "Poland",
+    "románia": "Romania", "romania": "Romania", "román": "Romania",
+    "hollandia": "Netherlands", "holland": "Netherlands", "netherlands": "Netherlands",
+    "egész világ": "Worldwide", "egesz vilag": "Worldwide", "világszerte": "Worldwide", "vilagszerte": "Worldwide",
+    "világ": "Worldwide", "worldwide": "Worldwide",
+}
 SOURCE_TAG = "gemini_google_search_grounding"
 
 
@@ -72,8 +88,42 @@ def _parse_companies(text: str) -> list[dict[str, Any]]:
     return [item for item in companies if isinstance(item, dict)] if isinstance(companies, list) else []
 
 
+def get_research_market(db: Any) -> str:
+    """Read the persistent lead-research market; default to Hungary."""
+    try:
+        rows = db.table("settings").select("value").eq("key", "lead_research_market").limit(1).execute().data or []
+        value = rows[0].get("value") if rows else None
+        if isinstance(value, dict) and isinstance(value.get("country"), str):
+            return value["country"]
+    except Exception:
+        pass
+    return DEFAULT_MARKET
+
+
+def set_research_market(db: Any, country: str) -> str:
+    """Persist the active market without changing email permissions."""
+    if country not in set(MARKET_ALIASES.values()):
+        raise ValueError("Nem támogatott vagy nem ismert célország.")
+    db.table("settings").upsert({
+        "key": "lead_research_market",
+        "value": {"country": country},
+    }).execute()
+    return country
+
+
+def detect_market_change(message: str) -> str | None:
+    """Recognize explicit Hungarian market-switch commands."""
+    q = (message or "").casefold().strip()
+    if not any(word in q for word in ("válts", "valts", "állítsd", "allitsd", "átáll", "atall", "piac", "ország", "orszag")):
+        return None
+    for alias, country in sorted(MARKET_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
+        if alias in q:
+            return country
+    return None
+
+
 def research_global_companies(db: Any, request: str, client: Any | None = None,
-                              max_results: int = MAX_RESULTS) -> dict[str, Any]:
+                              max_results: int = MAX_RESULTS, market_country: str | None = None) -> dict[str, Any]:
     """Find public business entities worldwide and save unapproved company-only leads.
 
     Search results are treated as untrusted. Only entries tied to a Google Search
@@ -81,11 +131,16 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
     inserted record has approved_to_contact=False.
     """
     client = client or genai.Client()
+    market_country = market_country or get_research_market(db)
+    market_instruction = (
+        "Focus ONLY on companies operating in " + market_country + ". Prioritize companies headquartered there "
+        "or with substantial operations there. Do not return unrelated countries."
+        if market_country != "Worldwide" else
+        "Search worldwide with no country, industry or company-size restriction; include diverse regions."
+    )
     prompt = (
-        "Perform live Google Search research for real, currently operating companies worldwide. "
-        "No country, industry or company-size restriction. Interpret the user's business context "
-        "as a broad prospecting brief, but include diverse sectors and regions rather than only "
-        "one market. Return up to " + str(max(1, min(int(max_results), MAX_RESULTS))) + " distinct companies. "
+        "Perform live Google Search research for real, currently operating companies. "
+        + market_instruction + " Interpret the user's business context as a broad prospecting brief. Return up to " + str(max(1, min(int(max_results), MAX_RESULTS))) + " distinct companies. "
         "Return ONLY valid JSON: {\"companies\":[{\"company_name\":\"...\","
         "\"website\":\"https://official-domain\",\"country\":\"...\",\"industry\":\"...\","
         "\"business_summary\":\"short factual summary\",\"potential_fit\":\"why it may fit\","
@@ -135,7 +190,7 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         summary = str(item.get("business_summary") or "")[:700]
         fit = str(item.get("potential_fit") or "")[:700]
         notes = (
-            f"Globális kutatás; ország: {country}; iparág: {industry}. "
+            f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}. "
             f"Cégprofil: {summary} Lehetséges illeszkedés: {fit} "
             f"Forrás: {source_url}"
         )[:2000]
@@ -161,10 +216,11 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         "skipped_count": skipped,
         "companies": inserted,
         "grounding_sources": grounded_urls[:30],
-        "scope": "worldwide",
+        "scope": market_country,
+        "market_country": market_country,
         "email_sending": "disabled",
         "contact_permission": "not_granted",
     }
     log_event(db, "global_lead_research",
-              f"Globális kutatás: {len(inserted)} új céges lead, {skipped} kihagyva; e-mail-küldés tiltva.")
+              f"Leadkutatás ({market_country}): {len(inserted)} új céges lead, {skipped} kihagyva; e-mail-küldés tiltva.")
     return result
