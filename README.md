@@ -134,5 +134,5 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 
 - A napi vezetői jelentés tartalmazza az előző napi pillanatkép óta létrejött cégeket/feladatokat, a lead- és feladatstátusz-változásokat, valamint a lejárt feladatokat.
 - A GitHub Actions napi 08:30 UTC futása a jelentést artifactként publikálja; ez nem push értesítés és nem e-mail.
-- A pillanatkép kizárólag a `jarvis_proactive_state` technikai táblába kerül. A táblát a frissített `supabase/schema.sql` hozza létre; futtasd le a Supabase SQL Editorban a frissítést.
-- Az első monitorfutásnak nincs korábbi összehasonlítási alapja, ezért az első pillanatkép a már létező rekordokat is újnak mutathatja.
+- A pillanatkép kizárólag a `jarvis_proactive_state` technikai táblába kerül. A táblát a frissített `supabase/schema.sql` hozza létre; futtasd le a Supabase SQL Editorban a frissítést. Amíg a tábla nincs telepítve, a napi jelentés ettől függetlenül elkészül, a monitor külön figyelmeztetést ad.
+- Az első monitorfutás csak alapállapotot rögzít, nem jelenti tévesen újként a már meglévő rekordokat; a következő futások ehhez képest jelzik a változásokat.
