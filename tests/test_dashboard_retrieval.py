@@ -79,6 +79,25 @@ def test_lead_retrieval_handles_legacy_schema_and_filters_personal_fields():
     assert ("select", "*") in db.calls
 
 
+
+def test_email_draft_retrieval_excludes_recipient_addresses():
+    db = FakeDB({
+        "email_drafts": [{
+            "id": "draft-1",
+            "recipient": "private@example.com",
+            "subject": "Szakmai bemutatkozás",
+            "status": "draft",
+        }]
+    })
+
+    context, sources = retrieve_context(db, "Mutasd az e-mail piszkozatokat")
+
+    assert "Szakmai bemutatkozás" in context
+    assert "private@example.com" not in context
+    assert ("select", "id,subject,status,created_at,lead_id") in db.calls
+    assert "e-mail-piszkozatok" in sources
+
+
 def test_read_query_is_bounded_and_does_not_call_mutation_methods():
     db = FakeDB({"leads": [{"id": "1", "company_name": "Minta", "status": "new"}]})
 
