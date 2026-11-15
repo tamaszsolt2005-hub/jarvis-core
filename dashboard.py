@@ -146,63 +146,97 @@ def _public_http_url(value: Any) -> str | None:
 
 
 def _website_profile(url: Any) -> dict[str, Any]:
-    """Fetch a bounded public HTML page and score useful business information."""
+    """Fetch a bounded public HTML page, safely follow public redirects, and score it."""
+    from urllib.parse import urljoin
     import requests
     from bs4 import BeautifulSoup
 
     safe_url = _public_http_url(url)
     if not safe_url:
         return {"status": "nincs biztonságos, érvényes webcím", "score": 0, "url": str(url or "")[:200]}
+
+    current_url = safe_url
+    response = None
     try:
-        response = requests.get(safe_url, timeout=(3, 6), allow_redirects=False, stream=True,
-                                headers={"User-Agent": "JARVIS-Business-Research/1.0"})
-        if response.status_code >= 300:
-            response.close()
-            return {"status": f"HTTP {response.status_code}; átirányítás vagy hiba", "score": 0, "url": safe_url}
-        content_type = response.headers.get("Content-Type", "").lower()
-        if "text/html" not in content_type and "application/xhtml" not in content_type:
-            response.close()
-            return {"status": "nem HTML weboldal", "score": 0, "url": safe_url}
-        chunks, total = [], 0
-        for chunk in response.iter_content(chunk_size=16384):
-            if not chunk:
+        # Follow redirects manually: every destination is revalidated to block
+        # redirects to localhost, private networks, or cloud metadata endpoints.
+        for redirect_count in range(4):
+            response = requests.get(
+                current_url, timeout=(3, 6), allow_redirects=False, stream=True,
+                headers={"User-Agent": "JARVIS-Business-Research/1.0"},
+            )
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location")
+                response.close()
+                response = None
+                if not location:
+                    return {"status": f"HTTP {response.status_code}; hiányzó átirányítási cím", "score": 0, "url": current_url}
+                if redirect_count >= 3:
+                    return {"status": "túl sok átirányítás (maximum 3)", "score": 0, "url": current_url}
+                target = _public_http_url(urljoin(current_url, location))
+                if not target:
+                    return {"status": "nem biztonságos átirányítási cél", "score": 0, "url": current_url}
+                current_url = target
                 continue
-            remaining = 180_000 - total
-            chunks.append(chunk[:remaining])
-            total += min(len(chunk), remaining)
-            if total >= 180_000:
-                break
-        response.close()
-        soup = BeautifulSoup(b"".join(chunks), "html.parser")
-        for node in soup(["script", "style", "noscript", "svg"]):
-            node.decompose()
-        title = soup.title.get_text(" ", strip=True) if soup.title else ""
-        meta = soup.find("meta", attrs={"name": lambda value: value and value.lower() == "description"})
-        description = meta.get("content", "").strip() if meta else ""
-        text = " ".join(soup.stripped_strings)[:12000]
-        body = (title + " " + description + " " + text).casefold()
-        signals = {
-            "szolgaltatasok_vagy_termekek": any(x in body for x in ("szolgáltatás", "megoldás", "services", "solutions", "termék", "products")),
-            "kapcsolat": any(x in body for x in ("kapcsolat", "contact", "elérhetőség", "telefon", "phone")),
-            "cegbemutatas": any(x in body for x in ("rólunk", "about us", "cégün", "vállalkozás", "company")),
-            "referenciak": any(x in body for x in ("referencia", "ügyfeleink", "testimonials", "case study", "partnereink")),
-            "ajanlatkeres_cta": any(x in body for x in ("ajánlatkérés", "request a quote", "book a call", "időpontfoglalás", "kapcsolatfelvétel")),
-        }
-        score = (10 if safe_url.startswith("https://") else 0)
-        score += 10 if title else 0
-        score += 10 if description else 0
-        score += 15 if len(text) >= 500 else (7 if len(text) >= 150 else 0)
-        score += 15 if signals["szolgaltatasok_vagy_termekek"] else 0
-        score += 10 if signals["kapcsolat"] else 0
-        score += 10 if signals["cegbemutatas"] else 0
-        score += 10 if signals["referenciak"] else 0
-        score += 10 if signals["ajanlatkeres_cta"] else 0
-        score += 10 if len(text) >= 1500 else 0
-        return {"status": "sikeresen beolvasva", "url": safe_url, "score": min(score, 100),
-                "title": title[:300], "description": description[:500], "signals": signals,
-                "content_excerpt": text[:3500]}
+            if response.status_code != 200:
+                status_code = response.status_code
+                response.close()
+                response = None
+                return {"status": f"HTTP {status_code}", "score": 0, "url": current_url}
+
+            content_type = response.headers.get("Content-Type", "").lower()
+            if "text/html" not in content_type and "application/xhtml" not in content_type:
+                response.close()
+                response = None
+                return {"status": "nem HTML weboldal", "score": 0, "url": current_url}
+
+            chunks, total = [], 0
+            for chunk in response.iter_content(chunk_size=16384):
+                if not chunk:
+                    continue
+                remaining = 180_000 - total
+                chunks.append(chunk[:remaining])
+                total += min(len(chunk), remaining)
+                if total >= 180_000:
+                    break
+            response.close()
+            response = None
+            soup = BeautifulSoup(b"".join(chunks), "html.parser")
+            for node in soup(["script", "style", "noscript", "svg"]):
+                node.decompose()
+            title = soup.title.get_text(" ", strip=True) if soup.title else ""
+            meta = soup.find("meta", attrs={"name": lambda value: value and value.lower() == "description"})
+            description = meta.get("content", "").strip() if meta else ""
+            text = " ".join(soup.stripped_strings)[:12000]
+            body = (title + " " + description + " " + text).casefold()
+            signals = {
+                "szolgaltatasok_vagy_termekek": any(x in body for x in ("szolgáltatás", "megoldás", "services", "solutions", "termék", "products")),
+                "kapcsolat": any(x in body for x in ("kapcsolat", "contact", "elérhetőség", "telefon", "phone")),
+                "cegbemutatas": any(x in body for x in ("rólunk", "about us", "cégün", "vállalkozás", "company")),
+                "referenciak": any(x in body for x in ("referencia", "ügyfeleink", "testimonials", "case study", "partnereink")),
+                "ajanlatkeres_cta": any(x in body for x in ("ajánlatkérés", "request a quote", "book a call", "időpontfoglalás", "kapcsolatfelvétel")),
+            }
+            score = (10 if current_url.startswith("https://") else 0)
+            score += 10 if title else 0
+            score += 10 if description else 0
+            score += 15 if len(text) >= 500 else (7 if len(text) >= 150 else 0)
+            score += 15 if signals["szolgaltatasok_vagy_termekek"] else 0
+            score += 10 if signals["kapcsolat"] else 0
+            score += 10 if signals["cegbemutatas"] else 0
+            score += 10 if signals["referenciak"] else 0
+            score += 10 if signals["ajanlatkeres_cta"] else 0
+            score += 10 if len(text) >= 1500 else 0
+            return {"status": "sikeresen beolvasva", "url": current_url, "score": min(score, 100),
+                    "title": title[:300], "description": description[:500], "signals": signals,
+                    "content_excerpt": text[:3500]}
+        return {"status": "az oldal nem adott használható választ", "score": 0, "url": current_url}
     except requests.RequestException as exc:
-        return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": safe_url}
+        return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": current_url}
+    except Exception as exc:
+        return {"status": f"weboldal feldolgozási hiba ({type(exc).__name__})", "score": 0, "url": current_url}
+    finally:
+        if response is not None:
+            response.close()
 
 
 def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
