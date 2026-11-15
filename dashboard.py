@@ -578,6 +578,11 @@ if prompt:
             else:
                 approval_notice = "Nincs függőben jóváhagyásra váró művelet, ezért nem indítottam el semmit."
         else:
+            # A pending approval is valid for exactly the next user message.
+            # Any new request invalidates it before another action can be staged.
+            if pending_action:
+                st.session_state.pop("_jarvis_pending_action", None)
+                approval_notice = "A korábbi jóváhagyásra váró műveletet töröltem, mert új kérést adtál meg."
             requested_task_action = parse_task_command(prompt)
             requested_market = detect_market_change(prompt)
             requested_research = prompt if _wants_global_research(prompt) else None
@@ -585,15 +590,27 @@ if prompt:
                 approval_notice = "A feladatparancsot nem készítettem elő: " + requested_task_action["error"]
             elif requested_task_action:
                 task_action = requested_task_action
-                st.session_state["_jarvis_pending_action"] = {
-                    "market": None, "research_prompt": None, "task_action": task_action,
-                }
-                descriptions = {
-                    "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
-                    "close": f"feladat lezárása: {task_action['id']}",
-                    "update": f"feladat módosítása: {task_action['id']} – {task_action['updates']}",
-                }
-                approval_notice = "Jóváhagyásra váró feladatművelet: " + descriptions.get(task_action["type"], "feladatművelet") + ". Írd be: „Jóváhagyom” vagy „Elutasítom”."
+                task_title = None
+                if task_action["type"] in {"close", "update"}:
+                    matching_tasks = (
+                        db.table("tasks").select("id,title,status")
+                        .eq("id", task_action["id"]).limit(1).execute().data or []
+                    )
+                    if not matching_tasks:
+                        task_action = None
+                        approval_notice = "A megadott feladatazonosító nem található; nem készítettem elő módosítást."
+                    else:
+                        task_title = matching_tasks[0].get("title") or task_action["id"]
+                if task_action:
+                    st.session_state["_jarvis_pending_action"] = {
+                        "market": None, "research_prompt": None, "task_action": task_action,
+                    }
+                    descriptions = {
+                        "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
+                        "close": f"feladat lezárása: **{task_title}** (azonosító: {task_action['id']})",
+                        "update": f"feladat módosítása: **{task_title}** (azonosító: {task_action['id']}) – {task_action['updates']}",
+                    }
+                    approval_notice = "Jóváhagyásra váró feladatművelet: " + descriptions.get(task_action["type"], "feladatművelet") + ". Írd be: „Jóváhagyom” vagy „Elutasítom”."
             elif requested_market or requested_research:
                 st.session_state["_jarvis_pending_action"] = {
                     "market": requested_market,
