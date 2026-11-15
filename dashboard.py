@@ -241,7 +241,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
                 "referenciak": any(x in body for x in ("referencia", "ügyfeleink", "testimonials", "case study", "partnereink")),
                 "ajanlatkeres_cta": any(x in body for x in ("ajánlatkérés", "request a quote", "book a call", "időpontfoglalás", "kapcsolatfelvétel")),
             }
-            score = (10 if current_url.startswith("https://") else 0)
+            score = (5 if current_url.startswith("https://") else 0)
             score += 10 if title else 0
             score += 10 if description else 0
             score += 15 if len(text) >= 500 else (7 if len(text) >= 150 else 0)
@@ -250,7 +250,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
             score += 10 if signals["cegbemutatas"] else 0
             score += 10 if signals["referenciak"] else 0
             score += 10 if signals["ajanlatkeres_cta"] else 0
-            score += 10 if len(text) >= 1500 else 0
+            score += 5 if len(text) >= 1500 else 0
             return {"status": "sikeresen beolvasva", "url": current_url, "score": min(score, 100),
                     "title": title[:300], "description": description[:500], "signals": signals,
                     "content_excerpt": text[:3500]}
@@ -385,7 +385,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         if wants_ranking:
             ranked = []
             # Inspect at most 30 lead websites per explicit ranking request.
-            for lead in rows[:500]:
+            for lead in rows:
                 website = lead.get("website")
                 if not website:
                     continue
@@ -408,7 +408,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             )
             loaded.append("lead-weboldalak és rangsorolás")
         sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
-                        + f"Összes lead: {len(rows)}; státusz szerinti megoszlás: {counts}.\n"
+                        + f"Vizsgált leadek (legfeljebb 1500): {len(rows)}; státusz szerinti megoszlás: {counts}.\n"
                         + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("leadek")
 
