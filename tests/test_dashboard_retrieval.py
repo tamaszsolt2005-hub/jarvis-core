@@ -158,3 +158,25 @@ def test_website_profile_safely_follows_public_redirect(monkeypatch):
     assert result["url"] == "https://www.example.com/company"
     assert len(calls) == 2
     assert all(call[1]["allow_redirects"] is False for call in calls)
+
+
+def test_website_error_question_loads_leads_and_website_profiles(monkeypatch):
+    monkeypatch.setitem(
+        _NAMESPACE,
+        "_website_profile",
+        lambda url: {"status": "HTTP 403", "score": 0, "url": url},
+    )
+    db = FakeDB({
+        "leads": [{
+            "id": "lead-web-1",
+            "company_name": "Minta Kft.",
+            "website": "https://example.com",
+            "status": "new",
+        }]
+    })
+
+    context, sources = retrieve_context(db, "Mutasd a hibás weboldalakat")
+
+    assert "Minta Kft." in context
+    assert "HTTP 403" in context
+    assert "lead-weboldalak és rangsorolás" in sources
