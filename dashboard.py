@@ -483,10 +483,10 @@ if prompt:
         with st.spinner("JARVIS lekérdezi a szükséges adatokat és elemez…"):
             context, loaded_sources = retrieve_context(db, prompt)
         if market_change:
-            context += f"\\n\\nA leadkutatás célpiaca sikeresen módosítva és elmentve: {active_market}. A napi automatikus kutatás is ezt a piacot használja. Az e-mail-küldés továbbra is tiltva."
+            context += f"\n\nA leadkutatás célpiaca sikeresen módosítva és elmentve: {active_market}. A napi automatikus kutatás is ezt a piacot használja. Az e-mail-küldés továbbra is tiltva."
             loaded_sources.append("mentett leadkutatási célpiac")
         else:
-            context += f"\\n\\nJelenlegi leadkutatási célpiac: {active_market}."
+            context += f"\n\nJelenlegi leadkutatási célpiac: {active_market}."
         if research_result is not None:
             import json
             context += "\n\nAZ AKTUÁLIS GLOBÁLIS LEADKUTATÁS EREDMÉNYE (csak céges adatok; nincs kapcsolatfelvételi engedély):\n"
