@@ -20,18 +20,19 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
         db.table("jarvis_proactive_state").select("snapshot")
         .eq("key", STATE_KEY).limit(1).execute().data or []
     )
+    has_baseline = bool(prior_rows)
     previous = prior_rows[0].get("snapshot") if prior_rows else {}
     previous = previous if isinstance(previous, dict) else {}
     old_leads = {str(x.get("id")): x for x in previous.get("leads", []) if x.get("id")}
     old_tasks = {str(x.get("id")): x for x in previous.get("tasks", []) if x.get("id")}
 
-    new_leads = [x for x in leads if x.get("id") and str(x["id"]) not in old_leads]
+    new_leads = [x for x in leads if has_baseline and x.get("id") and str(x["id"]) not in old_leads]
     changed_leads = [
         {"company": x.get("company_name"), "from": old_leads[str(x["id"])].get("status"), "to": x.get("status")}
         for x in leads if x.get("id") and str(x["id"]) in old_leads
         and old_leads[str(x["id"])].get("status") != x.get("status")
     ]
-    new_tasks = [x for x in tasks if x.get("id") and str(x["id"]) not in old_tasks]
+    new_tasks = [x for x in tasks if has_baseline and x.get("id") and str(x["id"]) not in old_tasks]
     changed_tasks = [
         {"title": x.get("title"), "from": old_tasks[str(x["id"])].get("status"), "to": x.get("status")}
         for x in tasks if x.get("id") and str(x["id"]) in old_tasks
@@ -58,7 +59,8 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
         *[f"  - {x.get('title') or 'Névtelen feladat'} (határidő: {str(x.get('due_at'))[:10]}, prioritás: {x.get('priority') or 'normal'})" for x in overdue[:10]],
         "- Javaslat: először a sürgős és lejárt feladatokat rendezd, majd vizsgáld felül a frissen változott leadeket.",
         "",
-        "> Első futáskor nincs korábbi pillanatkép, ezért az aktuális rekordokat újként mutathatja. A monitor kizárólag ezt a technikai pillanatkép-táblát frissíti; leadet vagy feladatot nem módosít.",
+        ("> Az első futás csak alapállapotot rögzít; a meglévő rekordokat nem jelenti tévesen újnak. A következő futások ettől az alapállapottól jelzik az új rekordokat és változásokat." if not has_baseline else "> A változásokat az előző sikeres pillanatképhez viszonyítjuk."),
+        "> A monitor kizárólag ezt a technikai pillanatkép-táblát frissíti; leadet vagy feladatot nem módosít.",
     ]
 
     snapshot = {
