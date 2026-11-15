@@ -14,7 +14,7 @@ import pandas as pd
 import streamlit as st
 
 from jarvis_common import generate_text, get_secret, get_supabase
-from global_lead_research import research_global_companies
+from global_lead_research import (\n    detect_market_change, get_research_market, research_global_companies, set_research_market,\n)
 
 
 st.set_page_config(
@@ -467,15 +467,26 @@ if prompt:
             db = get_supabase()
             st.session_state["_jarvis_db"] = db
 
+        market_change = detect_market_change(prompt)
+        active_market = get_research_market(db)
+        if market_change:
+            stage = "Leadkutatási célpiac módosítása"
+            active_market = set_research_market(db, market_change)
+
         research_result = None
         if _wants_global_research(prompt):
-            stage = "Globális, Google-kereséssel alátámasztott leadkutatás"
-            with st.spinner("JARVIS világszerte keres cégeket, ellenőrzi a forrásokat és kiszűri a duplikátumokat…"):
-                research_result = research_global_companies(db, prompt)
+            stage = f"Leadkutatás – {active_market}"
+            with st.spinner(f"JARVIS {active_market} piacán keres cégeket, ellenőrzi a forrásokat és kiszűri a duplikátumokat…"):
+                research_result = research_global_companies(db, prompt, market_country=active_market)
         
         stage = "Supabase-adatlekérdezés"
         with st.spinner("JARVIS lekérdezi a szükséges adatokat és elemez…"):
             context, loaded_sources = retrieve_context(db, prompt)
+        if market_change:
+            context += f"\\n\\nA leadkutatás célpiaca sikeresen módosítva és elmentve: {active_market}. A napi automatikus kutatás is ezt a piacot használja. Az e-mail-küldés továbbra is tiltva."
+            loaded_sources.append("mentett leadkutatási célpiac")
+        else:
+            context += f"\\n\\nJelenlegi leadkutatási célpiac: {active_market}."
         if research_result is not None:
             import json
             context += "\n\nAZ AKTUÁLIS GLOBÁLIS LEADKUTATÁS EREDMÉNYE (csak céges adatok; nincs kapcsolatfelvételi engedély):\n"
