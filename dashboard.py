@@ -7,6 +7,7 @@ prospect records. The application never sends email.
 from __future__ import annotations
 
 import hmac
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -106,13 +107,23 @@ st.markdown(
 )
 
 
+AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
+
+
 def authenticated() -> bool:
+    now = time.time()
+    if st.session_state.get("authenticated"):
+        authenticated_at = st.session_state.get("_jarvis_authenticated_at")
+        if isinstance(authenticated_at, (int, float)) and 0 <= now - authenticated_at < AUTH_SESSION_TTL_SECONDS:
+            return True
+        st.session_state.pop("authenticated", None)
+        st.session_state.pop("_jarvis_authenticated_at", None)
+        st.session_state.pop("_jarvis_db", None)
+        st.session_state.pop("_jarvis_pending_action", None)
     expected = get_secret("JARVIS_DASHBOARD_PASSWORD")
     if not expected:
         st.error("Hiányzó JARVIS_DASHBOARD_PASSWORD. Állítsd be a Codespace secrets konfigurációjában.")
         return False
-    if st.session_state.get("authenticated"):
-        return True
     st.markdown('<div class="jarvis-eyebrow">PRIVATE BUSINESS INTELLIGENCE</div>', unsafe_allow_html=True)
     st.title("JARVIS")
     st.caption("A beszélgetéshez jelentkezz be.")
@@ -120,6 +131,7 @@ def authenticated() -> bool:
     if st.button("Belépés", type="primary", use_container_width=True):
         if hmac.compare_digest(password, expected):
             st.session_state["authenticated"] = True
+            st.session_state["_jarvis_authenticated_at"] = now
             st.rerun()
         st.error("Hibás jelszó.")
     return False
