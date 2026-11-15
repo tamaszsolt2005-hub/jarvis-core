@@ -102,7 +102,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     action_items = []
     for task in overdue[:3]:
         action_items.append(
-            f"{len(action_items) + 1}. Rendezd vagy ütemezd újra a lejárt feladatot: "
+            f"{len(action_items) + 1}. Rendezd a lejárt feladatot vagy ütemezd újra: "
             f"**{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']})."
         )
     for task in due_today[:2]:
