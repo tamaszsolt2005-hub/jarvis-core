@@ -121,6 +121,7 @@ def test_website_profile_safely_follows_public_redirect(monkeypatch):
     import socket
     import requests
 
+    _load_function("_public_http_url")
     website_profile = _load_function("_website_profile")
     monkeypatch.setattr(
         socket, "getaddrinfo",
