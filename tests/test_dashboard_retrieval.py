@@ -123,7 +123,7 @@ def test_empty_lead_table_returns_valid_context():
 
     context, sources = retrieve_context(db, "Lead áttekintés")
 
-    assert "Összes lead: 0" in context
+    assert "Vizsgált leadek (legfeljebb 1500): 0" in context
     assert sources == ["leadek", "feladatok", "e-mail-piszkozatok", "naplók"]
 
 
