@@ -75,3 +75,14 @@ A service-role kulcs megkerüli a Supabase Row Level Security szabályait, ezér
 A projekt különálló import-, inbox- és e-mail-műveleti szkriptjei nem részei a chatfelületnek. A régi pipeline workflow-k teljesen hatástalanítottak: nincs ütemezés, és kézi indítás esetén sem futtatnak adatbázis- vagy e-mail-műveletet.
 
 A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a célország szerinti marketingjogi ellenőrzést.
+
+
+## JARVIS hosszú távú memóriája
+
+- A JARVIS külön `jarvis_memory` táblában tárolja a felhasználó által kifejezetten megőrzésre kért üzleti preferenciákat, döntéseket és működési szabályokat.
+- Mentés csak egyértelmű chatutasításra történik: `Jegyezd meg, hogy Magyarország az elsődleges piacunk.` A hétköznapi beszélgetések önmagukban nem kerülnek memóriába.
+- A releváns emlékeket későbbi kérdésekhez visszakeresi, és a Gemini kontextusához adja. A memória tartalma adat, nem írhatja felül a rendszerutasításokat.
+- `Mutasd a memóriádat` felsorolja az aktív emlékeket; `Felejtsd el a ...` inaktiválja a megfelelő emléket.
+- Jelszavak, API-kulcsok, személyes elérhetőségek és érzékeny személyes adatok mentését a modul elutasítja. Egy emlék legfeljebb 700 karakter lehet.
+- A memória Supabase-ben tárolódik; nincs beépített fix elemszám-limit. A lekérdezés legfeljebb 100 aktív elemet vizsgál, és legfeljebb 20 releváns elemet ad át a modellnek.
+- Az új táblához futtasd a frissített `supabase/schema.sql` fájlt a Supabase SQL Editorban. Az e-mail-küldés tiltása változatlan.
