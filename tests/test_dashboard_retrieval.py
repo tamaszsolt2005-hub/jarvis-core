@@ -178,7 +178,8 @@ def test_website_profile_safely_follows_public_redirect(monkeypatch):
         calls.append((url, kwargs))
         return responses.pop(0)
 
-    monkeypatch.setitem(_NAMESPACE, "safe_get", fake_get)
+    import safe_http
+    monkeypatch.setattr(safe_http, "safe_get", fake_get)
     result = website_profile("https://example.com")
 
     assert result["status"] == "sikeresen beolvasva"
