@@ -1,59 +1,13 @@
-name: JARVIS Daily Pipeline
-# Background processing is intentionally disabled for the chat-only product.
-# Use manual dispatch only when an operator explicitly requests a maintenance run.
+name: JARVIS Pipeline (disabled)
+# The product is chat-only. No scheduled or manual job may import data,
+# inspect mailboxes, mutate Supabase records, or send messages.
 on:
   workflow_dispatch:
-concurrency:
-  group: jarvis-daily-pipeline
-  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
-  run-jarvis:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - run: python -m pip install -r requirements.txt
-      - name: Inbox replies (manual only)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python inbox_monitor.py
-      - name: Import reviewed CSV (manual only)
-        if: ${{ hashFiles('data/leads.csv') != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python lead_gen.py
-      - name: First-contact emails (hard disabled)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AUTO_SEND_ENABLED: "false"
-        run: python email_sender.py
-      - name: Due follow-ups (hard disabled)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AUTO_SEND_ENABLED: "false"
-        run: python follow_up.py
-      - name: Status report
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python jarvis_status.py
+      - name: Confirm background automation is disabled
+        run: echo "JARVIS background automation is disabled. Use the read-only chat application."
