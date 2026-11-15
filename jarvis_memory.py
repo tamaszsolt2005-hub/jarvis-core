@@ -11,10 +11,11 @@ from typing import Any
 
 SAVE_PREFIXES = (
     "jegyezd meg", "emlékezz arra", "emlékezz rá", "mentsd el emlékként",
-    "tartsd észben",
+    "tartsd észben", "rögzítsd a tanulságot", "jegyezd meg a döntést",
+    "mentsd el a tapasztalatot",
 )
 LIST_TERMS = ("mutasd a memóri", "mit jegyeztél meg", "mire emlékszel", "memória áttekint")
-FORGET_PREFIXES = ("felejtsd el", "töröld a memóriából", "töröld az emléket")
+FORGET_PREFIXES = ("felejtsd el", "töröld a memóriából", "töröld az emléket", "felejts el mindent")
 
 _SENSITIVE = re.compile(
     r"(?i)(api[_ -]?key|service[_ -]?role|password|jelszó|token|secret|"
@@ -27,17 +28,25 @@ def memory_command(message: str) -> tuple[str, str]:
     """Return (save|list|forget|none, payload)."""
     text = (message or "").strip()
     q = text.casefold()
+    if any(term in q for term in LIST_TERMS):
+        return "list", ""
+    for prefix in FORGET_PREFIXES:
+        if q.startswith(prefix):
+            payload = text[len(prefix):].strip(" :,-")
+            if not payload or payload.casefold() in {"mindent", "az összes emléket", "minden emléket", "az összeset"}:
+                return "forget", ""
+            return "forget", payload
     for prefix in SAVE_PREFIXES:
         if q.startswith(prefix):
             payload = text[len(prefix):].lstrip(" :,-")
             if payload.casefold().startswith(("hogy ", "azt, hogy ", "azt ")):
                 payload = payload.split(" ", 1)[1].strip()
-            return ("save", payload) if payload else ("none", "")
-    if any(term in q for term in LIST_TERMS):
-        return "list", ""
-    for prefix in FORGET_PREFIXES:
-        if q.startswith(prefix):
-            return "forget", text[len(prefix):].strip(" :,-")
+            category = "lesson" if prefix == "rögzítsd a tanulságot" else (
+                "decision" if prefix == "jegyezd meg a döntést" else (
+                    "outcome" if prefix == "mentsd el a tapasztalatot" else "business_preference"
+                )
+            )
+            return ("save:" + category, payload) if payload else ("none", "")
     return "none", ""
 
 
@@ -45,11 +54,13 @@ def _valid_memory(content: str) -> bool:
     return bool(content and len(content) <= 700 and not _SENSITIVE.search(content))
 
 
-def save_memory(db: Any, content: str) -> bool:
+def save_memory(db: Any, content: str, category: str = "business_preference") -> bool:
     if not _valid_memory(content):
         return False
+    if category not in {"business_preference", "decision", "outcome", "lesson"}:
+        category = "business_preference"
     db.table("jarvis_memory").insert({
-        "category": "business_preference",
+        "category": category,
         "content": content.strip(),
         "source": "explicit_user_instruction",
         "active": True,
@@ -61,7 +72,7 @@ def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     rows = db.table("jarvis_memory").select("id,category,content,created_at").eq(
         "active", True
     ).order("created_at", desc=True).limit(min(max(limit, 1), 100)).execute().data or []
-    terms = {x for x in re.findall(r"[\\wáéíóöőúüű-]{3,}", (question or "").casefold())}
+    terms = {x for x in re.findall(r"[\wáéíóöőúüű-]{3,}", (question or "").casefold())}
     if not terms:
         return rows[:20]
     scored = []
