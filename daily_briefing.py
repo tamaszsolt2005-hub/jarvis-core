@@ -44,7 +44,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due == today.isoformat():
             due_today.append(item)
 
-    fresh_today = []
+    priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]\n    priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, str(x.get("due_at") or "9999")))\n    fresh_today = []
     for lead in leads:
         created = str(lead.get("created_at") or "")[:10]
         if created == today.isoformat():
@@ -74,6 +74,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     else:
         lines.append("- Még nincs elegendő strukturált kutatási adat a rangsoroláshoz.")
 
+    lines += ["", "## Kiemelt nyitott feladatok"]
+    lines += [f"- {x.get('title') or 'Névtelen feladat'} (prioritás: {x.get('priority')})" for x in priority_tasks[:10]]
+    if not priority_tasks:
+        lines.append("- Nincs sürgős vagy magas prioritású nyitott feladat.")
+
     lines += ["", "## Lejárt feladatok"]
     lines += [f"- **{x['title']}** – határidő: {x['due']} (prioritás: {x['priority']})" for x in overdue[:10]]
     if not overdue:
@@ -96,7 +101,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         "- Először a lejárt és sürgős feladatokat rendezd.",
         "- Kapcsolatfelvétel előtt külön ellenőrizd a jogalapot és az explicit engedélyt.",
         "",
-        "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. A jelentés csak meglévő adatokat olvas; nem küld e-mailt és nem módosít rekordokat.",
+        "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
     ]
     return "\n".join(lines) + "\n"
 
