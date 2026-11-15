@@ -19,10 +19,10 @@ FORGET_PREFIXES = ("felejtsd el", "töröld a memóriából", "töröld az emlé
 
 _SENSITIVE = re.compile(
     r"(?i)(api[_ -]?key|service[_ -]?role|password|jelszó|token|secret|"
-    r"@|\\b\\+?\\d[\\d ()-]{7,}\\b|bankszámla|bankkártya|egészségügyi|"
+    r"@|\b\+?\d[\d ()-]{7,}\b|bankszámla|bankkártya|egészségügyi|"
     r"diagnózis|gyógyszer|politikai nézet|vallás)"
 )
-_TOKEN_RE = re.compile(r"[\\wáéíóöőúüű-]{3,}", re.UNICODE)
+_TOKEN_RE = re.compile(r"[\wáéíóöőúüű-]{3,}", re.UNICODE)
 _STOPWORDS = {
     "hogy", "azt", "egy", "ami", "amit", "arra", "erre", "régi", "ezt",
     "az", "a", "és", "vagy", "mert", "már", "volt", "lesz", "legyen",
