@@ -52,10 +52,13 @@ class FakeDB:
 def test_monitor_records_baseline_and_detects_changes():
     db = FakeDB()
     first = run_proactive_monitor(db, today=date(2026, 11, 15))
-    assert "Új cégek: 1" in first
+    assert "Új cégek: 0" in first
+    assert "Első futás csak alapállapotot rögzít" in first
     assert "Lejárt, nyitott feladatok: 1" in first
 
+    db.rows["leads"].append({"id": "l2", "company_name": "Másik Kft.", "status": "research"})
     db.rows["tasks"][0]["status"] = "done"
     second = run_proactive_monitor(db, today=date(2026, 11, 15))
-    assert "Új cégek: 0" in second
+    assert "Új cégek: 1" in second
+    assert "Másik Kft." in second
     assert "Feladatstátusz-változások: 1" in second
