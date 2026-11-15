@@ -81,3 +81,22 @@ def test_execute_create_and_close():
     assert db.created["title"] == "Teszt"
     assert "lezárva" in execute_task_action(db, {"type": "close", "id": TASK_ID})
     assert db.updated["status"] == "done"
+
+
+
+def test_completed_task_is_not_mutated_again():
+    class CompletedQuery(Query):
+        def execute(self):
+            if self.payload is not None:
+                self.db.updated = self.payload
+                return Result([])
+            return Result([{"id": TASK_ID, "title": "Teszt", "status": "done"}])
+
+    class CompletedDB(FakeDB):
+        def table(self, _name):
+            return CompletedQuery(self)
+
+    db = CompletedDB()
+    message = execute_task_action(db, {"type": "close", "id": TASK_ID})
+    assert "már nem nyitott" in message
+    assert db.updated is None
