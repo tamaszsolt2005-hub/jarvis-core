@@ -214,3 +214,46 @@ def test_website_error_question_loads_leads_and_website_profiles(monkeypatch):
 def test_dashboard_website_fetch_uses_dns_pinned_transport():
     assert "from safe_http import safe_get, close_response" in SOURCE
     assert "response = safe_get(" in SOURCE
+
+
+def test_website_score_uses_a_true_100_point_maximum(monkeypatch):
+    import socket
+    import safe_http
+
+    _load_function("_public_http_url")
+    website_profile = _load_function("_website_profile")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+    )
+
+    class Response:
+        status_code = 200
+        headers = {"Content-Type": "text/html; charset=utf-8"}
+        def iter_content(self, chunk_size):
+            yield (
+                "<html><head><title>Company</title>"
+                '<meta name="description" content="Business services"></head>'
+                "<body>services solutions products contact about us testimonials case study "
+                "request a quote " + ("business information " * 120) + "</body></html>"
+            ).encode()
+        def close(self):
+            pass
+
+    monkeypatch.setattr(safe_http, "safe_get", lambda *args, **kwargs: Response())
+    result = website_profile("https://example.com")
+    assert result["score"] == 100
+
+
+def test_ranking_scans_entire_bounded_lead_sample_until_30_sites(monkeypatch):
+    monkeypatch.setitem(
+        _NAMESPACE,
+        "_website_profile",
+        lambda url: {"status": "sikeresen beolvasva", "score": 88, "url": url},
+    )
+    rows = [{"id": str(i), "company_name": f"Cég {i}", "status": "research"} for i in range(520)]
+    rows[-1]["website"] = "https://last.example"
+    db = FakeDB({"leads": rows})
+
+    context, _ = retrieve_context(db, "Rangsorold a weboldalakat")
+    assert "Cég 519" in context
