@@ -106,6 +106,7 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
     lines.extend([
         "",
         ("> Az első futás csak alapállapotot rögzít; a meglévő rekordokat nem jelenti tévesen újnak. A következő futások ettől az alapállapottól jelzik az új rekordokat és változásokat." if not has_baseline else "> A változásokat az előző sikeres pillanatképhez viszonyítjuk."),
+        "> A monitor legfeljebb 2000 leadet és 1000 feladatot vizsgál; a változásjelzés erre a mintára korlátozódik.",
         "> A monitor kizárólag ezt a technikai pillanatkép-táblát frissíti; leadet vagy feladatot nem módosít.",
     ])
 
