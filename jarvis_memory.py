@@ -36,11 +36,13 @@ def memory_command(message: str) -> tuple[str, str]:
             if not payload or payload.casefold() in {"mindent", "az összes emléket", "minden emléket", "az összeset"}:
                 return "forget", ""
             return "forget", payload
-    for prefix in SAVE_PREFIXES:
+    for prefix in sorted(SAVE_PREFIXES, key=len, reverse=True):
         if q.startswith(prefix):
             payload = text[len(prefix):].lstrip(" :,-")
-            if payload.casefold().startswith(("hogy ", "azt, hogy ", "azt ")):
-                payload = payload.split(" ", 1)[1].strip()
+            for leading in ("a döntést", "a tanulságot", "a tapasztalatot", "hogy ", "azt, hogy ", "azt "):
+                if payload.casefold().startswith(leading):
+                    payload = payload[len(leading):].lstrip(" :,-")
+                    break
             category = "lesson" if prefix == "rögzítsd a tanulságot" else (
                 "decision" if prefix == "jegyezd meg a döntést" else (
                     "outcome" if prefix == "mentsd el a tapasztalatot" else "business_preference"
