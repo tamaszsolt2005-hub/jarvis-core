@@ -10,6 +10,18 @@ STATE_KEY = "daily_proactive_snapshot"
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
 
 
+def _local_date(value: Any) -> date | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=LOCAL_TZ)
+        return parsed.astimezone(LOCAL_TZ).date()
+    except (TypeError, ValueError):
+        return None
+
+
 def _rows(db: Any, table: str, columns: str, limit: int) -> list[dict]:
     return db.table(table).select(columns).limit(limit).execute().data or []
 
@@ -51,11 +63,11 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
     status_change_count = sum(1 for item in changed_tasks if any(change.startswith("állapot:") for change in item["changes"]))
     overdue = [
         x for x in tasks if str(x.get("status") or "open").casefold() == "open"
-        and str(x.get("due_at") or "")[:10] and str(x.get("due_at"))[:10] < today.isoformat()
+        and _local_date(x.get("due_at")) is not None and _local_date(x.get("due_at")) < today
     ]
     due_today = [
         x for x in tasks if str(x.get("status") or "open").casefold() == "open"
-        and str(x.get("due_at") or "")[:10] == today.isoformat()
+        and _local_date(x.get("due_at")) == today
     ]
     urgent_open = [x for x in tasks if str(x.get("status") or "open").casefold() == "open"
                    and str(x.get("priority") or "normal").casefold() == "urgent"]
