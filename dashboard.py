@@ -315,7 +315,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         loaded.append("feladatok")
 
     if wants_drafts:
-        rows = _safe_rows(db, "email_drafts", "id,recipient,subject,status,created_at,lead_id", 200)
+        rows = _safe_rows(db, "email_drafts", "id,subject,status,created_at,lead_id", 200)
         # Draft bodies are not sent to the model unless the user later explicitly asks for review.
         sections.append("E-MAIL PISZKOZAT METAADATOK (levéltörzs nélkül):\n"
                         + pd.DataFrame(rows).to_json(orient="records", force_ascii=False, date_format="iso"))
