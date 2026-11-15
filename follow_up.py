@@ -2,11 +2,11 @@
 from __future__ import annotations
 import time
 from datetime import datetime,timezone
-from email_utils import send_email
+from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from jarvis_common import env_bool,env_int,generate_text,get_supabase,log_event
 
 def run() -> None:
-    if not env_bool("AUTO_SEND_ENABLED",False):
+    if not EMAIL_DELIVERY_ENABLED or not env_bool("AUTO_SEND_ENABLED",False):
         print("Biztonsági mód: AUTO_SEND_ENABLED nem true, follow-up nem kerül kiküldésre."); return
     db=get_supabase(); now=datetime.now(timezone.utc)
     rows=db.table("leads").select("*").eq("status","sent").limit(100).execute().data or []
