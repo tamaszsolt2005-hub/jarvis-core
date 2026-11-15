@@ -38,6 +38,7 @@ def _validated_url(value: str) -> str | None:
             or not parsed.hostname
             or parsed.username
             or parsed.password
+            or (parsed.port is not None and parsed.port != (443 if parsed.scheme == "https" else 80))
             or not _is_public_host(parsed.hostname)
         ):
             return None
