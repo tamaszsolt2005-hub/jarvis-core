@@ -48,7 +48,8 @@ def memory_command(message: str) -> tuple[str, str]:
                     "outcome" if prefix == "mentsd el a tapasztalatot" else "business_preference"
                 )
             )
-            return ("save:" + category, payload) if payload else ("none", "")
+            action = "save" if category == "business_preference" else "save:" + category
+            return (action, payload) if payload else ("none", "")
     return "none", ""
 
 
