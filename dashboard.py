@@ -315,7 +315,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         "piaci mintázat", "piaci trend", "tanulj a leadekből", "korábbi kutatás",
         "hol érdemes terjeszkedni", "mibe érdemes befektetni", "melyik szektorban",
         "melyik területen érdemes", "kutatási módszer", "melyik módszer",
-        "melyik döntés", "üzleti döntés", "milyen hibát", "korábbi hibák", "tanulság", "mi működött",
+        "melyik döntés", "üzleti döntés", "milyen hibát", "milyen hibákat", "korábbi hibák", "korábbi hibákat", "ne ismételjük", "ne ismételd", "tanulság", "mi működött",
     ))
     wants_opportunities = wants_strategy or any(x in q for x in (
         "lehetőség", "növeked", "kit keressek", "kit érdemes", "prioritás",
@@ -323,7 +323,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         "melyik ország", "milyen szektor", "piaci rés", "hol érdemes",
         "üzleti lehetőség", "stratégiai javaslat",
     ))
-    wants_warnings = any(x in q for x in ("figyelmezt", "lejárt", "csúszás", "elmaradt", "sürgős", "kockázat", "proaktív"))
+    wants_warnings = any(x in q for x in ("figyelmezt", "lejárt", "csúszás", "elmaradt", "sürgős", "kockázat", "proaktív", "változás"))
     wants_leads = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("lead", "ügyfél", "cég", "pipeline", "értékesít", "konverz"))
     wants_tasks = wants_all or wants_opportunities or wants_warnings or any(x in q for x in ("feladat", "határid", "teendő", "utánkövet"))
     wants_drafts = wants_all or any(x in q for x in ("piszkozat", "tervezet", "e-mail", "email", "levél"))
@@ -599,7 +599,7 @@ if prompt:
             context, loaded_sources = retrieve_context(db, prompt)
         daily_report_requested = any(term in prompt.casefold() for term in (
             "napi jelentés", "reggeli jelentés", "vezetői összefoglaló",
-            "mai üzleti terv", "napi üzleti terv", "mai prioritások",
+            "mai üzleti terv", "napi üzleti terv", "mai prioritások", "reggeli prioritás", "napi prioritás", "változásfigyelés",
         ))
         if daily_report_requested:
             context += "\n\nNAPI VEZETŐI JELENTÉS (csak meglévő adatokat olvas):\n"
