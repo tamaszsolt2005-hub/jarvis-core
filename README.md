@@ -13,7 +13,7 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Kérésre e-mail- vagy utánkövetési szövegtervezetet készít a chatben, másolható formában. A tervezet nem kerül adatbázisba, címzettet nem talál ki, és semmilyen e-mailt nem küld el.
 - A dashboard adatbázis-műveletei olvasásra korlátozódnak.
 - A leadek személyes e-mail-címei és szabad szöveges megjegyzései, valamint az e-mail-piszkozatok címzettjei nem kerülnek az AI kontextusába.
-- Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. A napi háttér-workflow-k ütemezése ki van kapcsolva; a régi duplikált workflow hatástalanított.
+- Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. Kizárólag a globális, céges adatokat gyűjtő leadkutatási workflow fut naponta; a régi duplikált pipeline hatástalanított.
 - A Supabase és Gemini hitelesítő adatait kizárólag Codespaces Secrets / Streamlit secrets konfigurációban tárold. Soha ne commitold őket.
 
 ## Globális leadkutatás
