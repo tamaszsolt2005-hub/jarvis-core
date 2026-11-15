@@ -96,6 +96,23 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     if not fresh_today:
         lines.append("- Ma még nem került új cég a nyilvántartásba.")
 
+    lines += ["", "## Javasolt napi akcióterv"]
+    action_items = []
+    for task in sorted(overdue, key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x.get("due", "")))[:3]:
+        action_items.append(f"1. Rendezd a lejárt feladatot: **{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']}).")
+    for task in due_today[:2]:
+        action_items.append(f"{len(action_items) + 1}. Ma esedékes: **{task['title']}** (prioritás: {task['priority']}).")
+    if ranked:
+        lead = ranked[0]
+        action_items.append(
+            f"{len(action_items) + 1}. Ellenőrizd a legmagasabb kutatási prioritású céget: "
+            f"**{lead['company_name']}** ({lead['priority_score']}/100); nézd át a forrásokat, "
+            "mielőtt bármilyen kapcsolatfelvételi döntés születik."
+        )
+    if not action_items:
+        action_items.append("Nincs sürgős, határidős feladat vagy rangsorolt kutatási lehetőség; frissítsd a következő üzleti célt.")
+    lines += action_items[:5]
+
     lines += [
         "",
         "## Következő javasolt lépések",
