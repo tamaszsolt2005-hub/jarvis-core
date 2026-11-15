@@ -46,3 +46,12 @@ def test_first_contact_requires_explicit_timestamped_consent():
         "opted_out": True,
         "consent_confirmed_at": "2026-11-14T12:00:00+00:00",
     })
+
+
+def test_first_contact_rejects_timezone_naive_consent_timestamp():
+    assert not email_sender._valid_consent({
+        "consent_basis": "consent",
+        "approved_to_contact": True,
+        "opted_out": False,
+        "consent_confirmed_at": "2026-11-14T12:00:00",
+    })
