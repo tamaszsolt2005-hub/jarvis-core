@@ -52,3 +52,10 @@ def test_daily_briefing_contains_priority_and_overdue_task():
     assert "Lejárt feladatok: 1" in report
     assert "Kiemelt nyitott feladatok" in report
     assert "nem vásárlási szándék" in report
+
+
+def test_daily_briefing_builds_action_plan_from_overdue_task_and_top_lead():
+    report = build_daily_briefing(FakeDB(), today=date(2026, 11, 15))
+    assert "Javasolt napi akcióterv" in report
+    assert "Rendezd a lejárt feladatot" in report
+    assert "Ellenőrizd a legmagasabb kutatási prioritású céget" in report
