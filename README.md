@@ -8,6 +8,9 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 - Az üzleti adatok lekérése kérdésenként, igény szerint történik.
 - Weboldalhibákra vagy rangsorolásra vonatkozó kérdésnél JARVIS automatikusan betölti a leadeket, és legfeljebb 30 nyilvános weboldalt vizsgál meg. A lekérés időkorlátos, a HTTP-átirányítások célját újra ellenőrzi, és 0–100 közötti weboldal-információs pontszámot számít. A hibás HTTP-státuszokat és a nem elérhető oldalakat a chatben külön jelzi.
 - A weboldal-pontszám az oldal üzleti információtartalmát méri, nem vásárlási szándékot; a weboldal tartalma nem megbízható bemenet. A rangsor nem írja át a Supabase-rekordokat.
+- Proaktív üzleti kérésnél JARVIS a lead- és feladatadatokból jelzi a lejárt feladatokat, valamint kizárólag a kifejezetten jóváhagyott és le nem iratkozott leadek esedékes utánkövetését. A jelzések nem indítanak automatikus műveletet.
+- Lehetőségeket és következő lépéseket a meglévő cég-, státusz-, weboldal- és feladatadatok alapján javasol; a hiányzó információt bizonytalanságként jelzi.
+- Kérésre e-mail- vagy utánkövetési szövegtervezetet készít a chatben, másolható formában. A tervezet nem kerül adatbázisba, címzettet nem talál ki, és semmilyen e-mailt nem küld el.
 - A dashboard adatbázis-műveletei olvasásra korlátozódnak.
 - A leadek személyes e-mail-címei és szabad szöveges megjegyzései, valamint az e-mail-piszkozatok címzettjei nem kerülnek az AI kontextusába.
 - Az automatikus e-mail-küldés nincs engedélyezve; a küldő és utánkövető modulok alapértelmezetten leállnak. A napi háttér-workflow-k ütemezése ki van kapcsolva; a régi duplikált workflow hatástalanított.
