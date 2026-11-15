@@ -50,4 +50,5 @@ def test_daily_briefing_contains_priority_and_overdue_task():
     assert "Példa Kft." in report
     assert "Ajánlat ellenőrzése" in report
     assert "Lejárt feladatok: 1" in report
+    assert "Kiemelt nyitott feladatok" in report
     assert "nem vásárlási szándék" in report
