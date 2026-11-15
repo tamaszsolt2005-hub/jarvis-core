@@ -50,3 +50,11 @@ def test_dashboard_does_not_enable_automatic_email_sending():
     source = DASHBOARD.read_text(encoding="utf-8")
     assert "AUTO_SEND_ENABLED" not in source
     assert "nem küldhetsz e-mailt" in source
+
+
+
+def test_dashboard_authentication_has_a_bounded_session_lifetime():
+    source = DASHBOARD.read_text(encoding="utf-8")
+    assert "AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60" in source
+    assert "_jarvis_authenticated_at" in source
+    assert 'st.session_state.pop("_jarvis_pending_action", None)' in source
