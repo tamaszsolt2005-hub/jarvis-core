@@ -82,9 +82,9 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     lines = [
         f"# JARVIS – napi vezetői jelentés ({today.isoformat()})", "",
         "## Vezetői összkép",
-        f"- Nyilvántartott cégek: {len(leads)}",
+        f"- Vizsgált cégek (legfeljebb 1500): {len(leads)}",
         f"- Strukturált, saját leadkutatásból származó cégek: {len(research_leads)}",
-        f"- Nyitott feladatok: {len(open_tasks)}",
+        f"- Nyitott feladatok a vizsgált körben (legfeljebb 1000): {len(open_tasks)}",
         f"- Lejárt feladatok: {len(overdue)}",
         f"- Ma esedékes feladatok: {len(due_today)}",
         f"- Ma rögzített cégek: {len(fresh_today)}",
@@ -159,6 +159,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         "- Ellenőrizd a magas kutatási prioritású cégek nyilvános bizonyítékait.",
         "- Először a lejárt és sürgős feladatokat rendezd.",
         "- Kapcsolatfelvétel előtt külön ellenőrizd a jogalapot és az explicit engedélyt.", "",
+        "> A jelentés legfeljebb 1500 leadet és 1000 feladatot vizsgál; a darabszámok erre a mintára vonatkoznak. "
         "> A prioritási érték kutatási becslés, nem vásárlási szándék, fizetőképesség vagy konverziós valószínűség. "
         "A jelentés csak meglévő adatokat olvas; a napi monitor kizárólag a külön technikai pillanatképet frissíti. "
         "Leadet vagy feladatot nem módosít, és nem küld e-mailt.",
