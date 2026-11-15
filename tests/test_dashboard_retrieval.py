@@ -35,8 +35,10 @@ class FakeQuery:
     def __init__(self, rows, calls):
         self.rows = rows
         self.calls = calls
+        self.columns = "*"
 
     def select(self, columns):
+        self.columns = columns
         self.calls.append(("select", columns))
         return self
 
@@ -46,7 +48,12 @@ class FakeQuery:
 
     def execute(self):
         self.calls.append(("execute",))
-        return FakeResponse(self.rows)
+        if self.columns == "*":
+            data = self.rows
+        else:
+            selected = self.columns.split(",")
+            data = [{key: row[key] for key in selected if key in row} for row in self.rows]
+        return FakeResponse(data)
 
 
 class FakeDB:
