@@ -78,16 +78,16 @@ def audit_company_website(url: str | None) -> str:
                 continue
             if response.status_code != 200:
                 status = response.status_code
-                response.close()
+                close_response(response)
                 response = None
                 return f"Weboldal HTTP státusz: {status}."
             if "text/html" not in response.headers.get("Content-Type", "").lower():
-                response.close()
+                close_response(response)
                 response = None
                 return "A cím elérhető, de nem HTML-oldal."
 
             body = response.raw.read(MAX_BYTES, decode_content=True)
-            response.close()
+            close_response(response)
             response = None
             soup = BeautifulSoup(body, "html.parser")
             title = soup.title.get_text(" ", strip=True) if soup.title else "Nincs cím"
