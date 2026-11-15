@@ -10,6 +10,18 @@ from intelligent_lead_scoring import rank_researched_leads
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
 
 
+def _local_date(value: Any) -> date | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=LOCAL_TZ)
+        return parsed.astimezone(LOCAL_TZ).date()
+    except (TypeError, ValueError):
+        return None
+
+
 def build_daily_briefing(db: Any, today: date | None = None) -> str:
     """Build a concise daily report; this function never writes to Supabase."""
     today = today or datetime.now(LOCAL_TZ).date()
@@ -38,22 +50,23 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         if str(task.get("status") or "open").casefold() != "open":
             continue
         open_tasks.append(task)
-        due = str(task.get("due_at") or "")[:10]
+        due_date = _local_date(task.get("due_at"))
+        due = due_date.isoformat() if due_date else ""
         item = {"title": str(task.get("title") or "Névtelen feladat"),
                 "priority": task.get("priority") or "normal", "due": due}
-        if due and due < today.isoformat():
+        if due_date and due_date < today:
             overdue.append(item)
-        elif due == today.isoformat():
+        elif due_date == today:
             due_today.append(item)
 
     overdue_followups = [
         {"company_name": str(lead.get("company_name") or "Ismeretlen cég"),
-         "due": str(lead.get("next_follow_up_at") or "")[:10]}
+         "due": (_local_date(lead.get("next_follow_up_at")) or date.min).isoformat()}
         for lead in leads
         if lead.get("approved_to_contact") is True
         and not bool(lead.get("opted_out", False))
-        and str(lead.get("next_follow_up_at") or "")[:10]
-        and str(lead.get("next_follow_up_at"))[:10] < today.isoformat()
+        and _local_date(lead.get("next_follow_up_at")) is not None
+        and _local_date(lead.get("next_follow_up_at")) < today
     ]
 
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
