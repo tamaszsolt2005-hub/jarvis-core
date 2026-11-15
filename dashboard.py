@@ -285,7 +285,7 @@ def _wants_global_research(question: str) -> bool:
         return False
     explicit = any(term in q for term in ("leadkutatás", "lead keresés", "leadkeresés", "új lead", "cégeket keress", "vállalkozásokat keress", "potenciális ügyfeleket keress"))
     imperative = any(term in q for term in ("keress", "kutass", "találj"))
-    target = any(term in q for term in ("lead", "céget", "cégeket", "vállalkoz", "ügyfelet", "ügyfeleket", "prospect"))
+    target = any(term in q for term in ("lead", "céget", "cégeket", "vállalkoz", "ügyfelet", "ügyfeleket", "prospect", "mindenkit", "világszerte"))
     return explicit or (imperative and target)
 
 
