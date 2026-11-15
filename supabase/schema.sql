@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.leads (
   id uuid primary key default gen_random_uuid(),
   company_name text not null,
-  email text not null,
+  email text,
   website text,
   notes text,
   source text,
@@ -23,7 +23,7 @@ create table if not exists public.leads (
   updated_at timestamptz not null default now()
 );
 
-alter table public.leads add column if not exists consent_basis text;
+-- Global research stores company-only prospects without an email address or outreach consent.\nalter table public.leads alter column email drop not null;\nalter table public.leads add column if not exists consent_basis text;
 alter table public.leads add column if not exists approved_to_contact boolean not null default false;
 alter table public.leads add column if not exists consent_confirmed_at timestamptz;
 alter table public.leads add column if not exists opted_out boolean not null default false;
