@@ -18,8 +18,8 @@ A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természet
 
 ## Globális leadkutatás
 
-- A JARVIS a chatben kifejezett leadkutatási kérésre Google Search groundinggal valós, nyilvános cégeket kereshet világszerte, iparági és cégméret-korlátozás nélkül.
-- A GitHub Actions naponta 08:00 UTC-kor legfeljebb 15 új céget kutat; kézzel is indítható. A duplikátumokat cégnév és domain alapján szűri.
+- A JARVIS alapértelmezésben Magyarországon keres Google Search groundinggal alátámasztott, valós nyilvános cégeket; a célpiac chatparanccsal más országra vagy világszintű keresésre váltható. Az iparág és a cégméret nincs korlátozva.
+- A GitHub Actions naponta 08:00 UTC-kor legfeljebb 15 új céget kutat az aktuálisan mentett célpiacon; kézzel is indítható. A duplikátumokat cégnév és domain alapján szűri.
 - A kutatás kizárólag vállalati adatokat ment (cégnév, hivatalos weboldal, ország, iparág, rövid üzleti profil és forrás). Személyes neveket, személyes e-mail-címeket és telefonszámokat nem gyűjt.
 - A kutatásból létrejövő lead e-mail-címe üres, státusza `research`, `approved_to_contact=false`, `consent_basis=null`. A megtalált cég nem válik automatikusan megkereshetővé.
 - **Az e-mail-küldés továbbra is tiltva van.** A napi kutatási workflow nem hívja az e-mail-küldő vagy utánkövető modult.
