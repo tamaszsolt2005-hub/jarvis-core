@@ -120,6 +120,15 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - A célpiacváltás és a globális leadkutatás kétlépcsős: először megmutatja a tervezett műveletet, majd csak a `Jóváhagyom` üzenetre hajtja végre. `Elutasítom` megszakítja.
 - A jóváhagyási lista szándékosan szűk: célpiacváltás és nyilvános, céges leadkutatás. Nincs automatikus e-mail-küldés, és a JARVIS nem módosít CRM-lead- vagy feladatrekordokat.
 
+## Jóváhagyással működő feladatkezelés
+
+- A chatből strukturált paranccsal lehet feladatot létrehozni, meglévő feladatot módosítani vagy lezárni.
+- Új feladat: `Hozz létre feladat: Ajánlat ellenőrzése; határidő=2026-12-01; prioritás=high`. A határidő opcionális; a prioritás `normal`, `high` vagy `urgent`.
+- Módosítás: `Módosítsd a feladatot: UUID; prioritás=urgent; határidő=2026-12-02; cím=Új cím`.
+- Lezárás: `Zárd le a feladatot: UUID`.
+- Minden művelet először csak előnézetet készít; az adatbázis-módosítás kizárólag a külön `Jóváhagyom` üzenet után történik. `Elutasítom` megszakítja.
+- A modul nem töröl feladatot, nem módosít leadeket, és nem küld e-mailt. A Supabase `tasks` táblát használja; új tábla nem szükséges ehhez a funkcióhoz.
+
 ## Proaktív változásfigyelés
 
 - A napi vezetői jelentés tartalmazza az előző napi pillanatkép óta létrejött cégeket/feladatokat, a lead- és feladatstátusz-változásokat, valamint a lejárt feladatokat.
