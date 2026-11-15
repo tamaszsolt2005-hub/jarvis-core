@@ -157,6 +157,8 @@ def _public_http_url(value: Any) -> str | None:
         parsed = urlparse(candidate)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
             return None
+        if parsed.port is not None and parsed.port != (443 if parsed.scheme == "https" else 80):
+            return None
         host = parsed.hostname.rstrip(".")
         addresses = [item[4][0] for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)]
         if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
