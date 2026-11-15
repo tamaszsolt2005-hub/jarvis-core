@@ -1,4 +1,4 @@
-"""Safety checks: outreach jobs must remain inert unless explicitly enabled."""
+"""Safety checks: outbound email is hard-disabled until a reviewed code change."""
 import email_sender
 import follow_up
 
