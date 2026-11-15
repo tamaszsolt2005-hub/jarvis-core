@@ -127,6 +127,7 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - Módosítás: `Módosítsd a feladatot: UUID; prioritás=urgent; határidő=2026-12-02; cím=Új cím`.
 - Lezárás: `Zárd le a feladatot: UUID`.
 - Minden művelet először csak előnézetet készít; az adatbázis-módosítás kizárólag a külön `Jóváhagyom` üzenet után történik. `Elutasítom` megszakítja.
+- A megadott dátum a magyarországi időzóna szerinti nap végére (23:59) kerül mentésre. A határidő formátuma `ÉÉÉÉ-HH-NN`.
 - A modul nem töröl feladatot, nem módosít leadeket, és nem küld e-mailt. A Supabase `tasks` táblát használja; új tábla nem szükséges ehhez a funkcióhoz.
 
 ## Proaktív változásfigyelés
