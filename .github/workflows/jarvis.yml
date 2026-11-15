@@ -1,7 +1,7 @@
 name: JARVIS Daily Pipeline
+# Background processing is intentionally disabled for the chat-only product.
+# Use manual dispatch only when an operator explicitly requests a maintenance run.
 on:
-  schedule:
-    - cron: "0 7 * * *"
   workflow_dispatch:
 concurrency:
   group: jarvis-daily-pipeline
@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - name: Inbox replies
+      - name: Inbox replies (manual only)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -27,33 +27,29 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python inbox_monitor.py
-      - name: Import reviewed CSV
+      - name: Import reviewed CSV (manual only)
         if: ${{ hashFiles('data/leads.csv') != '' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python lead_gen.py
-      - name: First-contact emails (disabled unless explicitly enabled)
+      - name: First-contact emails (hard disabled)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AUTO_SEND_ENABLED: ${{ vars.AUTO_SEND_ENABLED }}
-          SEND_MAX_PER_RUN: "3"
-          SEND_DELAY_SECONDS: "30"
+          AUTO_SEND_ENABLED: "false"
         run: python email_sender.py
-      - name: Due follow-ups (disabled unless explicitly enabled)
+      - name: Due follow-ups (hard disabled)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AUTO_SEND_ENABLED: ${{ vars.AUTO_SEND_ENABLED }}
-          FOLLOW_UP_MAX_PER_RUN: "3"
-          SEND_DELAY_SECONDS: "30"
+          AUTO_SEND_ENABLED: "false"
         run: python follow_up.py
       - name: Status report
         if: success()
