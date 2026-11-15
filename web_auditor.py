@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from safe_http import safe_get, close_response
 
 USER_AGENT = "JARVIS-Business-Audit/1.0"
 MAX_BYTES = 350_000
@@ -55,7 +56,7 @@ def audit_company_website(url: str | None) -> str:
     response = None
     try:
         for redirect_count in range(MAX_REDIRECTS + 1):
-            response = requests.get(
+            response = safe_get(
                 current_url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=(4, 8),
@@ -64,7 +65,7 @@ def audit_company_website(url: str | None) -> str:
             )
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")
-                response.close()
+                close_response(response)
                 response = None
                 if not location:
                     return "Az oldal átirányítást jelzett, de nem adott célcímet."
@@ -104,4 +105,4 @@ def audit_company_website(url: str | None) -> str:
         return f"Weboldal-elemzési hiba ({type(exc).__name__})."
     finally:
         if response is not None:
-            response.close()
+            close_response(response)
