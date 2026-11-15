@@ -27,7 +27,7 @@ MARKET_ALIASES = {
     "románia": "Romania", "romania": "Romania", "román": "Romania",
     "hollandia": "Netherlands", "holland": "Netherlands", "netherlands": "Netherlands",
     "portugália": "Portugal", "portugalia": "Portugal", "portugál": "Portugal", "portugal": "Portugal",
-    "belgium": "Belgium", "belgium": "Belgium", "belga": "Belgium",
+    "belgium": "Belgium", "belga": "Belgium",
     "csehország": "Czechia", "csehorszag": "Czechia", "cseh": "Czechia", "czechia": "Czechia",
     "szlovákia": "Slovakia", "szlovakia": "Slovakia", "szlovák": "Slovakia", "slovakia": "Slovakia",
     "svédország": "Sweden", "svedorszag": "Sweden", "svéd": "Sweden", "sweden": "Sweden",
