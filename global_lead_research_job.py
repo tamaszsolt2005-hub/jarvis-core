@@ -16,7 +16,8 @@ def main() -> None:
         "Keress változatos országokból és szektorokból valós, működő vállalkozásokat. "
         "A szolgáltatás üzleti automatizálási és AI-megoldásokat kínál. "
         "Csak céges adatokat rögzíts; személyes elérhetőséget és hozzájárulást ne következtess ki.",
-        max_results=15,\n        market_country=market,
+        max_results=15,
+        market_country=market,
     )
     print(json.dumps({
         "scope": result["scope"],
