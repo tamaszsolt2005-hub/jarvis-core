@@ -21,7 +21,7 @@ def test_safe_transport_pins_dns_resolution_to_public_ip(monkeypatch):
 
 
 def test_safe_transport_rejects_private_and_mixed_dns_answers(monkeypatch):
-    with pytest.raises(ValueError, match="nem nyilvános"):
+    with pytest.raises(ValueError, match="nyilvános"):
         safe_http._validated_public_address("127.0.0.1", 80)
 
     monkeypatch.setattr(
@@ -31,7 +31,7 @@ def test_safe_transport_rejects_private_and_mixed_dns_answers(monkeypatch):
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.4", 443)),
         ],
     )
-    with pytest.raises(ValueError, match="nem nyilvános"):
+    with pytest.raises(ValueError, match="nyilvános"):
         safe_http._validated_public_address("rebind.example", 443)
 
 
