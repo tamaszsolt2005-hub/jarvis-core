@@ -167,10 +167,11 @@ def _website_profile(url: Any) -> dict[str, Any]:
             )
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")
+                redirect_status = response.status_code
                 response.close()
                 response = None
                 if not location:
-                    return {"status": f"HTTP {response.status_code}; hiányzó átirányítási cím", "score": 0, "url": current_url}
+                    return {"status": f"HTTP {redirect_status}; hiányzó átirányítási cím", "score": 0, "url": current_url}
                 if redirect_count >= 3:
                     return {"status": "túl sok átirányítás (maximum 3)", "score": 0, "url": current_url}
                 target = _public_http_url(urljoin(current_url, location))
