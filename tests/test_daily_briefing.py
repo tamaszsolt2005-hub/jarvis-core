@@ -59,3 +59,12 @@ def test_daily_briefing_builds_action_plan_from_overdue_task_and_top_lead():
     assert "Javasolt napi akcióterv" in report
     assert "Rendezd a lejárt feladatot" in report
     assert "Ellenőrizd a legmagasabb kutatási prioritású céget" in report
+
+
+def test_daily_briefing_prioritizes_urgent_overdue_tasks():
+    db = FakeDB()
+    db.rows["tasks"].append({"title": "Sürgős szerződés", "status": "open", "priority": "urgent",
+                             "due_at": "2026-11-13T10:00:00Z"})
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    action_section = report.split("## Javasolt napi akcióterv", 1)[1]
+    assert action_section.index("Sürgős szerződés") < action_section.index("Ajánlat ellenőrzése")
