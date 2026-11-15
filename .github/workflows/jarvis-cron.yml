@@ -1,53 +1,13 @@
-name: Jarvis Full Autonomous Pipeline
-
+name: Legacy JARVIS Pipeline (disabled)
+# Retired duplicate pipeline. Kept as a manual no-op so old scheduled jobs
+# cannot import data or interact with email/Supabase in the background.
 on:
-  schedule:
-    - cron: '0 8 * * *'
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  run-jarvis-system:
+  retired:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install supabase requests beautifulsoup4 google-generativeai
-
-      - name: 0. Run Inbox Monitor (Check Replies)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        run: python inbox_monitor.py
-
-      - name: 1. Run Deep Web Scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python lead_gen.py
-
-      - name: 2. Run AI Email Sender (Gemini)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python email_sender.py
-
-      - name: 3. Run Follow-up Sender
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python follow_up.py
+      - name: Confirm legacy pipeline is disabled
+        run: echo "Legacy pipeline disabled. Use the chat-first JARVIS application."
