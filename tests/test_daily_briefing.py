@@ -85,3 +85,13 @@ def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     assert "Engedélyezett Kft." in report
     assert "Nem engedélyezett Kft." not in report
     assert "Leiratkozott Kft." not in report
+
+
+def test_deadlines_are_compared_using_budapest_local_date():
+    db = FakeDB()
+    db.rows["tasks"].append({"title": "Éjféli határidő", "status": "open", "priority": "normal",
+                             "due_at": "2026-11-14T23:00:00Z"})
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Lejárt feladatok: 1" in report
+    assert "Ma esedékes feladatok: 1" in report
+    assert "Éjféli határidő" in report
