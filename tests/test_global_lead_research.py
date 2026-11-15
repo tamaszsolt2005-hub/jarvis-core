@@ -72,6 +72,11 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
         "industry": "Manufacturing",
         "business_summary": "Industrial components",
         "potential_fit": "Could benefit from process automation",
+        "business_fit_score": 128,
+        "fit_evidence": ["Uses multiple production lines", "Public case study mentions manual workflows"],
+        "business_need": "Potentially repetitive production workflows",
+        "recommended_next_step": "Review public case studies",
+        "research_confidence": "high",
         "source_url": "https://acme.example/about",
     }
     response = {
@@ -98,6 +103,10 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     assert saved["approved_to_contact"] is False
     assert saved["consent_basis"] is None
     assert saved["status"] == "research"
+    assert "AI üzleti illeszkedési becslés: 100/100" in saved["notes"]
+    assert "Uses multiple production lines" in saved["notes"]
+    assert result["companies"][0]["business_fit_score"] == 100
+    assert result["companies"][0]["research_confidence"] == "high"
     assert result["email_sending"] == "disabled"
 
 
