@@ -70,8 +70,9 @@ def safe_get(url: str, *, timeout=(4, 8), headers=None, stream=True):
     ):
         raise ValueError("Érvénytelen vagy nem biztonságos HTTP(S) cím.")
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    if not 1 <= port <= 65535:
-        raise ValueError("Érvénytelen port.")
+    expected_port = 443 if parsed.scheme == "https" else 80
+    if port != expected_port:
+        raise ValueError("Csak a szabványos HTTP/HTTPS port engedélyezett.")
     address = _validated_public_address(parsed.hostname, port)
 
     session = requests.Session()
