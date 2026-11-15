@@ -99,7 +99,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     lines += ["", "## Javasolt napi akcióterv"]
     action_items = []
     for task in sorted(overdue, key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x.get("due", "")))[:3]:
-        action_items.append(f"1. Rendezd a lejárt feladatot: **{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']}).")
+        action_items.append(f"{len(action_items) + 1}. Rendezd a lejárt feladatot: **{task['title']}** (határidő: {task['due']}, prioritás: {task['priority']}).")
     for task in due_today[:2]:
         action_items.append(f"{len(action_items) + 1}. Ma esedékes: **{task['title']}** (prioritás: {task['priority']}).")
     if ranked:
