@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from safe_http import safe_get, close_response
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "dashboard.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-_NAMESPACE = {"Any": Any, "pd": pd}
+_NAMESPACE = {"Any": Any, "pd": pd, "safe_get": safe_get, "close_response": close_response}
 
 
 def _load_function(name):
@@ -177,7 +178,7 @@ def test_website_profile_safely_follows_public_redirect(monkeypatch):
         calls.append((url, kwargs))
         return responses.pop(0)
 
-    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setitem(_NAMESPACE, "safe_get", fake_get)
     result = website_profile("https://example.com")
 
     assert result["status"] == "sikeresen beolvasva"
@@ -206,3 +207,9 @@ def test_website_error_question_loads_leads_and_website_profiles(monkeypatch):
     assert "Minta Kft." in context
     assert "HTTP 403" in context
     assert "lead-weboldalak és rangsorolás" in sources
+
+
+
+def test_dashboard_website_fetch_uses_dns_pinned_transport():
+    assert "from safe_http import safe_get, close_response" in SOURCE
+    assert "response = safe_get(" in SOURCE
