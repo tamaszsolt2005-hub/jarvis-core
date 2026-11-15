@@ -171,6 +171,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
     from urllib.parse import urljoin
     import requests
     from bs4 import BeautifulSoup
+    from safe_http import safe_get, close_response
 
     safe_url = _public_http_url(url)
     if not safe_url:
@@ -202,7 +203,7 @@ def _website_profile(url: Any) -> dict[str, Any]:
                 continue
             if response.status_code != 200:
                 status_code = response.status_code
-                response.close()
+                close_response(response)
                 response = None
                 return {"status": f"HTTP {status_code}", "score": 0, "url": current_url}
 
