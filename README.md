@@ -86,3 +86,26 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - Jelszavak, API-kulcsok, személyes elérhetőségek és érzékeny személyes adatok mentését a modul elutasítja. Egy emlék legfeljebb 700 karakter lehet.
 - A memória Supabase-ben tárolódik; nincs beépített fix elemszám-limit. A lekérdezés legfeljebb 100 aktív elemet vizsgál, és legfeljebb 20 releváns elemet ad át a modellnek.
 - Az új táblához futtasd a frissített `supabase/schema.sql` fájlt a Supabase SQL Editorban. Az e-mail-küldés tiltása változatlan.
+
+
+## Intelligens leadprioritás
+
+- A `intelligent_lead_scoring.py` az általunk végzett, forrással alátámasztott leadkutatás rekordjait rangsorolja.
+- A prioritási érték az üzleti illeszkedési becslést (60%), a kutatási bizonyosságot (25%) és az azonosított nyilvános bizonyítékok mennyiségét (15%) veszi figyelembe. Alacsony kutatási bizonyosságnál a pontszám felső korlátos.
+- A rangsor kutatási triázs, nem vásárlási szándék, fizetőképesség, konverziós valószínűség vagy kapcsolatfelvételi engedély. A weboldal információgazdagságának pontszáma külön marad.
+- A chatben például: `Rangsorold a legjobb kutatási lehetőségeket`, `Mely leadeket vizsgáljuk meg először?`.
+
+## Napi vezetői jelentés
+
+- A `daily_briefing.py` kizárólag olvassa a Supabase lead- és feladatadatait, majd összefoglalja a nyitott és lejárt feladatokat, az aznapi új cégeket és a legmagasabb kutatási prioritású lehetőségeket.
+- A chatben kérhető: `Készíts napi vezetői jelentést`, `Mutasd a mai üzleti tervet`.
+- A GitHub Actions naponta 08:30 UTC-kor elkészíti a Markdown jelentést, és 14 napig elérhető workflow-artifactként tárolja. Kézzel is indítható.
+- Ez nem e-mail és nem külső értesítés: a jelentést a GitHub Actions futás **Artifacts** részéből lehet megnyitni. E-mail-küldés továbbra sincs.
+
+## JARVIS memória 2.0
+
+- A memória kategóriái: üzleti preferencia, döntés, tapasztalat/eredmény és tanulság.
+- Explicit parancsok: `Jegyezd meg, hogy ...`, `Jegyezd meg a döntést: ...`, `Mentsd el a tapasztalatot: ...`, `Rögzítsd a tanulságot: ...`.
+- A JARVIS relevancia szerint rangsorolja a legfeljebb 100 legutóbbi aktív emlékből kiválasztott, legfeljebb 20 releváns elemet.
+- `Mutasd a memóriádat` listázza az aktív emlékeket; `Felejtsd el a ...` egyes elemeket inaktivál; `Felejtsd el mindent` az összes aktív elemet inaktiválja.
+- A memória csak explicit utasításra változik. Titkokat, jelszavakat, elérhetőségeket és érzékeny személyes adatokat nem tárolhat.
