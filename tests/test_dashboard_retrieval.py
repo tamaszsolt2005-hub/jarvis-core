@@ -115,3 +115,45 @@ def test_ranking_request_fetches_only_bounded_website_set():
     assert "if len(ranked) >= 30" in SOURCE
     assert "allow_redirects=False" in SOURCE
     assert ".is_global" in SOURCE
+
+
+def test_website_profile_safely_follows_public_redirect(monkeypatch):
+    import socket
+    import requests
+
+    website_profile = _load_function("_website_profile")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+    )
+
+    class Response:
+        def __init__(self, status, headers=None, body=b""):
+            self.status_code = status
+            self.headers = headers or {}
+            self.body = body
+            self.closed = False
+
+        def iter_content(self, chunk_size):
+            yield self.body
+
+        def close(self):
+            self.closed = True
+
+    responses = [
+        Response(301, {"Location": "https://www.example.com/company"}),
+        Response(200, {"Content-Type": "text/html; charset=utf-8"}, b"<html><title>Example</title><body>Company services contact</body></html>"),
+    ]
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return responses.pop(0)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    result = website_profile("https://example.com")
+
+    assert result["status"] == "sikeresen beolvasva"
+    assert result["url"] == "https://www.example.com/company"
+    assert len(calls) == 2
+    assert all(call[1]["allow_redirects"] is False for call in calls)
