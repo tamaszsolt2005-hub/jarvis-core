@@ -103,3 +103,13 @@ create table if not exists public.jarvis_memory (
 create index if not exists jarvis_memory_active_created_idx
   on public.jarvis_memory(active, created_at desc);
 alter table public.jarvis_memory enable row level security;
+
+
+-- Technical snapshot used only to detect daily lead/task changes.
+-- This table does not alter CRM records.
+create table if not exists public.jarvis_proactive_state (
+  key text primary key,
+  snapshot jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.jarvis_proactive_state enable row level security;
