@@ -48,6 +48,10 @@ Ez a dokumentum a repository aktuális forráskódja, README-je, Supabase-sémá
 - [x] Legfeljebb 15 új cég feldolgozása egy kutatási futásban.
 - [x] Duplikátumok szűrése cégnév és domain alapján.
 - [x] A hivatalos weboldal és a támogató forrás URL-jének ellenőrzése a Google grounding hivatkozásaihoz képest.
+- [x] Kutatási minőségkapu: a modell által jelzett bizonyosságot a ténylegesen visszaadott, konkrét illeszkedési bizonyítékok számához igazítja.
+- [x] Két vagy több bizonyíték szükséges a magas bizonyossághoz; egy bizonyíték esetén legfeljebb közepes bizonyosság és 70/100-as illeszkedési plafon adható.
+- [x] Bizonyíték vagy konkrét illeszkedési indoklás hiányában alacsony bizonyosságot és legfeljebb 40–50/100-as pontszámot alkalmaz.
+- [x] A bizonyítékhiány nem automatikus negatív tény; a cégkutatás továbbra is csak ellenőrizhető Google grounding forrásokra ment céges rekordot.
 - [x] A cégprofil, iparág, ország, lehetséges AI/automatizálási illeszkedés, nyilvános bizonyítékok, kutatási bizonyosság és javasolt következő kutatási lépés rögzítése.
 - [x] Külön 0–100-as előzetes üzleti illeszkedési becslés.
 - [x] A kutatás kizárólag céges adatokat ment; nem gyűjt személyes neveket, személyes e-mail-címeket vagy telefonszámokat.
@@ -79,6 +83,9 @@ Ez a dokumentum a repository aktuális forráskódja, README-je, Supabase-sémá
 - [x] Aktív memóriák listázása: `Mutasd a memóriádat`.
 - [x] Egyes emlékek célzott inaktiválása: `Felejtsd el a ...`; minden aktív emlék inaktiválása: `Felejtsd el mindent`.
 - [x] Relevanciaalapú memória-visszakeresés, korlátozott számú elem átadása az AI-nak.
+- [x] Kategóriaérzékeny visszakeresés: döntési kérdésnél a döntések, eredmény/hiba kérdésnél a tapasztalatok és tanulságok, működési preferenciáknál a preferenciák kapnak előnyt.
+- [x] A chatben átadott memóriaelemek és a memórialistában megjelenő elemek kategóriacímkét kapnak, így az AI és a felhasználó látja, milyen típusú emlékről van szó.
+- [x] A kategória csak rangsorolási előny: a releváns, más kategóriájú emlékek sem vesznek el automatikusan.
 - [x] Jelszavak, API-kulcsok, elérhetőségek és érzékeny személyes adatok mentésének szűrése.
 - [x] A memória tartalma adat, nem rendszerutasítás.
 - [!] A memória nem önálló, automatikus tanulás: az üzleti eredményeket és döntéseket a felhasználónak kell kifejezetten rögzítenie.
@@ -122,6 +129,9 @@ Zárd le a feladatot: UUID
 - [x] Lejárt, mára esedékes, sürgős és magas prioritású nyitott feladatok kiemelése.
 - [x] Lejárt utánkövetések jelzése kizárólag jóváhagyott és le nem iratkozott rekordoknál.
 - [x] Napi új cégek és a legmagasabb kutatási prioritású lehetőségek listázása.
+- [x] Egységesebb napi akcióterv: a lejárt és mára esedékes feladatok mellett a határidő nélküli magas/sürgős prioritású nyitott feladatokat is figyelembe veszi.
+- [x] Külön vezetői fókuszblokk összegzi a konkrét napi lépések és a kiemelt feladatok számát.
+- [x] Az új cégek napi dátum szerinti besorolása Budapest időzónájában történik, nem a nyers UTC dátum első tíz karaktere alapján.
 - [x] Napi változásfigyelés: új cégek, leadstátusz-változások, új feladatok, feladatstátusz-, határidő- és prioritásváltozások.
 - [x] Lejárt és mára esedékes feladatok külön monitorozása.
 - [x] Első monitorfutáskor alapállapotot rögzít; nem jelenti tévesen újnak a már létező rekordokat.
@@ -181,6 +191,6 @@ Az alábbiak nem feltétlenül hiányzó funkciók: az éles környezetben való
 
 ## 14. Rövid összegzés
 
-A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú üzleti asszisztenssel, Supabase-adatolvasással, weboldal-elemzéssel, forrásalapú globális céges leadkutatással, leadprioritással, piaci intelligenciával, explicit hosszú távú memóriával, döntéstámogatással, döntés–eredmény összekapcsolással, jóváhagyásos feladatkezeléssel, napi vezetői jelentéssel, proaktív változásfigyeléssel és automatizált teszteléssel.
+A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú üzleti asszisztenssel, Supabase-adatolvasással, weboldal-elemzéssel, bizonyítékminőség-kapuval kiegészített forrásalapú globális céges leadkutatással, leadprioritással, piaci intelligenciával, kategóriaérzékeny explicit hosszú távú memóriával, döntéstámogatással, döntés–eredmény összekapcsolással, jóváhagyásos feladatkezeléssel, kibővített napi vezetői akciótervvel, proaktív változásfigyeléssel és automatizált teszteléssel.
 
 **Fontos különbség:** a funkciók kódszinten elkészültek és a legutóbbi CI sikeres, de a valós Supabase/Gemini-integrációt, a Codespaces alkalmazást és az ütemezett GitHub Actions futásokat külön, éles környezetben kell ellenőrizni. Az e-mail-küldés szándékosan letiltott.
