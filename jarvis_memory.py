@@ -105,6 +105,14 @@ def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     terms = _tokens(question)
     if not terms:
         return rows[:20]
+    query = (question or "").casefold()
+    preferred_categories: set[str] = set()
+    if any(term in query for term in ("dönt", "stratég", "válassz", "alternatív")):
+        preferred_categories.add("decision")
+    if any(term in query for term in ("eredmény", "működ", "siker", "hiba", "tapasztalat", "miért")):
+        preferred_categories.update({"outcome", "lesson"})
+    if any(term in query for term in ("prefer", "mindig", "stílus", "formátum", "célpiac")):
+        preferred_categories.add("business_preference")
     scored = []
     for row in rows:
         content = str(row.get("content") or "")
@@ -117,7 +125,8 @@ def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
         }
         if matched:
             relevance = len(matched) / max(1, len(terms | content_terms) ** 0.5)
-            scored.append((relevance, len(matched), row))
+            category_bonus = 0.15 if row.get("category") in preferred_categories else 0.0
+            scored.append((relevance + category_bonus, len(matched), row))
     scored.sort(key=lambda item: (item[0], item[1], str(item[2].get("created_at") or "")), reverse=True)
     return [row for _, _, row in scored[:20]]
 
