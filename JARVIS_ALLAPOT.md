@@ -226,3 +226,38 @@ Ellenőrizd a rendszert
 A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú üzleti asszisztenssel, Supabase-adatolvasással, weboldal-elemzéssel, bizonyítékminőség-kapuval kiegészített forrásalapú globális céges leadkutatással, leadprioritással, piaci intelligenciával, kategóriaérzékeny explicit hosszú távú memóriával, döntéstámogatással, döntés–eredmény összekapcsolással, jóváhagyásos feladatkezeléssel, kibővített napi vezetői akciótervvel, proaktív változásfigyeléssel és automatizált teszteléssel.
 
 **Fontos különbség:** a funkciók kódszinten elkészültek és a legutóbbi CI sikeres, de a valós Supabase/Gemini-integrációt, a Codespaces alkalmazást és az ütemezett GitHub Actions futásokat külön, éles környezetben kell ellenőrizni. Az e-mail-küldés szándékosan letiltott.
+## 17. Átfogó funkcióellenőrzés – kód- és tesztlefedettségi audit
+
+### Automatizáltan ellenőrzött területek
+
+- [x] Chat és adatlekérési szerződés: dashboard-contract és retrieval tesztek.
+- [x] Gemini-közös segédfüggvények, beszélgetési előzmények és konfigurációs segédek.
+- [x] Supabase-séma és RLS-táblák szerződéses ellenőrzése.
+- [x] Memória mentése, visszakeresése és célzott törlése.
+- [x] Üzleti tanulás, döntés–eredmény kapcsolatok és stratégiai összesítések.
+- [x] Döntéstámogatási útmutató.
+- [x] Globális céges leadkutatás, források, duplikációk, piaci váltás és kapcsolatfelvételi engedély hiánya.
+- [x] Leadpontozás és intelligens kutatási prioritás.
+- [x] Feladat létrehozása, módosítása, lezárása és jóváhagyási folyamat.
+- [x] Napi vezetői jelentés és proaktív változásfigyelés.
+- [x] Biztonságos HTTP-kérések és az e-mail-küldés tiltása.
+- [x] Válaszlevél-besorolás és a leiratkozási jelzések felismerése.
+- [x] Chatből indítható rendszerdiagnosztika.
+
+### További célzott tesztelést igénylő modulok
+
+- [ ] web_auditor.py: HTML-feldolgozás, átirányítások, tartalomkorlát és hibás oldalak célzott tesztjei.
+- [ ] inbox_monitor.py: IMAP-válaszfeldolgozás, ismételt üzenetek, feladóellenőrzés és adatbázis-frissítések mockolt tesztjei. A háttérfolyamat jelenleg nem aktív.
+- [ ] inbox_analyzer.py: kompatibilitási osztályozó külön tesztjei.
+- [ ] lead_gen.py: CSV-import, hibás sorok, hozzájárulás és duplikáció célzott tesztjei. Ez a régi, kézi importsegéd; nem azonos a chatből indított globális kutatással.
+- [ ] stats.py és jarvis_status.py: státuszlekérdezések és hibakezelés célzott tesztjei.
+- [ ] email_sender.py és follow_up.py: a tiltott állapot és a küldési zár tesztelt; a tényleges küldési ág szándékosan nem aktiválható, ezért nem tekinthető működésileg engedélyezett funkciónak.
+
+### Ütemezés és működési korlátok
+
+- [x] A CI workflow sikeresen lefutott: Python compileall és 96 automatizált teszt.
+- [x] A globális leadkutatás és a napi vezetői jelentés két külön ütemezett workflow.
+- [x] A régi, duplikált pipeline-ok kézi no-op workflow-ként vannak hatástalanítva.
+- [!] A workflow-fájl megléte nem bizonyítja, hogy a GitHub Actions titkok be vannak állítva vagy a Supabase/Gemini külső szolgáltatások elérhetők.
+- [!] Nincs teljes, valós Supabase/Gemini/IMAP/SMTP végpontokat használó integrációs teszt. Az ilyen teszteket csak kontrollált, engedélyezett környezetben szabad futtatni; SMTP-küldés továbbra sem engedélyezett.
+- [!] A fenti célzott teszthiányok nem bizonyítanak hibát a modulokban, de azt jelentik, hogy az adott funkciók teljes működése még nincs automatizáltan igazolva.
