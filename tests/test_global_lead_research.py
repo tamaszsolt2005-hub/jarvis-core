@@ -183,3 +183,28 @@ def test_market_switch_persists():
     db = SettingsDB()
     assert research.set_research_market(db, "Germany") == "Germany"
     assert db.query.payload == {"key": "lead_research_market", "value": {"country": "Germany"}}
+
+
+
+def test_research_quality_caps_confidence_when_evidence_is_thin():
+    confidence, score, evidence = research._research_quality({
+        "research_confidence": "high",
+        "business_fit_score": 96,
+        "potential_fit": "Possible automation fit",
+        "fit_evidence": ["One public signal"],
+    })
+    assert confidence == "medium"
+    assert score == 70
+    assert evidence == ["One public signal"]
+
+
+def test_research_quality_requires_evidence_and_specific_fit():
+    confidence, score, evidence = research._research_quality({
+        "research_confidence": "high",
+        "business_fit_score": 88,
+        "potential_fit": " ",
+        "fit_evidence": [],
+    })
+    assert confidence == "low"
+    assert score == 40
+    assert evidence == []
