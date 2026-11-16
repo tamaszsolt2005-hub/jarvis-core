@@ -95,3 +95,29 @@ def test_deadlines_are_compared_using_budapest_local_date():
     assert "Lejárt feladatok: 1" in report
     assert "Ma esedékes feladatok: 1" in report
     assert "Éjféli határidő" in report
+
+
+
+def test_daily_briefing_includes_high_priority_task_without_deadline_in_action_plan():
+    db = FakeDB()
+    db.rows["tasks"].append({
+        "title": "Piaci ajánlat kidolgozása",
+        "status": "open",
+        "priority": "high",
+        "due_at": None,
+    })
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Haladj a magas prioritású feladattal" in report
+    assert "Piaci ajánlat kidolgozása" in report
+    assert "## Vezetői fókusz" in report
+
+
+def test_daily_briefing_uses_budapest_date_for_new_companies():
+    db = FakeDB()
+    db.rows["leads"].append({
+        "company_name": "Éjfél után létrejött Kft.",
+        "created_at": "2026-11-14T23:30:00Z",
+        "status": "research",
+    })
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Éjfél után létrejött Kft." in report
