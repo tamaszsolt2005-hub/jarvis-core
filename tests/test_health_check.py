@@ -62,7 +62,7 @@ def test_diagnostics_checks_all_required_tables_and_gemini(monkeypatch):
     monkeypatch.setattr(health_check, "get_supabase", lambda: FakeDB())
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: FakeGemini())
     report = run_self_diagnostics()
-    assert "11/11" in report
+    assert "13/13" in report
     for table in REQUIRED_TABLES:
         assert f"Supabase tábla: {table}" in report
     assert "Gemini API próbakérés | OK" in report
