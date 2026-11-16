@@ -76,15 +76,17 @@ def format_conversation_history(messages: list[tuple[str, str]], max_chars: int 
         value = str(message or '').strip()
         if not value:
             continue
+        truncation_marker = "… [üzenet rövidítve]"
         if len(value) > max_message_chars:
-            value = value[:max_message_chars].rstrip() + "… [üzenet rövidítve]"
+            keep = max(0, max_message_chars - len(truncation_marker))
+            value = value[:keep].rstrip() + truncation_marker
         line = f"{role}: {value}"
         remaining = max_chars - used
         if remaining <= 0:
             break
         if len(line) > remaining:
             if not selected:
-                selected.append(line[:remaining].rstrip() + "… [előzménykeret elérve]")
+                selected.append(line[:remaining].rstrip())
             break
         selected.append(line)
         used += len(line) + 1
