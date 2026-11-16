@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import defaultdict
 from typing import Any
 
@@ -37,6 +38,23 @@ def _outcome_polarity(result: str) -> str:
     return "unclassified"
 
 
+def _normalise(value: str) -> str:
+    value = unicodedata.normalize("NFKD", (value or "").casefold())
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+
+def _decision_matches(decision: str, recorded: str) -> bool:
+    """Conservative text match; outcome links require a decision field explicitly saved."""
+    left, right = _normalise(decision), _normalise(recorded)
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    a, b = {x for x in left.split() if len(x) >= 4}, {x for x in right.split() if len(x) >= 4}
+    return bool(a and b and len(a & b) / len(a | b) >= 0.75)
+
+
 def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str, Any]]) -> dict[str, Any]:
     """Summarize only saved research and explicitly recorded decisions/outcomes/lessons."""
     industry_groups: dict[str, list[int]] = defaultdict(list)
@@ -62,6 +80,7 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
     unsuccessful_industries: dict[str, list[str]] = defaultdict(list)
     unsuccessful_decisions: dict[str, list[str]] = defaultdict(list)
     polarity_counts = {"positive": 0, "negative": 0, "unclassified": 0}
+    parsed_outcomes: list[dict[str, str]] = []
 
     for item in memories:
         category = str(item.get("category") or "")
@@ -80,6 +99,10 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
             result = _tag(content, "eredmény") or _tag(content, "eredmeny") or content
             polarity = _outcome_polarity(result)
             polarity_counts[polarity] += 1
+            parsed_outcomes.append({
+                "decision": decision, "method": method, "industry": industry,
+                "polarity": polarity, "result": result, "record": content,
+            })
             if polarity == "positive":
                 if method:
                     successful_methods[method].append(content)
@@ -94,6 +117,40 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
                     unsuccessful_industries[industry].append(content)
                 if decision:
                     unsuccessful_decisions[decision].append(content)
+
+    # Connect only explicitly recorded decision fields; no inferred causality.
+    decision_outcome_links = []
+    for decision in decisions[-20:]:
+        linked = [item for item in parsed_outcomes if item["decision"] and _decision_matches(decision, item["decision"])]
+        if linked:
+            decision_outcome_links.append({
+                "decision": decision,
+                "linked_outcome_count": len(linked),
+                "positive": sum(item["polarity"] == "positive" for item in linked),
+                "negative": sum(item["polarity"] == "negative" for item in linked),
+                "unclassified": sum(item["polarity"] == "unclassified" for item in linked),
+                "evidence": [item["record"] for item in linked[-5:]],
+                "interpretation": "Kifejezetten ehhez a döntéshez címkézett tapasztalatok; együttjárás, nem bizonyított okság.",
+            })
+
+    # Repeated patterns are descriptive groupings, not causal success rates.
+    pattern_groups: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
+    for item in parsed_outcomes:
+        if item["method"] or item["industry"]:
+            pattern_groups[(item["industry"], item["method"])].append(item)
+    repeated_outcome_patterns = [
+        {
+            "industry": industry or "Nincs megadva",
+            "method": method or "Nincs megadva",
+            "record_count": len(items),
+            "positive": sum(item["polarity"] == "positive" for item in items),
+            "negative": sum(item["polarity"] == "negative" for item in items),
+            "unclassified": sum(item["polarity"] == "unclassified" for item in items),
+            "evidence": [item["record"] for item in items[-3:]],
+        }
+        for (industry, method), items in sorted(pattern_groups.items(), key=lambda pair: len(pair[1]), reverse=True)
+        if len(items) >= 2
+    ][:10]
 
     def summarize(groups: dict[str, list[int]]) -> list[dict[str, Any]]:
         return [
@@ -119,13 +176,16 @@ def build_business_learning(memories: list[dict[str, Any]], leads: list[dict[str
         "explicitly_unsuccessful_methods": outcome_summary(unsuccessful_methods),
         "explicitly_unsuccessful_decisions": outcome_summary(unsuccessful_decisions),
         "explicitly_unsuccessful_industries": outcome_summary(unsuccessful_industries),
+        "decision_outcome_links": decision_outcome_links,
+        "repeated_outcome_patterns": repeated_outcome_patterns,
         "recorded_decisions": decisions[-20:],
         "recorded_outcomes": outcomes[-30:],
         "recorded_lessons": lessons[-20:],
         "interpretation": (
             "A kutatási iparágak és módszerek rangsora a mentett cégek üzleti illeszkedési becslését mutatja, "
             "nem bizonyított konverziót. Módszer vagy iparág csak akkor számít eredményesnek vagy sikertelennek, "
-            "ha ezt a felhasználó kifejezetten rögzítette eredményként. A nem egyértelmű eredmények külön "
-            "kategóriában maradnak. Döntés és eredmény között oksági kapcsolatot a rendszer nem talál ki."
+            "ha ezt a felhasználó kifejezetten rögzítette eredményként. A döntés-eredmény kapcsolat kizárólag "
+            "az eredményrekordban explicit módon megadott döntésmező alapján készül; a szöveges hasonlóság "
+            "csak konzervatív egyezéskeresés, nem oksági bizonyíték. A nem egyértelmű eredmények külön maradnak."
         ),
     }
