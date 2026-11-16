@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from google import genai
+from google.genai import types
 from supabase import Client, create_client
 
 
@@ -63,6 +64,32 @@ def get_model_name() -> str:
     return get_secret("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
 
 
+def format_conversation_history(messages: list[tuple[str, str]], max_chars: int = 10000, max_message_chars: int = 3000) -> str:
+    """Keep the newest useful turns while enforcing strict prompt-size bounds."""
+    if max_chars <= 0 or max_message_chars <= 0:
+        return ""
+    selected: list[str] = []
+    used = 0
+    for role, message in reversed(messages):
+        if role not in {"user", "assistant"}:
+            continue
+        value = str(message or '').strip()
+        if not value:
+            continue
+        if len(value) > max_message_chars:
+            value = value[:max_message_chars].rstrip() + "… [üzenet rövidítve]"
+        line = f"{role}: {value}"
+        remaining = max_chars - used
+        if remaining <= 0:
+            break
+        if len(line) > remaining:
+            if not selected:
+                selected.append(line[:remaining].rstrip() + "… [előzménykeret elérve]")
+            break
+        selected.append(line)
+        used += len(line) + 1
+    return "\n".join(reversed(selected))
+
 def generate_text(prompt: str, client: genai.Client | None = None) -> str:
     """Generate a response with bounded retries for temporary Gemini overloads.
 
@@ -76,7 +103,15 @@ def generate_text(prompt: str, client: genai.Client | None = None) -> str:
 
     for attempt in range(max_attempts):
         try:
-            response = client.models.generate_content(model=model, contents=prompt)
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.35,
+                    top_p=0.9,
+                    max_output_tokens=4096,
+                ),
+            )
             text = (getattr(response, "text", None) or "").strip()
             if not text:
                 raise RuntimeError("A Gemini API üres választ adott vissza.")
