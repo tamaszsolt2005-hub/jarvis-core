@@ -172,7 +172,7 @@ Zárd le a feladatot: UUID
 - [x] Lefuttatja a `python -m compileall -q .` szintaxisellenőrzést.
 - [x] Lefuttatja a `python -m pytest -q` teszteket.
 - [x] Tesztek fedik többek között a memória-kezelést, döntéstámogatást, üzleti tanulást, piaci összesítést, leadprioritást, leadkutatást, feladatműveleteket, napi jelentést, proaktív figyelést, biztonságos HTTP-lekérést, dashboard-szerződést, e-mail-biztonságot és a rendszerdiagnosztikát.
-- [!] A rendszerdiagnosztika első CI-futásában 95 teszt sikeres és 1 teszt hibás volt: a hiányzó konfigurációs esetnél a teszt tévesen 0 sikeres ellenőrzést várt, miközben az e-mail-küldési biztonsági zár helyesen sikeresnek bizonyult. A tesztelvárást javítottuk; az új CI-futás eredményét ellenőrizni kell.
+- [x] A rendszerdiagnosztika javított tesztelvárásaival a CI sikeres: 96 teszt sikeres, a `compileall` és a teljes pytest futás is zöld. [GitHub Actions – 43782429221](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/43782429221).
 - [!] A sikeres CI a kód és az automatizált tesztek eredményét igazolja, nem az éles szolgáltatások működését.
 
 ## 13. Még ellenőrizendő / telepítéstől függő elemek
