@@ -41,7 +41,7 @@ def test_diagnostics_reports_missing_configuration_without_connecting(monkeypatc
     monkeypatch.setattr(health_check, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     report = run_self_diagnostics()
-    assert "0/" in report
+    assert "1/13" in report  # Only the hard-coded email safety lock can pass without secrets.
     assert "SUPABASE_URL" in report
     assert "GEMINI_API_KEY" in report
     assert "E-mail-küldési biztonsági zár" in report
