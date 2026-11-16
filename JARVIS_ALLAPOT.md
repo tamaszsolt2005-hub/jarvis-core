@@ -204,7 +204,24 @@ Az alábbiak a jelenlegi kódban megvalósított, üzletileg hasznos képessége
 
 **A legnagyobb jelenlegi érték:** a JARVIS már összeköti a nyilvános cégkutatást, a korábbi üzleti tapasztalatot és a napi feladatprioritásokat. Így nem csak adatokat listáz, hanem segít eldönteni, mit érdemes először ellenőrizni vagy elvégezni.
 
-## 15. Rövid összegzés
+## 15. Rendszerdiagnosztika a chatből
+
+- [x] Külön, kézzel indítható diagnosztika a chatben az „Ellenőrizd a rendszert” vagy „Rendszerdiagnosztika” paranccsal.
+- [x] A Supabase URL, szerveroldali kulcs, Gemini API-kulcs és dashboard-jelszó konfigurációjának meglétét ellenőrzi; értékeket és titkokat nem jelenít meg.
+- [x] Supabase-kapcsolat inicializálása és hat alapvető tábla korlátozott, csak olvasási lekérdezése: leads, tasks, settings, logs, jarvis_memory, jarvis_proactive_state.
+- [x] Rövid Gemini API-próbakérést futtat, ha a kulcs konfigurálva van.
+- [x] Ellenőrzi, hogy az e-mail-küldési biztonsági zár továbbra is tiltott állapotban van-e.
+- [x] Minden ellenőrzéshez külön OK / figyelmet igényel állapotot és rövid hibaleírást ad.
+- [x] A diagnosztika nem módosít leadet, feladatot, memóriát vagy beállítást; nem indít kutatást és nem küld e-mailt.
+- [!] A Gemini-próbakérés API-használatot és esetleges költséget jelenthet.
+- [!] A sikeres pillanatfelvétel nem garantál folyamatos szolgáltatás-elérhetőséget; a GitHub Actions ütemezéseket és a teljes éles folyamatokat nem futtatja le.
+
+A diagnosztika indítása a JARVIS chatben:
+```text
+Ellenőrizd a rendszert
+```
+
+## 16. Rövid összegzés
 
 A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú üzleti asszisztenssel, Supabase-adatolvasással, weboldal-elemzéssel, bizonyítékminőség-kapuval kiegészített forrásalapú globális céges leadkutatással, leadprioritással, piaci intelligenciával, kategóriaérzékeny explicit hosszú távú memóriával, döntéstámogatással, döntés–eredmény összekapcsolással, jóváhagyásos feladatkezeléssel, kibővített napi vezetői akciótervvel, proaktív változásfigyeléssel és automatizált teszteléssel.
 
