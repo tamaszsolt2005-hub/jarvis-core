@@ -189,7 +189,22 @@ Az alábbiak nem feltétlenül hiányzó funkciók: az éles környezetben való
 - [ ] Ellenőrizni, hogy a `jarvis_proactive_state` pillanatkép első és későbbi futásai a tényleges adatbázissal helyesen működnek-e.
 - [ ] Éles Streamlit/Codespaces felületen manuális felhasználói tesztet végezni.
 
-## 14. Rövid összegzés
+## 14. Ami már kifejezetten jól működik / a JARVIS erősségei
+
+Az alábbiak a jelenlegi kódban megvalósított, üzletileg hasznos képességek:
+
+- **Forrásalapú cégkutatás:** nem pusztán cégnévlistát készít; nyilvános forrásokat, hivatalos weboldalt, üzleti illeszkedést és további kutatási lépést kapcsol a cégekhez.
+- **Óvatosabb pontozás:** a kutatási bizonyosság és az illeszkedési pontszám nem lehet erősebb a ténylegesen felsorolt bizonyítékoknál. Ez csökkenti a magabiztos, de gyengén alátámasztott találatok kockázatát.
+- **Külön kezeli a különböző mérőszámokat:** a weboldal információgazdagsága, az üzleti illeszkedés és a kutatási prioritás nem mosódik össze.
+- **Megőrzi az üzleti tapasztalatot:** a döntések, eredmények, tanulságok és preferenciák külön kategóriákban tárolhatók; a visszakeresés a kérdés típusához igazodik.
+- **Nem talál ki üzleti sikert:** csak kifejezetten rögzített eredményeket használ a módszerek és döntések értékelésére; az együttjárást nem nevezi bizonyított ok-okozatnak.
+- **Cselekvésre fordítja az adatokat:** a napi terv a lejárt, mára esedékes és magas prioritású feladatokat, az engedélyezett utánkövetéseket és a kiemelt kutatási lehetőségeket egy sorrendbe rendezi.
+- **Emberi kontrollt tart fenn:** a feladatmódosítások és leadkutatási műveletek jóváhagyást igényelnek; a céges kutatás önmagában nem ad kapcsolatfelvételi engedélyt.
+- **Biztonságos alapbeállítások:** az e-mail-küldés kódszinten tiltott, a személyes leadadatok és a szabad szöveges CRM-megjegyzések nem kerülnek automatikusan az AI-kontekstusba.
+
+**A legnagyobb jelenlegi érték:** a JARVIS már összeköti a nyilvános cégkutatást, a korábbi üzleti tapasztalatot és a napi feladatprioritásokat. Így nem csak adatokat listáz, hanem segít eldönteni, mit érdemes először ellenőrizni vagy elvégezni.
+
+## 15. Rövid összegzés
 
 A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú üzleti asszisztenssel, Supabase-adatolvasással, weboldal-elemzéssel, bizonyítékminőség-kapuval kiegészített forrásalapú globális céges leadkutatással, leadprioritással, piaci intelligenciával, kategóriaérzékeny explicit hosszú távú memóriával, döntéstámogatással, döntés–eredmény összekapcsolással, jóváhagyásos feladatkezeléssel, kibővített napi vezetői akciótervvel, proaktív változásfigyeléssel és automatizált teszteléssel.
 
