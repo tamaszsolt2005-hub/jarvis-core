@@ -26,6 +26,7 @@ from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
 from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
+from health_check import run_self_diagnostics
 
 
 st.set_page_config(
@@ -535,6 +536,18 @@ if prompt:
     st.session_state.chat.append(("user", prompt))
     with st.chat_message("user"):
         st.markdown(prompt)
+
+    if prompt.strip().casefold() in {
+        "ellenőrizd a rendszert", "ellenorizd a rendszert",
+        "rendszerdiagnosztika", "jarvis diagnosztika",
+        "futtass rendszerellenőrzést", "futtass rendszerellenorzest",
+    }:
+        with st.chat_message("assistant"):
+            with st.spinner("JARVIS rendszerellenőrzés folyamatban…"):
+                diagnostic_report = run_self_diagnostics()
+            st.markdown(diagnostic_report)
+        st.session_state.chat.append(("assistant", diagnostic_report))
+        st.stop()
 
     stage = "Supabase-kapcsolat"
     try:
