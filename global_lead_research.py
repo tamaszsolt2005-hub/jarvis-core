@@ -133,6 +133,31 @@ def detect_market_change(message: str) -> str | None:
     return None
 
 
+def _research_quality(item: dict[str, Any]) -> tuple[str, int | None, list[str]]:
+    """Conservatively downgrade scores when public evidence is thin."""
+    evidence = item.get("fit_evidence")
+    if not isinstance(evidence, list):
+        evidence = [str(evidence)] if evidence else []
+    evidence = [str(value).strip()[:220] for value in evidence[:5] if str(value).strip()]
+    confidence = str(item.get("research_confidence") or "low").casefold()
+    if confidence not in {"high", "medium", "low"}:
+        confidence = "low"
+    try:
+        score = max(0, min(100, int(float(item.get("business_fit_score")))))
+    except (TypeError, ValueError, OverflowError):
+        score = None
+    if len(evidence) == 0:
+        confidence = "low"
+        score = min(score, 40) if score is not None else None
+    elif len(evidence) == 1 and confidence == "high":
+        confidence = "medium"
+        score = min(score, 70) if score is not None else None
+    if not str(item.get("potential_fit") or "").strip():
+        confidence = "low"
+        score = min(score, 50) if score is not None else None
+    return confidence, score, evidence
+
+
 def research_global_companies(db: Any, request: str, client: Any | None = None,
                               max_results: int = MAX_RESULTS, market_country: str | None = None) -> dict[str, Any]:
     """Find public business entities worldwide and save unapproved company-only leads.
@@ -161,7 +186,7 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         "\"source_url\":\"URL of a Google Search source supporting this company\"}]}. "
         "Assess fit separately from website quality: business_fit_score is a provisional 0-100 estimate of fit for AI/automation services, "
         "not purchase intent, financial capacity, or consent. Base it only on explicit public evidence; use a low score or low confidence when evidence is weak. "
-        "Name the evidence behind every score, and never treat absence of evidence as a negative fact. "
+        "Name the evidence behind every score, and never treat absence of evidence as a negative fact. High confidence requires at least two distinct concrete fit-evidence items; one item permits at most medium confidence; no fit evidence or no specific fit explanation requires low confidence and a capped score. "
         "Prefer detailed official-company pages, products, workflows, scale indicators and credible public case studies. "
         "Do not invent companies, domains or facts. "
         "Do not collect personal names, personal email addresses, phone numbers or private data. "
@@ -207,20 +232,9 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         industry = str(item.get("industry") or "ismeretlen")[:120]
         summary = str(item.get("business_summary") or "")[:700]
         fit = str(item.get("potential_fit") or "")[:700]
-        fit_score_raw = item.get("business_fit_score")
-        try:
-            fit_score = max(0, min(100, int(float(fit_score_raw))))
-        except (TypeError, ValueError, OverflowError):
-            fit_score = None
-        fit_evidence = item.get("fit_evidence")
-        if not isinstance(fit_evidence, list):
-            fit_evidence = [str(fit_evidence)] if fit_evidence else []
-        fit_evidence = [str(value).strip()[:220] for value in fit_evidence[:5] if str(value).strip()]
+        confidence, fit_score, fit_evidence = _research_quality(item)
         business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
         next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
-        confidence = str(item.get("research_confidence") or "low").casefold()
-        if confidence not in {"high", "medium", "low"}:
-            confidence = "low"
         notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
             f"kutatási módszer: Google Search grounding + hivatalos weboldal és forrás-keresztellenőrzés. "
