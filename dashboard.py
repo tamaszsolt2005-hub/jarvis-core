@@ -25,6 +25,7 @@ from daily_briefing import build_daily_briefing
 from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
 from safe_http import safe_get, close_response
+from decision_support import decision_support_instructions
 
 
 st.set_page_config(
@@ -687,8 +688,10 @@ if prompt:
             max_chars=10000,
             max_message_chars=3000,
         )
+        decision_guidance = decision_support_instructions(prompt)
         answer = generate_text(
             "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
+            + decision_guidance + " "
             "A felhasználó kérdésére a mellékelt, élő adatbázisból lekért kontextus alapján válaszolj. "
             "Ha elemzést kér, ténylegesen elemezd az adatokat: mutass számokat, arányokat, trendeket, "
             "korlátokat és konkrét, rangsorolt javaslatokat. Piaci vagy stratégiai kérdésnél használd a "
