@@ -87,4 +87,4 @@ def test_diagnostics_marks_missing_table_as_attention(monkeypatch):
     monkeypatch.setattr(health_check, "get_supabase", lambda: BrokenDB())
     report = run_self_diagnostics()
     assert "Supabase tábla: jarvis_memory | FIGYELMET IGÉNYEL" in report
-    assert "Gemini API-próbakérés" not in report
+    assert "Gemini API próbakérés | FIGYELMET IGÉNYEL" in report
