@@ -76,7 +76,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     due_today.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1, x["title"]))
     fresh_today = [
         str(lead.get("company_name") or "Ismeretlen cég") for lead in leads
-        if str(lead.get("created_at") or "")[:10] == today.isoformat()
+        if _local_date(lead.get("created_at")) == today
     ]
 
     lines = [
@@ -144,6 +144,17 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             f"{len(action_items) + 1}. Végezd el vagy delegáld a mai feladatot: "
             f"**{task['title']}** (prioritás: {task['priority']})."
         )
+    scheduled_titles = {x["title"] for x in overdue} | {x["title"] for x in due_today}
+    for task in priority_tasks:
+        title = str(task.get("title") or "Névtelen feladat")
+        if title in scheduled_titles:
+            continue
+        action_items.append(
+            f"{len(action_items) + 1}. Haladj a magas prioritású feladattal: "
+            f"**{title}** (prioritás: {task.get('priority')}; határidő nélkül vagy későbbi határidővel)."
+        )
+        if len(action_items) >= 4:
+            break
     if ranked:
         lead = ranked[0]
         action_items.append(
@@ -155,6 +166,10 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         action_items.append("Nincs sürgős, határidős feladat vagy rangsorolt kutatási lehetőség; frissítsd a következő üzleti célt.")
     lines += action_items[:5]
     lines += [
+        "", "## Vezetői fókusz",
+        f"- A mai terv {min(len(action_items), 5)} konkrét, rangsorolt lépést tartalmaz.",
+        f"- Kiemelt feladatok: {len(priority_tasks)}; lejárt, jóváhagyott utánkövetések: {len(overdue_followups)}.",
+        "- A magas prioritású, határidő nélküli feladatok is bekerülnek a napi akciótervbe.",
         "", "## Következő javasolt lépések",
         "- Ellenőrizd a magas kutatási prioritású cégek nyilvános bizonyítékait.",
         "- Először a lejárt és sürgős feladatokat rendezd.",
