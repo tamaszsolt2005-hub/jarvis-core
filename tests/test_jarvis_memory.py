@@ -103,3 +103,27 @@ def test_forget_does_not_deactivate_on_only_partial_phrase():
     db = MemoryDB()
     assert forget_memories(db, "partneri ajánlás gyártás németország") == 0
     assert all(row["active"] for row in db.rows)
+
+
+
+def test_memory_retrieval_prefers_relevant_category_without_dropping_matching_memories():
+    from jarvis_memory import get_memories
+
+    class CategoryDB:
+        def table(self, _name):
+            class CategoryQuery:
+                def select(self, _columns): return self
+                def eq(self, *_args): return self
+                def order(self, *_args, **_kwargs): return self
+                def limit(self, _limit): return self
+                def execute(self):
+                    return MemoryResult([
+                        {"id": "1", "category": "business_preference", "content": "A gyártási piac fontos", "created_at": "2026-01-03"},
+                        {"id": "2", "category": "outcome", "content": "A gyártási piacon a partneri módszer működött", "created_at": "2026-01-02"},
+                        {"id": "3", "category": "lesson", "content": "A gyártási piacon a partneri módszer tanulsága", "created_at": "2026-01-01"},
+                    ])
+            return CategoryQuery()
+
+    result = get_memories(CategoryDB(), "Mi működött a gyártási piacon?", limit=20)
+    assert result[0]["category"] in {"outcome", "lesson"}
+    assert {row["id"] for row in result} == {"1", "2", "3"}
