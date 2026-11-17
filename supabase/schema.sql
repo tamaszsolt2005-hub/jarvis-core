@@ -52,6 +52,9 @@ create table if not exists public.logs (
   created_at timestamptz not null default now()
 );
 
+-- Existing installations may have an older logs table without the level column.
+alter table public.logs add column if not exists level text not null default 'info';
+
 create table if not exists public.settings (
   key text primary key,
   value jsonb,
