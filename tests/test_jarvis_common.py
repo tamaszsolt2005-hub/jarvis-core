@@ -163,3 +163,14 @@ def test_generate_text_uses_fallback_after_primary_429(monkeypatch):
 
     assert jarvis_common.generate_text("hello", client) == "fallback válasz"
     assert client.models.model_calls == ["gemini-3.5-flash", "gemini-3.8-flash"]
+
+
+def test_generate_text_uses_gemini_38_supported_generation_config(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.8-flash")
+    client = FakeClient(["válasz"])
+
+    assert jarvis_common.generate_text("hello", client) == "válasz"
+    config = client.models.configs[0]
+    assert config.max_output_tokens == 4096
+    assert config.temperature is None
+    assert config.top_p is None
