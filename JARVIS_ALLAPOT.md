@@ -283,3 +283,8 @@ A kódmódosítás önmagában nem frissíti a külső Supabase-adatbázist. A S
 - A tesztek lefedik a Gemini-modellválasztást, az IMAP üzenetsorrendet és leiratkozást, a CSV-hozzájárulást, a weboldal-auditot, a státuszsegédeket és a Supabase-oszlopdiagnosztikát.
 - Az éles Supabase/Gemini/IMAP integrációk külön ellenőrzendők; az automatizált tesztek mockolt külső szolgáltatásokat használnak.
 - Az e-mail-küldés változatlanul kódszinten letiltott.
+
+
+## 2026-11-17 – logs sémafrissítés
+
+A meglévő Supabase `logs` táblához a JARVIS által használt `level` oszlopot a `supabase/migrations/20261117_add_logs_level.sql` migráció adja hozzá. A művelet idempotens; a frissített `supabase/schema.sql` is tartalmazza ezt az ALTER utasítást.
