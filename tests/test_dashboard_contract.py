@@ -73,6 +73,8 @@ def test_dashboard_uses_bounded_history_and_evidence_first_reasoning():
 def test_dashboard_shows_live_response_status():
     source = DASHBOARD.read_text(encoding="utf-8")
     assert "JARVIS megkapta a kérésedet" in source
-    assert "JARVIS most válaszol" in source
+    assert "st.status(" in source
+    assert "JARVIS válaszol" in source
+    assert "tartalék modellre váltok" not in source  # fallback message lives in jarvis_common.py
     assert "JARVIS válaszolt" in source
     assert "JARVIS nem tudott válaszolni" in source
