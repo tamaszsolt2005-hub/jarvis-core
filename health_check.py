@@ -30,7 +30,7 @@ def run_self_diagnostics() -> str:
     dashboard_password = get_secret("JARVIS_DASHBOARD_PASSWORD")
 
     checks.append(_check("Supabase URL konfiguráció", bool(supabase_url), "Beállítva." if supabase_url else "Hiányzik a SUPABASE_URL."))
-    checks.append(_check("Supabase szerveroldali kulcs", bool(supabase_key), "Beállítva." if supabase_key else "Hiányzik a SUPABASE_SERVICE_ROLE_KEY vagy SUPABASE_KEY."))
+    checks.append(_check("Supabase API-kulcs konfiguráció", bool(supabase_key), "Beállítva; a tényleges jogosultságot a táblalekérdezések igazolják." if supabase_key else "Hiányzik a SUPABASE_SERVICE_ROLE_KEY vagy SUPABASE_KEY."))
     checks.append(_check("Gemini API-kulcs", bool(gemini_key), "Beállítva." if gemini_key else "Hiányzik a GEMINI_API_KEY."))
     checks.append(_check("Dashboard jelszó", bool(dashboard_password), "Beállítva." if dashboard_password else "Hiányzik a JARVIS_DASHBOARD_PASSWORD."))
 
