@@ -100,10 +100,10 @@ def generate_text(
     client: genai.Client | None = None,
     on_status: Any | None = None,
 ) -> str:
-    """Generate with bounded retries and two fallback models for temporary overloads."""
+    """Generate with bounded retries and current fallback models for temporary overloads."""
     client = client or get_gemini_client()
     primary_model = get_model_name()
-    fallback_models = ("gemini-3.5-flash-lite", "gemini-2.5-flash")
+    fallback_models = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
     max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 2, minimum=1, maximum=5)
 
     def notify(message: str) -> None:
