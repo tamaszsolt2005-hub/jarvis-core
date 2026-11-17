@@ -123,9 +123,15 @@ def generate_text(
                     model=model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.35,
-                        top_p=0.9,
-                        max_output_tokens=4096,
+                        **(
+                            {"max_output_tokens": 4096}
+                            if model == "gemini-3.8-flash"
+                            else {
+                                "temperature": 0.35,
+                                "top_p": 0.9,
+                                "max_output_tokens": 4096,
+                            }
+                        )
                     ),
                 )
                 answer = (getattr(response, "text", None) or "").strip()
