@@ -27,8 +27,8 @@ def required_secret(name: str) -> str:
     value = get_secret(name)
     if not value:
         raise RuntimeError(
-            f"Hiányzó beállítás: {name}. Add hozzá GitHub Actions Secretként "
-            "vagy a Codespace Streamlit secrets konfigurációjához."
+            f"Hiányzó beállítás: {name}. Add hozzá Codespaces secretként (környezeti változóként) "
+            "vagy a .streamlit/secrets.toml fájlban."
         )
     return value
 
