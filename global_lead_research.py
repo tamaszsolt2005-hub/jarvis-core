@@ -6,10 +6,9 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-from google import genai
 from google.genai import types
 
-from jarvis_common import get_model_name, log_event
+from jarvis_common import get_gemini_client, get_model_name, log_event
 
 
 MAX_RESULTS = 15
@@ -166,7 +165,7 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
     grounding source are accepted. No personal emails are collected and every
     inserted record has approved_to_contact=False.
     """
-    client = client or genai.Client()
+    client = client or get_gemini_client()
     market_country = market_country or get_research_market(db)
     market_instruction = (
         "Focus ONLY on companies operating in " + market_country + ". Prioritize companies headquartered there "
@@ -195,7 +194,6 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
     )
     config = types.GenerateContentConfig(
         tools=[types.Tool(google_search=types.GoogleSearch())],
-        temperature=0.2,
     )
     response = client.models.generate_content(
         model=get_model_name(), contents=prompt, config=config
