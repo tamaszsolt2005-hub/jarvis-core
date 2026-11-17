@@ -1,6 +1,6 @@
 # JARVIS – Chat-first B2B Business Intelligence
 
-A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természetes nyelven kérdezhet, a rendszer pedig a kérdéshez illő üzleti adatokat olvassa ki a Supabase adatbázisból, majd magyar nyelvű elemzést készít a Gemini segítségével.
+A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természetes nyelven kérdezhet, a rendszer pedig a kérdéshez illő üzleti adatokat olvassa ki a Supabase adatbázisból, majd magyar nyelvű elemzést készít a Gemini segítségével. A központi alapmodell a stabil Gemini 3.8 Flash (`gemini-3.8-flash`); a régi 2.5 Flash / Pro `GEMINI_MODEL` beállításokat a közös konfiguráció automatikusan az új alapmodellre irányítja.
 
 ## Fő működési elvek
 

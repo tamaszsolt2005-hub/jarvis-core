@@ -244,23 +244,23 @@ A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú �
 - [x] Válaszlevél-besorolás és a leiratkozási jelzések felismerése.
 - [x] Chatből indítható rendszerdiagnosztika.
 
-### További célzott tesztelést igénylő modulok
+### Célzott regressziós tesztekkel lefedett további modulok
 
-- [ ] web_auditor.py: HTML-feldolgozás, átirányítások, tartalomkorlát és hibás oldalak célzott tesztjei.
-- [ ] inbox_monitor.py: IMAP-válaszfeldolgozás, ismételt üzenetek, feladóellenőrzés és adatbázis-frissítések mockolt tesztjei. A háttérfolyamat jelenleg nem aktív.
-- [ ] inbox_analyzer.py: kompatibilitási osztályozó külön tesztjei.
-- [ ] lead_gen.py: CSV-import, hibás sorok, hozzájárulás és duplikáció célzott tesztjei. Ez a régi, kézi importsegéd; nem azonos a chatből indított globális kutatással.
-- [ ] stats.py és jarvis_status.py: státuszlekérdezések és hibakezelés célzott tesztjei.
-- [ ] email_sender.py és follow_up.py: a tiltott állapot és a küldési zár tesztelt; a tényleges küldési ág szándékosan nem aktiválható, ezért nem tekinthető működésileg engedélyezett funkciónak.
+- [x] web_auditor.py: HTML-feldolgozás, átirányítások, tartalomkorlát, HTTP-hibák és válaszlezárás mockolt tesztjei.
+- [x] inbox_monitor.py: IMAP-válaszok sorrendje, ismételt üzenetek, feladóellenőrzés, adatbázis-frissítések és a visszavonhatatlan leiratkozási állapot mockolt tesztjei. A háttérfolyamat továbbra sem aktív.
+- [x] inbox_analyzer.py: kompatibilitási osztályozó és központi Gemini-modellkonfiguráció tesztjei.
+- [x] lead_gen.py: CSV-import, hibás sorok, időzónás hozzájárulás, mezőkorlátok és duplikációkezelés tesztjei. Ez a régi, kézi importsegéd; nem azonos a chatből indított globális kutatással.
+- [x] stats.py és jarvis_status.py: státuszlekérdezések, importkori mellékhatás-mentesség és hibakezelés tesztjei.
+- [x] email_sender.py és follow_up.py: a tiltott állapot és a közvetlen SMTP-küldési zár tesztelt; a tényleges küldési ág szándékosan nem aktiválható, ezért nem engedélyezett funkció.
 
 ### Ütemezés és működési korlátok
 
-- [x] A CI workflow sikeresen lefutott: Python compileall és 96 automatizált teszt.
+- [x] A CI workflow sikeresen lefutott: Python compileall és 118 automatizált teszt.
 - [x] A globális leadkutatás és a napi vezetői jelentés két külön ütemezett workflow.
 - [x] A régi, duplikált pipeline-ok kézi no-op workflow-ként vannak hatástalanítva.
 - [!] A workflow-fájl megléte nem bizonyítja, hogy a GitHub Actions titkok be vannak állítva vagy a Supabase/Gemini külső szolgáltatások elérhetők.
 - [!] Nincs teljes, valós Supabase/Gemini/IMAP/SMTP végpontokat használó integrációs teszt. Az ilyen teszteket csak kontrollált, engedélyezett környezetben szabad futtatni; SMTP-küldés továbbra sem engedélyezett.
-- [!] A fenti célzott teszthiányok nem bizonyítanak hibát a modulokban, de azt jelentik, hogy az adott funkciók teljes működése még nincs automatizáltan igazolva.
+- [!] A mockolt tesztek nem helyettesítik az élő IMAP-, Supabase- és Gemini-kapcsolat ellenőrzését. Az inbox monitor nem aktív workflow, az SMTP-küldés továbbra is tiltott.
 
 
 ## 18. 2026-11-17 – hibajavítási és tesztbővítési kör
@@ -275,9 +275,10 @@ A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú �
 - [x] A weboldal-audit HTTP-kérésének hibás behúzása javítva.
 
 ### Telepítést igénylő adatbázis-migráció
-A kódmódosítás önmagában nem frissíti a külső Supabase-adatbázist. A Supabase SQL Editorban futtasd le a `supabase/migrations/20261117_add_leads_website.sql` tartalmát, vagy a teljes frissített `supabase/schema.sql` fájlt. A migráció idempotens és nem töröl meglévő üzleti adatot.
+A kódmódosítás önmagában nem frissíti a külső Supabase-adatbázist. A Supabase SQL Editorban futtasd le a `supabase/migrations/20261117_add_leads_website.sql` tartalmát, vagy a teljes frissített `supabase/schema.sql` fájlt. A migráció idempotens és nem töröl meglévő üzleti adatot. Ezt a külső adatbázison még a felhasználónak kell lefuttatnia; a GitHub commit nem módosítja automatikusan a Supabase-projektet.
 
 ### Tesztelési státusz
-- Célzott regressziós tesztek kerültek a Gemini-modellválasztás, az IMAP üzenetsorrend, a CSV-hozzájárulás, a weboldal-audit és a Supabase-oszlopdiagnosztika köré.
-- A CI eredménye a frissített commit GitHub Actions futásában ellenőrizendő; az automatizált teszt nem helyettesíti az éles Supabase/Gemini/IMAP ellenőrzést.
+- A frissített GitHub Actions CI sikeres: Python compileall és **118/118 teszt**.
+- A tesztek lefedik a Gemini-modellválasztást, az IMAP üzenetsorrendet és leiratkozást, a CSV-hozzájárulást, a weboldal-auditot, a státuszsegédeket és a Supabase-oszlopdiagnosztikát.
+- Az éles Supabase/Gemini/IMAP integrációk külön ellenőrzendők; az automatizált tesztek mockolt külső szolgáltatásokat használnak.
 - Az e-mail-küldés változatlanul kódszinten letiltott.
