@@ -1,6 +1,14 @@
 # JARVIS – Chat-first B2B Business Intelligence
 
-A JARVIS jelenlegi felülete egyetlen Streamlit chat. A felhasználó természetes nyelven kérdezhet, a rendszer pedig a kérdéshez illő üzleti adatokat olvassa ki a Supabase adatbázisból, majd magyar nyelvű elemzést készít a Gemini segítségével. A központi alapmodell a Gemini 3.5 Flash (`gemini-3.5-flash`); a `GEMINI_MODEL` beállítással külön modell adható meg. A chat külön állapotjelzést mutat a kérés feldolgozásakor, a Gemini-válasz készítésekor, sikeres válasznál és hibánál.
+A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafelület. A felhasználó természetes nyelven kérdezhet; a rendszer a kérdéshez illő üzleti adatokat olvassa ki a Supabase adatbázisból, majd a Gemini segítségével elemzést készít. A felület sötét, prémium megjelenésű, reszponzív chat-workspace, egyedi fejléc- és chatstílusokkal. Az alapértelmezett modell a Gemini 3.8 Flash (`gemini-3.8-flash`); a `GEMINI_MODEL` beállítással külön modell adható meg. A chat külön állapotjelzést mutat a kérés feldolgozásakor, a Gemini-válasz készítésekor, sikeres válasznál és hibánál.
+
+## Projektállapot – 2026-11-18
+
+- **Kész:** a prémium sötét dashboard-stílus és Streamlit téma; a Gemini-kliens központi konfigurációja és átmeneti túlterhelés esetén újrapróbálkozása; a globális leadkutatás Gemini-integrációjának javítása; a titokkonfigurációs és Supabase-diagnosztikai üzenetek pontosítása.
+- **Automatikus ellenőrzés:** a legutóbbi GitHub Actions CI, #296 (`143f9af`), sikeres: függőségek telepítése, `compileall`, majd **130 sikeres teszt**.
+- **Konfiguráció:** a felhasználó visszajelzése szerint a Codespaces-ben be van állítva a `GEMINI_API_KEY`, `SUPABASE_URL` és `SUPABASE_SERVICE_ROLE_KEY`.
+- **Még ellenőrizendő élesben:** a Gemini próbakérés, a Supabase-táblák/oszlopok tényleges olvashatósága, a dashboard bejelentkezése és teljes böngészős folyamatpróbája. A CI nem használ valódi titkokat, és nem végez élő integrációs tesztet.
+- Részletes bontás: [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 ## Fő működési elvek
 
