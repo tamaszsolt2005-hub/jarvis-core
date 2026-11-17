@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import generate_text, get_secret, get_supabase, format_conversation_history
+from jarvis_common import generate_text, get_secret, get_supabase, get_model_name, format_conversation_history
 from global_lead_research import (
     detect_market_change, get_research_market, research_global_companies, set_research_market,
 )
@@ -536,6 +536,8 @@ if prompt:
     st.session_state.chat.append(("user", prompt))
     with st.chat_message("user"):
         st.markdown(prompt)
+    response_status = st.empty()
+    response_status.info("JARVIS megkapta a kérésedet, feldolgozás folyamatban…")
 
     if prompt.strip().casefold() in {
         "ellenőrizd a rendszert", "ellenorizd a rendszert",
@@ -702,6 +704,7 @@ if prompt:
             loaded_sources.append("Google Search grounding alapú globális leadkutatás")
 
         stage = "Gemini AI-szolgáltatás"
+        response_status.info(f"JARVIS most válaszol · {get_model_name()} modell")
         history = format_conversation_history(
             st.session_state.chat[:-1],
             max_chars=10000,
@@ -758,12 +761,14 @@ if prompt:
         )
         if not answer:
             raise RuntimeError("A Gemini üres választ adott vissza.")
+        response_status.success(f"JARVIS válaszolt · {get_model_name()}")
         st.session_state.chat.append(("assistant", answer))
         with st.chat_message("assistant"):
             st.markdown(answer)
             st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
 
     except Exception as exc:
+        response_status.error(f"JARVIS nem tudott válaszolni · hiba a(z) {stage} szakaszban")
         # Show actionable diagnostics without ever printing configured credentials.
         import re
         detail = str(exc).replace("\n", " ").strip()
