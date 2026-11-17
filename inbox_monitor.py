@@ -85,9 +85,10 @@ def run():
                 message_id = msg.get("Message-ID")
                 category = classify_reply(_body(msg))
                 opted_out = bool(lead.get("opted_out")) or category == "opt_out"
+                effective_category = "opt_out" if opted_out else category
                 update = {
                     "status": "opted_out" if opted_out else "replied",
-                    "reply_category": category,
+                    "reply_category": effective_category,
                     "opted_out": opted_out,
                     "next_follow_up_at": None,
                     "last_inbound_message_id": message_id,

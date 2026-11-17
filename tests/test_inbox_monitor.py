@@ -139,4 +139,5 @@ def test_run_processes_new_replies_in_order_and_never_clears_opt_out(monkeypatch
     assert updates[0]["opted_out"] is True
     assert updates[1]["opted_out"] is True
     assert updates[1]["status"] == "opted_out"
+    assert updates[1]["reply_category"] == "opt_out"
     assert updates[1]["last_inbound_message_id"] == "<three>"
