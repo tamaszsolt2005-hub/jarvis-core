@@ -61,9 +61,10 @@ def get_gemini_client() -> genai.Client:
 
 
 def get_model_name() -> str:
-    configured = (get_secret("GEMINI_MODEL", "gemini-3.8-flash") or "gemini-3.8-flash").strip()
+    default_model = "gemini-3.8-flash"
+    configured = (get_secret("GEMINI_MODEL", default_model) or default_model).strip()
     if configured in {"gemini-2.5-flash", "gemini-2.5-pro"}:
-        return "gemini-3.5-flash"
+        return default_model
     return configured
 
 
@@ -76,7 +77,7 @@ def format_conversation_history(messages: list[tuple[str, str]], max_chars: int 
     for role, message in reversed(messages):
         if role not in {"user", "assistant"}:
             continue
-        value = str(message or '').strip()
+        value = str(message or "").strip()
         if not value:
             continue
         truncation_marker = "… [üzenet rövidítve]"
@@ -94,6 +95,7 @@ def format_conversation_history(messages: list[tuple[str, str]], max_chars: int 
         selected.append(line)
         used += len(line) + 1
     return "\n".join(reversed(selected))
+
 
 def generate_text(
     prompt: str,
@@ -179,18 +181,18 @@ def generate_text(
             notify(f"Válasz elkészült · {fallback_model}")
             return answer
         error = fallback_error or error
-        # Only continue to another model for an availability/overload failure.
         if error is not None:
             code = getattr(error, "code", None) or getattr(error, "status_code", None)
             status = str(getattr(error, "status", "") or "").upper()
             message = str(error).upper()
             if not (code in (429, 503) or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-                    or "503" in message or "UNAVAILABLE" in message or "429" in message):
+                    or any(marker in message for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))):
                 raise error
 
     if error is not None:
         raise error
     raise RuntimeError("A Gemini kérés nem fejeződött be.")
+
 
 def log_event(supabase: Client, module: str, message: str, level: str = "info") -> None:
     try:
