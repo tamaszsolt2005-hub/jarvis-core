@@ -84,14 +84,16 @@ def run():
             for _sequence_id, msg in _pending_messages(fetched, lead.get("last_inbound_message_id")):
                 message_id = msg.get("Message-ID")
                 category = classify_reply(_body(msg))
+                opted_out = bool(lead.get("opted_out")) or category == "opt_out"
                 update = {
-                    "status": "opted_out" if category == "opt_out" else "replied",
+                    "status": "opted_out" if opted_out else "replied",
                     "reply_category": category,
-                    "opted_out": category == "opt_out",
+                    "opted_out": opted_out,
                     "next_follow_up_at": None,
                     "last_inbound_message_id": message_id,
                 }
                 db.table("leads").update(update).eq("id", lead["id"]).execute()
+                lead["opted_out"] = opted_out
                 log_event(db, "inbox_monitor", f"Válasz feldolgozva ({category}): {lead.get('company_name')}")
     finally:
         try:

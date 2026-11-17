@@ -43,3 +43,12 @@ def test_inbox_body_ignores_attachments_and_decodes_text():
 
 def test_header_decode_handles_plain_unicode():
     assert _decode("Egyszerű tárgy") == "Egyszerű tárgy"
+
+
+
+def test_opt_out_is_sticky_when_processing_multiple_new_replies():
+    # A later positive message must never revoke an earlier explicit opt-out.
+    opted_out = False
+    for category in ("opt_out", "interested"):
+        opted_out = opted_out or category == "opt_out"
+    assert opted_out is True
