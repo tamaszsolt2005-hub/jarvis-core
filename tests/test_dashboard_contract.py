@@ -75,6 +75,6 @@ def test_dashboard_shows_live_response_status():
     assert "JARVIS megkapta a kérésedet" in source
     assert "st.status(" in source
     assert "JARVIS válaszol" in source
-    assert "tartalék modellre váltok" not in source  # fallback message lives in jarvis_common.py
+    assert "on_status=lambda message" in source
     assert "JARVIS válaszolt" in source
     assert "JARVIS nem tudott válaszolni" in source
