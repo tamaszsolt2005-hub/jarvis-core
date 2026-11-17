@@ -25,9 +25,25 @@ def _local_date(value: Any) -> date | None:
 def build_daily_briefing(db: Any, today: date | None = None) -> str:
     """Build a concise daily report; this function never writes to Supabase."""
     today = today or datetime.now(LOCAL_TZ).date()
-    leads = db.table("leads").select(
-        "id,company_name,website,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
-    ).order("created_at", desc=True).limit(1500).execute().data or []
+    website_column_missing = False
+    try:
+        leads = db.table("leads").select(
+            "id,company_name,website,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
+        ).order("created_at", desc=True).limit(1500).execute().data or []
+    except Exception as exc:
+        error_text = str(exc).casefold()
+        missing_website = "website" in error_text and any(
+            marker in error_text for marker in ("does not exist", "schema cache", "could not find")
+        )
+        if not missing_website:
+            raise
+        # Keep the daily report available on older Supabase schemas while the
+        # idempotent website migration is pending. Website-based ranking input
+        # is simply unavailable until the migration has been applied.
+        website_column_missing = True
+        leads = db.table("leads").select(
+            "id,company_name,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
+        ).order("created_at", desc=True).limit(1500).execute().data or []
     tasks = db.table("tasks").select(
         "id,title,status,priority,due_at,completed_at,lead_id"
     ).limit(1000).execute().data or []
@@ -91,6 +107,10 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         f"- Lejárt, jóváhagyott utánkövetések: {len(overdue_followups)}", "",
         "## Elsőként kezelendő kutatási lehetőségek",
     ]
+    if website_column_missing:
+        lines += ["", "## Adatbázis-séma figyelmeztetés",
+                  "- A `leads.website` oszlop hiányzik; a jelentés a többi mezőből elkészült, de a weboldal-alapú kutatási adatok korlátozottak. Futtasd a `supabase/migrations/20261117_add_leads_website.sql` migrációt."]
+
     if ranked:
         for item in ranked[:5]:
             lines.append(

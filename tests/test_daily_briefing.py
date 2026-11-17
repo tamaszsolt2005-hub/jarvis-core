@@ -121,3 +121,23 @@ def test_daily_briefing_uses_budapest_date_for_new_companies():
     })
     report = build_daily_briefing(db, today=date(2026, 11, 15))
     assert "Éjfél után létrejött Kft." in report
+
+
+
+def test_daily_briefing_falls_back_when_legacy_schema_lacks_website_column():
+    class MissingWebsiteQuery(Query):
+        def select(self, columns):
+            if "website" in columns:
+                raise RuntimeError("column leads.website does not exist")
+            return self
+
+    class MissingWebsiteDB(FakeDB):
+        def table(self, name):
+            if name == "leads":
+                return MissingWebsiteQuery(self, name)
+            return super().table(name)
+
+    report = build_daily_briefing(MissingWebsiteDB(), today=date(2026, 11, 15))
+    assert "JARVIS – napi vezetői jelentés" in report
+    assert "Adatbázis-séma figyelmeztetés" in report
+    assert "website" in report
