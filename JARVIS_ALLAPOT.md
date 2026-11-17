@@ -269,6 +269,7 @@ A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú �
 - [x] Gemini alapértelmezett modell frissítve stabil `gemini-3.8-flash` azonosítóra. A régi `gemini-2.5-flash` és `gemini-2.5-pro` beállítás automatikusan az új alapértelmezésre vált.
 - [x] A meglévő Supabase `leads` táblához idempotens `website` oszlopmigráció került a teljes sémába és külön migrációs fájlba.
 - [x] A chatből indítható diagnosztika külön ellenőrzi a `leads.website` oszlopot is.
+- [x] A napi briefing régi Supabase-séma esetén is elkészül: ha a `website` oszlop hiányzik, biztonságosan a többi leadmezővel folytatja, és jól látható figyelmeztetést tesz a jelentésbe.
 - [x] Az IMAP monitor a tárolt utolsó Message-ID utáni válaszokat dolgozza fel; ha a marker kikerült a legutóbbi öt üzenetből, csak a legfrissebbet veszi fel, így elkerüli a régi válaszok ismételt feldolgozását.
 - [x] A régi CSV-import csak timezone-aware, időbélyegzett, explicit hozzájárulású és jóváhagyott rekordot fogad el; az e-mail-duplikációt kis-/nagybetűtől függetlenül ellenőrzi.
 - [x] A kompatibilitási inbox osztályozó is a központi Gemini-modellbeállítást használja.
