@@ -135,7 +135,7 @@ def generate_text(
                 code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
                 status = str(getattr(exc, "status", "") or "").upper()
                 message = str(exc).upper()
-                is_503 = code == 503 or status == "UNAVAILABLE" or "503" in message or "UNAVAILABLE" in message
+                is_overloaded = (\n                    code in (429, 503)\n                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}\n                    or any(marker in message for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))\n                )
                 transient = (
                     code in (408, 429, 500, 502, 503, 504)
                     or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
