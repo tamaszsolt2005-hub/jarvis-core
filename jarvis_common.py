@@ -95,52 +95,82 @@ def format_conversation_history(messages: list[tuple[str, str]], max_chars: int 
         used += len(line) + 1
     return "\n".join(reversed(selected))
 
-def generate_text(prompt: str, client: genai.Client | None = None) -> str:
-    """Generate a response with bounded retries for temporary Gemini overloads.
-
-    Retries only transient rate-limit / availability failures. Configuration,
-    authentication and malformed-request errors are raised immediately.
-    """
+def generate_text(
+    prompt: str,
+    client: genai.Client | None = None,
+    on_status: Any | None = None,
+) -> str:
+    """Generate with bounded retries and a Lite fallback for primary-model 503s."""
     client = client or get_gemini_client()
-    model = get_model_name()
-    max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 3, minimum=1, maximum=5)
-    last_error: Exception | None = None
+    primary_model = get_model_name()
+    fallback_model = "gemini-3.5-flash-lite"
+    max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 2, minimum=1, maximum=5)
 
-    for attempt in range(max_attempts):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.35,
-                    top_p=0.9,
-                    max_output_tokens=4096,
-                ),
-            )
-            text = (getattr(response, "text", None) or "").strip()
-            if not text:
-                raise RuntimeError("A Gemini API üres választ adott vissza.")
-            return text
-        except Exception as exc:
-            last_error = exc
-            code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-            status = str(getattr(exc, "status", "") or "").upper()
-            message = str(exc).upper()
-            transient = (
-                code in (429, 500, 502, 503, 504)
-                or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
-                or any(marker in message for marker in (
-                    "429", "500", "502", "503", "504", "UNAVAILABLE",
-                    "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED",
-                ))
-            )
-            if not transient or attempt >= max_attempts - 1:
-                raise
-            # Short exponential backoff: 1s, 2s, 4s (bounded by 5 attempts).
-            time.sleep(min(2 ** attempt, 8))
+    def notify(message: str) -> None:
+        if callable(on_status):
+            try:
+                on_status(message)
+            except Exception:
+                # UI progress must never break the model request.
+                pass
 
-    if last_error is not None:
-        raise last_error
+    def request_model(model: str, attempts: int) -> tuple[str, Exception | None]:
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.35,
+                        top_p=0.9,
+                        max_output_tokens=4096,
+                    ),
+                )
+                answer = (getattr(response, "text", None) or "").strip()
+                if not answer:
+                    raise RuntimeError("A Gemini API üres választ adott vissza.")
+                return answer, None
+            except Exception as exc:
+                last_error = exc
+                code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+                status = str(getattr(exc, "status", "") or "").upper()
+                message = str(exc).upper()
+                is_503 = code == 503 or status == "UNAVAILABLE" or "503" in message or "UNAVAILABLE" in message
+                transient = (
+                    code in (408, 429, 500, 502, 503, 504)
+                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
+                    or any(marker in message for marker in (
+                        "408", "429", "500", "502", "503", "504", "UNAVAILABLE",
+                        "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED",
+                    ))
+                )
+                if not transient or attempt >= attempts - 1:
+                    if is_503:
+                        return "", exc
+                    raise
+                delay = min(2 ** attempt, 8)
+                notify(f"Gemini átmenetileg túlterhelt; újrapróbálkozás {delay} másodperc múlva…")
+                time.sleep(delay)
+        return "", last_error
+
+    notify(f"JARVIS válaszol · {primary_model}")
+    answer, error = request_model(primary_model, max_attempts)
+    if answer:
+        return answer
+
+    if error is not None and primary_model != fallback_model:
+        notify(f"A {primary_model} átmenetileg nem elérhető; tartalék modellre váltok: {fallback_model}…")
+        answer, fallback_error = request_model(fallback_model, 1)
+        if answer:
+            notify(f"Válasz elkészült a tartalék modellel: {fallback_model}")
+            return answer
+        if fallback_error is not None:
+            raise fallback_error
+        raise error
+
+    if error is not None:
+        raise error
     raise RuntimeError("A Gemini kérés nem fejeződött be.")
 
 
