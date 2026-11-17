@@ -11,10 +11,12 @@ class FakeModels:
         self.outcomes = list(outcomes)
         self.calls = 0
         self.configs = []
+        self.model_calls = []
 
     def generate_content(self, *, model, contents, config=None):
         self.calls += 1
         self.configs.append(config)
+        self.model_calls.append(model)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -138,7 +140,7 @@ def test_conversation_history_ignores_unknown_roles_and_invalid_limits():
 
 
 
-def test_generate_text_uses_lite_fallback_after_primary_503(monkeypatch):
+def test_generate_text_uses_current_flash_fallback_after_primary_503(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.5-flash")
     monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 1)
     client = FakeClient([
@@ -147,4 +149,5 @@ def test_generate_text_uses_lite_fallback_after_primary_503(monkeypatch):
     ])
     assert jarvis_common.generate_text("hello", client) == "fallback válasz"
     assert client.models.calls == 2
+    assert client.models.model_calls == ["gemini-3.5-flash", "gemini-3.8-flash"]
     assert [cfg.max_output_tokens for cfg in client.models.configs] == [4096, 4096]
