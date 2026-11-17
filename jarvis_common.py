@@ -61,7 +61,10 @@ def get_gemini_client() -> genai.Client:
 
 
 def get_model_name() -> str:
-    return get_secret("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
+    configured = (get_secret("GEMINI_MODEL", "gemini-3.8-flash") or "gemini-3.8-flash").strip()
+    if configured in {"gemini-2.5-flash", "gemini-2.5-pro"}:
+        return "gemini-3.8-flash"
+    return configured
 
 
 def format_conversation_history(messages: list[tuple[str, str]], max_chars: int = 10000, max_message_chars: int = 3000) -> str:

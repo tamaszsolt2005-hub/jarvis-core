@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_schema_migrations_are_real_sql_lines_not_escaped_text():
     schema = (ROOT / "supabase" / "schema.sql").read_text(encoding="utf-8")
     assert "\\n" not in schema
+    assert "alter table public.leads add column if not exists website text;" in schema
     assert "alter table public.leads add column if not exists consent_basis text;" in schema
     assert "alter table public.leads add column if not exists approved_to_contact boolean not null default false;" in schema
     assert "create table if not exists public.jarvis_proactive_state" in schema

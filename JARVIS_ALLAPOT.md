@@ -1,6 +1,6 @@
 # JARVIS – megvalósított funkciók és aktuális állapot
 
-**Utolsó kódfelülvizsgálat:** 2026-11-16  
+**Utolsó kódfelülvizsgálat:** 2026-11-17  
 **Repository:** `tamaszsolt2005-hub/jarvis-core`  
 **Ág:** `main`
 
@@ -11,7 +11,7 @@ Ez a dokumentum a repository aktuális forráskódja, README-je, Supabase-sémá
 - [x] Chat-központú Streamlit alkalmazás, egyetlen beszélgetési felülettel.
 - [x] Sötét, prémium megjelenésű JARVIS felület.
 - [x] Gemini-alapú magyar nyelvű válaszgenerálás.
-- [x] A modell neve környezeti konfigurációból választható; alapértelmezésben Gemini 2.5 Flash.
+- [x] A modell neve környezeti konfigurációból választható; alapértelmezésben Gemini 3.8 Flash.
 - [x] A beszélgetési előzmények korlátozott méretben bekerülnek a következő válasz kontextusába.
 - [x] A kontextus-összeállítás korlátozza az egyes üzenetek és a teljes előzmény hosszát.
 - [x] A válaszadási utasítások előírják a tények, feltételezések és ismeretlen adatok elkülönítését, az adatforrások és mintanagyságok jelzését, valamint a megalapozatlan számok kerülését.
@@ -261,3 +261,23 @@ A repository alapján a JARVIS már rendelkezik chatfelülettel, Gemini-alapú �
 - [!] A workflow-fájl megléte nem bizonyítja, hogy a GitHub Actions titkok be vannak állítva vagy a Supabase/Gemini külső szolgáltatások elérhetők.
 - [!] Nincs teljes, valós Supabase/Gemini/IMAP/SMTP végpontokat használó integrációs teszt. Az ilyen teszteket csak kontrollált, engedélyezett környezetben szabad futtatni; SMTP-küldés továbbra sem engedélyezett.
 - [!] A fenti célzott teszthiányok nem bizonyítanak hibát a modulokban, de azt jelentik, hogy az adott funkciók teljes működése még nincs automatizáltan igazolva.
+
+
+## 18. 2026-11-17 – hibajavítási és tesztbővítési kör
+
+### Javítások
+- [x] Gemini alapértelmezett modell frissítve stabil `gemini-3.8-flash` azonosítóra. A régi `gemini-2.5-flash` és `gemini-2.5-pro` beállítás automatikusan az új alapértelmezésre vált.
+- [x] A meglévő Supabase `leads` táblához idempotens `website` oszlopmigráció került a teljes sémába és külön migrációs fájlba.
+- [x] A chatből indítható diagnosztika külön ellenőrzi a `leads.website` oszlopot is.
+- [x] Az IMAP monitor a tárolt utolsó Message-ID utáni válaszokat dolgozza fel; ha a marker kikerült a legutóbbi öt üzenetből, csak a legfrissebbet veszi fel, így elkerüli a régi válaszok ismételt feldolgozását.
+- [x] A régi CSV-import csak timezone-aware, időbélyegzett, explicit hozzájárulású és jóváhagyott rekordot fogad el; az e-mail-duplikációt kis-/nagybetűtől függetlenül ellenőrzi.
+- [x] A kompatibilitási inbox osztályozó is a központi Gemini-modellbeállítást használja.
+- [x] A weboldal-audit HTTP-kérésének hibás behúzása javítva.
+
+### Telepítést igénylő adatbázis-migráció
+A kódmódosítás önmagában nem frissíti a külső Supabase-adatbázist. A Supabase SQL Editorban futtasd le a `supabase/migrations/20261117_add_leads_website.sql` tartalmát, vagy a teljes frissített `supabase/schema.sql` fájlt. A migráció idempotens és nem töröl meglévő üzleti adatot.
+
+### Tesztelési státusz
+- Célzott regressziós tesztek kerültek a Gemini-modellválasztás, az IMAP üzenetsorrend, a CSV-hozzájárulás, a weboldal-audit és a Supabase-oszlopdiagnosztika köré.
+- A CI eredménye a frissített commit GitHub Actions futásában ellenőrizendő; az automatizált teszt nem helyettesíti az éles Supabase/Gemini/IMAP ellenőrzést.
+- Az e-mail-küldés változatlanul kódszinten letiltott.

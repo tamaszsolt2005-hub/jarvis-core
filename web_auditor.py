@@ -61,7 +61,7 @@ def audit_company_website(url: str | None) -> str:
                 current_url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=(4, 8),
-                                stream=True,
+                stream=True,
             )
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")

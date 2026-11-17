@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from google import genai
 
+from jarvis_common import get_model_name
+
 
 def analyze_incoming_reply(reply_text: str, gemini_api_key: str) -> str:
     """Classify a reply using the supported google-genai SDK."""
@@ -19,7 +21,7 @@ def analyze_incoming_reply(reply_text: str, gemini_api_key: str) -> str:
     try:
         client = genai.Client(api_key=gemini_api_key)
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=get_model_name(),
             contents=prompt,
         )
         result = (getattr(response, "text", None) or "").strip().upper()
