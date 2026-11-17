@@ -100,10 +100,10 @@ def generate_text(
     client: genai.Client | None = None,
     on_status: Any | None = None,
 ) -> str:
-    """Generate with bounded retries and a Lite fallback for primary-model 503s."""
+    """Generate with bounded retries and two fallback models for temporary overloads."""
     client = client or get_gemini_client()
     primary_model = get_model_name()
-    fallback_model = "gemini-3.5-flash-lite"
+    fallback_models = ("gemini-3.5-flash-lite", "gemini-2.5-flash")
     max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 2, minimum=1, maximum=5)
 
     def notify(message: str) -> None:
@@ -111,7 +111,6 @@ def generate_text(
             try:
                 on_status(message)
             except Exception:
-                # UI progress must never break the model request.
                 pass
 
     def request_model(model: str, attempts: int) -> tuple[str, Exception | None]:
@@ -158,21 +157,37 @@ def generate_text(
     answer, error = request_model(primary_model, max_attempts)
     if answer:
         return answer
+    if error is not None and not (
+        getattr(error, "code", None) == 503
+        or str(getattr(error, "status", "")).upper() == "UNAVAILABLE"
+        or "503" in str(error)
+        or "UNAVAILABLE" in str(error).upper()
+    ):
+        raise error
 
-    if error is not None and primary_model != fallback_model:
-        notify(f"A {primary_model} átmenetileg nem elérhető; tartalék modellre váltok: {fallback_model}…")
+    tried = {primary_model}
+    for fallback_model in fallback_models:
+        if fallback_model in tried:
+            continue
+        tried.add(fallback_model)
+        notify(f"A {primary_model} túlterhelt; tartalék modell kipróbálása: {fallback_model}…")
         answer, fallback_error = request_model(fallback_model, 1)
         if answer:
-            notify(f"Válasz elkészült a tartalék modellel: {fallback_model}")
+            notify(f"Válasz elkészült · {fallback_model}")
             return answer
-        if fallback_error is not None:
-            raise fallback_error
-        raise error
+        error = fallback_error or error
+        # Only continue to another model for an availability/overload failure.
+        if error is not None:
+            code = getattr(error, "code", None) or getattr(error, "status_code", None)
+            status = str(getattr(error, "status", "") or "").upper()
+            message = str(error).upper()
+            if not (code in (429, 503) or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
+                    or "503" in message or "UNAVAILABLE" in message or "429" in message):
+                raise error
 
     if error is not None:
         raise error
     raise RuntimeError("A Gemini kérés nem fejeződött be.")
-
 
 def log_event(supabase: Client, module: str, message: str, level: str = "info") -> None:
     try:
