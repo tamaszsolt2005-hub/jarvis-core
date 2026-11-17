@@ -174,3 +174,13 @@ def test_generate_text_uses_gemini_38_supported_generation_config(monkeypatch):
     assert config.max_output_tokens == 4096
     assert config.temperature is None
     assert config.top_p is None
+
+
+
+def test_required_secret_points_to_runtime_secret_locations(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: None)
+    with pytest.raises(RuntimeError) as error:
+        jarvis_common.required_secret("GEMINI_API_KEY")
+    assert "Codespaces secretként" in str(error.value)
+    assert ".streamlit/secrets.toml" in str(error.value)
+    assert "GitHub Actions Secretként" not in str(error.value)
