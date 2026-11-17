@@ -41,7 +41,7 @@ def test_diagnostics_reports_missing_configuration_without_connecting(monkeypatc
     monkeypatch.setattr(health_check, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     report = run_self_diagnostics()
-    assert "1/14" in report  # Only the hard-coded email safety lock can pass without secrets.
+    assert "1/15" in report  # Only the hard-coded email safety lock can pass without secrets.
     assert "SUPABASE_URL" in report
     assert "GEMINI_API_KEY" in report
     assert "E-mail-küldési biztonsági zár" in report
@@ -62,11 +62,12 @@ def test_diagnostics_checks_all_required_tables_and_gemini(monkeypatch):
     monkeypatch.setattr(health_check, "get_supabase", lambda: FakeDB())
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: FakeGemini())
     report = run_self_diagnostics()
-    assert "14/14" in report
+    assert "15/15" in report
     for table in REQUIRED_TABLES:
         assert f"Supabase tábla: {table}" in report
     assert "Gemini API próbakérés | OK" in report
     assert "Supabase oszlop: leads.website | OK" in report
+    assert "Supabase oszlop: logs.level | OK" in report
     assert "test-secret" not in report
     assert "test-gemini" not in report
 
@@ -89,4 +90,5 @@ def test_diagnostics_marks_missing_table_as_attention(monkeypatch):
     report = run_self_diagnostics()
     assert "Supabase tábla: jarvis_memory | FIGYELMET IGÉNYEL" in report
     assert "Supabase oszlop: leads.website | OK" in report
+    assert "Supabase oszlop: logs.level | OK" in report
     assert "Gemini API próbakérés | FIGYELMET IGÉNYEL" in report
