@@ -11,7 +11,8 @@ Ez a dokumentum a repository aktuális forráskódja, README-je, Supabase-sémá
 - [x] Chat-központú Streamlit alkalmazás, egyetlen beszélgetési felülettel.
 - [x] Sötét, prémium megjelenésű JARVIS felület.
 - [x] Gemini-alapú magyar nyelvű válaszgenerálás.
-- [x] A modell neve környezeti konfigurációból választható; alapértelmezésben Gemini 3.8 Flash.
+- [x] A modell neve környezeti konfigurációból választható; alapértelmezésben Gemini 3.5 Flash (`gemini-3.5-flash`).
+- [x] A chat állapotjelzést mutat a kérés fogadásakor, a Gemini-válasz készítésekor, sikeres válasznál és hibánál.
 - [x] A beszélgetési előzmények korlátozott méretben bekerülnek a következő válasz kontextusába.
 - [x] A kontextus-összeállítás korlátozza az egyes üzenetek és a teljes előzmény hosszát.
 - [x] A válaszadási utasítások előírják a tények, feltételezések és ismeretlen adatok elkülönítését, az adatforrások és mintanagyságok jelzését, valamint a megalapozatlan számok kerülését.
