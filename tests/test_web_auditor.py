@@ -15,7 +15,7 @@ class Response:
     def __init__(self, status=200, headers=None, body=None):
         self.status_code = status
         self.headers = headers or {"Content-Type": "text/html; charset=utf-8"}
-        self.raw = Raw(body)
+        self.raw = Raw(body if body is not None else b"<html><title>Example</title><p>Business information</p></html>")
         self.closed = False
 
     def close(self):
