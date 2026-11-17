@@ -59,10 +59,14 @@ def test_generate_text_stops_after_retry_limit(monkeypatch):
         code = 503
         status = "UNAVAILABLE"
 
-    client = FakeClient([ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503")])
+    client = FakeClient([
+        ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503"),
+        ServiceUnavailable("503"), ServiceUnavailable("503"),
+    ])
     with pytest.raises(ServiceUnavailable):
         jarvis_common.generate_text("hello", client)
-    assert client.models.calls == 4
+    # Three primary attempts, then one attempt for each fallback model.
+    assert client.models.calls == 5
     assert sleeps == [1, 2]
 
 
