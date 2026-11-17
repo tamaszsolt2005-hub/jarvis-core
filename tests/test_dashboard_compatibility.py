@@ -29,7 +29,7 @@ def test_dashboard_has_local_conversation_formatter():
     history = formatter(
         [("user", "old"), ("assistant", "old answer"),
          ("user", "latest question"), ("assistant", "latest answer")],
-        max_chars=80,
+        max_chars=50,
         max_message_chars=40,
     )
     assert "latest question" in history
