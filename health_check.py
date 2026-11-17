@@ -64,6 +64,15 @@ def run_self_diagnostics() -> str:
     else:
         checks.append(_check("Supabase oszlop: leads.website", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
 
+    if db is not None:
+        try:
+            db.table("logs").select("level").limit(1).execute()
+            checks.append(_check("Supabase oszlop: logs.level", True, "Az oszlop lekérdezhető."))
+        except Exception as exc:
+            checks.append(_check("Supabase oszlop: logs.level", False, f"Hiányzó vagy nem lekérdezhető oszlop ({type(exc).__name__}); ellenőrizd a logs migrációt."))
+    else:
+        checks.append(_check("Supabase oszlop: logs.level", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
+
     if gemini_key:
         try:
             client = get_gemini_client()
