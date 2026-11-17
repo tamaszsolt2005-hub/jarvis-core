@@ -536,8 +536,8 @@ if prompt:
     st.session_state.chat.append(("user", prompt))
     with st.chat_message("user"):
         st.markdown(prompt)
-    response_status = st.empty()
-    response_status.info("JARVIS megkapta a kérésedet, feldolgozás folyamatban…")
+    progress_status = st.status("JARVIS dolgozik…", state="running", expanded=True)
+    progress_status.update(label="JARVIS megkapta a kérésedet · feldolgozás folyamatban…", state="running", expanded=True)
 
     if prompt.strip().casefold() in {
         "ellenőrizd a rendszert", "ellenorizd a rendszert",
@@ -705,7 +705,7 @@ if prompt:
             loaded_sources.append("Google Search grounding alapú globális leadkutatás")
 
         stage = "Gemini AI-szolgáltatás"
-        response_status.info(f"JARVIS most válaszol · {get_model_name()} modell")
+        progress_status.update(label=f"JARVIS válaszol · {get_model_name()} modell", state="running", expanded=True)
         history = format_conversation_history(
             st.session_state.chat[:-1],
             max_chars=10000,
@@ -758,18 +758,21 @@ if prompt:
             f"LEKÉRDEZETT ADATFORRÁSOK: {', '.join(loaded_sources) or 'nincs'}\n"
             f"AKTUÁLIS ADATOK:\n{context}\n\n"
             f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
-            f"FELHASZNÁLÓ KÉRDÉSE: {prompt}"
+            f"FELHASZNÁLÓ KÉRDÉSE: {prompt}",
+            on_status=lambda message: progress_status.update(
+                label=message, state="running", expanded=True
+            ),
         )
         if not answer:
             raise RuntimeError("A Gemini üres választ adott vissza.")
-        response_status.success(f"JARVIS válaszolt · {get_model_name()}")
+        progress_status.update(label=f"JARVIS válaszolt · {get_model_name()}", state="complete", expanded=False)
         st.session_state.chat.append(("assistant", answer))
         with st.chat_message("assistant"):
             st.markdown(answer)
             st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
 
     except Exception as exc:
-        response_status.error(f"JARVIS nem tudott válaszolni · hiba a(z) {stage} szakaszban")
+        progress_status.update(label=f"JARVIS nem tudott válaszolni · hiba a(z) {stage} szakaszban", state="error", expanded=True)
         # Show actionable diagnostics without ever printing configured credentials.
         import re
         detail = str(exc).replace("\n", " ").strip()
