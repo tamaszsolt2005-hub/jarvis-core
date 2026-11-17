@@ -14,7 +14,35 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import generate_text, get_secret, get_supabase, get_model_name, format_conversation_history
+from jarvis_common import generate_text, get_secret, get_supabase, get_model_name
+
+
+def format_conversation_history(messages: list[tuple[str, str]], max_chars: int = 10000, max_message_chars: int = 3000) -> str:
+    """Format recent chat turns locally so older jarvis_common versions remain compatible."""
+    if max_chars <= 0 or max_message_chars <= 0:
+        return ""
+    selected: list[str] = []
+    used = 0
+    for role, message in reversed(messages):
+        if role not in {"user", "assistant"}:
+            continue
+        value = str(message or "").strip()
+        if not value:
+            continue
+        marker = "… [üzenet rövidítve]"
+        if len(value) > max_message_chars:
+            value = value[:max(0, max_message_chars - len(marker))].rstrip() + marker
+        line = f"{role}: {value}"
+        remaining = max_chars - used
+        if remaining <= 0:
+            break
+        if len(line) > remaining:
+            if not selected:
+                selected.append(line[:remaining].rstrip())
+            break
+        selected.append(line)
+        used += len(line) + 1
+    return "\n".join(reversed(selected))
 from global_lead_research import (
     detect_market_change, get_research_market, research_global_companies, set_research_market,
 )
