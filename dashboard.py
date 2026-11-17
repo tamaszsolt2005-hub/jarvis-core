@@ -715,8 +715,10 @@ if prompt:
             max_message_chars=3000,
         )
         decision_guidance = decision_support_instructions(prompt)
-        answer = generate_text(
-            "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
+        with st.chat_message("assistant"):
+            with st.spinner("🧠 A JARVIS AI gondolkodik… A válasz összeállítása folyamatban van."):
+                answer = generate_text(
+                    "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
             + decision_guidance + " "
             "A felhasználó kérdésére a mellékelt, élő adatbázisból lekért kontextus alapján válaszolj. "
             "Ha elemzést kér, ténylegesen elemezd az adatokat: mutass számokat, arányokat, trendeket, "
@@ -762,17 +764,16 @@ if prompt:
             f"AKTUÁLIS ADATOK:\n{context}\n\n"
             f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
             f"FELHASZNÁLÓ KÉRDÉSE: {prompt}",
-            on_status=lambda message: (
-                progress_placeholder.info("🧠 " + message),
-                progress_status.update(label=message, state="running", expanded=True),
-            ),
-        )
-        if not answer:
-            raise RuntimeError("A Gemini üres választ adott vissza.")
-        progress_status.update(label=f"JARVIS válaszolt · {get_model_name()}", state="complete", expanded=False)
-        progress_placeholder.empty()
-        st.session_state.chat.append(("assistant", answer))
-        with st.chat_message("assistant"):
+                    on_status=lambda message: (
+                        progress_placeholder.info("🧠 " + message),
+                        progress_status.update(label=message, state="running", expanded=True),
+                    ),
+                )
+            if not answer:
+                raise RuntimeError("A Gemini üres választ adott vissza.")
+            progress_status.update(label=f"JARVIS válaszolt · {get_model_name()}", state="complete", expanded=False)
+            progress_placeholder.empty()
+            st.session_state.chat.append(("assistant", answer))
             st.markdown(answer)
             st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
 
