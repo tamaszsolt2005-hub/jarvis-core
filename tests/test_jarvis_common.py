@@ -59,10 +59,10 @@ def test_generate_text_stops_after_retry_limit(monkeypatch):
         code = 503
         status = "UNAVAILABLE"
 
-    client = FakeClient([ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503")])
+    client = FakeClient([ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503"), ServiceUnavailable("503")])
     with pytest.raises(ServiceUnavailable):
         jarvis_common.generate_text("hello", client)
-    assert client.models.calls == 3
+    assert client.models.calls == 4
     assert sleeps == [1, 2]
 
 
@@ -131,3 +131,16 @@ def test_conversation_history_truncates_single_oversized_message():
 def test_conversation_history_ignores_unknown_roles_and_invalid_limits():
     assert jarvis_common.format_conversation_history([("system", "ignore me")]) == ""
     assert jarvis_common.format_conversation_history([("user", "hello")], max_chars=0) == ""
+
+
+
+def test_generate_text_uses_lite_fallback_after_primary_503(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.5-flash")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 1)
+    client = FakeClient([
+        type("Unavailable", (Exception,), {"code": 503, "status": "UNAVAILABLE"})("busy"),
+        "fallback válasz",
+    ])
+    assert jarvis_common.generate_text("hello", client) == "fallback válasz"
+    assert client.models.calls == 2
+    assert [cfg.max_output_tokens for cfg in client.models.configs] == [4096, 4096]
