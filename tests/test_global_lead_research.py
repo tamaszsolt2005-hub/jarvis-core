@@ -208,3 +208,24 @@ def test_research_quality_requires_evidence_and_specific_fit():
     assert confidence == "low"
     assert score == 40
     assert evidence == []
+
+
+
+def test_global_research_uses_configured_gemini_client_and_no_sampling_params(monkeypatch):
+    captured = {}
+    response = {
+        "text": json.dumps({"companies": []}),
+        "candidates": [{"grounding_metadata": {"grounding_chunks": [{"web": {"uri": "https://example.com/source"}}]}}],
+    }
+    client = FakeClient(response)
+    monkeypatch.setattr(research.types, "GenerateContentConfig", lambda **kwargs: captured.update(kwargs) or kwargs)
+    monkeypatch.setattr(research.types, "Tool", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
+    monkeypatch.setattr(research, "get_model_name", lambda: "gemini-3.8-flash")
+    monkeypatch.setattr(research, "get_gemini_client", lambda: client)
+    monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    result = research.research_global_companies(FakeDB(), "teszt leadkutatás")
+    assert result["saved_count"] == 0
+    assert "temperature" not in captured
+    assert "top_p" not in captured
+    assert "top_k" not in captured
