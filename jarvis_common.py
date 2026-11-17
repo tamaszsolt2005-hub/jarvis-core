@@ -61,7 +61,7 @@ def get_gemini_client() -> genai.Client:
 
 
 def get_model_name() -> str:
-    configured = (get_secret("GEMINI_MODEL", "gemini-3.5-flash") or "gemini-3.5-flash").strip()
+    configured = (get_secret("GEMINI_MODEL", "gemini-3.8-flash") or "gemini-3.8-flash").strip()
     if configured in {"gemini-2.5-flash", "gemini-2.5-pro"}:
         return "gemini-3.5-flash"
     return configured
