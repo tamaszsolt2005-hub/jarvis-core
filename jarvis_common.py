@@ -135,7 +135,11 @@ def generate_text(
                 code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
                 status = str(getattr(exc, "status", "") or "").upper()
                 message = str(exc).upper()
-                is_overloaded = (\n                    code in (429, 503)\n                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}\n                    or any(marker in message for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))\n                )
+                is_overloaded = (
+                    code in (429, 503)
+                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
+                    or any(marker in message for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
+                )
                 transient = (
                     code in (408, 429, 500, 502, 503, 504)
                     or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
@@ -145,7 +149,7 @@ def generate_text(
                     ))
                 )
                 if not transient or attempt >= attempts - 1:
-                    if is_503:
+                    if is_overloaded:
                         return "", exc
                     raise
                 delay = min(2 ** attempt, 8)
@@ -158,10 +162,9 @@ def generate_text(
     if answer:
         return answer
     if error is not None and not (
-        getattr(error, "code", None) == 503
-        or str(getattr(error, "status", "")).upper() == "UNAVAILABLE"
-        or "503" in str(error)
-        or "UNAVAILABLE" in str(error).upper()
+        (getattr(error, "code", None) or getattr(error, "status_code", None)) in (429, 503)
+        or str(getattr(error, "status", "")).upper() in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
+        or any(marker in str(error).upper() for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
     ):
         raise error
 
