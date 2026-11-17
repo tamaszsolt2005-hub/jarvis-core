@@ -151,3 +151,15 @@ def test_generate_text_uses_current_flash_fallback_after_primary_503(monkeypatch
     assert client.models.calls == 2
     assert client.models.model_calls == ["gemini-3.5-flash", "gemini-3.8-flash"]
     assert [cfg.max_output_tokens for cfg in client.models.configs] == [4096, 4096]
+
+
+def test_generate_text_uses_fallback_after_primary_429(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.5-flash")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 1)
+    quota_error = type("QuotaExceeded", (Exception,), {"code": 429, "status": "RESOURCE_EXHAUSTED"})(
+        "429 RESOURCE_EXHAUSTED"
+    )
+    client = FakeClient([quota_error, "fallback válasz"])
+
+    assert jarvis_common.generate_text("hello", client) == "fallback válasz"
+    assert client.models.model_calls == ["gemini-3.5-flash", "gemini-3.8-flash"]
