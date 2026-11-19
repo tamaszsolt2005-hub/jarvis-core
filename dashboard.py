@@ -152,6 +152,117 @@ st.markdown(
         .jarvis-prompt { font-size:.72rem; padding:8px 11px; }
         [data-testid="stBottom"] { padding:.8rem .5rem 1rem !important; }
     }
+
+    /* JARVIS visual refresh — holographic cyan */
+    :root {
+        --jarvis-muted: #91aebd;
+        --jarvis-line: rgba(72, 220, 224, .20);
+        --jarvis-cyan: #63f4e8;
+        --jarvis-blue: #68baff;
+    }
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"],
+    [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
+        background:
+            radial-gradient(ellipse at 50% 18%, rgba(13, 113, 125, .18), transparent 42%),
+            radial-gradient(ellipse at 8% 78%, rgba(19, 75, 111, .12), transparent 38%),
+            #050b13 !important;
+    }
+    [data-testid="stHeader"] { background: rgba(5, 11, 19, .72) !important; }
+    .block-container { max-width: 1240px !important; padding-top: 1.2rem !important; }
+    .jarvis-topbar {
+        max-width: 1120px;
+        border-color: rgba(99,244,232,.22);
+        border-radius: 18px;
+        background: linear-gradient(110deg, rgba(9,30,39,.92), rgba(12,23,39,.82));
+        box-shadow: 0 12px 42px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.035);
+    }
+    .jarvis-mark {
+        border-radius: 13px;
+        background: linear-gradient(145deg, #42dcd2, #176e83 72%, #123c59);
+        color: #041317;
+        box-shadow: 0 0 24px rgba(70,235,225,.28);
+    }
+    .jarvis-brand { letter-spacing: .24em; }
+    .jarvis-brand-sub { color: #70a9b5; }
+    .jarvis-live {
+        color: #8df6e9;
+        border-color: rgba(99,244,232,.25);
+        background: rgba(44,190,183,.07);
+    }
+    .jarvis-hero { position: relative; padding: 2.7rem 0 1.15rem; }
+    .jarvis-orb-wrap {
+        position: relative;
+        width: 116px; height: 116px;
+        margin-bottom: 1.55rem;
+        border: 1px solid rgba(99,244,232,.42);
+        background: radial-gradient(circle, rgba(61,226,216,.16), rgba(22,83,101,.06) 62%, transparent 70%);
+        box-shadow: 0 0 42px rgba(45,219,213,.13), inset 0 0 28px rgba(45,219,213,.09);
+        animation: jarvis-breathe 4.2s ease-in-out infinite;
+    }
+    .jarvis-orb-wrap::before, .jarvis-orb-wrap::after {
+        content: ""; position: absolute; inset: -10px; border-radius: 50%;
+        border: 1px solid rgba(99,244,232,.25);
+        animation: jarvis-rotate 18s linear infinite;
+    }
+    .jarvis-orb-wrap::after {
+        inset: -17px; border-color: rgba(104,186,255,.18);
+        border-style: dashed; animation-duration: 34s; animation-direction: reverse;
+    }
+    .jarvis-orb {
+        width: 72px; height: 72px; font-size: 29px;
+        color: #dffffb;
+        background: radial-gradient(circle at 35% 28%, #2a8d98, #10445b 62%, #071d30);
+        border: 1px solid rgba(130,255,245,.78);
+        box-shadow: 0 0 30px rgba(67,238,224,.34), inset 0 0 22px rgba(107,255,242,.14);
+        text-shadow: 0 0 14px rgba(127,255,245,.8);
+    }
+    .jarvis-kicker { color: var(--jarvis-cyan); letter-spacing: .26em; }
+    .jarvis-hero h1 { text-shadow: 0 0 34px rgba(75,220,216,.10); }
+    .jarvis-hero h1 span {
+        color: #75f2e5;
+        text-shadow: 0 0 26px rgba(75,220,216,.22);
+    }
+    .jarvis-hero p { color: #9bb3c1; }
+    .jarvis-prompts { margin-top: 1.8rem; }
+    .jarvis-prompt {
+        border-color: rgba(99,244,232,.18);
+        background: linear-gradient(135deg, rgba(13,43,53,.82), rgba(13,27,43,.82));
+        color: #b8e8e4;
+        transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+    }
+    .jarvis-prompt:hover {
+        border-color: rgba(99,244,232,.52);
+        transform: translateY(-2px);
+        box-shadow: 0 7px 22px rgba(39,210,202,.10);
+    }
+    [data-testid="stChatMessage"] {
+        border-color: rgba(99,244,232,.15) !important;
+        background: linear-gradient(135deg, rgba(11,30,42,.88), rgba(12,23,39,.88)) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    }
+    [data-testid="stChatInput"], [data-testid="stChatInput"] > div {
+        background: rgba(9,27,39,.96) !important;
+        border-color: rgba(99,244,232,.36) !important;
+        box-shadow: 0 0 0 1px rgba(99,244,232,.04), 0 12px 38px rgba(0,0,0,.28) !important;
+    }
+    [data-testid="stChatInput"] textarea { caret-color: var(--jarvis-cyan) !important; }
+    [data-testid="stChatInput"] button { color: var(--jarvis-cyan) !important; }
+    .jarvis-footer { color: #527782; }
+    @keyframes jarvis-breathe {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 42px rgba(45,219,213,.13), inset 0 0 28px rgba(45,219,213,.09); }
+        50% { transform: scale(1.035); box-shadow: 0 0 58px rgba(45,219,213,.23), inset 0 0 34px rgba(45,219,213,.15); }
+    }
+    @keyframes jarvis-rotate { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+        .jarvis-orb-wrap, .jarvis-orb-wrap::before, .jarvis-orb-wrap::after { animation: none !important; }
+        .jarvis-prompt { transition: none !important; }
+    }
+    @media (max-width: 700px) {
+        .jarvis-hero { padding-top: 2rem; }
+        .jarvis-orb-wrap { width: 94px; height: 94px; }
+        .jarvis-orb { width: 60px; height: 60px; }
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
