@@ -61,7 +61,7 @@ st.set_page_config(
     page_title="JARVIS | AI Workspace",
     page_icon="✦",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown(
@@ -69,73 +69,127 @@ st.markdown(
     <style>
     :root {
         color-scheme: dark;
-        --jarvis-bg: #0b1220;
-        --jarvis-panel: #131f32;
-        --jarvis-border: #2a3c55;
-        --jarvis-text: #f3f6fc;
-        --jarvis-muted: #b4c1d2;
-        --jarvis-accent: #76b7ff;
+        --jarvis-bg: #050b18;
+        --jarvis-sidebar: #071326;
+        --jarvis-panel: #111e35;
+        --jarvis-border: #203957;
+        --jarvis-text: #f4f7ff;
+        --jarvis-muted: #9aaac5;
+        --jarvis-accent: #168bff;
+        --jarvis-cyan: #00cfff;
     }
     html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"],
     [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
-        background: var(--jarvis-bg) !important; color: var(--jarvis-text) !important;
+        background: var(--jarvis-bg) !important;
+        color: var(--jarvis-text) !important;
         font-size: 16px !important;
     }
-    [data-testid="stHeader"] { background: rgba(11,18,32,.96) !important; }
-    .block-container { max-width: 1080px !important; padding: 1.5rem 2rem 7rem !important; }
-    h1,h2,h3,h4,p,label,li { color: var(--jarvis-text); }
-    h1 { letter-spacing: -.035em !important; font-weight: 750 !important; }
+    [data-testid="stHeader"] { background: rgba(5,11,24,.96) !important; }
+    [data-testid="stMainBlockContainer"] { max-width:none !important; }
+    .block-container { max-width:1440px !important; padding:24px clamp(22px,4vw,64px) 7rem !important; }
+    h1,h2,h3,h4,p,label,li { color:var(--jarvis-text); }
     [data-testid="stMarkdownContainer"] p,[data-testid="stChatMessage"] p,[data-testid="stChatMessage"] li {
-        color:#e7edf6 !important; font-size:1rem !important; line-height:1.8 !important;
+        color:#eaf0fc !important; font-size:1rem !important; line-height:1.75 !important;
     }
-    [data-testid="stCaptionContainer"] p { color:var(--jarvis-muted) !important; font-size:.88rem !important; line-height:1.55 !important; }
-    .jarvis-topbar {
-        display:flex; align-items:center; gap:14px; max-width:100%; margin:0 auto 1.5rem;
-        padding:15px 19px; border:1px solid var(--jarvis-border); border-radius:16px;
-        background:var(--jarvis-panel); box-shadow:0 10px 30px rgba(0,0,0,.18);
+    [data-testid="stCaptionContainer"] p { color:var(--jarvis-muted) !important; font-size:.78rem !important; }
+
+    [data-testid="stSidebar"] {
+        background:var(--jarvis-sidebar) !important; border-right:1px solid #142b49 !important;
+        min-width:274px !important; width:274px !important;
     }
-    .jarvis-mark {
-        width:42px; height:42px; display:grid; place-items:center; border-radius:12px;
-        color:#fff; font-size:21px; font-weight:800; background:linear-gradient(145deg,#398de5,#2359a1);
+    [data-testid="stSidebar"] > div:first-child { background:var(--jarvis-sidebar) !important; padding:22px 18px 24px !important; }
+    .jarvis-sidebar-brand { text-align:center; padding:14px 0 24px; border-bottom:1px solid #18304d; margin-bottom:20px; }
+    .jarvis-sidebar-logo {
+        width:94px; height:94px; margin:0 auto 15px; display:grid; place-items:center; border-radius:50%;
+        color:#dff8ff; font-size:42px; font-weight:700;
+        background:radial-gradient(circle,#155a9b 0%,#092448 58%,#071326 72%);
+        border:2px solid #168bff; box-shadow:0 0 13px rgba(22,139,255,.8),inset 0 0 18px rgba(0,207,255,.22);
     }
-    .jarvis-brand { color:#fff; font-size:.95rem; font-weight:800; letter-spacing:.16em; }
-    .jarvis-brand-sub { color:#b4c1d2; font-size:.72rem; letter-spacing:.08em; margin-top:4px; }
-    .jarvis-live { margin-left:auto; color:#bfe0ff; font-size:.76rem; font-weight:700; padding:8px 12px; border-radius:999px; border:1px solid #365777; background:#172d45; }
-    .jarvis-hero { text-align:center; padding:2.1rem 0 1rem; }
-    .jarvis-orb-wrap { width:84px; height:84px; margin:0 auto 1.1rem; display:grid; place-items:center; border-radius:50%; background:#172b43; border:1px solid #42658b; }
-    .jarvis-orb { width:60px; height:60px; display:grid; place-items:center; border-radius:50%; color:#fff; font-size:25px; background:linear-gradient(145deg,#398de5,#173e70); border:1px solid #75baff; }
-    .jarvis-kicker { color:#9dccff; font-size:.76rem; font-weight:800; letter-spacing:.16em; margin-bottom:.65rem; }
-    .jarvis-hero h1 { color:#fff; font-size:clamp(2.1rem,4vw,3.2rem); margin:0 0 .6rem; }
-    .jarvis-hero h1 span { color:#8fc6ff; }
-    .jarvis-hero p { max-width:650px; margin:0 auto; color:#c1ccda; font-size:1.03rem; line-height:1.75; }
-    .jarvis-prompts { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin:1.5rem auto 1.2rem; max-width:900px; }
-    .jarvis-prompt { border:1px solid #344b68; border-radius:10px; padding:10px 14px; background:#17263a; color:#e2edfa; font-size:.88rem; }
-    .jarvis-prompt:hover { border-color:#79baff; background:#203a59; }
-    [data-testid="stChatMessage"] { background:var(--jarvis-panel) !important; border:1px solid var(--jarvis-border) !important; border-radius:14px !important; padding:1.1rem 1.2rem !important; margin-bottom:1rem !important; }
-    [data-testid="stBottom"] { background:linear-gradient(180deg,rgba(11,18,32,0),#0b1220 32%) !important; border-top:0 !important; padding:1rem 1rem 1.4rem !important; }
-    [data-testid="stBottom"] > div { max-width:900px !important; }
-    [data-testid="stChatInput"],[data-testid="stChatInput"] > div { background:#17263a !important; border:1px solid #45658a !important; border-radius:14px !important; box-shadow:0 8px 24px rgba(0,0,0,.22) !important; }
-    [data-testid="stChatInput"] textarea { color:#fff !important; caret-color:#8fc6ff !important; font-size:1rem !important; }
-    [data-testid="stChatInput"] textarea::placeholder { color:#b1bfd0 !important; }
-    [data-testid="stChatInput"] button { color:#9dccff !important; }
-    div[data-testid="stTextInput"] input { min-height:3.1rem; font-size:1.05rem !important; background:#17263a !important; border:1px solid #45658a !important; border-radius:10px !important; }
-    div.stButton > button,div[data-testid="stFormSubmitButton"] > button { min-height:2.9rem; border-radius:10px !important; font-weight:700 !important; border:1px solid #438bd1 !important; }
-    .jarvis-eyebrow { color:#9dccff; font-size:.76rem; font-weight:800; letter-spacing:.15em; margin-bottom:.4rem; }
-    .jarvis-footer { text-align:center; color:#a6b5c8; font-size:.76rem; letter-spacing:.08em; margin:2rem 0 1rem; }
-    @media(max-width:700px) {
-        .block-container { padding:.8rem .9rem 6rem !important; }
-        .jarvis-topbar { margin-bottom:.8rem; padding:11px 13px; }
-        .jarvis-hero { padding:1.4rem 0 .7rem; }
-        .jarvis-orb-wrap { width:72px; height:72px; }
-        .jarvis-orb { width:52px; height:52px; font-size:22px; }
-        .jarvis-prompts { gap:7px; margin-top:1rem; }
-        .jarvis-prompt { font-size:.8rem; padding:8px 11px; }
-        [data-testid="stBottom"] { padding:.8rem .5rem 1rem !important; }
+    .jarvis-sidebar-name { color:#f4f7ff; font-size:1.55rem; font-weight:800; letter-spacing:.12em; }
+    .jarvis-sidebar-subtitle { color:#aabbd4; font-size:.78rem; margin-top:4px; }
+    .jarvis-nav { display:flex; flex-direction:column; gap:9px; margin-top:7px; }
+    .jarvis-nav-item {
+        display:flex; align-items:center; gap:14px; min-height:54px; padding:0 15px;
+        border-radius:15px; color:#c3d0e4; font-size:1rem; font-weight:500;
+        background:transparent; border:1px solid transparent;
     }
+    .jarvis-nav-icon { display:inline-grid; place-items:center; width:25px; min-width:25px; color:#9eb6d7; font-size:1.23rem; }
+    .jarvis-nav-item.is-active {
+        color:#fff; font-weight:700; background:linear-gradient(105deg,#1056a8,#103b75);
+        border-color:#1769c3; box-shadow:0 5px 22px rgba(0,92,190,.22);
+    }
+    .jarvis-nav-item.is-active .jarvis-nav-icon { color:#79dfff; }
+    .jarvis-sidebar-status {
+        position:fixed; left:20px; bottom:24px; width:232px; box-sizing:border-box; padding:13px 15px;
+        border:1px solid #1d4269; border-radius:15px; background:rgba(4,17,35,.97); color:#e4f0ff; font-size:.88rem;
+    }
+    .jarvis-status-dot { display:inline-block; width:10px; height:10px; margin-right:9px; vertical-align:1px; border-radius:50%; background:#24df70; box-shadow:0 0 11px rgba(36,223,112,.75); }
+    .jarvis-sidebar-status strong { color:#44e99a; font-weight:700; }
+    .jarvis-sidebar-version { margin:5px 0 0 19px; color:#9aaac5; font-size:.76rem; }
+
+    .jarvis-topbar { display:flex; justify-content:flex-end; align-items:center; gap:17px; width:100%; margin:0 auto; padding:5px 0 0; color:#dce8fa; font-size:.92rem; }
+    .jarvis-live { display:inline-flex; align-items:center; gap:9px; color:#dce8fa; }
+    .jarvis-live-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#25df70; box-shadow:0 0 10px rgba(37,223,112,.7); }
+    .jarvis-top-divider { height:23px; width:1px; background:#263a56; }
+    .jarvis-clock { color:#c4d2e8; }
+    .jarvis-profile { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; color:white; font-size:1.1rem; font-weight:700; background:linear-gradient(145deg,#176ec4,#0b2e5a); border:1px solid #2879d0; }
+    .jarvis-welcome { text-align:center; padding:clamp(78px,11vh,132px) 0 10px; }
+    .jarvis-welcome h1 { margin:0 0 10px; color:#f4f7ff; font-size:clamp(2.45rem,4.2vw,3.65rem); font-weight:760; letter-spacing:-.045em; line-height:1.12; }
+    .jarvis-welcome p { margin:0; color:#b9c9e2; font-size:clamp(1.25rem,2.1vw,1.8rem); line-height:1.4; }
+    .jarvis-welcome-rule { width:min(430px,60%); height:2px; margin:22px auto 0; background:linear-gradient(90deg,transparent,#168bff,#00cfff,#168bff,transparent); box-shadow:0 0 12px rgba(0,145,255,.42); }
+    .jarvis-prompts { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:13px; max-width:950px; margin:24px auto 38px; }
+    .jarvis-prompt {
+        display:inline-flex; align-items:center; gap:11px; min-height:56px; padding:0 19px;
+        border:1px solid #1f5488; border-radius:999px; background:rgba(8,22,43,.76);
+        color:#eaf2ff; font-size:.96rem; white-space:nowrap; transition:border-color .18s ease,background .18s ease,transform .18s ease;
+    }
+    .jarvis-prompt:hover { border-color:#168bff; background:#102b4d; transform:translateY(-1px); }
+    .jarvis-prompt-icon { color:#4ecbff; font-size:1.25rem; }
+
+    [data-testid="stChatMessage"] {
+        max-width:920px; margin:0 auto 1.2rem !important; padding:1.05rem 1.25rem !important;
+        border:1px solid #203958 !important; border-radius:18px !important;
+        background:#101d33 !important; box-shadow:0 8px 25px rgba(0,0,0,.12) !important;
+    }
+    [data-testid="stChatMessage"] p { color:#edf3ff !important; }
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+        background:linear-gradient(110deg,#0e56aa,#0d4389) !important; border-color:#176ac5 !important;
+    }
+    [data-testid="stBottom"] {
+        background:linear-gradient(180deg,rgba(5,11,24,0),rgba(5,11,24,.97) 30%) !important;
+        border-top:0 !important; padding:1.1rem clamp(18px,4vw,64px) 1.45rem !important;
+    }
+    [data-testid="stBottom"] > div { max-width:1040px !important; margin:0 auto !important; }
+    [data-testid="stChatInput"],[data-testid="stChatInput"] > div {
+        background:#111e35 !important; border:1px solid #2474bb !important; border-radius:25px !important;
+        box-shadow:0 7px 26px rgba(0,0,0,.26),0 0 17px rgba(22,139,255,.09) !important;
+    }
+    [data-testid="stChatInput"]:focus-within { border-color:#168bff !important; box-shadow:0 0 0 1px #168bff,0 0 20px rgba(22,139,255,.17) !important; }
+    [data-testid="stChatInput"] textarea { color:#f4f7ff !important; caret-color:#00cfff !important; font-size:1rem !important; }
+    [data-testid="stChatInput"] textarea::placeholder { color:#9aaac5 !important; }
+    [data-testid="stChatInput"] button { color:#5ecaff !important; }
+    div[data-testid="stTextInput"] input { min-height:3.1rem; font-size:1.05rem !important; background:#111e35 !important; border:1px solid #2474bb !important; border-radius:12px !important; }
+    div.stButton > button,div[data-testid="stFormSubmitButton"] > button { min-height:2.9rem; border-radius:12px !important; font-weight:700 !important; border:1px solid #2474bb !important; }
+    .jarvis-eyebrow { color:#8fcfff; font-size:.76rem; font-weight:800; letter-spacing:.15em; margin-bottom:.4rem; }
+
+    @media(max-width:760px) {
+        [data-testid="stSidebar"] { min-width:min(274px,84vw) !important; width:min(274px,84vw) !important; }
+        .block-container { padding:16px 15px 6.5rem !important; }
+        .jarvis-sidebar-logo { width:76px; height:76px; font-size:34px; }
+        .jarvis-sidebar-status { width:220px; left:16px; bottom:16px; }
+        .jarvis-topbar { gap:10px; font-size:.82rem; }
+        .jarvis-profile { width:36px; height:36px; }
+        .jarvis-welcome { padding:12vh 0 10px; }
+        .jarvis-prompts { gap:8px; margin:20px auto 28px; }
+        .jarvis-prompt { min-height:46px; padding:0 13px; font-size:.82rem; }
+        [data-testid="stBottom"] { padding:.7rem 12px 1rem !important; }
+        [data-testid="stChatMessage"] { padding:.9rem 1rem !important; }
+    }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
     </style>
     """,
     unsafe_allow_html=True,
-)
+);
 
 
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
@@ -528,28 +582,60 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
 if not authenticated():
     st.stop()
 
-st.markdown(
-    '<div class="jarvis-topbar"><div class="jarvis-mark">✦</div><div><div class="jarvis-brand">J.A.R.V.I.S</div>'
-    '<div class="jarvis-brand-sub">BUSINESS INTELLIGENCE SYSTEM</div></div>'
-    '<div class="jarvis-live">PRIVATE WORKSPACE</div></div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div class="jarvis-hero"><div class="jarvis-orb-wrap"><div class="jarvis-orb">✦</div></div>'
-    '<div class="jarvis-kicker">AI BUSINESS INTELLIGENCE</div>'
-    '<h1>Üzleti döntések. <span>Tisztábban.</span></h1>'
-    '<p>Kérdezz az üzleti működésedről. JARVIS a rendelkezésre álló adatokat elemzi, '
-    'összefüggéseket tár fel, és konkrét döntéstámogató javaslatokat készít.</p></div>',
-    unsafe_allow_html=True,
-)
+with st.sidebar:
+    st.markdown(
+        '<div class="jarvis-sidebar-brand">'
+        '<div class="jarvis-sidebar-logo">✦</div>'
+        '<div class="jarvis-sidebar-name">J.A.R.V.I.S.</div>'
+        '<div class="jarvis-sidebar-subtitle">Your Personal AI Assistant</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="jarvis-nav">'
+        '<div class="jarvis-nav-item is-active"><span class="jarvis-nav-icon">◉</span><span>Chat</span></div>'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">◈</span><span>Emlékezet</span></div>'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">☑</span><span>Feladatok</span></div>'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">▣</span><span>Üzleti Infók</span></div>'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">▥</span><span>Analitika</span></div>'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="jarvis-sidebar-status">'
+        '<span class="jarvis-status-dot"></span><strong>Rendszer Online</strong>'
+        '<div class="jarvis-sidebar-version">v2.0.0</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
+current_time = datetime.now().astimezone().strftime("%H:%M")
+st.markdown(
+    '<div class="jarvis-topbar">'
+    '<span class="jarvis-live"><span class="jarvis-live-dot"></span>Aktív</span>'
+    '<span class="jarvis-top-divider"></span>'
+    f'<span class="jarvis-clock">◷ &nbsp; {current_time}</span>'
+    '<span class="jarvis-profile">T</span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
+        '<div class="jarvis-welcome">'
+        '<h1>Üdvözöllek!</h1>'
+        '<p>Miben segíthetek ma?</p>'
+        '<div class="jarvis-welcome-rule"></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         '<div class="jarvis-prompts">'
-        '<div class="jarvis-prompt">✧ &nbsp; Értékesítési elemzés</div>'
-        '<div class="jarvis-prompt">◈ &nbsp; Növekedési lehetőségek</div>'
-        '<div class="jarvis-prompt">⌖ &nbsp; Lead- és pipeline áttekintés</div>'
+        '<div class="jarvis-prompt"><span class="jarvis-prompt-icon">✧</span>Ötletek</div>'
+        '<div class="jarvis-prompt"><span class="jarvis-prompt-icon">▥</span>Elemzés</div>'
+        '<div class="jarvis-prompt"><span class="jarvis-prompt-icon">✓</span>Feladatok</div>'
+        '<div class="jarvis-prompt"><span class="jarvis-prompt-icon">▣</span>Üzleti összefoglaló</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -561,7 +647,7 @@ for role, message in st.session_state.chat:
     with st.chat_message(role):
         st.markdown(message)
 
-prompt = st.chat_input("Kérdezz a leadekről, kérj elemzést vagy üzleti javaslatot…")
+prompt = st.chat_input("Írj üzenetet a JARVIS-nak...")
 if prompt:
     st.session_state.chat.append(("user", prompt))
     with st.chat_message("user"):
@@ -821,5 +907,3 @@ if prompt:
         st.info("A fenti hibaüzenet alapján célzottan javítható a kapcsolat vagy a konfiguráció. API-kulcsot és jelszót ne küldj be.")
         st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. Hibatípus: {type(exc).__name__}. A részletes hiba a képernyőn látható."))
 
-
-st.markdown('<div class="jarvis-footer">J.A.R.V.I.S &nbsp;·&nbsp; BUSINESS INTELLIGENCE &nbsp;·&nbsp; SECURE SESSION</div>', unsafe_allow_html=True)
