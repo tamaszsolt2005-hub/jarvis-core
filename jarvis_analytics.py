@@ -79,6 +79,13 @@ def _sparkline_svg(values: list[int], color: str) -> str:
         '</svg>'
     )
 
+def _daily_series(data: pd.DataFrame, labels: list[str], mask: pd.Series | None = None) -> pd.Series:
+    subset = data if mask is None else data.loc[mask]
+    if subset.empty:
+        return pd.Series(0, index=labels, dtype="int64")
+    grouped = subset.groupby(subset["local_ts"].dt.strftime("%Y-%m-%d")).size()
+    return grouped.reindex(labels, fill_value=0).astype("int64")
+
 
 def _change_label(current: int, previous: int) -> str:
     if previous == 0:
@@ -251,20 +258,18 @@ def render_analytics(db: Any) -> None:
     previous_modules = int(previous["module"].nunique()) if not previous.empty else 0
 
     daily_index = pd.date_range(start=start_date, end=now_local.date(), freq="D")
-    if current.empty:
-        daily_counts = pd.Series(0, index=daily_index)
-    else:
-        daily_counts = current.groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0)
+    daily_labels = [day.strftime("%Y-%m-%d") for day in daily_index]
+    daily_counts = _daily_series(current, daily_labels)
 
     metrics = [
         ("Naplózott események", f"{current_events:,}".replace(",", " "), _change_label(current_events, previous_events), "◉", _COLORS["blue"], daily_counts.tolist()),
         ("Chatkérések", f"{current_chat:,}".replace(",", " "), _change_label(current_chat, previous_chat), "◌", _COLORS["purple"], (
-            current[current["message"] == "chat_request"].groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0).tolist()
-            if not current.empty else [0] * len(daily_index)
+            _daily_series(current, daily_labels, current["message"] == "chat_request").tolist()
+            if not current.empty else [0] * len(daily_labels)
         )),
         ("Hibajelzések", f"{current_errors:,}".replace(",", " "), _change_label(current_errors, previous_errors), "⚡", _COLORS["cyan"], (
-            current[current["level"].isin(["error", "critical", "fatal"])].groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0).tolist()
-            if not current.empty else [0] * len(daily_index)
+            _daily_series(current, daily_labels, current["level"].isin(["error", "critical", "fatal"])).tolist()
+            if not current.empty else [0] * len(daily_labels)
         )),
         ("Aktív modulok", f"{current_modules:,}".replace(",", " "), _change_label(current_modules, previous_modules), "✦", _COLORS["orange"], [current_modules] * max(len(daily_index), 2)),
     ]
