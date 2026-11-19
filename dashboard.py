@@ -14,7 +14,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import generate_text, get_secret, get_supabase, get_model_name
+from jarvis_common import generate_text, get_secret, get_supabase, get_model_name, log_event
+from jarvis_analytics import render_analytics
 
 
 def format_conversation_history(messages: list[tuple[str, str]], max_chars: int = 10000, max_message_chars: int = 3000) -> str:
@@ -186,6 +187,27 @@ st.markdown(
         [data-testid="stChatMessage"] { padding:.9rem 1rem !important; }
     }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+    </style>
+    """,
+    unsafe_allow_html=True,
+);
+
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] div.stButton > button {
+        width:100%; min-height:54px; justify-content:flex-start; text-align:left;
+        padding:0 15px; border-radius:15px; font-size:1rem; font-weight:600;
+        color:#c3d0e4; background:transparent; border:1px solid transparent;
+    }
+    [data-testid="stSidebar"] div.stButton > button[kind="primary"] {
+        color:#fff; background:linear-gradient(105deg,#1056a8,#103b75);
+        border:1px solid #1769c3; box-shadow:0 5px 22px rgba(0,92,190,.22);
+    }
+    [data-testid="stSidebar"] div.stButton > button[kind="secondary"]:hover {
+        color:#fff; background:#102b4d; border-color:#1f5488;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -582,6 +604,10 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
 if not authenticated():
     st.stop()
 
+
+st.session_state.setdefault("jarvis_page", "chat")
+current_page = st.session_state.get("jarvis_page", "chat")
+
 with st.sidebar:
     st.markdown(
         '<div class="jarvis-sidebar-brand">'
@@ -591,24 +617,55 @@ with st.sidebar:
         '</div>',
         unsafe_allow_html=True,
     )
+    chat_clicked = st.button(
+        "◉   Chat",
+        key="jarvis_nav_chat",
+        type="primary" if current_page == "chat" else "secondary",
+        use_container_width=True,
+    )
     st.markdown(
         '<div class="jarvis-nav">'
-        '<div class="jarvis-nav-item is-active"><span class="jarvis-nav-icon">◉</span><span>Chat</span></div>'
         '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">◈</span><span>Emlékezet</span></div>'
         '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">☑</span><span>Feladatok</span></div>'
         '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">▣</span><span>Üzleti Infók</span></div>'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">▥</span><span>Analitika</span></div>'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
         '</div>',
         unsafe_allow_html=True,
     )
+    analytics_clicked = st.button(
+        "▥   Analitika",
+        key="jarvis_nav_analytics",
+        type="primary" if current_page == "analytics" else "secondary",
+        use_container_width=True,
+    )
     st.markdown(
+        '<div class="jarvis-nav">'
+        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
+        '</div>'
         '<div class="jarvis-sidebar-status">'
         '<span class="jarvis-status-dot"></span><strong>Rendszer Online</strong>'
         '<div class="jarvis-sidebar-version">v2.0.0</div>'
         '</div>',
         unsafe_allow_html=True,
     )
+
+if chat_clicked:
+    st.session_state["jarvis_page"] = "chat"
+    st.rerun()
+if analytics_clicked:
+    st.session_state["jarvis_page"] = "analytics"
+    st.rerun()
+
+if st.session_state.get("jarvis_page") == "analytics":
+    try:
+        analytics_db = st.session_state.get("_jarvis_db")
+        if analytics_db is None:
+            analytics_db = get_supabase()
+            st.session_state["_jarvis_db"] = analytics_db
+        render_analytics(analytics_db)
+    except Exception as exc:
+        st.error("Az Analitika oldal nem tudott betöltődni.")
+        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+    st.stop()
 
 current_time = datetime.now().astimezone().strftime("%H:%M")
 st.markdown(
@@ -671,6 +728,7 @@ if prompt:
         st.session_state.chat.append(("assistant", diagnostic_report))
         st.stop()
 
+    db = None
     stage = "Supabase-kapcsolat"
     try:
         db = st.session_state.get("_jarvis_db")
@@ -678,6 +736,8 @@ if prompt:
             db = get_supabase()
             st.session_state["_jarvis_db"] = db
 
+        # Record event types only; never store the user's prompt or model response.
+        log_event(db, "chat", "chat_request")
         active_market = get_research_market(db)
 
         # Memory writes require an explicit user command.
@@ -887,6 +947,7 @@ if prompt:
                 )
             if not answer:
                 raise RuntimeError("A Gemini üres választ adott vissza.")
+            log_event(db, "chat", "chat_response")
             progress_status.update(label=f"JARVIS válaszolt · {get_model_name()}", state="complete", expanded=False)
             progress_placeholder.empty()
             st.session_state.chat.append(("assistant", answer))
@@ -894,6 +955,8 @@ if prompt:
             st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
 
     except Exception as exc:
+        if db is not None:
+            log_event(db, "chat", "chat_error", level="error")
         progress_status.update(label=f"JARVIS nem tudott válaszolni · hiba a(z) {stage} szakaszban", state="error", expanded=True)
         progress_placeholder.error(f"JARVIS nem tudott válaszolni · {stage}")
         # Show actionable diagnostics without ever printing configured credentials.
