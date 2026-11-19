@@ -1,0 +1,412 @@
+"""Truthful, server-side JARVIS activity analytics built from existing log events."""
+from __future__ import annotations
+
+from datetime import datetime, time, timedelta, timezone
+from html import escape
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+
+_ANALYTICS_TZ = ZoneInfo("Europe/Budapest")
+_RANGE_DAYS = {"7 nap": 7, "30 nap": 30, "90 nap": 90, "1 év": 365}
+_COLORS = {
+    "blue": "#168BFF",
+    "cyan": "#00CFFF",
+    "purple": "#8B5CF6",
+    "green": "#22D989",
+    "orange": "#FFB547",
+    "red": "#FF667A",
+}
+
+
+def _module_label(value: Any) -> str:
+    module = str(value or "unknown").strip().casefold()
+    if module == "chat":
+        return "Chat"
+    if module.startswith("lead_gen"):
+        return "Leadkutatás"
+    if module == "dynamic_scraper":
+        return "Weboldal-feldolgozás"
+    if module == "email_sender":
+        return "E-mail modul"
+    if module in {"task_actions", "tasks"}:
+        return "Feladatkezelés"
+    return module.replace("_", " ").strip().title() or "Ismeretlen modul"
+
+
+def _activity_label(row: Any) -> str:
+    module = str(row.get("module") or "").casefold()
+    message = str(row.get("message") or "").casefold()
+    level = str(row.get("level") or "info").casefold()
+    if level in {"error", "critical", "fatal"}:
+        return "Hibajelzés"
+    if module == "chat":
+        if message == "chat_request":
+            return "Beszélgetési kérés"
+        if message == "chat_response":
+            return "AI-válasz elkészült"
+        return "Chat aktivitás"
+    if module.startswith("lead_gen"):
+        return "Leadkutatási esemény"
+    if module == "dynamic_scraper":
+        return "Weboldal-feldolgozási esemény"
+    if module == "email_sender":
+        return "E-mail modul esemény"
+    return f"{_module_label(module)} esemény"
+
+
+def _sparkline_svg(values: list[int], color: str) -> str:
+    """Create a tiny SVG trend from real daily counts; no external image or JS."""
+    data = [int(value) for value in values[-14:]]
+    if len(data) < 2:
+        data = ([0] + data) if data else [0, 0]
+    low, high = min(data), max(data)
+    spread = max(high - low, 1)
+    points = []
+    for index, value in enumerate(data):
+        x = 4 + index * (192 / max(len(data) - 1, 1))
+        y = 31 - ((value - low) / spread) * 24
+        points.append((x, y))
+    path = " ".join(("M" if i == 0 else "L") + f" {x:.1f},{y:.1f}" for i, (x, y) in enumerate(points))
+    return (
+        '<svg viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true">'
+        f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2.2" '
+        'stroke-linecap="round" stroke-linejoin="round"/>'
+        '</svg>'
+    )
+
+
+def _change_label(current: int, previous: int) -> str:
+    if previous == 0:
+        return "Új aktivitás" if current > 0 else "Nincs aktivitás"
+    change = ((current - previous) / previous) * 100
+    sign = "+" if change > 0 else ""
+    return f"{sign}{change:.0f}% az előző időszakhoz képest"
+
+
+def _metric_card(title: str, value: str, detail: str, icon: str, color: str, spark: list[int]) -> str:
+    return (
+        f'<div class="jarvis-kpi" style="--kpi-accent:{color}">'
+        f'<div class="jarvis-kpi-top"><span class="jarvis-kpi-icon">{icon}</span>'
+        f'<span class="jarvis-kpi-value">{escape(value)}</span></div>'
+        f'<div class="jarvis-kpi-label">{escape(title)}</div>'
+        f'<div class="jarvis-kpi-detail">{escape(detail)}</div>'
+        f'<div class="jarvis-kpi-spark">{_sparkline_svg(spark, color)}</div>'
+        '</div>'
+    )
+
+
+def _empty_chart(message: str) -> None:
+    st.markdown(f'<div class="jarvis-empty">{escape(message)}</div>', unsafe_allow_html=True)
+
+
+def _chart_layout(fig: go.Figure, height: int = 300) -> go.Figure:
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"family": "Inter, Arial, sans-serif", "color": "#DCE8FA", "size": 12},
+        margin={"l": 8, "r": 8, "t": 12, "b": 8},
+        height=height,
+        showlegend=False,
+        hoverlabel={"bgcolor": "#101E35", "bordercolor": "#2474BB", "font": {"color": "#F4F7FF"}},
+    )
+    return fig
+
+
+def render_analytics(db: Any) -> None:
+    """Render a truthful analytics page from the private public.logs table."""
+    st.markdown(
+        """
+        <style>
+        .jarvis-analytics-head {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:4px 0 18px;border-bottom:1px solid #1B3553;margin-bottom:22px;}
+        .jarvis-analytics-title {display:flex;align-items:center;gap:15px;}
+        .jarvis-analytics-title .glyph {font-size:2.35rem;color:#20BFFF;text-shadow:0 0 16px rgba(22,139,255,.55);}
+        .jarvis-analytics-title h1 {font-size:1.9rem;line-height:1.1;margin:0;color:#F4F7FF;font-weight:760;}
+        .jarvis-analytics-title p {font-size:.9rem;color:#9AAAC5;margin:6px 0 0;}
+        .jarvis-analytics-status {display:flex;align-items:center;gap:14px;color:#DCE8FA;font-size:.9rem;white-space:nowrap;}
+        .jarvis-analytics-status .live-dot {width:10px;height:10px;border-radius:50%;background:#22D989;box-shadow:0 0 10px rgba(34,217,137,.7);display:inline-block;margin-right:7px;}
+        .jarvis-analytics-status .separator {height:22px;width:1px;background:#263A56;}
+        .jarvis-analytics-status .profile {width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#176EC4,#0B2E5A);border:1px solid #2879D0;color:white;font-weight:700;}
+        .jarvis-kpi {height:142px;position:relative;overflow:hidden;padding:17px 18px 12px;border-radius:18px;border:1px solid color-mix(in srgb,var(--kpi-accent) 45%,#203957);background:linear-gradient(145deg,rgba(17,30,53,.98),rgba(5,15,31,.98));box-shadow:0 8px 22px rgba(0,0,0,.16);}
+        .jarvis-kpi:after {content:"";position:absolute;right:-25px;top:-35px;width:105px;height:105px;border-radius:50%;background:var(--kpi-accent);opacity:.06;filter:blur(20px);}
+        .jarvis-kpi-top {display:flex;align-items:center;gap:13px;position:relative;z-index:1;}
+        .jarvis-kpi-icon {font-size:1.8rem;color:var(--kpi-accent);text-shadow:0 0 14px color-mix(in srgb,var(--kpi-accent) 55%,transparent);}
+        .jarvis-kpi-value {font-size:2rem;line-height:1;font-weight:780;color:#F4F7FF;letter-spacing:-.04em;}
+        .jarvis-kpi-label {margin-top:9px;color:#DCE8FA;font-size:.9rem;font-weight:650;}
+        .jarvis-kpi-detail {margin-top:4px;color:#9AAAC5;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .jarvis-kpi-spark {position:absolute;left:14px;right:14px;bottom:6px;height:30px;opacity:.9;}
+        .jarvis-kpi-spark svg {width:100%;height:100%;}
+        .jarvis-panel-title {font-size:1.05rem;font-weight:720;color:#F4F7FF;margin:0 0 3px;}
+        .jarvis-panel-subtitle {font-size:.76rem;color:#8FA4C2;margin:0 0 10px;}
+        .jarvis-empty {min-height:135px;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:#9AAAC5;font-size:.9rem;border:1px dashed #284362;border-radius:12px;background:rgba(8,22,43,.45);}
+        .jarvis-recent {display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid rgba(43,66,96,.5);}
+        .jarvis-recent:last-child {border-bottom:0;}
+        .jarvis-recent-dot {width:9px;height:9px;min-width:9px;border-radius:50%;background:#168BFF;box-shadow:0 0 9px rgba(22,139,255,.6);}
+        .jarvis-recent-dot.error {background:#FF667A;box-shadow:0 0 9px rgba(255,102,122,.5);}
+        .jarvis-recent-time {width:48px;min-width:48px;color:#9AAAC5;font-size:.76rem;font-variant-numeric:tabular-nums;}
+        .jarvis-recent-label {color:#E7EFFC;font-size:.82rem;line-height:1.35;}
+        .jarvis-data-note {padding:12px 15px;border:1px solid #244365;border-radius:12px;background:rgba(9,26,48,.7);color:#AFC1DC;font-size:.8rem;line-height:1.6;margin-top:14px;}
+        div[data-testid="stVerticalBlockBorderWrapper"] {border-color:#203957 !important;border-radius:17px !important;background:linear-gradient(145deg,rgba(11,23,43,.78),rgba(6,15,30,.9)) !important;}
+        div[data-testid="stRadio"] > label {display:none;}
+        div[data-testid="stRadio"] div[role="radiogroup"] {gap:6px;flex-wrap:wrap;}
+        div[data-testid="stRadio"] div[role="radiogroup"] label {background:#0C1B31;border:1px solid #243D5B;border-radius:9px;padding:5px 12px;color:#B9C9E2;}
+        div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {background:#1266C2;border-color:#168BFF;color:#fff;box-shadow:0 0 12px rgba(22,139,255,.22);}
+        @media(max-width:900px) {
+            .jarvis-kpi {height:132px;padding:14px;}
+            .jarvis-kpi-value {font-size:1.7rem;}
+        }
+        @media(max-width:650px) {
+            .jarvis-analytics-head {align-items:flex-start;flex-direction:column;}
+            .jarvis-analytics-status {align-self:flex-end;}
+            .jarvis-analytics-title h1 {font-size:1.55rem;}
+            .jarvis-kpi {height:128px;}
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    now_local = datetime.now(_ANALYTICS_TZ)
+    header_time = now_local.strftime("%H:%M")
+    st.markdown(
+        '<div class="jarvis-analytics-head">'
+        '<div class="jarvis-analytics-title"><span class="glyph">▥</span><div>'
+        '<h1>Analitika</h1><p>Részletes betekintés a JARVIS használatába</p></div></div>'
+        '<div class="jarvis-analytics-status"><span><i class="live-dot"></i>Aktív</span>'
+        f'<span class="separator"></span><span>◷ &nbsp; {header_time}</span>'
+        '<span class="profile">T</span></div></div>',
+        unsafe_allow_html=True,
+    )
+
+    selected_range = st.radio(
+        "Időszak",
+        options=list(_RANGE_DAYS.keys()),
+        index=1,
+        horizontal=True,
+        key="jarvis_analytics_range",
+        label_visibility="collapsed",
+    )
+    period_days = _RANGE_DAYS[selected_range]
+    start_date = now_local.date() - timedelta(days=period_days - 1)
+    current_start_local = datetime.combine(start_date, time.min, tzinfo=_ANALYTICS_TZ)
+    previous_start_local = current_start_local - timedelta(days=period_days)
+    current_start_utc = current_start_local.astimezone(timezone.utc)
+    previous_start_utc = previous_start_local.astimezone(timezone.utc)
+    now_utc = now_local.astimezone(timezone.utc)
+
+    try:
+        result = (
+            db.table("logs")
+            .select("module,level,message,created_at")
+            .gte("created_at", previous_start_utc.isoformat())
+            .lte("created_at", now_utc.isoformat())
+            .order("created_at", desc=True)
+            .limit(5000)
+            .execute()
+        )
+        records = result.data or []
+    except Exception as exc:
+        st.error("Az analitikai naplók most nem tölthetők be.")
+        st.caption(f"Hibatípus: {type(exc).__name__}. A meglévő adatokhoz nem történt módosítás.")
+        return
+
+    frame = pd.DataFrame(records, columns=["module", "level", "message", "created_at"])
+    if not frame.empty:
+        frame["created_at_utc"] = pd.to_datetime(frame["created_at"], utc=True, errors="coerce")
+        frame = frame.dropna(subset=["created_at_utc"]).copy()
+        frame["local_ts"] = frame["created_at_utc"].dt.tz_convert(_ANALYTICS_TZ)
+        frame["module"] = frame["module"].fillna("unknown").astype(str)
+        frame["level"] = frame["level"].fillna("info").astype(str).str.casefold()
+        frame["message"] = frame["message"].fillna("").astype(str)
+        frame["module_label"] = frame["module"].map(_module_label)
+
+    if frame.empty:
+        current = frame.copy()
+        previous = frame.copy()
+    else:
+        current = frame[frame["created_at_utc"] >= pd.Timestamp(current_start_utc)].copy()
+        previous = frame[
+            (frame["created_at_utc"] >= pd.Timestamp(previous_start_utc))
+            & (frame["created_at_utc"] < pd.Timestamp(current_start_utc))
+        ].copy()
+
+    def count_errors(data: pd.DataFrame) -> int:
+        return int(data["level"].isin(["error", "critical", "fatal"]).sum()) if not data.empty else 0
+
+    def count_chat_requests(data: pd.DataFrame) -> int:
+        return int(((data["module"].str.casefold() == "chat") & (data["message"] == "chat_request")).sum()) if not data.empty else 0
+
+    current_events = int(len(current))
+    previous_events = int(len(previous))
+    current_chat = count_chat_requests(current)
+    previous_chat = count_chat_requests(previous)
+    current_errors = count_errors(current)
+    previous_errors = count_errors(previous)
+    current_modules = int(current["module"].nunique()) if not current.empty else 0
+    previous_modules = int(previous["module"].nunique()) if not previous.empty else 0
+
+    daily_index = pd.date_range(start=start_date, end=now_local.date(), freq="D")
+    if current.empty:
+        daily_counts = pd.Series(0, index=daily_index)
+    else:
+        daily_counts = current.groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0)
+
+    metrics = [
+        ("Naplózott események", f"{current_events:,}".replace(",", " "), _change_label(current_events, previous_events), "◉", _COLORS["blue"], daily_counts.tolist()),
+        ("Chatkérések", f"{current_chat:,}".replace(",", " "), _change_label(current_chat, previous_chat), "◌", _COLORS["purple"], (
+            current[current["message"] == "chat_request"].groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0).tolist()
+            if not current.empty else [0] * len(daily_index)
+        )),
+        ("Hibajelzések", f"{current_errors:,}".replace(",", " "), _change_label(current_errors, previous_errors), "⚡", _COLORS["cyan"], (
+            current[current["level"].isin(["error", "critical", "fatal"])].groupby(current["local_ts"].dt.date).size().reindex(daily_index, fill_value=0).tolist()
+            if not current.empty else [0] * len(daily_index)
+        )),
+        ("Aktív modulok", f"{current_modules:,}".replace(",", " "), _change_label(current_modules, previous_modules), "✦", _COLORS["orange"], [current_modules] * max(len(daily_index), 2)),
+    ]
+
+    metric_columns = st.columns(4)
+    for column, metric in zip(metric_columns, metrics):
+        title, value, detail, icon, color, spark = metric
+        with column:
+            st.markdown(_metric_card(title, value, detail, icon, color, spark), unsafe_allow_html=True)
+
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    left, right = st.columns([1.9, 1.05], gap="medium")
+
+    with left:
+        with st.container(border=True):
+            st.markdown('<div class="jarvis-panel-title">↗ &nbsp; Naplózott aktivitási trend</div>'
+                        '<div class="jarvis-panel-subtitle">Napi eseményszám a kiválasztott időszakban</div>',
+                        unsafe_allow_html=True)
+            if current.empty:
+                _empty_chart("Ebben az időszakban még nincs naplózott aktivitás.")
+            else:
+                trend = go.Figure()
+                trend.add_trace(go.Scatter(
+                    x=[item.strftime("%Y-%m-%d") for item in daily_index],
+                    y=daily_counts.tolist(),
+                    mode="lines+markers",
+                    line={"color": _COLORS["cyan"], "width": 3, "shape": "spline"},
+                    marker={"size": 7, "color": _COLORS["cyan"], "line": {"color": "#D9F8FF", "width": 1}},
+                    fill="tozeroy",
+                    fillcolor="rgba(0,207,255,.12)",
+                    hovertemplate="%{x}<br>%{y} esemény<extra></extra>",
+                ))
+                trend.update_xaxes(showgrid=False, zeroline=False, tickfont={"color": "#AFC1DC"})
+                trend.update_yaxes(showgrid=True, gridcolor="rgba(76,111,151,.18)", zeroline=False,
+                                   rangemode="tozero", title=None, tickfont={"color": "#AFC1DC"})
+                st.plotly_chart(_chart_layout(trend, 320), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+
+    with right:
+        with st.container(border=True):
+            st.markdown('<div class="jarvis-panel-title">◉ &nbsp; Modulaktivitás</div>'
+                        '<div class="jarvis-panel-subtitle">A háttérmodulok naplózott eseményeinek megoszlása</div>',
+                        unsafe_allow_html=True)
+            if current.empty:
+                _empty_chart("Nincs megjeleníthető modulaktivitás.")
+            else:
+                module_counts = current["module_label"].value_counts()
+                donut = go.Figure(go.Pie(
+                    labels=module_counts.index.tolist(),
+                    values=module_counts.values.tolist(),
+                    hole=.68,
+                    sort=False,
+                    marker={"colors": [_COLORS["blue"], _COLORS["purple"], _COLORS["green"], _COLORS["orange"], _COLORS["cyan"]]},
+                    textinfo="none",
+                    hovertemplate="%{label}<br>%{value} esemény (%{percent})<extra></extra>",
+                ))
+                donut.update_layout(annotations=[{
+                    "text": f"<b>{current_events}</b><br><span style='font-size:10px'>esemény</span>",
+                    "showarrow": False, "font": {"color": "#F4F7FF", "size": 20},
+                }])
+                st.plotly_chart(_chart_layout(donut, 320), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+
+    bottom_left, bottom_middle, bottom_right = st.columns([1, 1.12, 1.08], gap="medium")
+
+    with bottom_left:
+        with st.container(border=True):
+            st.markdown('<div class="jarvis-panel-title">◷ &nbsp; Aktivitási időszakok</div>'
+                        '<div class="jarvis-panel-subtitle">Az események eloszlása helyi idő szerint</div>',
+                        unsafe_allow_html=True)
+            if current.empty:
+                _empty_chart("Nincs elegendő időbélyeg az aktivitás elemzéséhez.")
+            else:
+                hours = current["local_ts"].dt.hour
+                bins = [0, 6, 12, 18, 24]
+                labels = ["00–06", "06–12", "12–18", "18–24"]
+                buckets = pd.cut(hours, bins=bins, labels=labels, right=False, include_lowest=True)
+                hour_counts = buckets.value_counts(sort=False).reindex(labels, fill_value=0)
+                total = int(hour_counts.sum())
+                percentages = [(int(value) / total * 100) if total else 0 for value in hour_counts.values]
+                activity = go.Figure(go.Bar(
+                    x=labels, y=hour_counts.values,
+                    marker={"color": [_COLORS["blue"], "#2187E8", "#3B9AD8", "#1761B8"],
+                            "line": {"color": "#4BB9FF", "width": 1}},
+                    text=[f"{value:.0f}%" for value in percentages],
+                    textposition="outside",
+                    hovertemplate="%{x}<br>%{y} esemény<extra></extra>",
+                ))
+                activity.update_xaxes(showgrid=False, tickfont={"color": "#AFC1DC"})
+                activity.update_yaxes(showgrid=False, visible=False, rangemode="tozero")
+                st.plotly_chart(_chart_layout(activity, 235), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+
+    with bottom_middle:
+        with st.container(border=True):
+            st.markdown('<div class="jarvis-panel-title">✦ &nbsp; Főbb modulok</div>'
+                        '<div class="jarvis-panel-subtitle">Modulonkénti eseményszám a kiválasztott időszakban</div>',
+                        unsafe_allow_html=True)
+            if current.empty:
+                _empty_chart("Még nincs elegendő adat a modulok összehasonlításához.")
+            else:
+                module_counts = current["module_label"].value_counts().sort_values(ascending=True)
+                module_total = max(int(module_counts.sum()), 1)
+                bar = go.Figure(go.Bar(
+                    x=module_counts.values,
+                    y=module_counts.index.tolist(),
+                    orientation="h",
+                    marker={"color": [_COLORS["blue"], _COLORS["purple"], _COLORS["green"], _COLORS["orange"], _COLORS["cyan"]]},
+                    text=[f"{(value / module_total) * 100:.0f}%" for value in module_counts.values],
+                    textposition="outside",
+                    hovertemplate="%{y}<br>%{x} esemény<extra></extra>",
+                ))
+                bar.update_xaxes(visible=False, range=[0, max(int(module_counts.max()) * 1.25, 1)])
+                bar.update_yaxes(showgrid=False, tickfont={"color": "#DCE8FA"})
+                st.plotly_chart(_chart_layout(bar, 235), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+
+    with bottom_right:
+        with st.container(border=True):
+            st.markdown('<div class="jarvis-panel-title">◷ &nbsp; Legutóbbi aktivitás</div>'
+                        '<div class="jarvis-panel-subtitle">Legfrissebb naplózott események</div>',
+                        unsafe_allow_html=True)
+            if current.empty:
+                _empty_chart("Még nincs megjeleníthető esemény.")
+            else:
+                recent_rows = current.sort_values("created_at_utc", ascending=False).head(8).to_dict("records")
+                recent_html = []
+                for row in recent_rows:
+                    local_time = row["local_ts"].strftime("%H:%M")
+                    is_error = str(row.get("level") or "").casefold() in {"error", "critical", "fatal"}
+                    dot_class = "jarvis-recent-dot error" if is_error else "jarvis-recent-dot"
+                    description = escape(_activity_label(row))
+                    recent_html.append(
+                        f'<div class="jarvis-recent"><span class="{dot_class}"></span>'
+                        f'<span class="jarvis-recent-time">{local_time}</span>'
+                        f'<span class="jarvis-recent-label">{description}</span></div>'
+                    )
+                st.markdown("".join(recent_html), unsafe_allow_html=True)
+
+    if len(records) >= 5000:
+        st.warning("Az elérhető naplóbejegyzések elérték az 5000-es lekérdezési korlátot; az összesítés nem biztos, hogy teljes.")
+    st.markdown(
+        '<div class="jarvis-data-note"><strong>Adatminőség és adatvédelem:</strong> '
+        'A grafikonok a Supabase <code>public.logs</code> táblájának tényleges eseményeiből készülnek. '
+        'A chatkérések és a sikeres AI-válaszok csak eseménytípusként kerülnek naplózásra; '
+        'a felhasználói üzenetek és az AI-válaszok tartalma nem. A válaszpontosságot, az elégedettséget '
+        'és a munkamenet időtartamát a rendszer jelenleg nem méri, ezért ezekhez nem jelenítünk meg kitalált értékeket.</div>',
+        unsafe_allow_html=True,
+    )
