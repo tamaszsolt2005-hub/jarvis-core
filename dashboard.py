@@ -494,7 +494,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         if wants_ranking:
             ranked = []
             # Inspect at most 30 lead websites per explicit ranking request.
-            for lead in lead_rows
+            for lead in lead_rows:
                 website = lead.get("website")
                 if not website:
                     continue
@@ -559,7 +559,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     if wants_drafts:
         draft_rows = _safe_rows(db, "email_drafts", "id,subject,status,created_at,lead_id", 200)
         # Draft bodies are not sent to the model unless the user later explicitly asks for review.
-        sections.append("E-MAIL PISZKOZAT METAADATOK (levéltörzs nélkül):\\n"
+        sections.append("E-MAIL PISZKOZAT METAADATOK (levéltörzs nélkül):\n"
                         + pd.DataFrame(draft_rows).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("e-mail-piszkozatok")
 
@@ -568,7 +568,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         log_limit = 5000 if wants_analytics else 100
         log_rows = _safe_rows(db, "logs", "module,level,message,created_at", log_limit)
         if not wants_analytics:
-            sections.append("RENDSZERNAPLÓ:\\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
+            sections.append("RENDSZERNAPLÓ:\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("naplók")
 
     if wants_analytics:
