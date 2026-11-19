@@ -190,14 +190,9 @@ def render_analytics(db: Any) -> None:
         unsafe_allow_html=True,
     )
 
-    selected_range = st.radio(
-        "Időszak",
-        options=list(_RANGE_DAYS.keys()),
-        index=1,
-        horizontal=True,
-        key="jarvis_analytics_range",
-        label_visibility="collapsed",
-    )
+    selected_range = st.session_state.get("jarvis_analytics_range", "30 nap")
+    if selected_range not in _RANGE_DAYS:
+        selected_range = "30 nap"
     period_days = _RANGE_DAYS[selected_range]
     start_date = now_local.date() - timedelta(days=period_days - 1)
     current_start_local = datetime.combine(start_date, time.min, tzinfo=_ANALYTICS_TZ)
@@ -261,6 +256,16 @@ def render_analytics(db: Any) -> None:
     daily_labels = [day.strftime("%Y-%m-%d") for day in daily_index]
     daily_counts = _daily_series(current, daily_labels)
 
+    if current.empty:
+        daily_active_modules = [0] * len(daily_labels)
+    else:
+        daily_active_modules = (
+            current.assign(local_day=current["local_ts"].dt.strftime("%Y-%m-%d"))
+            .groupby("local_day")["module"].nunique()
+            .reindex(daily_labels, fill_value=0)
+            .tolist()
+        )
+
     metrics = [
         ("Naplózott események", f"{current_events:,}".replace(",", " "), _change_label(current_events, previous_events), "◉", _COLORS["blue"], daily_counts.tolist()),
         ("Chatkérések", f"{current_chat:,}".replace(",", " "), _change_label(current_chat, previous_chat), "◌", _COLORS["purple"], (
@@ -271,7 +276,7 @@ def render_analytics(db: Any) -> None:
             _daily_series(current, daily_labels, current["level"].isin(["error", "critical", "fatal"])).tolist()
             if not current.empty else [0] * len(daily_labels)
         )),
-        ("Aktív modulok", f"{current_modules:,}".replace(",", " "), _change_label(current_modules, previous_modules), "✦", _COLORS["orange"], [current_modules] * max(len(daily_index), 2)),
+        ("Aktív modulok", f"{current_modules:,}".replace(",", " "), _change_label(current_modules, previous_modules), "✦", _COLORS["orange"], daily_active_modules),
     ]
 
     metric_columns = st.columns(4)
@@ -285,9 +290,20 @@ def render_analytics(db: Any) -> None:
 
     with left:
         with st.container(border=True):
-            st.markdown('<div class="jarvis-panel-title">↗ &nbsp; Naplózott aktivitási trend</div>'
-                        '<div class="jarvis-panel-subtitle">Napi eseményszám a kiválasztott időszakban</div>',
-                        unsafe_allow_html=True)
+            trend_title, trend_period = st.columns([1.25, 1.7], gap="small")
+            with trend_title:
+                st.markdown('<div class="jarvis-panel-title">↗ &nbsp; Naplózott aktivitási trend</div>'
+                            '<div class="jarvis-panel-subtitle">Napi eseményszám</div>',
+                            unsafe_allow_html=True)
+            with trend_period:
+                st.radio(
+                    "Időszak",
+                    options=list(_RANGE_DAYS.keys()),
+                    index=list(_RANGE_DAYS.keys()).index(selected_range),
+                    horizontal=True,
+                    key="jarvis_analytics_range",
+                    label_visibility="collapsed",
+                )
             if current.empty:
                 _empty_chart("Ebben az időszakban még nincs naplózott aktivitás.")
             else:
