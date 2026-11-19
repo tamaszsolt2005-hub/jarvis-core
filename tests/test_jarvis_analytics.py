@@ -68,3 +68,29 @@ def test_sparkline_svg_is_generated_from_supplied_daily_values():
     assert svg.startswith("<svg")
     assert "#00CFFF" in svg
     assert "stroke-width" in svg
+
+
+
+def test_analytics_intent_recognizes_hungarian_analytics_requests():
+    assert is_analytics_question("Mutasd az analitikát")
+    assert is_analytics_question("Kérek egy statisztikai trendet")
+    assert is_analytics_question("Milyen diagramok vannak?")
+    assert not is_analytics_question("Hozz létre egy új leadet")
+
+
+def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
+    records = [
+        {"module": "chat", "level": "info", "message": "chat_request", "created_at": "2026-11-19T08:00:00Z"},
+        {"module": "chat", "level": "info", "message": "chat_response", "created_at": "2026-11-19T08:01:00Z"},
+        {"module": "lead_gen", "level": "error", "message": "private@example.com", "created_at": "2026-11-19T09:00:00Z"},
+    ]
+    summary = build_chat_analytics_context(
+        records,
+        now=pd.Timestamp("2026-11-19T12:00:00+01:00").to_pydatetime(),
+    )
+    assert "Adatforrás: public.logs" in summary
+    assert "chatkérés=1" in summary
+    assert "AI-válasz esemény=1" in summary
+    assert "hiba=1" in summary
+    assert "private@example.com" not in summary
+    assert all(f"{days} nap:" in summary for days in (7, 30, 90, 365))
