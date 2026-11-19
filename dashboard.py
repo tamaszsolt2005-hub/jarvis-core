@@ -67,202 +67,71 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    :root { color-scheme: dark; --jarvis-muted: #91a0b7; --jarvis-line: rgba(148,170,205,.16); }
+    :root {
+        color-scheme: dark;
+        --jarvis-bg: #0b1220;
+        --jarvis-panel: #131f32;
+        --jarvis-border: #2a3c55;
+        --jarvis-text: #f3f6fc;
+        --jarvis-muted: #b4c1d2;
+        --jarvis-accent: #76b7ff;
+    }
     html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"],
     [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
-        background: #0a1020 !important; color: #e8eef8 !important;
+        background: var(--jarvis-bg) !important; color: var(--jarvis-text) !important;
+        font-size: 16px !important;
     }
-    [data-testid="stHeader"] { background: rgba(10,16,32,.86) !important; }
-    .block-container { max-width: 1120px !important; padding: 1.4rem 2rem 7rem !important; }
+    [data-testid="stHeader"] { background: rgba(11,18,32,.96) !important; }
+    .block-container { max-width: 1080px !important; padding: 1.5rem 2rem 7rem !important; }
+    h1,h2,h3,h4,p,label,li { color: var(--jarvis-text); }
+    h1 { letter-spacing: -.035em !important; font-weight: 750 !important; }
+    [data-testid="stMarkdownContainer"] p,[data-testid="stChatMessage"] p,[data-testid="stChatMessage"] li {
+        color:#e7edf6 !important; font-size:1rem !important; line-height:1.8 !important;
+    }
+    [data-testid="stCaptionContainer"] p { color:var(--jarvis-muted) !important; font-size:.88rem !important; line-height:1.55 !important; }
     .jarvis-topbar {
-        display:flex; align-items:center; gap:13px; max-width:1040px; margin:0 auto 1.4rem;
-        padding:13px 17px; border:1px solid var(--jarvis-line); border-radius:16px;
-        background:rgba(17,27,47,.78); box-shadow:0 12px 34px rgba(0,0,0,.16);
-        backdrop-filter:blur(14px);
+        display:flex; align-items:center; gap:14px; max-width:100%; margin:0 auto 1.5rem;
+        padding:15px 19px; border:1px solid var(--jarvis-border); border-radius:16px;
+        background:var(--jarvis-panel); box-shadow:0 10px 30px rgba(0,0,0,.18);
     }
     .jarvis-mark {
-        width:38px; height:38px; display:grid; place-items:center; border-radius:12px;
-        color:#f4f8ff; font-size:20px; background:linear-gradient(145deg,#4f8fe8,#2459a5);
-        box-shadow:0 5px 18px rgba(54,120,214,.22);
+        width:42px; height:42px; display:grid; place-items:center; border-radius:12px;
+        color:#fff; font-size:21px; font-weight:800; background:linear-gradient(145deg,#398de5,#2359a1);
     }
-    .jarvis-brand { color:#f1f5fc; font-size:.84rem; font-weight:800; letter-spacing:.2em; }
-    .jarvis-brand-sub { color:#8192ad; font-size:.62rem; letter-spacing:.12em; margin-top:3px; }
-    .jarvis-live {
-        margin-left:auto; color:#a9bdd9; font-size:.65rem; letter-spacing:.1em;
-        padding:7px 10px; border-radius:999px; border:1px solid var(--jarvis-line);
-        background:rgba(255,255,255,.025);
-    }
-    .jarvis-hero { text-align:center; padding:2.2rem 0 1rem; }
-    .jarvis-orb-wrap {
-        width:92px; height:92px; margin:0 auto 1.35rem; display:grid; place-items:center;
-        border-radius:50%; background:rgba(69,129,211,.09); border:1px solid rgba(130,180,255,.2);
-    }
-    .jarvis-orb {
-        width:62px; height:62px; display:grid; place-items:center; border-radius:50%;
-        color:#f4f8ff; font-size:27px; background:linear-gradient(145deg,#4d91ed,#183c72);
-        border:1px solid rgba(164,204,255,.45); box-shadow:0 7px 24px rgba(42,104,190,.22);
-    }
-    .jarvis-kicker { color:#8fbaff; font-size:.66rem; font-weight:750; letter-spacing:.2em; margin-bottom:.7rem; }
-    .jarvis-hero h1 {
-        color:#f1f5fc; font-size:clamp(2rem,4.4vw,3.35rem); font-weight:760;
-        letter-spacing:-.045em; margin:0 0 .65rem;
-    }
-    .jarvis-hero h1 span { color:#91bdff; }
-    .jarvis-hero p {
-        max-width:650px; margin:0 auto; color:var(--jarvis-muted);
-        font-size:.96rem; line-height:1.75;
-    }
-    .jarvis-prompts {
-        display:flex; justify-content:center; flex-wrap:wrap; gap:9px;
-        margin:1.65rem auto 1.2rem; max-width:900px;
-    }
-    .jarvis-prompt {
-        border:1px solid var(--jarvis-line); border-radius:999px; padding:9px 14px;
-        background:rgba(19,32,54,.72); color:#c6d5eb; font-size:.78rem;
-    }
-    [data-testid="stChatMessage"] {
-        background:rgba(17,28,48,.76) !important; border:1px solid var(--jarvis-line) !important;
-        border-radius:16px !important; padding:1rem 1.1rem !important;
-    }
-    [data-testid="stChatMessage"] p, [data-testid="stChatMessage"] li {
-        color:#e5edf8 !important; line-height:1.72;
-    }
-    [data-testid="stBottom"] {
-        background:linear-gradient(180deg,rgba(10,16,32,0),#0a1020 34%) !important;
-        border-top:0 !important; padding:1rem 1rem 1.4rem !important;
-    }
+    .jarvis-brand { color:#fff; font-size:.95rem; font-weight:800; letter-spacing:.16em; }
+    .jarvis-brand-sub { color:#b4c1d2; font-size:.72rem; letter-spacing:.08em; margin-top:4px; }
+    .jarvis-live { margin-left:auto; color:#bfe0ff; font-size:.76rem; font-weight:700; padding:8px 12px; border-radius:999px; border:1px solid #365777; background:#172d45; }
+    .jarvis-hero { text-align:center; padding:2.1rem 0 1rem; }
+    .jarvis-orb-wrap { width:84px; height:84px; margin:0 auto 1.1rem; display:grid; place-items:center; border-radius:50%; background:#172b43; border:1px solid #42658b; }
+    .jarvis-orb { width:60px; height:60px; display:grid; place-items:center; border-radius:50%; color:#fff; font-size:25px; background:linear-gradient(145deg,#398de5,#173e70); border:1px solid #75baff; }
+    .jarvis-kicker { color:#9dccff; font-size:.76rem; font-weight:800; letter-spacing:.16em; margin-bottom:.65rem; }
+    .jarvis-hero h1 { color:#fff; font-size:clamp(2.1rem,4vw,3.2rem); margin:0 0 .6rem; }
+    .jarvis-hero h1 span { color:#8fc6ff; }
+    .jarvis-hero p { max-width:650px; margin:0 auto; color:#c1ccda; font-size:1.03rem; line-height:1.75; }
+    .jarvis-prompts { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin:1.5rem auto 1.2rem; max-width:900px; }
+    .jarvis-prompt { border:1px solid #344b68; border-radius:10px; padding:10px 14px; background:#17263a; color:#e2edfa; font-size:.88rem; }
+    .jarvis-prompt:hover { border-color:#79baff; background:#203a59; }
+    [data-testid="stChatMessage"] { background:var(--jarvis-panel) !important; border:1px solid var(--jarvis-border) !important; border-radius:14px !important; padding:1.1rem 1.2rem !important; margin-bottom:1rem !important; }
+    [data-testid="stBottom"] { background:linear-gradient(180deg,rgba(11,18,32,0),#0b1220 32%) !important; border-top:0 !important; padding:1rem 1rem 1.4rem !important; }
     [data-testid="stBottom"] > div { max-width:900px !important; }
-    [data-testid="stChatInput"], [data-testid="stChatInput"] > div {
-        background:#111d31 !important; border:1px solid rgba(130,180,255,.34) !important;
-        border-radius:18px !important; box-shadow:0 10px 32px rgba(0,0,0,.2) !important;
-    }
-    [data-testid="stChatInput"] textarea { color:#f0f5fd !important; caret-color:#91bdff !important; }
-    [data-testid="stChatInput"] textarea::placeholder { color:#8192ad !important; }
-    [data-testid="stChatInput"] button { color:#91bdff !important; }
-    [data-testid="stMarkdownContainer"] p { line-height:1.7; }
-    [data-testid="stCaptionContainer"] p { color:#8495ae !important; font-size:.72rem; }
-    .jarvis-footer { text-align:center; color:#71839e; font-size:.62rem; letter-spacing:.12em; margin:2rem 0 1rem; }
-    @media (max-width:700px) {
+    [data-testid="stChatInput"],[data-testid="stChatInput"] > div { background:#17263a !important; border:1px solid #45658a !important; border-radius:14px !important; box-shadow:0 8px 24px rgba(0,0,0,.22) !important; }
+    [data-testid="stChatInput"] textarea { color:#fff !important; caret-color:#8fc6ff !important; font-size:1rem !important; }
+    [data-testid="stChatInput"] textarea::placeholder { color:#b1bfd0 !important; }
+    [data-testid="stChatInput"] button { color:#9dccff !important; }
+    div[data-testid="stTextInput"] input { min-height:3.1rem; font-size:1.05rem !important; background:#17263a !important; border:1px solid #45658a !important; border-radius:10px !important; }
+    div.stButton > button,div[data-testid="stFormSubmitButton"] > button { min-height:2.9rem; border-radius:10px !important; font-weight:700 !important; border:1px solid #438bd1 !important; }
+    .jarvis-eyebrow { color:#9dccff; font-size:.76rem; font-weight:800; letter-spacing:.15em; margin-bottom:.4rem; }
+    .jarvis-footer { text-align:center; color:#a6b5c8; font-size:.76rem; letter-spacing:.08em; margin:2rem 0 1rem; }
+    @media(max-width:700px) {
         .block-container { padding:.8rem .9rem 6rem !important; }
-        .jarvis-topbar { margin-bottom:.6rem; padding:10px 12px; }
-        .jarvis-hero { padding:1.6rem 0 .8rem; }
-        .jarvis-orb-wrap { width:76px; height:76px; margin-bottom:1rem; }
-        .jarvis-orb { width:52px; height:52px; font-size:23px; }
-        .jarvis-prompts { gap:7px; margin-top:1.2rem; }
-        .jarvis-prompt { font-size:.72rem; padding:8px 11px; }
+        .jarvis-topbar { margin-bottom:.8rem; padding:11px 13px; }
+        .jarvis-hero { padding:1.4rem 0 .7rem; }
+        .jarvis-orb-wrap { width:72px; height:72px; }
+        .jarvis-orb { width:52px; height:52px; font-size:22px; }
+        .jarvis-prompts { gap:7px; margin-top:1rem; }
+        .jarvis-prompt { font-size:.8rem; padding:8px 11px; }
         [data-testid="stBottom"] { padding:.8rem .5rem 1rem !important; }
     }
-
-    /* JARVIS visual refresh — holographic cyan */
-    :root {
-        --jarvis-muted: #91aebd;
-        --jarvis-line: rgba(72, 220, 224, .20);
-        --jarvis-cyan: #63f4e8;
-        --jarvis-blue: #68baff;
-    }
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"],
-    [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
-        background:
-            radial-gradient(ellipse at 50% 18%, rgba(13, 113, 125, .18), transparent 42%),
-            radial-gradient(ellipse at 8% 78%, rgba(19, 75, 111, .12), transparent 38%),
-            #050b13 !important;
-    }
-    [data-testid="stHeader"] { background: rgba(5, 11, 19, .72) !important; }
-    .block-container { max-width: 1240px !important; padding-top: 1.2rem !important; }
-    .jarvis-topbar {
-        max-width: 1120px;
-        border-color: rgba(99,244,232,.22);
-        border-radius: 18px;
-        background: linear-gradient(110deg, rgba(9,30,39,.92), rgba(12,23,39,.82));
-        box-shadow: 0 12px 42px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.035);
-    }
-    .jarvis-mark {
-        border-radius: 13px;
-        background: linear-gradient(145deg, #42dcd2, #176e83 72%, #123c59);
-        color: #041317;
-        box-shadow: 0 0 24px rgba(70,235,225,.28);
-    }
-    .jarvis-brand { letter-spacing: .24em; }
-    .jarvis-brand-sub { color: #70a9b5; }
-    .jarvis-live {
-        color: #8df6e9;
-        border-color: rgba(99,244,232,.25);
-        background: rgba(44,190,183,.07);
-    }
-    .jarvis-hero { position: relative; padding: 2.7rem 0 1.15rem; }
-    .jarvis-orb-wrap {
-        position: relative;
-        width: 116px; height: 116px;
-        margin-bottom: 1.55rem;
-        border: 1px solid rgba(99,244,232,.42);
-        background: radial-gradient(circle, rgba(61,226,216,.16), rgba(22,83,101,.06) 62%, transparent 70%);
-        box-shadow: 0 0 42px rgba(45,219,213,.13), inset 0 0 28px rgba(45,219,213,.09);
-        animation: jarvis-breathe 4.2s ease-in-out infinite;
-    }
-    .jarvis-orb-wrap::before, .jarvis-orb-wrap::after {
-        content: ""; position: absolute; inset: -10px; border-radius: 50%;
-        border: 1px solid rgba(99,244,232,.25);
-        animation: jarvis-rotate 18s linear infinite;
-    }
-    .jarvis-orb-wrap::after {
-        inset: -17px; border-color: rgba(104,186,255,.18);
-        border-style: dashed; animation-duration: 34s; animation-direction: reverse;
-    }
-    .jarvis-orb {
-        width: 72px; height: 72px; font-size: 29px;
-        color: #dffffb;
-        background: radial-gradient(circle at 35% 28%, #2a8d98, #10445b 62%, #071d30);
-        border: 1px solid rgba(130,255,245,.78);
-        box-shadow: 0 0 30px rgba(67,238,224,.34), inset 0 0 22px rgba(107,255,242,.14);
-        text-shadow: 0 0 14px rgba(127,255,245,.8);
-    }
-    .jarvis-kicker { color: var(--jarvis-cyan); letter-spacing: .26em; }
-    .jarvis-hero h1 { text-shadow: 0 0 34px rgba(75,220,216,.10); }
-    .jarvis-hero h1 span {
-        color: #75f2e5;
-        text-shadow: 0 0 26px rgba(75,220,216,.22);
-    }
-    .jarvis-hero p { color: #9bb3c1; }
-    .jarvis-prompts { margin-top: 1.8rem; }
-    .jarvis-prompt {
-        border-color: rgba(99,244,232,.18);
-        background: linear-gradient(135deg, rgba(13,43,53,.82), rgba(13,27,43,.82));
-        color: #b8e8e4;
-        transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
-    }
-    .jarvis-prompt:hover {
-        border-color: rgba(99,244,232,.52);
-        transform: translateY(-2px);
-        box-shadow: 0 7px 22px rgba(39,210,202,.10);
-    }
-    [data-testid="stChatMessage"] {
-        border-color: rgba(99,244,232,.15) !important;
-        background: linear-gradient(135deg, rgba(11,30,42,.88), rgba(12,23,39,.88)) !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,.12);
-    }
-    [data-testid="stChatInput"], [data-testid="stChatInput"] > div {
-        background: rgba(9,27,39,.96) !important;
-        border-color: rgba(99,244,232,.36) !important;
-        box-shadow: 0 0 0 1px rgba(99,244,232,.04), 0 12px 38px rgba(0,0,0,.28) !important;
-    }
-    [data-testid="stChatInput"] textarea { caret-color: var(--jarvis-cyan) !important; }
-    [data-testid="stChatInput"] button { color: var(--jarvis-cyan) !important; }
-    .jarvis-footer { color: #527782; }
-    @keyframes jarvis-breathe {
-        0%, 100% { transform: scale(1); box-shadow: 0 0 42px rgba(45,219,213,.13), inset 0 0 28px rgba(45,219,213,.09); }
-        50% { transform: scale(1.035); box-shadow: 0 0 58px rgba(45,219,213,.23), inset 0 0 34px rgba(45,219,213,.15); }
-    }
-    @keyframes jarvis-rotate { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) {
-        .jarvis-orb-wrap, .jarvis-orb-wrap::before, .jarvis-orb-wrap::after { animation: none !important; }
-        .jarvis-prompt { transition: none !important; }
-    }
-    @media (max-width: 700px) {
-        .jarvis-hero { padding-top: 2rem; }
-        .jarvis-orb-wrap { width: 94px; height: 94px; }
-        .jarvis-orb { width: 60px; height: 60px; }
-    }
-
     </style>
     """,
     unsafe_allow_html=True,
@@ -288,9 +157,11 @@ def authenticated() -> bool:
         return False
     st.markdown('<div class="jarvis-eyebrow">PRIVATE BUSINESS INTELLIGENCE</div>', unsafe_allow_html=True)
     st.title("JARVIS")
-    st.caption("A beszélgetéshez jelentkezz be.")
-    password = st.text_input("Dashboard jelszó", type="password")
-    if st.button("Belépés", type="primary", use_container_width=True):
+    st.caption("Biztonságos bejelentkezés a személyes munkaterülethez.")
+    with st.form("jarvis_login_form", clear_on_submit=False):
+        password = st.text_input("Dashboard jelszó", type="password", placeholder="Írd be a jelszavad")
+        submitted = st.form_submit_button("Belépés", type="primary", use_container_width=True)
+    if submitted:
         if hmac.compare_digest(password, expected):
             st.session_state["authenticated"] = True
             st.session_state["_jarvis_authenticated_at"] = now
