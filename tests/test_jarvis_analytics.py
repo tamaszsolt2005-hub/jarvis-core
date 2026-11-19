@@ -7,6 +7,8 @@ from jarvis_analytics import (
     _daily_series,
     _module_label,
     _sparkline_svg,
+    build_chat_analytics_context,
+    is_analytics_question,
 )
 
 
