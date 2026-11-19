@@ -87,6 +87,65 @@ def _daily_series(data: pd.DataFrame, labels: list[str], mask: pd.Series | None 
     return grouped.reindex(labels, fill_value=0).astype("int64")
 
 
+def is_analytics_question(question: str) -> bool:
+    """Recognize Hungarian and English requests for usage/system analytics."""
+    q = str(question or "").casefold()
+    return any(term in q for term in (
+        "analitika", "analitik", "elemz", "analíz", "analiz", "teljesít",
+        "trend", "statiszt", "arány", "diagram", "grafikon", "használati adat",
+        "rendszerhasználat", "aktivitási adat",
+    ))
+
+
+def build_chat_analytics_context(records: list[dict], now: datetime | None = None) -> str:
+    """Summarize the private log events used by the dashboard charts."""
+    current_local = (now or datetime.now(_ANALYTICS_TZ)).astimezone(_ANALYTICS_TZ)
+    frame = pd.DataFrame(records or [])
+    if frame.empty or "created_at" not in frame:
+        return "A naplótábla jelenleg nem tartalmaz elemezhető eseményt. Adatforrás: public.logs."
+    frame["created_at_utc"] = pd.to_datetime(frame["created_at"], utc=True, errors="coerce")
+    frame = frame.dropna(subset=["created_at_utc"]).copy()
+    if frame.empty:
+        return "A naplórekordokban nincs érvényes időbélyeg; elemzés nem készíthető."
+    frame["module"] = frame.get("module", pd.Series("unknown", index=frame.index)).fillna("unknown").astype(str)
+    frame["level"] = frame.get("level", pd.Series("info", index=frame.index)).fillna("info").astype(str).str.casefold()
+    frame["message"] = frame.get("message", pd.Series("", index=frame.index)).fillna("").astype(str).str.casefold()
+    lines = [
+        "JARVIS ANALITIKA – VALÓS SUPABASE-NAPLÓADATOK",
+        f"Adatforrás: public.logs; beolvasott és időbélyeggel rendelkező rekordok: {len(frame)}.",
+        "A naptári napok Europe/Budapest szerint értendők; minden időszak az előző azonos hosszúságú időszakkal összehasonlítható.",
+    ]
+    for days in (7, 30, 90, 365):
+        start_local = datetime.combine(current_local.date() - timedelta(days=days - 1), time.min, tzinfo=_ANALYTICS_TZ)
+        previous_start_local = start_local - timedelta(days=days)
+        start_utc = pd.Timestamp(start_local.astimezone(timezone.utc))
+        previous_start_utc = pd.Timestamp(previous_start_local.astimezone(timezone.utc))
+        now_utc = pd.Timestamp(current_local.astimezone(timezone.utc))
+        current = frame[(frame["created_at_utc"] >= start_utc) & (frame["created_at_utc"] <= now_utc)]
+        previous = frame[(frame["created_at_utc"] >= previous_start_utc) & (frame["created_at_utc"] < start_utc)]
+        chat_requests = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_request")).sum())
+        chat_responses = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_response")).sum())
+        errors = int(current["level"].isin(["error", "critical", "fatal"]).sum())
+        modules = current["module"].value_counts().to_dict()
+        lines.append(
+            f"{days} nap: esemény={len(current)}, előző időszak={len(previous)}, "
+            f"chatkérés={chat_requests}, AI-válasz esemény={chat_responses}, hiba={errors}, "
+            f"aktív modul={current['module'].nunique()}, modulmegoszlás={modules or 'nincs adat'}."
+        )
+    latest = frame.sort_values("created_at_utc", ascending=False).head(5)
+    safe_latest = [
+        f"{row['created_at_utc'].tz_convert(_ANALYTICS_TZ).strftime('%Y-%m-%d %H:%M')} – "
+        f"{_activity_label(row)} ({_module_label(row['module'])})"
+        for row in latest.to_dict("records")
+    ]
+    lines.append("Legutóbbi eseménytípusok (üzenettartalom nélkül): " + ("; ".join(safe_latest) if safe_latest else "nincs adat") + ".")
+    lines.append(
+        "Korlát: ezek naplózott események, nem elégedettség- vagy válaszminőség-mérések. "
+        "A chatkérések és válaszesemények csak akkor jelennek meg, ha ténylegesen rögzültek."
+    )
+    return "\n".join(lines)
+
+
 def _change_label(current: int, previous: int) -> str:
     if previous == 0:
         return "Új aktivitás" if current > 0 else "Nincs aktivitás"
