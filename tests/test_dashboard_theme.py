@@ -13,8 +13,11 @@ def test_streamlit_theme_is_defined_and_consistent():
     assert theme["showWidgetBorder"] is True
 
 
-def test_dashboard_uses_polished_hungarian_workspace_copy():
+def test_dashboard_uses_clean_hungarian_chat_workspace_copy():
     source = Path("dashboard.py").read_text(encoding="utf-8")
-    assert "Üzleti döntések." in source
-    assert "PRIVATE WORKSPACE" in source
+    analytics = Path("jarvis_analytics.py").read_text(encoding="utf-8")
+    assert "Miben segíthetek ma?" in source
+    assert "Your Personal AI Assistant" in source
+    assert 'key="jarvis_nav_analytics"' in source
+    assert "jarvis-analytics-title" in analytics
     assert "READY" not in source
