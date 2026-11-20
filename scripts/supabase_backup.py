@@ -92,9 +92,11 @@ def create_backup(output_dir: Path) -> Path:
         manifest_path = work / "manifest.json"
         archive = work / "backup.tar.gz"
 
-        # Capture only application-owned public schema objects and data.
-        run_checked(["supabase", "db", "dump", f"--remote={db_url}", "--schema", "public", "--file", str(schema)])
-        run_checked(["supabase", "db", "dump", f"--remote={db_url}", "--schema", "public", "--data-only", "--use-copy", "--file", str(data)])
+        # Password is supplied through a private PGPASSFILE, never command-line args.
+        safe_url, db_env = _connection_env_and_url(db_url, work)
+        # Capture every public-schema object and row, including legacy tables.
+        run_checked(["supabase", "db", "dump", f"--remote={safe_url}", "--schema", "public", "--file", str(schema)], env=db_env)
+        run_checked(["supabase", "db", "dump", f"--remote={safe_url}", "--schema", "public", "--data-only", "--use-copy", "--file", str(data)], env=db_env)
         if not schema.is_file() or not data.is_file() or schema.stat().st_size == 0:
             raise BackupError("A Supabase CLI nem készített teljes sémamentést és adatmentést.")
 
@@ -178,12 +180,13 @@ def restore_backup(archive_path: Path, target_ref: str) -> None:
             raise BackupError("A forrás és cél projekt nem lehet azonos.")
         # Refuse any non-empty public schema: restore is only allowed into a fresh,
         # isolated project. This prevents overwriting existing data.
+        safe_url, db_env = _connection_env_and_url(db_url, work)
         count = run_checked([
             "psql", "--no-psqlrc", "--tuples-only", "--no-align",
             "--command",
             "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f','S');",
-            "--dbname", db_url,
-        ])
+            "--dbname", safe_url,
+        ], env=db_env)
         try:
             public_tables = int(count.strip())
         except ValueError as exc:
@@ -191,13 +194,18 @@ def restore_backup(archive_path: Path, target_ref: str) -> None:
         if public_tables != 0:
             raise BackupError("A cél public séma nem üres; a visszaállítás biztonsági okból megszakadt.")
 
+        combined = work / "restore.sql"
+        combined.write_text(
+            (work / "schema.sql").read_text(encoding="utf-8") + "\\n" +
+            (work / "data.sql").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
         run_checked([
             "psql", "--no-psqlrc", "--single-transaction",
             "--set", "ON_ERROR_STOP=1",
-            "--file", str(work / "schema.sql"),
-            "--file", str(work / "data.sql"),
-            "--dbname", db_url,
-        ])
+            "--file", str(combined),
+            "--dbname", safe_url,
+        ], env=db_env)
 
 
 def main() -> int:
