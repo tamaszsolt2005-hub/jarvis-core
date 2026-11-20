@@ -108,6 +108,10 @@ def create_backup(output_dir: Path) -> Path:
         raise BackupError("A mentéshez a supabase CLI és az age program szükséges.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.chmod(0o700)
+    except OSError:
+        pass
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_id = f"{BACKUP_PREFIX}-{stamp}-{uuid.uuid4()}"
     final_path = output_dir / f"{backup_id}.tar.gz.age"
@@ -154,6 +158,10 @@ def create_backup(output_dir: Path) -> Path:
         if not encrypted_tmp.is_file() or encrypted_tmp.stat().st_size == 0:
             raise BackupError("Az age titkosított mentés nem jött létre.")
         os.replace(encrypted_tmp, final_path)
+        try:
+            final_path.chmod(0o600)
+        except OSError:
+            pass
 
     return final_path
 
@@ -162,7 +170,7 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
         names = {m.name for m in members}
-        if names != ALLOWED_ARCHIVE_FILES or any(not m.isfile() for m in members):
+        if len(members) != len(ALLOWED_ARCHIVE_FILES) or names != ALLOWED_ARCHIVE_FILES or any(not m.isfile() for m in members):
             raise BackupError("A mentés archívuma nem a várt, biztonságos fájlkészletet tartalmazza.")
         for member in members:
             if Path(member.name).name != member.name:
@@ -193,8 +201,11 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         raise BackupError("A célprojekt nem egyezik a külön engedélyezett tesztprojekt-azonosítóval.")
     if project_ref_from_db_url(db_url) != target_ref:
         raise BackupError("A cél DB URL és a megadott célprojekt-azonosító nem egyezik.")
-    if not Path(identity).is_file():
+    identity_path = Path(identity)
+    if not identity_path.is_file():
         raise BackupError("Az AGE_IDENTITY_FILE nem található.")
+    if os.name == "posix" and identity_path.stat().st_mode & 0o077:
+        raise BackupError("Az age privát kulcs fájl jogosultsága túl nyitott; állítsd 0600-ra.")
     if not shutil.which("age") or not shutil.which("psql"):
         raise BackupError("A visszaállításhoz az age és a psql program szükséges.")
     if not archive_path.is_file():
