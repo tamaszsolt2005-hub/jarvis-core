@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool
+from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
 from jarvis_analytics import (build_chat_analytics_context, build_executive_analytics_report, is_analytics_question, is_executive_analytics_report_request, render_analytics)
@@ -578,7 +578,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     log_rows: list[dict] = []
     if wants_logs:
         log_limit = 5000 if wants_analytics else 100
-        log_rows = _safe_rows(db, "logs", "module,level,message,created_at", log_limit)
+        log_rows = _safe_rows(db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,recipient,subject,delivery_id", log_limit)
         if not wants_analytics:
             sections.append("RENDSZERNAPLÓ:\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("naplók")
@@ -785,7 +785,33 @@ if prompt:
                     if not EMAIL_DELIVERY_ENABLED or not env_bool("CHAT_EMAIL_ENABLED", False):
                         approval_notice = "A tervezetet jóváhagytad, de e-mail nem ment ki: a szerveroldali EMAIL_DELIVERY_ENABLED és CHAT_EMAIL_ENABLED beállítás nincs bekapcsolva."
                     else:
-                        message_id = send_email(chat_email["recipient"], chat_email["subject"], chat_email["body"])
+                        email_operation_id = str(uuid4())
+                        audit_fields = {
+                            "module": "chat_email",
+                            "action": "send_approved_email",
+                            "operation_id": email_operation_id,
+                            "approved": True,
+                            "recipient": chat_email["recipient"],
+                            "subject": chat_email["subject"],
+                        }
+                        if not audit_event(db, status="pending", **audit_fields):
+                            raise RuntimeError("Az e-mailt nem küldtem el: az auditnapló nem írható.")
+                        try:
+                            message_id = send_email(
+                                chat_email["recipient"], chat_email["subject"], chat_email["body"]
+                            )
+                        except Exception as email_exc:
+                            audit_event(
+                                db, status="failed", error=email_exc, level="error",
+                                **audit_fields,
+                            )
+                            raise
+                        audit_event(
+                            db, status="success",
+                            result={"smtp_accepted": True},
+                            delivery_id=message_id or None,
+                            **audit_fields,
+                        )
                         log_event(db, "chat_email", "Jóváhagyott chatből indított e-mail elküldve.")
                         approval_notice = f"A jóváhagyott e-mailt az SMTP-szerver átvette. Üzenetazonosító: {message_id or 'nem érkezett azonosító'}."
                 elif task_action:
