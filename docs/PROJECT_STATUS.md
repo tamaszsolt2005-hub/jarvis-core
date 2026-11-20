@@ -145,11 +145,11 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 **Most bekötött működés:**
 - task_actions.py: feladat create/update/close művelet előtt audit pending rekord; sikernél success, blokkolt/ütköző állapotnál blocked. Ha a kezdő auditrekord nem menthető, a feladatművelet nem fut le.
 - dashboard.py: jóváhagyott chat e-mail előtt pending audit; az e-mail küldési kísérlet eredménye success vagy failed eseményt kap. A kezdő audit nem írható -> SMTP nem indul. Címzett, tárgy, jóváhagyási állapot és SMTP Message-ID tárolható; a levéltörzs nem kerül az auditba.
-- email_sender.py: háttér e-mailküldés előtt pending, SMTP-átvétel után success; hibánál failed esemény. Az audit kezdőrekordjának sikertelensége megakadályozza az SMTP-küldést.
+- email_sender.py: háttér e-mailküldés előtt pending, SMTP-átvétel után success; SMTP előtt fellépő hibánál failed, SMTP-átvétel utáni auditbizonytalanságnál unknown esemény. Az audit kezdőrekordjának sikertelensége megakadályozza az SMTP-küldést.
 - email_inbox.py: a bejövő válasz és leiratkozás auditálása; auditírási hiba esetén az IMAP UID checkpoint nem lép tovább, így a feldolgozás nem tűnik sikeresnek.
 - global_lead_research.py: a kutatási futás eredménye darabszámokkal és piaci hatókörrel kerül naplózásra; leadek személyes adatai nem kerülnek az audit eredménymezőjébe.
 - jarvis_common.get_audit_events(): szűrhető, időrendben (legújabb elöl) visszaadott strukturált auditrekordok; limit 1–1000. A régi, strukturálatlan logbejegyzések továbbra is a meglévő log/analitika útvonalon érhetők el.
-- A strukturált eredmény natív JSON értékként kerül a jsonb mezőbe. A szabad szöveges eredményértékek is titokszűrést kapnak. A dashboard logkontextusa audit-metaadatokat kér le, de nem kéri le a címzettet és a tárgyat a Gemini kontextusába.
+- A strukturált eredmény natív JSON értékként kerül a jsonb mezőbe. Ha az SMTP átvette a levelet, de a záró auditbejegyzés nem menthető, a chat ezt külön jelzi, és nem javasol vak újraküldést. A szabad szöveges eredményértékek is titokszűrést kapnak. A dashboard logkontextusa audit-metaadatokat kér le, de nem kéri le a címzettet és a tárgyat a Gemini kontextusába.
 
 **Új tesztek:** tests/test_audit_logging.py – auditmezők, UUID, titokszűrés, JSON eredmény, sikertelen auditmentés, időrendi lekérdezés és szűrők. A tests/test_task_actions.py új esete ellenőrzi, hogy audit-adatbázishiba esetén a feladat létrehozása nem történik meg.
 
