@@ -313,11 +313,15 @@ def audit_event(
         if isinstance(value, str):
             return sanitize_log_text(value, max_length=500)
         if isinstance(value, dict):
-            return {
-                sanitize_log_text(str(key), max_length=80):
-                sanitize_result(item, depth + 1)
-                for key, item in list(value.items())[:50]
-            }
+            cleaned = {}
+            for key, item in list(value.items())[:50]:
+                safe_key = sanitize_log_text(str(key), max_length=80)
+                key_upper = safe_key.upper()
+                if any(marker in key_upper for marker in ("KEY", "TOKEN", "PASSWORD", "SECRET")):
+                    cleaned[safe_key] = "[REDACTED]"
+                else:
+                    cleaned[safe_key] = sanitize_result(item, depth + 1)
+            return cleaned
         if isinstance(value, (list, tuple)):
             return [sanitize_result(item, depth + 1) for item in value[:50]]
         if value is None or isinstance(value, (bool, int, float)):
