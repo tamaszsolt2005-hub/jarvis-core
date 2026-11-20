@@ -310,6 +310,10 @@ def render_analytics(db: Any) -> None:
     previous_chat = count_chat_requests(previous)
     current_errors = count_errors(current)
     previous_errors = count_errors(previous)
+    def count_warnings(data: pd.DataFrame) -> int:
+        return int(data["level"].isin(["warn", "warning"]).sum()) if not data.empty else 0
+    current_warnings = count_warnings(current)
+    previous_warnings = count_warnings(previous)
     current_modules = int(current["module"].nunique()) if not current.empty else 0
     previous_modules = int(previous["module"].nunique()) if not previous.empty else 0
 
@@ -337,10 +341,14 @@ def render_analytics(db: Any) -> None:
             _daily_series(current, daily_labels, current["level"].isin(["error", "critical", "fatal"])).tolist()
             if not current.empty else [0] * len(daily_labels)
         )),
+        ("Figyelmeztetések", f"{current_warnings:,}".replace(",", " "), _change_label(current_warnings, previous_warnings), "!", _COLORS["orange"], (
+            _daily_series(current, daily_labels, current["level"].isin(["warn", "warning"])).tolist()
+            if not current.empty else [0] * len(daily_labels)
+        )),
         ("Aktív modulok", f"{current_modules:,}".replace(",", " "), _change_label(current_modules, previous_modules), "✦", _COLORS["orange"], daily_active_modules),
     ]
 
-    metric_columns = st.columns(4)
+    metric_columns = st.columns(5)
     for column, metric in zip(metric_columns, metrics):
         title, value, detail, icon, color, spark = metric
         with column:
