@@ -10,6 +10,7 @@ import hmac
 import time
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -648,16 +649,22 @@ if st.session_state.get("jarvis_page") == "analytics":
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
 
-current_time = datetime.now().astimezone().strftime("%H:%M")
-st.markdown(
-    '<div class="jarvis-topbar">'
-    '<span class="jarvis-live"><span class="jarvis-live-dot"></span>Aktív</span>'
-    '<span class="jarvis-top-divider"></span>'
-    f'<span class="jarvis-clock">◷ &nbsp; {current_time}</span>'
-    '<span class="jarvis-profile">T</span>'
-    '</div>',
-    unsafe_allow_html=True,
-)
+@st.fragment(run_every="1s")
+def render_topbar_clock() -> None:
+    """Render the top bar clock independently, using Hungary's local time."""
+    current_time = datetime.now(ZoneInfo("Europe/Budapest")).strftime("%H:%M")
+    st.markdown(
+        '<div class="jarvis-topbar">'
+        '<span class="jarvis-live"><span class="jarvis-live-dot"></span>Aktív</span>'
+        '<span class="jarvis-top-divider"></span>'
+        f'<span class="jarvis-clock">◷ &nbsp; {current_time}</span>'
+        '<span class="jarvis-profile">T</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+render_topbar_clock()
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
