@@ -162,9 +162,14 @@ def build_chat_analytics_context(
 def is_executive_analytics_report_request(question: str) -> bool:
     """Identify explicit executive analytics reports that must use deterministic output."""
     q = str(question or "").casefold()
-    return ("jelent" in q or "report" in q) and any(
+    report_action = any(term in q for term in (
+        "készíts", "keszits", "állíts össze", "allits ossze", "kérek", "kerem",
+        "generálj", "generalj", "készítsd el", "keszitsd el",
+    ))
+    report_topic = any(
         term in q for term in ("analitika", "analitik", "statiszt", "rendszerhasználat")
     )
+    return report_action and report_topic
 
 
 def build_executive_analytics_report(
