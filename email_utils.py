@@ -1,19 +1,19 @@
-"""SMTP delivery helper. The calling job controls whether delivery is enabled."""
+"""SMTP delivery helper with a disabled-by-default safety gate."""
 from __future__ import annotations
 
 import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from jarvis_common import get_secret, required_secret
+from jarvis_common import env_bool, get_secret, required_secret
 
-# Hard safety lock: delivery remains disabled until a deliberate code review changes this.
-EMAIL_DELIVERY_ENABLED = False
+# Must be explicitly enabled in the server-side environment/secrets.
+EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
 
 
 def send_email(recipient: str, subject: str, body: str) -> str:
     if not EMAIL_DELIVERY_ENABLED:
-        raise RuntimeError("E-mail-küldés biztonsági okból kódszinten le van tiltva.")
+        raise RuntimeError("E-mail-küldés biztonsági okból le van tiltva.")
     sender = required_secret("EMAIL_USER")
     password = required_secret("EMAIL_PASSWORD")
     from_name = get_secret("EMAIL_FROM_NAME", "JARVIS") or "JARVIS"
