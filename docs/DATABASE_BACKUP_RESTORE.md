@@ -42,7 +42,7 @@ A mentési script:
 python scripts/supabase_backup.py backup --output-dir .private-backups
 ```
 
-Szükséges programok: Supabase CLI, `age`, Python 3.11+. A Supabase CLI Docker-alapú dump futtatást használhat, ezért Docker-kompatibilis runner szükséges.
+Szükséges programok: Supabase CLI, `age`, Python 3.11+. A Supabase CLI Docker-alapú dump futtatást használhat, ezért Docker-kompatibilis runner szükséges. A visszaállításhoz az `age` mellett PostgreSQL `psql` kliens is kell, a szerverrel kompatibilis főverzióban.
 
 Szükséges környezeti beállítások:
 - `SUPABASE_DB_URL`: közvetlen vagy session-pooler adatbázis-kapcsolati URL, titokként kezelendő.
@@ -137,8 +137,10 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - direct és pooler URL projektazonosító-felismerés;
 - ismeretlen URL elutasítása;
 - éles projekt visszaállításának tiltása külső parancs futtatása előtt;
-- explicit sandbox allowlist követelménye;
-- nem várt archívumfájlok és sérült hash elutasítása.
+- explicit `--confirm-restore` és sandbox allowlist követelménye;
+- nem várt archívumfájlok és sérült hash elutasítása;
+- adatbázis-jelszó eltávolítása a parancssori URL-ből és 0600 PGPASSFILE;
+- a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
 Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist.
 
