@@ -157,8 +157,8 @@ def test_connection_password_is_removed_from_url_and_written_privately(tmp_path)
 
 
 def test_restore_sql_reuses_existing_public_schema():
-    schema = "CREATE SCHEMA public;\\nALTER SCHEMA public OWNER TO postgres;\\nCREATE TABLE public.sample(id integer);"
-    data = "COPY public.sample (id) FROM stdin;\\n1\\n\\\\.\\n"
+    schema = "CREATE SCHEMA public;" + chr(10) + "ALTER SCHEMA public OWNER TO postgres;" + chr(10) + "CREATE TABLE public.sample(id integer);"
+    data = "COPY public.sample (id) FROM stdin;" + chr(10) + "1" + chr(10) + "\\." + chr(10)
     restored = backup._restore_sql_text(schema, data)
     assert "CREATE SCHEMA public" not in restored
     assert "ALTER SCHEMA public OWNER" not in restored
