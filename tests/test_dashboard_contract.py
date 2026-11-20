@@ -46,10 +46,15 @@ def test_dashboard_uses_chat_input_as_primary_interaction():
     assert "st.chat_message(" in source
 
 
-def test_dashboard_does_not_enable_automatic_email_sending():
+def test_dashboard_chat_email_requires_preview_and_explicit_approval():
     source = DASHBOARD.read_text(encoding="utf-8")
-    assert "AUTO_SEND_ENABLED" not in source
-    assert "nem küldhetsz e-mailt" in source
+    assert "is_chat_email_request(prompt)" in source
+    assert "extract_explicit_recipient(prompt)" in source
+    assert '"chat_email": chat_email' in source
+    assert "EMAIL_DELIVERY_ENABLED" in source
+    assert 'env_bool("CHAT_EMAIL_ENABLED", False)' in source
+    assert "Jóváhagyásra váró e-mail-tervezet" in source
+    assert "Normál chatválaszból soha ne küldj e-mailt." in source
 
 
 
