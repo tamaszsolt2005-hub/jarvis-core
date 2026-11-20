@@ -2,7 +2,7 @@
 
 The UI is intentionally limited to conversation. Business data is retrieved
 on demand; explicit, grounded global-research requests may insert company-only
-prospect records. The application never sends email.
+prospect records. Chat-initiated email is sent only after an explicit approval and when both server-side email safety switches are enabled.
 """
 from __future__ import annotations
 
