@@ -40,7 +40,7 @@ A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafel
 - A bejövő válasz a státuszt `replied` értékre állítja és törli a következő utánkövetés időpontját. A leiratkozás `opted_out=true` és `status=opted_out` értéket állít be.
 - Az utánkövetés alapértelmezett várakozása 5 nap; maximum 2 utánkövető levél, futásonként legfeljebb 3 levél, küldések között legalább 30 másodperc.
 - A háttérküldés csak akkor indulhat, ha az SMTP-küldés, az automatikus küldés és az IMAP inbox-figyelés is külön engedélyezett. A workflow először a bejövő leveleket ellenőrzi, és csak utána küld.
-- A bejövő ellenőrzés IMAP-on keresztül a legutóbbi 200 üzenetet vizsgálja. A szolgáltató IMAP-beállításait és a megfelelő hozzáférést külön ellenőrizni kell.
+- A bejövő ellenőrzés IMAP-on keresztül az első futáskor a legutóbbi 200 üzenetet dolgozza fel, majd a Supabase `settings` táblában tárolt UID-checkpoint alapján minden új üzenetet figyel. A szolgáltató IMAP-beállításait és a megfelelő hozzáférést külön ellenőrizni kell.
 
 ### GitHub Actions konfiguráció
 A napi `JARVIS Email Automation` workflow 09:15 UTC-kor fut, és kézzel is indítható. A repository **Settings → Secrets and variables → Actions** részében szükséges:
