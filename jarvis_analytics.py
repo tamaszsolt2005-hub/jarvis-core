@@ -114,6 +114,7 @@ def build_chat_analytics_context(records: list[dict], now: datetime | None = Non
         "JARVIS ANALITIKA – VALÓS SUPABASE-NAPLÓADATOK",
         f"Adatforrás: public.logs; beolvasott és időbélyeggel rendelkező rekordok: {len(frame)}.",
         "A naptári napok Europe/Budapest szerint értendők; minden időszak az előző azonos hosszúságú időszakkal összehasonlítható.",
+        "A jelentést készítő chatkérés válaszeseménye csak a válasz elkészülte után kerül a naplóba, ezért azt a következő analitikai lekérdezés fogja tartalmazni.",
     ]
     for days in (7, 30, 90, 365):
         start_local = datetime.combine(current_local.date() - timedelta(days=days - 1), time.min, tzinfo=_ANALYTICS_TZ)
@@ -125,11 +126,12 @@ def build_chat_analytics_context(records: list[dict], now: datetime | None = Non
         previous = frame[(frame["created_at_utc"] >= previous_start_utc) & (frame["created_at_utc"] < start_utc)]
         chat_requests = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_request")).sum())
         chat_responses = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_response")).sum())
-        errors = int(current["level"].isin(["error", "critical", "fatal"]).sum())
+        errors = int(current["level"].isin(["error", "critical", "fatal", "warn", "warning"]).sum())
+        warnings = int(current["level"].isin(["warn", "warning"]).sum())
         modules = current["module"].value_counts().to_dict()
         lines.append(
             f"{days} nap: esemény={len(current)}, előző időszak={len(previous)}, "
-            f"chatkérés={chat_requests}, AI-válasz esemény={chat_responses}, hiba={errors}, "
+            f"chatkérés={chat_requests}, AI-válasz esemény={chat_responses}, hiba={errors}, figyelmeztetés={warnings}, "
             f"aktív modul={current['module'].nunique()}, modulmegoszlás={modules or 'nincs adat'}."
         )
     latest = frame.sort_values("created_at_utc", ascending=False).head(5)
@@ -297,7 +299,7 @@ def render_analytics(db: Any) -> None:
         ].copy()
 
     def count_errors(data: pd.DataFrame) -> int:
-        return int(data["level"].isin(["error", "critical", "fatal"]).sum()) if not data.empty else 0
+        return int(data["level"].isin(["error", "critical", "fatal", "warn", "warning"]).sum()) if not data.empty else 0
 
     def count_chat_requests(data: pd.DataFrame) -> int:
         return int(((data["module"].str.casefold() == "chat") & (data["message"] == "chat_request")).sum()) if not data.empty else 0
@@ -470,7 +472,7 @@ def render_analytics(db: Any) -> None:
                 recent_html = []
                 for row in recent_rows:
                     local_time = row["local_ts"].strftime("%H:%M")
-                    is_error = str(row.get("level") or "").casefold() in {"error", "critical", "fatal"}
+                    is_error = str(row.get("level") or "").casefold() in {"error", "critical", "fatal", "warn", "warning"}
                     dot_class = "jarvis-recent-dot error" if is_error else "jarvis-recent-dot"
                     description = escape(_activity_label(row))
                     recent_html.append(
