@@ -236,7 +236,7 @@ def build_executive_analytics_report(
     legacy_requests = legacy_responses = 0
     if not recent30.empty:
         for row in recent30.loc[recent30["module"].str.casefold() == "chat", ["message"]].itertuples(index=False):
-            match = re.fullmatch(r"(chat_request|chat_response|chat_error)(?:\\|request_id=([0-9a-f]{32}))?", row.message)
+            match = re.fullmatch(r"(chat_request|chat_response|chat_error)(?:\|request_id=([0-9a-f]{32}))?", row.message)
             if not match:
                 continue
             event, event_id = match.groups()
@@ -251,7 +251,7 @@ def build_executive_analytics_report(
                 linked_responses.add(event_id)
             elif event == "chat_error":
                 linked_errors.add(event_id)
-    successful_requests = len(linked_requests & linked_responses - linked_errors)
+    successful_requests = len((linked_requests & linked_responses) - linked_errors)
     failed_requests = len(linked_requests & linked_errors)
     unfinished_requests = len(linked_requests - linked_responses - linked_errors)
     unlinked_requests = legacy_requests
@@ -500,7 +500,7 @@ def render_analytics(db: Any) -> None:
         return int(data["level"].isin(["error", "critical", "fatal"]).sum()) if not data.empty else 0
 
     def count_chat_requests(data: pd.DataFrame) -> int:
-        return int(((data["module"].str.casefold() == "chat") & (data["message"] == "chat_request")).sum()) if not data.empty else 0
+        return int(((data["module"].str.casefold() == "chat") & (data["message"].str.split("|", n=1).str[0] == "chat_request")).sum()) if not data.empty else 0
 
     current_events = int(len(current))
     previous_events = int(len(previous))
@@ -532,7 +532,7 @@ def render_analytics(db: Any) -> None:
     metrics = [
         ("Naplózott események", f"{current_events:,}".replace(",", " "), _change_label(current_events, previous_events), "◉", _COLORS["blue"], daily_counts.tolist()),
         ("Chatkérések", f"{current_chat:,}".replace(",", " "), _change_label(current_chat, previous_chat), "◌", _COLORS["purple"], (
-            _daily_series(current, daily_labels, current["message"] == "chat_request").tolist()
+            _daily_series(current, daily_labels, current["message"].str.split("|", n=1).str[0] == "chat_request").tolist()
             if not current.empty else [0] * len(daily_labels)
         )),
         ("Hibajelzések", f"{current_errors:,}".replace(",", " "), _change_label(current_errors, previous_errors), "⚡", _COLORS["cyan"], (
