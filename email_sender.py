@@ -77,7 +77,12 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         .eq("consent_basis", "consent").select("id").execute()
     )
     if not claim.data:
+        audit_event(
+            db, module="email_sender", action="send_claim", status="blocked",
+            result={"reason": "lead_claim_not_acquired"},
+        )
         return False
+    smtp_accepted = False
     try:
         subject, body = _draft(lead, follow_up=follow_up)
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
@@ -111,6 +116,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         if not audit_event(db, status="pending", **audit_fields):
             raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
         message_id = send_email(str(lead["email"]), subject, body)
+        smtp_accepted = True
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
             max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
@@ -144,7 +150,9 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     except Exception as exc:
         if "audit_fields" in locals():
             audit_event(
-                db, status="failed", error=exc, level="error",
+                db, status="unknown" if smtp_accepted else "failed",
+                error=exc, level="error",
+                result={"smtp_accepted": smtp_accepted},
                 **audit_fields,
             )
         report_error(
