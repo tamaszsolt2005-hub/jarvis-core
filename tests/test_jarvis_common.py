@@ -193,7 +193,7 @@ def test_required_secret_points_to_runtime_secret_locations(monkeypatch):
         ("Szia!", 512),
         ("Mi az a CRM?", 512),
         ("Hogyan működik a CRM rendszer egy kisebb vállalkozás napi folyamataiban?", 768),
-        ("Mutasd be a CRM előnyeit és hátrányait több szempontból, térj ki a bevezetésre, költségekre, kockázatokra és a mérhető üzleti eredményekre is.", 1536),
+        ("Mutasd be a CRM előnyeit és hátrányait több szempontból, térj ki a bevezetésre, költségekre, kockázatokra és a mérhető üzleti eredményekre is.", 2048),
         ("Elemezd részletesen a CRM bevezetésének kockázatait.", 3072),
         ("Röviden elemezd a CRM-et.", 384),
     ],
