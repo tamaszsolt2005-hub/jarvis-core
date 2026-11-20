@@ -2,13 +2,14 @@
 
 A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafelület. A felhasználó természetes nyelven kérdezhet; a rendszer a kérdéshez illő üzleti adatokat olvassa ki a Supabase adatbázisból, majd a Gemini segítségével elemzést készít. A felület sötét, prémium megjelenésű, reszponzív chat-workspace, egyedi fejléc- és chatstílusokkal. Az alapértelmezett modell a Gemini 3.8 Flash (`gemini-3.8-flash`); a `GEMINI_MODEL` beállítással külön modell adható meg. A chat külön állapotjelzést mutat a kérés feldolgozásakor, a Gemini-válasz készítésekor, sikeres válasznál és hibánál.
 
-## Projektállapot – 2026-11-18
+## Projektállapot – 2026-11-20
 
-- **Kész:** a prémium sötét dashboard-stílus és Streamlit téma; a Gemini-kliens központi konfigurációja és átmeneti túlterhelés esetén újrapróbálkozása; a globális leadkutatás Gemini-integrációjának javítása; a titokkonfigurációs és Supabase-diagnosztikai üzenetek pontosítása.
-- **Automatikus ellenőrzés:** a legutóbbi GitHub Actions CI, #296 (`143f9af`), sikeres: függőségek telepítése, `compileall`, majd **130 sikeres teszt**.
-- **Konfiguráció:** a felhasználó visszajelzése szerint a Codespaces-ben be van állítva a `GEMINI_API_KEY`, `SUPABASE_URL` és `SUPABASE_SERVICE_ROLE_KEY`.
-- **Még ellenőrizendő élesben:** a Gemini próbakérés, a Supabase-táblák/oszlopok tényleges olvashatósága, a dashboard bejelentkezése és teljes böngészős folyamatpróbája. A CI nem használ valódi titkokat, és nem végez élő integrációs tesztet.
-- Részletes bontás: [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
+- **Elkészült:** chat-first Streamlit felület, Gemini-integráció, globális céges leadkutatás, leadprioritás, weboldal-audit, üzleti stratégiai elemzés, hosszú távú memória, jóváhagyásos feladatkezelés, proaktív változásfigyelés, napi vezetői jelentés és naplóalapú analitika.
+- **Analitika:** a jelentés külön jelzi a Supabase-projekt létrehozási dátumát és a tényleges naplózási időszakot; a projekt létrehozása előtti hiányzó naplóadatot nem minősíti automatikusan adatvesztésnek.
+- **Legutóbbi felhasználói teszteredmény:** 2026-11-20-án a `fd50ea0` kódállapoton `compileall` sikeres, **139 teszt sikeres**. Az ezt követő új analitikai módosítás újrafuttatása még szükséges.
+- **Élő Supabase-ellenőrzés:** a Jarvis projekt (`kiutreccucbegskxowek`) 2026-11-13-án jött létre; a 2026-11-20-i ellenőrzéskor 23 naplórekord volt, 2026-11-13 és 2026-11-20 közötti megfigyelt időszakkal. A chatben 2 kéréshez 2 válaszesemény tartozott.
+- **Biztonsági korlát:** az automatikus e-mail-küldés továbbra is kódszinten tiltott; a service-role kulcs kizárólag szerveroldali titok.
+- Részletes, dátumozott állapot és nyitott feladatok: [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 ## Fő működési elvek
 
