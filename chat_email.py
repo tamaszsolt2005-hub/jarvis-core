@@ -5,8 +5,8 @@ import re
 from typing import Callable
 
 EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+(?![\w.-])", re.I)
-EMAIL_INTENT = re.compile(r"\b(?:e-?mail|levelet)\b", re.I)
-SEND_INTENT = re.compile(r"\b(?:küldj|kuldj|küld|kuld|írj|irj|fogalmazz|küldeni|kiküldeni|kikuld)\b", re.I)
+EMAIL_INTENT = re.compile(r"(?:e-?mail\w*|lev[eé]l\w*)", re.I)
+SEND_INTENT = re.compile(r"(?:küld\w*|kuld\w*|ír\w*|ir\w*|fogalmaz\w*)", re.I)
 
 
 def is_chat_email_request(text: str) -> bool:
