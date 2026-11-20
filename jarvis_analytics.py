@@ -158,6 +158,154 @@ def build_chat_analytics_context(
     return "\n".join(lines)
 
 
+
+def is_executive_analytics_report_request(question: str) -> bool:
+    """Identify explicit executive analytics reports that must use deterministic output."""
+    q = str(question or "").casefold()
+    return ("jelent" in q or "report" in q) and any(
+        term in q for term in ("analitika", "analitik", "statiszt", "rendszerhasználat")
+    )
+
+
+def build_executive_analytics_report(
+    records: list[dict],
+    now: datetime | None = None,
+    project_created_at: datetime | None = None,
+    truncated: bool = False,
+) -> str:
+    """Build a deterministic 30-day executive report from real log rows."""
+    current_local = (now or datetime.now(_ANALYTICS_TZ)).astimezone(_ANALYTICS_TZ)
+    created_at = (project_created_at or _SUPABASE_PROJECT_CREATED_AT).astimezone(_ANALYTICS_TZ)
+    frame = pd.DataFrame(records or [])
+    if not frame.empty and "created_at" in frame:
+        frame["created_at_utc"] = pd.to_datetime(frame["created_at"], utc=True, errors="coerce")
+        frame = frame.dropna(subset=["created_at_utc"]).copy()
+    else:
+        frame = pd.DataFrame(columns=["module", "level", "message", "created_at_utc"])
+
+    if not frame.empty:
+        for column, default in (("module", "unknown"), ("level", "info"), ("message", "")):
+            if column not in frame:
+                frame[column] = default
+            frame[column] = frame[column].fillna(default).astype(str)
+        frame["level"] = frame["level"].str.casefold()
+        frame["message"] = frame["message"].str.casefold()
+
+    end_local = current_local
+    start_local = datetime.combine(current_local.date() - timedelta(days=29), time.min, tzinfo=_ANALYTICS_TZ)
+    last7_start = datetime.combine(current_local.date() - timedelta(days=6), time.min, tzinfo=_ANALYTICS_TZ)
+    previous7_start = last7_start - timedelta(days=7)
+    start_utc = pd.Timestamp(start_local.astimezone(timezone.utc))
+    end_utc = pd.Timestamp(end_local.astimezone(timezone.utc))
+    last7_utc = pd.Timestamp(last7_start.astimezone(timezone.utc))
+    previous7_utc = pd.Timestamp(previous7_start.astimezone(timezone.utc))
+
+    recent30 = frame[(frame["created_at_utc"] >= start_utc) & (frame["created_at_utc"] <= end_utc)].copy()
+    last7 = frame[(frame["created_at_utc"] >= last7_utc) & (frame["created_at_utc"] <= end_utc)].copy()
+    previous7 = frame[(frame["created_at_utc"] >= previous7_utc) & (frame["created_at_utc"] < last7_utc)].copy()
+
+    def count_level(data: pd.DataFrame, levels: set[str]) -> int:
+        return int(data["level"].isin(levels).sum()) if not data.empty else 0
+
+    def count_chat(data: pd.DataFrame, event: str) -> int:
+        if data.empty:
+            return 0
+        return int(((data["module"].str.casefold() == "chat") & (data["message"] == event)).sum())
+
+    total = len(recent30)
+    errors = count_level(recent30, {"error", "critical", "fatal"})
+    warnings = count_level(recent30, {"warn", "warning"})
+    module_counts = recent30["module"].value_counts().to_dict() if total else {}
+    active_modules = len(module_counts)
+    requests = count_chat(recent30, "chat_request")
+    responses = count_chat(recent30, "chat_response")
+    previous_total, last_total = len(previous7), len(last7)
+    if previous_total:
+        delta_text = f"{(last_total - previous_total) / previous_total * 100:+.1f}%"
+    elif last_total:
+        delta_text = "új aktivitás (az előző 7 napban 0 esemény)"
+    else:
+        delta_text = "mindkét időszakban 0 esemény"
+
+    if frame.empty:
+        observed_text = "Nem áll rendelkezésre érvényes időbélyegű naplórekord."
+    else:
+        first_seen = frame["created_at_utc"].min().tz_convert(_ANALYTICS_TZ)
+        last_seen = frame["created_at_utc"].max().tz_convert(_ANALYTICS_TZ)
+        observed_text = f"{first_seen:%Y-%m-%d %H:%M:%S %Z} – {last_seen:%Y-%m-%d %H:%M:%S %Z}"
+
+    lines = [
+        "# 30 napos vezetői analitikai jelentés",
+        "",
+        f"**Jelentés készítésének időpontja:** {current_local:%Y-%m-%d %H:%M:%S %Z} (Europe/Budapest)",
+        f"**Vizsgált 30 napos időablak:** {start_local:%Y-%m-%d %H:%M %Z} – {end_local:%Y-%m-%d %H:%M %Z}",
+        "",
+        "## Vezetői összefoglaló",
+        f"A vizsgált időablakban **{total}** naplózott esemény szerepel **{active_modules}** aktív modultól. "
+        f"A naplóban {errors} hibaszintű és {warnings} figyelmeztetési szintű esemény található. "
+        "Ez kizárólag a naplózott eseményekre vonatkozik, nem bizonyítja önmagában a teljes rendszer hibamentességét.",
+        "",
+        "## Projekt- és naplózási időszak – külön kezelve",
+        f"- **Supabase-projekt létrehozása:** {created_at:%Y-%m-%d %H:%M:%S %Z} (Europe/Budapest; ellenőrzött projektmetaadat).",
+        f"- **A beolvasott naplók tényleges megfigyelt időszaka:** {observed_text}.",
+        "- A projekt létrehozási időpontja nem azonos az első naplóbejegyzés időpontjával.",
+        "- A megfigyelt időszak a lekérdezésben elérhető, érvényes időbélyegű rekordok minimuma és maximuma; nem bizonyít folyamatos aktivitást a teljes időszakban.",
+        "",
+        "## 1. Tények – adatbázis",
+        f"- Összes naplózott esemény a 30 napos ablakban: **{total}**.",
+        f"- Hibaszintű esemény (error/critical/fatal): **{errors}** ({errors / total * 100:.1f}% a naplózott eseményekből)." if total else "- Hibaszintű esemény: 0 (nincs esemény, ezért hibaarány nem számítható).",
+        f"- Figyelmeztetés (warn/warning): **{warnings}** ({warnings / total * 100:.1f}% a naplózott eseményekből)." if total else "- Figyelmeztetés: 0 (nincs esemény, ezért arány nem számítható).",
+        f"- Chatkérések: **{requests}**; AI-válasz események: **{responses}**.",
+        f"- Aktív modulok száma: **{active_modules}**.",
+        "",
+        "**Modulonkénti eseményszám (30 nap):**",
+    ]
+    if module_counts:
+        lines.extend(
+            f"- {module}: {count} ({count / total * 100:.1f}%)"
+            for module, count in sorted(module_counts.items(), key=lambda item: (-item[1], item[0]))
+        )
+    else:
+        lines.append("- Nincs naplózott modulaktivitás ebben az időablakban.")
+
+    lines.extend([
+        "",
+        "## 2. Rövid távú trend – utolsó 7 nap vs. előző 7 nap",
+        f"- Utolsó 7 nap: **{last_total}** esemény.",
+        f"- Előző 7 nap: **{previous_total}** esemény.",
+        f"- Változás: **{delta_text}**.",
+    ])
+    if last7.empty:
+        lines.append("- Az utolsó 7 napban egyetlen modulhoz sem érkezett naplózott esemény.")
+    else:
+        last7_modules = last7["module"].value_counts().to_dict()
+        lines.append("- Utolsó 7 nap modulmegoszlása: " + ", ".join(
+            f"{name}: {count}" for name, count in sorted(last7_modules.items(), key=lambda item: (-item[1], item[0]))
+        ))
+
+    lines.extend([
+        "",
+        "## 3. Következtetések és bizonytalanságok",
+        "- A 0 naplózott hibaszintű esemény nem azonos a 0 tényleges hibával: csak a rögzített level mezőket tükrözi.",
+        "- Ha egy modulhoz az utolsó 7 napban nem tartozik esemény, az csak naplózási inaktivitást jelez; önmagában nem bizonyítja a modul leállását vagy ütemezési problémáját.",
+        "- Az eseményszám nem méri a válaszok minőségét, a felhasználói elégedettséget, az üzleti konverziót vagy a sikeres kézbesítést.",
+        "- A 7 napos összehasonlítás Europe/Budapest naptári napjai szerint készült; a százalékos változás nevezője az előző 7 nap eseményszáma.",
+    ])
+    if truncated:
+        lines.append("- **Adatlefedettségi korlát:** a lekérdezés elérte az 5000 rekordos korlátot, ezért az összesítés és a megfigyelt időszak nem feltétlenül teljes.")
+    lines.extend([
+        "",
+        "## 4. Rangsorolt javaslatok",
+        "1. **Automatizált modulok ütemezésének ellenőrzése:** csak akkor vizsgáld az email_sender, lead_gen vagy dynamic_scraper futását, ha ezeknek az adott héten működniük kellett volna. A naplóhiány önmagában nem bizonyít leállást.",
+        "2. **A naplózás teljességének ellenőrzése:** vesd össze a várt futások számát a rögzített eseményekkel, és külön naplózd a megkezdett, sikeres és sikertelen futásokat.",
+        "3. **A teljesítménymérés bővítése:** üzleti döntéshez külön mérd a feladat sikerességét, feldolgozási időt és üzleti eredményt; a puszta eseményszám ezek helyettesítésére nem alkalmas.",
+        "",
+        "## Adatforrás és módszertan",
+        "Forrás: Supabase public.logs; kizárólag module, level, message és created_at mezők. Nyers naplóüzenet nem kerül a jelentésbe. A projekt létrehozási időpontja külön, ellenőrzött projektmetaadat.",
+    ])
+    return "\n".join(lines)
+
+
 def _change_label(current: int, previous: int) -> str:
     if previous == 0:
         return "Új aktivitás" if current > 0 else "Nincs aktivitás"
