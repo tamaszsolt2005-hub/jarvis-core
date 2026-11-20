@@ -160,3 +160,31 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 - Az audit append-only alkalmazásszintű minta; adatbázis-szintű immutabilitás, adminisztrátori módosítások elleni védelem és retention policy nincs kialakítva.
 - A get_audit_events() lekérdezési segéd elkészült; külön, lapozható admin audit UI még nincs.
 - A leadkutatási és bejövő levél audit utólagos állapotot rögzít. A külső szolgáltatás és adatbázis közötti tranzakciós atomikusság nem garantált.
+
+ 
+## Adatbázis-mentés és visszaállítás – 2026-11-20
+
+**Éles Supabase-projekt olvasási ellenőrzése (Jarvis: `kiutreccucbegskxowek`):**
+- Projektállapot: `ACTIVE_HEALTHY`; PostgreSQL 17.11.0.019; EU West.
+- A `public` sémában 8 tábla: `leads` (11 sor), `posts` (0), `logs` (28), `settings` (1), `tasks` (0), `email_drafts` (0), `jarvis_memory` (0), `jarvis_proactive_state` (1). Mindegyiken RLS aktív.
+- A `posts` legacy táblát is tartalmazza a teljes public dump, a repository-sémától függetlenül.
+- A `storage.buckets` lekérdezés üres volt. A projekt bővítménykatalógusa több PostgreSQL-kiterjesztést tartalmaz; célprojektben a szükségeseket külön ellenőrizni kell.
+- Kizárólag olvasási lekérdezések futottak; éles adat nem módosult.
+
+**Előkészített repository-elemek:**
+- `scripts/supabase_backup.py`: Supabase CLI public schema + data dump, UTC időbélyeg és UUID, SHA-256 manifest, age titkosítás.
+- `.github/workflows/database-backup.yml`: napi 02:15 UTC és kézi indítás; hiányzó külső konfiguráció esetén skip; sikeres konfigurációval titkosított fájl feltöltése S3 prefixbe.
+- Visszaállítás: az éles projektazonosító kódszinten tiltott; csak külön allowlistelt, DB URL-lel egyező, üres sandbox célba engedélyezett; archívum- és hash-ellenőrzés; egyetlen SQL tranzakció.
+- `tests/test_supabase_backup.py`: mockolt biztonsági és archívumellenőrzési egységtesztek.
+- `.gitignore`: privát mentési könyvtárak és titkosított archívumok kizárva.
+
+**Külső konfiguráció még szükséges:**
+- GitHub Actions Secrets: `SUPABASE_DB_URL`, `BACKUP_AWS_ACCESS_KEY_ID`, `BACKUP_AWS_SECRET_ACCESS_KEY`.
+- GitHub Actions Variables: `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`.
+- Privát S3 bucket, korlátozott IAM, versioning és 30 napos lifecycle szabály.
+- Age privát kulcs elkülönített, offline tárolása.
+- Külön sandbox Supabase-projekt és integrációs visszaállítási próba; projektet költség/jóváhagyás nélkül nem hoztunk létre.
+
+**Lefedettségi korlát:** a logikai mentés a teljes `public` sémát és adatait fedi. Nem tartalmazza a Supabase kezelt `auth`, `storage`, `realtime` sémákat, Storage bináris fájlokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. A platform napi backup/PITR hozzáférhetősége csomagfüggő, a csomagot és beállítást nem ellenőriztük.
+
+**Állapot:** kód és workflow előkészítve; tényleges mentés, S3 feltöltés és sandbox visszaállítás még nem történt. Az éles DB változatlan maradt. A hozzá tartozó egységtesztek friss futása még nincs igazolva.
