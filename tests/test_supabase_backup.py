@@ -43,6 +43,7 @@ def test_restore_requires_explicit_allowlisted_sandbox(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", "abcdefghijklmnopqrst")
     monkeypatch.setenv("AGE_IDENTITY_FILE", str(tmp_path / "identity.txt"))
     (tmp_path / "identity.txt").write_text("not-a-real-key")
+    (tmp_path / "identity.txt").chmod(0o600)
     monkeypatch.setattr(backup.shutil, "which", lambda _: "/usr/bin/fake")
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="nem található"):
