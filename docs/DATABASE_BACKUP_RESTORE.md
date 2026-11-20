@@ -107,7 +107,8 @@ export AGE_IDENTITY_FILE='/secure/path/age-identity.txt'
 
 python scripts/supabase_backup.py restore \
   --archive .private-backups/jarvis-db-....tar.gz.age \
-  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \\\n  --confirm-restore
+  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \
+  --confirm-restore
 ```
 
 A parancs ellenőrzi:
