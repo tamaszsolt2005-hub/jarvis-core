@@ -55,9 +55,8 @@ def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
         raise BackupError(f"Hiányzó külső program: {args[0]}") from exc
     except subprocess.CalledProcessError as exc:
         # Never echo command arguments: they may contain a database URL/password.
-        detail = (exc.stderr or "").splitlines()
-        safe_detail = detail[-1][:300] if detail else "nincs részletes hibaüzenet"
-        raise BackupError(f"A(z) {args[0]} parancs hibával leállt: {safe_detail}") from exc
+        # stderr can contain connection details; do not expose it in console/logs.
+        raise BackupError(f"A(z) {args[0]} parancs hibával leállt. A részletes kimenet biztonsági okból elrejtve.") from exc
 
 
 def sha256_file(path: Path) -> str:
