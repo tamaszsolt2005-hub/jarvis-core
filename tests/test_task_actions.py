@@ -101,3 +101,17 @@ def test_completed_task_is_not_mutated_again():
     message = execute_task_action(db, {"type": "close", "id": TASK_ID})
     assert "már nem nyitott" in message
     assert db.updated is None
+
+
+def test_task_action_fails_closed_when_audit_log_is_unavailable(monkeypatch):
+    import task_actions
+
+    db = FakeDB()
+    monkeypatch.setattr(task_actions, "audit_event", lambda *args, **kwargs: False)
+
+    import pytest
+    with pytest.raises(RuntimeError, match="auditnapló"):
+        execute_task_action(
+            db, {"type": "create", "title": "Ne jöjjön létre", "priority": "normal"}
+        )
+    assert db.created is None
