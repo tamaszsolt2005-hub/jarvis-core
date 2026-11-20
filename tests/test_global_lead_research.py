@@ -92,6 +92,7 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
     monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(research, "audit_event", lambda *_args, **_kwargs: True)
 
     db = FakeDB()
     result = research.research_global_companies(db, "globális cégek", FakeClient(response))
@@ -129,6 +130,7 @@ def test_global_research_deduplicates_existing_company(monkeypatch):
     monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
     monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(research, "audit_event", lambda *_args, **_kwargs: True)
 
     db = FakeDB(existing=[{"company_name": "Acme Systems", "website": "https://acme.example"}])
     result = research.research_global_companies(db, "globális cégek", FakeClient(response))
@@ -224,6 +226,7 @@ def test_global_research_uses_configured_gemini_client_and_no_sampling_params(mo
     monkeypatch.setattr(research, "get_model_name", lambda: "gemini-3.8-flash")
     monkeypatch.setattr(research, "get_gemini_client", lambda: client)
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(research, "audit_event", lambda *_args, **_kwargs: True)
     result = research.research_global_companies(FakeDB(), "teszt leadkutatás")
     assert result["saved_count"] == 0
     assert "temperature" not in captured
