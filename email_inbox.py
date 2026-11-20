@@ -43,6 +43,33 @@ def _is_optout(subject: str, body: str) -> bool:
     return any(term in text for term in OPTOUT_TERMS)
 
 
+
+def _uids_to_process(uids: list[bytes], checkpoint: dict, uidvalidity: str) -> list[bytes]:
+    """Process the initial 200 messages, then every new UID since the last successful run."""
+    if not checkpoint or str(checkpoint.get("uidvalidity")) != str(uidvalidity):
+        return uids[-200:]
+    try:
+        last_uid = int(checkpoint.get("last_uid") or 0)
+    except (TypeError, ValueError):
+        last_uid = 0
+    return [uid for uid in uids if int(uid) > last_uid]
+
+
+def _load_checkpoint(db) -> dict:
+    rows = (
+        db.table("settings").select("value")
+        .eq("key", "email_inbox_uid_checkpoint").limit(1).execute().data or []
+    )
+    value = rows[0].get("value") if rows else {}
+    return value if isinstance(value, dict) else {}
+
+
+def _save_checkpoint(db, uidvalidity: str, last_uid: int) -> None:
+    db.table("settings").upsert({
+        "key": "email_inbox_uid_checkpoint",
+        "value": {"uidvalidity": str(uidvalidity), "last_uid": int(last_uid)},
+    }).execute()
+
 def run() -> int:
     if not env_bool("EMAIL_INBOX_MONITOR_ENABLED", False):
         print("Inbox-ellenőrzés kihagyva: EMAIL_INBOX_MONITOR_ENABLED nincs engedélyezve.")
@@ -60,15 +87,20 @@ def run() -> int:
         status, data = mailbox.uid("search", None, "ALL")
         if status != "OK":
             raise RuntimeError("Az IMAP INBOX keresése sikertelen.")
-        uids = (data[0] or b"").split()[-200:]
+        uids = (data[0] or b"").split()
+        uidvalidity_response = mailbox.response("UIDVALIDITY")
+        uidvalidity_data = (uidvalidity_response[1] or []) if uidvalidity_response else []
+        uidvalidity = uidvalidity_data[0].decode(errors="replace") if uidvalidity_data else "unknown"
+        checkpoint = _load_checkpoint(db)
+        pending_uids = _uids_to_process(uids, checkpoint, uidvalidity)
         leads = db.table("leads").select(
             "id,email,status,opted_out,last_inbound_message_id"
         ).not_.is_("email", "null").limit(5000).execute().data or []
         by_email = {str(row.get("email") or "").casefold(): row for row in leads}
-        for uid in uids:
+        for uid in pending_uids:
             status, fetched = mailbox.uid("fetch", uid, "(RFC822)")
             if status != "OK" or not fetched or not isinstance(fetched[0], tuple):
-                continue
+                raise RuntimeError("Egy új IMAP üzenet lekérése sikertelen; a UID checkpoint nem lépett tovább.")
             message = message_from_bytes(fetched[0][1])
             sender = parseaddr(message.get("From", ""))[1].casefold()
             lead = by_email.get(sender)
@@ -95,6 +127,8 @@ def run() -> int:
                 f"{'Leiratkozás' if opted_out else 'Válasz'} észlelve; utánkövetés leállítva (lead azonosító: {lead['id']})."
             )
             processed += 1
+        if uids:
+            _save_checkpoint(db, uidvalidity, int(uids[-1]))
     return processed
 
 
