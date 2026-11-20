@@ -116,3 +116,21 @@ A `jarvis.yml` és `jarvis-cron.yml` régi, letiltott no-op workflow-k; nem szab
 - TECHNICAL_DOCUMENTATION: tartós architektúra, modulok, adatfolyamok és biztonsági szabályok.
 
 Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dokumentációba. Minden új állapotállításhoz dátum és ellenőrzési forrás szükséges.
+
+
+## Hibakezelés és tesztelési bővítés – 2026-11-20
+
+**Kódban implementálva:**
+- A meglévő `jarvis_errors.py` központi jelentőjét megtartottuk; nem készült párhuzamos hibakezelő.
+- Az `email_sender.py` egyedi küldési hibái már a központi `report_error()` függvényt használják. Ha a küldés utáni státuszfrissítés is hibázik, az kritikus hibaként kerül jelentésre; a küldő továbbra sem próbál automatikusan vakon újraküldeni.
+- Az `email_sender.run()` váratlan pipeline-hibát központilag jelent, majd újra dobja, hogy a GitHub Actions futás hibásként látszódjon.
+- Az `email_inbox.run()` ugyanígy központilag jelent és újradobja a váratlan hibát. A hiba nem lesz elrejtve sikeres futásként.
+- Javítva az e-mailküldés letiltásakor naplózott figyelmeztetés szintje: a korábban használt `warn` helyett a támogatott `warning` érték szerepel.
+
+**Új tesztfájl:** `tests/test_error_resilience.py` – mockolt tesztek a naplóüzenetek titokszűrésére, a Supabase-naplózási hiba helyi fallbackjére, a kikapcsolt SMTP fail-closed működésére, az inbox- és sender-folyamat hibajelentésére, a hibák továbbdobására, hibás UID-re és hiányzó Supabase-konfigurációra.
+
+**Meglévő tesztek, amelyeket megtartottunk:** központi hibajelentés, közös Gemini/config segédek, task parser/végrehajtás, email workflow/consent/opt-out, SSRF-védett HTTP és lead scoring. A meglévő teszteket nem töröltük.
+
+**Tesztfuttatás:** ebben a munkamenetben nem sikerült helyi futtatást végezni: a futtatókörnyezet nem tudta elérni a GitHubot, így a Codespaces munkakönyvtár és a projekt függőségei nem voltak elérhetők. A CI futás eredményét sem sikerült lekérdezni. Ezért nincs igazolt új passed/failed tesztszám; a commitok megléte nem bizonyít tesztsikert.
+
+**Nyitott tesztelési területek:** a Streamlit dashboard teljes jóváhagyási/jogosultsági útvonala, valós vagy elkülönített Supabase tranzakciós viselkedés, párhuzamos e-mailküldés/atomikus deduplikáció, valamint SMTP/IMAP végponttól végpontig integráció. Az új tesztek mockoltak; nem végeznek valódi küldést vagy éles adatbázis-módosítást.
