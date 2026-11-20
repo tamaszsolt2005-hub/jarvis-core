@@ -291,3 +291,16 @@ Audit-integrációk:
 A dashboard naplókontextusa csak a strukturált, nem közvetlenül személyes auditmezőket tölti be a modell számára; recipient és subject nem kerül a Gemini promptba. A címzett és tárgy a jogosultsággal védett adatbázisban az audit-visszakeresés céljára marad.
 
 Korlátok: az append-only jelleg alkalmazásszintű, nem adatbázis-szintű immutabilitási garancia. Külön admin audit UI, export, retention policy és adminisztrátori módosítások elleni DB-védelem nincs kész. A külső SMTP/IMAP művelet és a Supabase naplózás nem egyetlen tranzakció; az SMTP elfogadás után fellépő audit-hiba bizonytalan naplóállapotot eredményezhet. A repository SQL megléte nem bizonyítja, hogy azt az élő Supabase-projekten lefuttatták.
+
+ 
+### 12.1 Titkosított adatbázis-mentés és biztonságos visszaállítás
+
+A `scripts/supabase_backup.py` a Supabase CLI `db dump` parancsával külön SQL-fájlba menti a teljes `public` sémát és a `public` adatait. A csomag `manifest.json` fájlt tartalmaz: UTC létrehozási idő, UUID-s mentésazonosító, forrásprojekt-azonosító, fájlméretek és SHA-256 hash-ek. A teljes archívum az `age` eszközzel, nyilvános recipient kulccsal titkosított. A fájlnév időbélyeget és UUID-t tartalmaz.
+
+A mentés az élő adatbázisból készül, ezért a repository sémájában nem szereplő élő `public.posts` táblát is megőrzi. A Supabase CLI dump nem tartalmazza a Supabase által kezelt `auth`, `storage`, `realtime` és egyéb platform-sémákat, a Storage fájlobjektumokat, a projektbeállításokat, titkokat, Vault root encryption key-t és custom role jelszavakat.
+
+A visszaállítás kizárólag külön, üres, engedélyezett sandbox projektbe történhet. A kód kódszinten tiltja a JARVIS éles projektazonosítót; egyezést követel a célazonosító, allowlist és DB URL között; ellenőrzi az archívum pontos fájlkészletét és hash-eit; elutasítja a nem üres public sémát; végül a sémát és adatokat egyetlen `psql --single-transaction` tranzakcióban futtatja. Ez nem éles adatbázis felülírására szolgáló eszköz.
+
+A napi 02:15 UTC GitHub Actions workflow külső S3-kompatibilis tárhelyre töltené a titkosított fájlt. Ehhez GitHub Actions Secrets és Variables, privát S3 bucket, szűk IAM-jogosultság, versioning, 30 napos lifecycle és elkülönített offline age privát kulcs szükséges. Ezek külső konfigurációk; a workflow hiányuk esetén kihagyja a futást. A platform napi backup/PITR csomagfüggő és külön ellenőrizendő. A dokumentált beállításokat és parancsokat a [DATABASE_BACKUP_RESTORE.md](DATABASE_BACKUP_RESTORE.md) tartalmazza.
+
+Az egységtesztek mockoltak; nem bizonyítanak valódi backupot, S3 feltöltést vagy visszaállítást. Sandbox integrációs próba még szükséges.
