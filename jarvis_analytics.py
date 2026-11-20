@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
 from html import escape
+import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -42,7 +43,7 @@ def _module_label(value: Any) -> str:
 
 def _activity_label(row: Any) -> str:
     module = str(row.get("module") or "").casefold()
-    message = str(row.get("message") or "").casefold()
+    message = str(row.get("message") or "").casefold().split("|", 1)[0]
     level = str(row.get("level") or "info").casefold()
     if level in {"error", "critical", "fatal"}:
         return "Hibajelzés"
@@ -134,8 +135,9 @@ def build_chat_analytics_context(
         now_utc = pd.Timestamp(current_local.astimezone(timezone.utc))
         current = frame[(frame["created_at_utc"] >= start_utc) & (frame["created_at_utc"] <= now_utc)]
         previous = frame[(frame["created_at_utc"] >= previous_start_utc) & (frame["created_at_utc"] < start_utc)]
-        chat_requests = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_request")).sum())
-        chat_responses = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_response")).sum())
+        chat_messages = current.loc[current["module"].str.casefold() == "chat", "message"].str.split("|", n=1).str[0]
+        chat_requests = int((chat_messages == "chat_request").sum())
+        chat_responses = int((chat_messages == "chat_response").sum())
         errors = int(current["level"].isin(["error", "critical", "fatal"]).sum())
         warnings = int(current["level"].isin(["warn", "warning"]).sum())
         modules = current["module"].value_counts().to_dict()
@@ -215,7 +217,8 @@ def build_executive_analytics_report(
     def count_chat(data: pd.DataFrame, event: str) -> int:
         if data.empty:
             return 0
-        return int(((data["module"].str.casefold() == "chat") & (data["message"] == event)).sum())
+        messages = data.loc[data["module"].str.casefold() == "chat", "message"].str.split("|", n=1).str[0]
+        return int((messages == event).sum())
 
     total = len(recent30)
     errors = count_level(recent30, {"error", "critical", "fatal"})
@@ -224,6 +227,35 @@ def build_executive_analytics_report(
     active_modules = len(module_counts)
     requests = count_chat(recent30, "chat_request")
     responses = count_chat(recent30, "chat_response")
+
+    # Only UUID-linked events are eligible for outcome classification.
+    # Legacy events without an ID remain visible as unlinked, never guessed.
+    linked_requests: set[str] = set()
+    linked_responses: set[str] = set()
+    linked_errors: set[str] = set()
+    legacy_requests = legacy_responses = 0
+    if not recent30.empty:
+        for row in recent30.loc[recent30["module"].str.casefold() == "chat", ["message"]].itertuples(index=False):
+            match = re.fullmatch(r"(chat_request|chat_response|chat_error)(?:\\|request_id=([0-9a-f]{32}))?", row.message)
+            if not match:
+                continue
+            event, event_id = match.groups()
+            if event_id is None:
+                if event == "chat_request":
+                    legacy_requests += 1
+                elif event == "chat_response":
+                    legacy_responses += 1
+            elif event == "chat_request":
+                linked_requests.add(event_id)
+            elif event == "chat_response":
+                linked_responses.add(event_id)
+            elif event == "chat_error":
+                linked_errors.add(event_id)
+    successful_requests = len(linked_requests & linked_responses - linked_errors)
+    failed_requests = len(linked_requests & linked_errors)
+    unfinished_requests = len(linked_requests - linked_responses - linked_errors)
+    unlinked_requests = legacy_requests
+    unlinked_responses = legacy_responses
     previous_total, last_total = len(previous7), len(last7)
     if previous_total:
         delta_text = f"{(last_total - previous_total) / previous_total * 100:+.1f}%"
@@ -261,6 +293,8 @@ def build_executive_analytics_report(
         f"- Hibaszintű esemény (error/critical/fatal): **{errors}** ({errors / total * 100:.1f}% a naplózott eseményekből)." if total else "- Hibaszintű esemény: 0 (nincs esemény, ezért hibaarány nem számítható).",
         f"- Figyelmeztetés (warn/warning): **{warnings}** ({warnings / total * 100:.1f}% a naplózott eseményekből)." if total else "- Figyelmeztetés: 0 (nincs esemény, ezért arány nem számítható).",
         f"- Chatkérések: **{requests}**; AI-válasz események: **{responses}**.",
+        f"- Azonosítóval összerendelt kérések: sikeres **{successful_requests}**, sikertelen **{failed_requests}**, befejezetlen **{unfinished_requests}**.",
+        f"- Régi, request_id nélküli események: kérés **{unlinked_requests}**, válasz **{unlinked_responses}** (ezek nem rendelhetők össze megbízhatóan).",
         f"- Aktív modulok száma: **{active_modules}**.",
         "",
         "**Modulonkénti eseményszám (30 nap):**",
@@ -294,6 +328,7 @@ def build_executive_analytics_report(
         "- A 0 naplózott hibaszintű esemény nem azonos a 0 tényleges hibával: csak a rögzített level mezőket tükrözi.",
         "- Ha egy modulhoz az utolsó 7 napban nem tartozik esemény, az csak naplózási inaktivitást jelez; önmagában nem bizonyítja a modul leállását vagy ütemezési problémáját.",
         "- Az eseményszám nem méri a válaszok minőségét, a felhasználói elégedettséget, az üzleti konverziót vagy a sikeres kézbesítést.",
+        "- A sikeres/sikertelen/befejezetlen bontás kizárólag azonosítóval összekapcsolt, a vizsgált időablakban naplózott kérésekre vonatkozik; a régi azonosító nélküli események külön szerepelnek.",
         "- A 7 napos összehasonlítás Europe/Budapest naptári napjai szerint készült; a százalékos változás nevezője az előző 7 nap eseményszáma.",
     ])
     if truncated:
@@ -306,7 +341,7 @@ def build_executive_analytics_report(
         "3. **A teljesítménymérés bővítése:** üzleti döntéshez külön mérd a feladat sikerességét, feldolgozási időt és üzleti eredményt; a puszta eseményszám ezek helyettesítésére nem alkalmas.",
         "",
         "## Adatforrás és módszertan",
-        "Forrás: Supabase public.logs; kizárólag module, level, message és created_at mezők. Nyers naplóüzenet nem kerül a jelentésbe. A projekt létrehozási időpontja külön, ellenőrzött projektmetaadat.",
+        "Forrás: Supabase public.logs; module, level, message és created_at mezők. A kérés- és válaszesemények request_id alapján kapcsolódnak; nyers naplóüzenet nem kerül a jelentésbe. A projekt létrehozási időpontja külön, ellenőrzött projektmetaadat.",
     ])
     return "\n".join(lines)
 
