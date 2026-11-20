@@ -18,7 +18,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
 
 PRODUCTION_PROJECT_REF = "kiutreccucbegskxowek"
 BACKUP_PREFIX = "jarvis-db"
@@ -42,6 +42,34 @@ def project_ref_from_db_url(db_url: str) -> str:
     if pooler and "pooler.supabase.com" in host:
         return pooler.group(1)
     raise BackupError("A DB URL-ből nem állapítható meg biztonságosan a Supabase projektazonosító.")
+
+
+
+def _pgpass_escape(value: str) -> str:
+    return value.replace("\\\\", "\\\\\\\\").replace(":", "\\:")
+
+
+def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str]]:
+    """Move the DB password out of argv into child-process environment/0600 pgpass."""
+    parsed = urlsplit(db_url)
+    if not parsed.hostname or not parsed.username or not parsed.password:
+        raise BackupError("A DB URL-nek hostot, felhasználót és jelszót kell tartalmaznia.")
+    username = unquote(parsed.username)
+    password = unquote(parsed.password)
+    port = parsed.port or 5432
+    database = parsed.path.lstrip("/") or "postgres"
+    pgpass = work / "pgpass"
+    pgpass.write_text(
+        ":".join(_pgpass_escape(v) for v in (parsed.hostname, str(port), database, username, password)) + "\\n",
+        encoding="utf-8",
+    )
+    pgpass.chmod(0o600)
+    env = os.environ.copy()
+    env["PGPASSFILE"] = str(pgpass)
+    env["PGPASSWORD"] = password
+    safe_netloc = f"{quote(username, safe='')}@{parsed.hostname}:{port}"
+    safe_url = urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, parsed.fragment))
+    return safe_url, env
 
 
 def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
