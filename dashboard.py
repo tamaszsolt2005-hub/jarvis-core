@@ -764,6 +764,8 @@ if prompt:
         market_change = None
         research_prompt = None
         task_action = None
+        requested_chat_email = False
+        chat_email_action = None
         if q in {"elutasítom", "elutasitom", "mégse", "megse", "ne hajtsd végre", "ne hajtsd vegre"}:
             if pending_action:
                 st.session_state.pop("_jarvis_pending_action", None)
@@ -776,6 +778,7 @@ if prompt:
                 research_prompt = pending_action.get("research_prompt")
                 task_action = pending_action.get("task_action")
                 chat_email = pending_action.get("chat_email")
+                chat_email_action = chat_email
                 st.session_state.pop("_jarvis_pending_action", None)
                 if chat_email:
                     stage = "Jóváhagyott chatből indított e-mail"
@@ -810,6 +813,7 @@ if prompt:
                     stage = "Chatből indított e-mail-tervezet"
                     subject, body = build_chat_email_draft(prompt, generate_text)
                     chat_email = {"recipient": recipient, "subject": subject, "body": body}
+                    chat_email_action = chat_email
                     st.session_state["_jarvis_pending_action"] = {
                         "market": None, "research_prompt": None, "task_action": None,
                         "chat_email": chat_email,
@@ -995,6 +999,9 @@ if prompt:
                     max_output_tokens=response_token_budget,
                     on_status=lambda message: response_status.update(label=message, state="running"),
                     )
+                if requested_chat_email or chat_email_action:
+                    # Show the exact draft/action notice, not a model paraphrase.
+                    answer = approval_notice
                 if not answer:
                     raise RuntimeError("A Gemini üres választ adott vissza.")
                 log_event(db, "chat", "chat_response")
