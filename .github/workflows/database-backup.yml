@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: jarvis-database-backup
@@ -17,13 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      JARVIS_BACKUP_SOURCE_PROJECT_REF: ${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
-      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
-      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL }}
+      JARVIS_BACKUP_SOURCE_PROJECT_REF: \${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
+      BACKUP_AGE_RECIPIENT: \${{ vars.BACKUP_AGE_RECIPIENT }}
+      BACKUP_S3_BUCKET: \${{ vars.BACKUP_S3_BUCKET }}
+      AWS_DEFAULT_REGION: \${{ vars.BACKUP_AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,13 +35,12 @@ jobs:
           [[ -n "$SUPABASE_DB_URL" ]] || missing+=("SUPABASE_DB_URL secret")
           [[ -n "$JARVIS_BACKUP_SOURCE_PROJECT_REF" ]] || missing+=("JARVIS_BACKUP_SOURCE_PROJECT_REF variable")
           [[ -n "$BACKUP_AGE_RECIPIENT" ]] || missing+=("BACKUP_AGE_RECIPIENT variable")
-          [[ -n "$AWS_ACCESS_KEY_ID" ]] || missing+=("BACKUP_AWS_ACCESS_KEY_ID secret")
-          [[ -n "$AWS_SECRET_ACCESS_KEY" ]] || missing+=("BACKUP_AWS_SECRET_ACCESS_KEY secret")
-          [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
           [[ -n "$BACKUP_S3_BUCKET" ]] || missing+=("BACKUP_S3_BUCKET variable")
-          if (( ${#missing[@]} )); then
+          [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
+          [[ -n "\${{ secrets.AWS_BACKUP_ROLE_ARN }}" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
+          if (( \${#missing[@]} )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Backup skipped; missing external configuration: ${missing[*]}"
+            echo "::notice::Backup skipped; missing external configuration: \${missing[*]}"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -53,26 +51,36 @@ jobs:
         with:
           version: latest
 
-      - name: Install age
+      - name: Install age and AWS CLI
         if: steps.config.outputs.ready == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes age
+          sudo apt-get install --yes age awscli
 
       - name: Create encrypted logical backup
         if: steps.config.outputs.ready == 'true'
         run: python3 scripts/supabase_backup.py backup --output-dir .private-backups
 
-      - name: Upload encrypted backup to private S3-compatible bucket
+      - name: Configure AWS role through GitHub OIDC
+        if: steps.config.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: \${{ secrets.AWS_BACKUP_ROLE_ARN }}
+          aws-region: \${{ vars.BACKUP_AWS_REGION }}
+
+      - name: Upload encrypted backup to private S3 bucket
         if: steps.config.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
           file="$(find .private-backups -maxdepth 1 -type f -name '*.tar.gz.age' -print -quit)"
           [[ -n "$file" ]]
-          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" \
-            --sse AES256 --only-show-errors
+          aws s3 cp "$file" "s3://\${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" --sse aws:kms --only-show-errors
 
       - name: Report skipped configuration
         if: steps.config.outputs.ready != 'true'
-        run: echo "A mentés automatizmusa elő van készítve, de külső tárhely/titkosítási konfiguráció nélkül nem futott." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "A mentés nincs konfigurálva; külső szolgáltatás hiányában nem futott." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove local backup files
+        if: always()
+        run: rm -rf .private-backups
