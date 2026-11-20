@@ -904,7 +904,7 @@ if prompt:
             "bizonytalanságot. Csak approved_to_contact=true és opted_out=false rekordot javasolhatsz "
             "kapcsolatfelvételre; hiányzó engedély nem jelent beleegyezést. "
             "Az automatikus e-mail-küldés nincs engedélyezve. "
-            "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva. "
+            "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva. Hosszabb vezetői jelentésnél is adj teljes, lezárt választ; ha tömöríteni kell, a kevésbé fontos részleteket rövidítsd, de ne hagyj félbe mondatot vagy felsorolást. "
             "A válasz elején add meg a közvetlen választ vagy vezetői következtetést. "
             "Válaszd külön az adatból látható tényeket, az ezekből levont következtetéseket és a javasolt lépéseket. "
             "Minden fontos állítást köss konkrét adatmezőhöz, forráshoz, mintanagysághoz vagy kifejezetten rögzített tapasztalathoz. "
