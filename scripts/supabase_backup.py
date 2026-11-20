@@ -46,11 +46,11 @@ def project_ref_from_db_url(db_url: str) -> str:
 
 
 def _pgpass_escape(value: str) -> str:
-    return value.replace("\\\\", "\\\\\\\\").replace(":", "\\:")
+    return value.replace("\\", "\\\\").replace(":", "\\:").replace("\r", "").replace("\n", "")
 
 
 def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str]]:
-    """Move the DB password out of argv into child-process environment/0600 pgpass."""
+    """Move the DB password out of argv into a private pgpass file."""
     parsed = urlsplit(db_url)
     if not parsed.hostname or not parsed.username or not parsed.password:
         raise BackupError("A DB URL-nek hostot, felhasználót és jelszót kell tartalmaznia.")
@@ -60,7 +60,7 @@ def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str
     database = parsed.path.lstrip("/") or "postgres"
     pgpass = work / "pgpass"
     pgpass.write_text(
-        ":".join(_pgpass_escape(v) for v in (parsed.hostname, str(port), database, username, password)) + "\\n",
+        ":".join(_pgpass_escape(v) for v in (parsed.hostname, str(port), database, username, password)) + "\n",
         encoding="utf-8",
     )
     pgpass.chmod(0o600)
@@ -68,7 +68,7 @@ def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str
     env["PGPASSFILE"] = str(pgpass)
     env["PGPASSWORD"] = password
     safe_netloc = f"{quote(username, safe='')}@{parsed.hostname}:{port}"
-    safe_url = urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, parsed.fragment))
+    safe_url = urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, ""))
     return safe_url, env
 
 
