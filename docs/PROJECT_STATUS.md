@@ -65,7 +65,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-Legutóbbi felhasználó által visszaigazolt eredmény: **154 passed, 0 failed** (2026-11-20). Ez a teljes helyi tesztcsomag eredménye az adaptív válaszhossz-szabályozást is tartalmazó kódállapoton. A tesztek a kód szerződéses és egységszintű működését ellenőrzik; nem helyettesítik a külső szolgáltatásokkal végzett éles végponttól végpontig tesztet.
+Legutóbbi felhasználó által visszaigazolt eredmény az e-mail-fejlesztés előtti kódállapoton: **154 passed, 0 failed** (2026-11-20). Az azóta bekerült e-mail-funkciók új tesztjei még nem futottak le a felhasználó Codespaces környezetében. A tesztek a kód szerződéses és egységszintű működését ellenőrzik; nem helyettesítik a külső szolgáltatásokkal végzett éles végponttól végpontig tesztet.
 
 ### Közvetlen Supabase-ellenőrzés
 2026-11-20-án a megfelelő Jarvis projektben kizárólag olvasó SQL-lekérdezések futottak. Az adatbázis nem módosult.
@@ -116,7 +116,7 @@ streamlit run dashboard.py --server.port 8501
 
 ## Tudatosan nem bekapcsolt funkciók
 
-- Automatikus e-mail-küldés.
+- Éles SMTP/IMAP e-mailküldés; a kód elkészült, de a szerveroldali titkok és biztonsági kapcsolók alapértelmezetten nincsenek bekapcsolva, a végponttól végpontig teszt hátravan.
 - Leadek automatikus kapcsolatfelvételi engedélyezése.
 - Nyers chatkérések és AI-válaszok tartalmának naplózása.
 - Anonim vagy bejelentkezett böngészői szerepkörök közvetlen hozzáférése az alkalmazástáblákhoz.
