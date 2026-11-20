@@ -85,3 +85,33 @@ def test_archive_manifest_and_hashes_are_verified(tmp_path):
     (extracted / "data.sql").write_text("tampered")
     with pytest.raises(backup.BackupError, match="ellenőrzőösszege"):
         backup._safe_extract(archive, tmp_path / "tampered_extract")
+
+
+def test_restore_refuses_nonempty_sandbox_without_running_restore(monkeypatch, tmp_path):
+    target_ref = "abcdefghijklmnopqrst"
+    monkeypatch.setenv("JARVIS_RESTORE_DB_URL", f"postgresql://postgres:pw@db.{target_ref}.supabase.co:5432/postgres")
+    monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", target_ref)
+    identity = tmp_path / "identity.txt"
+    identity.write_text("test-only-placeholder")
+    monkeypatch.setenv("AGE_IDENTITY_FILE", str(identity))
+    archive = tmp_path / "backup.tar.gz.age"
+    archive.write_bytes(b"encrypted-placeholder")
+    monkeypatch.setattr(backup.shutil, "which", lambda _: "/usr/bin/fake")
+    monkeypatch.setattr(backup, "_safe_extract", lambda *_: {"source_project_ref": backup.PRODUCTION_PROJECT_REF})
+    with patch.object(backup, "run_checked", side_effect=["", "2"]) as runner:
+        with pytest.raises(backup.BackupError, match="nem üres"):
+            backup.restore_backup(archive, target_ref)
+        assert runner.call_count == 2
+        assert runner.call_args_list[-1].args[0][0] == "psql"
+        assert "--file" not in runner.call_args_list[-1].args[0]
+
+
+def test_restore_rejects_db_url_allowlist_mismatch(monkeypatch, tmp_path):
+    monkeypatch.setenv("JARVIS_RESTORE_DB_URL", "postgresql://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/postgres")
+    monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", "abcdefghijklmnopqrst")
+    monkeypatch.setenv("AGE_IDENTITY_FILE", str(tmp_path / "identity.txt"))
+    (tmp_path / "identity.txt").write_text("test-only-placeholder")
+    with patch.object(backup, "run_checked") as runner:
+        with pytest.raises(backup.BackupError, match="nem egyezik"):
+            backup.restore_backup(tmp_path / "backup.tar.gz.age", "bcdefghijklmnopqrstu")
+        runner.assert_not_called()
