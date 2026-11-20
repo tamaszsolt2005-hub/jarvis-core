@@ -65,8 +65,7 @@ Workflow: `.github/workflows/database-backup.yml`
 
 GitHub Actions **Secrets**:
 - `SUPABASE_DB_URL`
-- `BACKUP_AWS_ACCESS_KEY_ID`
-- `BACKUP_AWS_SECRET_ACCESS_KEY`
+- `AWS_BACKUP_ROLE_ARN` (GitHub OIDC-vel felvehető, szűk jogosultságú AWS IAM role ARN)
 
 GitHub Actions **Variables**:
 - `JARVIS_BACKUP_SOURCE_PROJECT_REF` = `kiutreccucbegskxowek`
@@ -74,7 +73,7 @@ GitHub Actions **Variables**:
 - `BACKUP_AWS_REGION`
 - `BACKUP_S3_BUCKET`
 
-A workflow hiányzó beállítás esetén kihagyja a mentést, és jelzést tesz a futás összefoglalójába. Ha minden konfiguráció rendelkezésre áll, a titkosított fájlt a privát S3 bucket `jarvis/database/` prefixébe tölti.
+A workflow hiányzó beállítás esetén kihagyja a mentést, és jelzést tesz a futás összefoglalójába. Ha minden konfiguráció rendelkezésre áll, rövid életű GitHub OIDC hitelesítéssel lép be az AWS role-ba, majd a titkosított fájlt a privát S3 bucket `jarvis/database/` prefixébe tölti. Hosszú életű AWS access key/secret key nincs a workflow-ban.
 
 **Még beállítandó az S3 szolgáltatónál:**
 - privát bucket, nyilvános hozzáférés teljes tiltása;
@@ -95,6 +94,7 @@ Előfeltételek:
 - külön Supabase tesztprojekt, amelynek azonosítója nem az éles projekt;
 - a célprojekt `public` sémája teljesen üres;
 - külön cél DB URL;
+- `--confirm-restore` explicit kapcsoló;
 - az age privát kulcs fájlja, amelynek útvonalát az `AGE_IDENTITY_FILE` változó tartalmazza;
 - `JARVIS_RESTORE_ALLOWED_PROJECT_REF` értéke pontosan a jóváhagyott sandbox projektazonosító.
 
@@ -107,11 +107,12 @@ export AGE_IDENTITY_FILE='/secure/path/age-identity.txt'
 
 python scripts/supabase_backup.py restore \
   --archive .private-backups/jarvis-db-....tar.gz.age \
-  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \
+  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \\
+  --confirm-restore \
   --confirm-restore
 ```
 
-A parancs ellenőrzi:
+A parancs explicit `--confirm-restore` megerősítést követel. A parancs ellenőrzi:
 1. a célprojekt nem az éles JARVIS-projekt;
 2. a célazonosító egyezik a külön allowlisttel és a DB URL-ben található azonosítóval;
 3. a forrás és cél különböző projekt;
