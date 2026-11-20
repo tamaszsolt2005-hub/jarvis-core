@@ -307,11 +307,27 @@ def audit_event(
         f"{type(error).__name__}: {error}" if isinstance(error, BaseException) else error,
         max_length=1500,
     ) if error else None
+    def sanitize_result(value: Any, depth: int = 0) -> Any:
+        if depth > 4:
+            return "[DEPTH_LIMIT]"
+        if isinstance(value, str):
+            return sanitize_log_text(value, max_length=500)
+        if isinstance(value, dict):
+            return {
+                sanitize_log_text(str(key), max_length=80):
+                sanitize_result(item, depth + 1)
+                for key, item in list(value.items())[:50]
+            }
+        if isinstance(value, (list, tuple)):
+            return [sanitize_result(item, depth + 1) for item in value[:50]]
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        return sanitize_log_text(str(value), max_length=500)
+
     try:
-        safe_result = (
-            json.dumps(result, ensure_ascii=False, default=str)[:2000]
-            if result is not None else None
-        )
+        safe_result = sanitize_result(result) if result is not None else None
+        if safe_result is not None and len(json.dumps(safe_result, ensure_ascii=False, default=str)) > 2000:
+            safe_result = {"truncated": True}
     except (TypeError, ValueError):
         safe_result = None
 
