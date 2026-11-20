@@ -213,4 +213,4 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 
 A Supabase Auth és Storage platform-sémák, Storage fájlbinárisok, platformtitkok és külső szolgáltatások nem részei a public sémás logikai mentésnek; ezekhez külön platform backup/PITR és Storage export kell. A feladat során az éles Supabase-adatbázist nem módosítottuk, visszaállítást nem futtattunk.
 
-**Tesztállapot:** a korábban jelentett `161 passed in 3.05s` futás a mentési fejlesztés előtti állapotot igazolja. Az új backup tesztek után friss teljes tesztfuttatás még nem áll rendelkezésre; nem állítunk friss sikeres teszteredményt.
+**Tesztállapot:** a GitHub Actions CI legutóbbi teljes futása a `978fed6481ea41ba8c4334a403943d2b996a164b` commiton sikeres: `python -m compileall -q .` és **194 passed in 2.22s**, 0 sikertelen teszt. A 13 új adatbázis-mentési/visszaállítási biztonsági egységteszt is benne van. [GitHub Actions futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683). Ez automatizált tesztbizonyíték; nem helyettesíti a valós S3 mentést és sandbox restore próbát.
