@@ -236,8 +236,10 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
 
         combined = work / "restore.sql"
         combined.write_text(
-            (work / "schema.sql").read_text(encoding="utf-8") + chr(10) +
-            (work / "data.sql").read_text(encoding="utf-8"),
+            "-- Restrict default table privileges before restoring the public schema.\\n"
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\\n"
+            + (work / "schema.sql").read_text(encoding="utf-8") + chr(10)
+            + (work / "data.sql").read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         run_checked([
