@@ -151,7 +151,9 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
     return manifest
 
 
-def restore_backup(archive_path: Path, target_ref: str) -> None:
+def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False) -> None:
+    if not confirmed:
+        raise BackupError("A visszaállításhoz explicit --confirm-restore megerősítés szükséges.")
     db_url = os.environ.get("JARVIS_RESTORE_DB_URL", "")
     allowed_ref = os.environ.get("JARVIS_RESTORE_ALLOWED_PROJECT_REF", "")
     identity = os.environ.get("AGE_IDENTITY_FILE", "")
@@ -215,6 +217,7 @@ def main() -> int:
     restore_parser = sub.add_parser("restore", help="Restore only into a fresh, explicitly allowed non-production project")
     restore_parser.add_argument("--archive", type=Path, required=True)
     restore_parser.add_argument("--target-project-ref", required=True)
+    restore_parser.add_argument("--confirm-restore", action="store_true")
     args = parser.parse_args()
 
     try:
@@ -222,7 +225,7 @@ def main() -> int:
             result = create_backup(args.output_dir)
             print(f"Titkosított mentés elkészült: {result.name}")
         else:
-            restore_backup(args.archive, args.target_project_ref)
+            restore_backup(args.archive, args.target_project_ref, args.confirm_restore)
             print("A visszaállítás befejeződött az elkülönített célprojektben.")
     except (BackupError, OSError, tarfile.TarError, json.JSONDecodeError) as exc:
         parser.exit(2, f"HIBA: {exc}\n")
