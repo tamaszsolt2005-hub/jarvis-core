@@ -67,7 +67,11 @@ A háttérküldés további kapcsolói:
 
 A kapcsolók alapértelmezése biztonsági okból kikapcsolt. A Codespaces Secrets és a GitHub Actions Secrets külön környezetek; egyik nem helyettesíti automatikusan a másikat. A titkok értékét soha ne tedd dokumentációba vagy Gitbe.
 
-## Adatbázis-mentés és visszaállítás\n\nA titkosított Supabase-mentési és kizárólag elkülönített tesztprojektbe engedélyezett visszaállítási eljárást a [DATABASE_BACKUP_RESTORE.md](docs/DATABASE_BACKUP_RESTORE.md) dokumentálja. A workflow külső S3-kompatibilis tárhely és age titkosítási kulcs konfigurációja nélkül kihagyja a mentést; a GitHub-repozitórium nem tárol adatbázis-mentést.\n\n## Tesztelés
+## Adatbázis-mentés és visszaállítás
+
+A titkosított Supabase-mentési és kizárólag elkülönített, üres tesztprojektbe engedélyezett visszaállítási eljárást a [DATABASE_BACKUP_RESTORE.md](docs/DATABASE_BACKUP_RESTORE.md) dokumentálja. A napi workflow külső adatbázis-kapcsolat, age kulcs, privát S3 tárhely és AWS OIDC konfiguráció nélkül kihagyja a mentést. A GitHub-repozitórium nem tárol adatbázis-mentést.
+
+## Tesztelés
 
 ```bash
 python -m compileall -q .
@@ -80,5 +84,6 @@ A mockolt egységtesztek nem helyettesítik a Gemini-, Supabase-, SMTP- és IMAP
 
 - [Projektállapot](docs/PROJECT_STATUS.md) – aktuálisan elkészült, tesztelt, ellenőrzött és még nyitott feladatok.
 - [Műszaki dokumentáció](docs/TECHNICAL_DOCUMENTATION.md) – architektúra, modulok, adatfolyamok, adatmodell és biztonsági szabályok.
+- [Adatbázis-mentés és visszaállítás](docs/DATABASE_BACKUP_RESTORE.md) – titkosított mentés, tárolás és izolált visszaállítás.
 
 **Dokumentációs irányelv:** a README a felhasználói áttekintés és indítási útmutató. A változó teszt- és üzemállapotot ne másold ide; azt a PROJECT_STATUS dokumentumban tartsd naprakészen.
