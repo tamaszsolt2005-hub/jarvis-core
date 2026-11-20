@@ -48,10 +48,9 @@ A napi `JARVIS Email Automation` workflow 09:15 UTC-kor fut, és kézzel is ind�
 - `GEMINI_API_KEY`
 - `EMAIL_USER`, `EMAIL_PASSWORD`
 - `EMAIL_DELIVERY_ENABLED=true`, `AUTO_SEND_ENABLED=true`, `EMAIL_INBOX_MONITOR_ENABLED=true`
-- `CHAT_EMAIL_ENABLED=true` csak akkor, ha a chatből indított küldést is engedélyezni szeretnéd a Streamlit szerverkörnyezetben
 - Opcionális: `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST`, `IMAP_PORT`
 
-A hiányzó vagy nem `true` biztonsági kapcsolók esetén a workflow kihagyja a küldést. A Codespaces Secrets és a GitHub Actions Secrets külön konfiguráció. A titkokat soha ne commitold vagy küldd el chatben.
+A hiányzó vagy nem `true` biztonsági kapcsolók esetén a workflow kihagyja a küldést. A chatből indított levelekhez a Streamlit/Codespaces szerverkörnyezetben külön állítsd be a `CHAT_EMAIL_ENABLED=true` kapcsolót (az `EMAIL_DELIVERY_ENABLED=true` mellett). A Codespaces Secrets és a GitHub Actions Secrets külön konfiguráció. A titkokat soha ne commitold vagy küldd el chatben.
 
 A jelenlegi kód a már létező `leads` mezőket használja; új Supabase-tábla vagy jogosultságmódosítás nem szükséges. Az e-mailküldési funkció kódja és tesztjei elkészültek, de az SMTP/IMAP éles konfigurációja és a teljes végponttól végpontig teszt még nincs igazolva.
 ## Globális leadkutatás
