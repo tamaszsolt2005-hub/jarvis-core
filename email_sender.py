@@ -4,8 +4,9 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
-from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event
+from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event, audit_event
 from jarvis_errors import report_error
 from lead_scoring import score_lead
 from web_auditor import audit_company_website
@@ -98,6 +99,17 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 }).eq("id", lead["id"]).eq("status", claim_status).execute()
             log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warning")
             return False
+        operation_id = str(uuid4())
+        audit_fields = {
+            "module": "email_sender",
+            "action": "send_follow_up_email" if follow_up else "send_first_contact_email",
+            "operation_id": operation_id,
+            "recipient": str(lead["email"]),
+            "subject": subject,
+            "approved": True,
+        }
+        if not audit_event(db, status="pending", **audit_fields):
+            raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
         message_id = send_email(str(lead["email"]), subject, body)
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
@@ -121,9 +133,20 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
             }
             label = "Első levél elküldve"
         db.table("leads").update(values).eq("id", lead["id"]).eq("status", claim_status).execute()
+        if not audit_event(
+            db, status="success", delivery_id=message_id or None,
+            result={"smtp_accepted": True, "follow_up": follow_up},
+            **audit_fields,
+        ):
+            raise RuntimeError("Az SMTP átvette a levelet, de a sikeres auditbejegyzés nem menthető.")
         log_event(db, "email_sender", f"{label}: {lead.get('company_name')}")
         return True
     except Exception as exc:
+        if "audit_fields" in locals():
+            audit_event(
+                db, status="failed", error=exc, level="error",
+                **audit_fields,
+            )
         report_error(
             exc, module="email_sender", operation="send_one", severity="error", db=db
         )
