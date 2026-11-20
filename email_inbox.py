@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import imaplib
-import re
 from email import message_from_bytes
 from email.header import decode_header
 from email.utils import parseaddr
@@ -96,7 +95,6 @@ def run() -> int:
                 f"{'Leiratkozás' if opted_out else 'Válasz'} észlelve; utánkövetés leállítva (lead azonosító: {lead['id']})."
             )
             processed += 1
-        mailbox.logout()
     return processed
 
 
