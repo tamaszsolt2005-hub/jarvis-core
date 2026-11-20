@@ -102,7 +102,7 @@ def test_restore_refuses_nonempty_sandbox_without_running_restore(monkeypatch, t
     monkeypatch.setattr(backup, "_safe_extract", lambda *_: {"source_project_ref": backup.PRODUCTION_PROJECT_REF})
     with patch.object(backup, "run_checked", side_effect=["", "2"]) as runner:
         with pytest.raises(backup.BackupError, match="nem üres"):
-            backup.restore_backup(archive, target_ref)
+            backup.restore_backup(archive, target_ref, confirmed=True)
         assert runner.call_count == 2
         assert runner.call_args_list[-1].args[0][0] == "psql"
         assert "--file" not in runner.call_args_list[-1].args[0]
@@ -115,7 +115,7 @@ def test_restore_rejects_db_url_allowlist_mismatch(monkeypatch, tmp_path):
     (tmp_path / "identity.txt").write_text("test-only-placeholder")
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="nem egyezik"):
-            backup.restore_backup(tmp_path / "backup.tar.gz.age", "bcdefghijklmnopqrstu")
+            backup.restore_backup(tmp_path / "backup.tar.gz.age", "bcdefghijklmnopqrstu", confirmed=True)
         runner.assert_not_called()
 
 def test_restore_requires_explicit_confirmation(monkeypatch, tmp_path):
