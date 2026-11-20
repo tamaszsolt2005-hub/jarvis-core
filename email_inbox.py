@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import imaplib
+
+from jarvis_errors import report_error
 from email import message_from_bytes
 from email.header import decode_header
 from email.utils import parseaddr
@@ -70,7 +72,7 @@ def _save_checkpoint(db, uidvalidity: str, last_uid: int) -> None:
         "value": {"uidvalidity": str(uidvalidity), "last_uid": int(last_uid)},
     }).execute()
 
-def run() -> int:
+def _run() -> int:
     if not env_bool("EMAIL_INBOX_MONITOR_ENABLED", False):
         print("Inbox-ellenőrzés kihagyva: EMAIL_INBOX_MONITOR_ENABLED nincs engedélyezve.")
         return 0
@@ -130,6 +132,17 @@ def run() -> int:
         if uids:
             _save_checkpoint(db, uidvalidity, int(uids[-1]))
     return processed
+
+
+def run() -> int:
+    """Run inbox processing, centrally report failures, and preserve fail-fast behavior."""
+    try:
+        return _run()
+    except Exception as exc:
+        report_error(
+            exc, module="email_inbox", operation="process_inbox", severity="error"
+        )
+        raise
 
 
 if __name__ == "__main__":
