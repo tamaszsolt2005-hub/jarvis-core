@@ -96,7 +96,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 db.table("leads").update({
                     "status": "send_blocked", "next_follow_up_at": None
                 }).eq("id", lead["id"]).eq("status", claim_status).execute()
-            log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warn")
+            log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warning")
             return False
         message_id = send_email(str(lead["email"]), subject, body)
         if follow_up:
