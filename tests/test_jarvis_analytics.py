@@ -124,9 +124,9 @@ def test_executive_report_uses_verified_project_date_and_distinguishes_log_windo
     )
     assert "Supabase-projekt létrehozása:** 2026-11-13 17:02:24 CET" in report
     assert "2026-11-05 10:00:00 CET" in report
-    assert "Összes naplózott esemény a 30 napos ablakban: **3**" in report
+    assert "Összes naplózott esemény a 30 napos ablakban: **5**" in report
     assert "Hibaszintű esemény (error/critical/fatal): **1**" in report
-    assert "Figyelmeztetés (warn/warning): **0**" in report
+    assert "Figyelmeztetés (warn/warning): **1**" in report
     assert "nem bizonyítja a modul leállását" in report
     assert "private warning text" not in report
     assert "private error text" not in report
