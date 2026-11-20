@@ -815,8 +815,8 @@ if prompt:
                         "chat_email": chat_email,
                     }
                     approval_notice = (
-                        "Jóváhagyásra váró e-mail-tervezet:\\n"
-                        f"Címzett: {recipient}\\nTárgy: {subject}\\n\\n{body}\\n\\n"
+                        "Jóváhagyásra váró e-mail-tervezet:\n"
+                        f"Címzett: {recipient}\nTárgy: {subject}\n\n{body}\n\n"
                         "A levél nem ment ki. Ha pontosan ezt szeretnéd elküldeni, a következő üzenetben írd: „Jóváhagyom”. "
                         "A küldéshez a szerveroldali EMAIL_DELIVERY_ENABLED és CHAT_EMAIL_ENABLED beállításnak is aktívnak kell lennie. "
                         "Másik kérés vagy „Elutasítom” törli a függő jóváhagyást."
