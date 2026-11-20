@@ -43,10 +43,16 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - **Vezetői analitikai jelentés:** a kifejezetten kért analitikai jelentéseket a rendszer most már determinisztikusan, közvetlenül a naplórekordokból állítja elő; ezeknél a Gemini nem írhatja felül a számokat vagy a projektmetaadatot. A riport 30 napos naptári ablakot, 7 napos összehasonlítást, modulmegoszlást, hibákat/figyelmeztetéseket, külön projekt-létrehozási és tényleges naplózási időszakot, valamint adatlefedettségi korlátot mutat. A naplóhiányt nem nevezi bizonyított modulleállásnak.
 - A projekt létrehozási dátuma ismert, ezért annak `system_info` táblába történő utólagos rögzítése nem szükséges; a dátum jelenleg ellenőrzött projektmetaadatból származik.
 
-### E-mail biztonság
-- Az e-mail-küldés kódszinten tiltott; az alkalmazás nem küld automatikus e-mailt.
-- E-mail/utánkövetés kérésére másolható tervezet készülhet, de az nem kerül automatikusan mentésre vagy elküldésre.
-- A leadek nem kapnak automatikus kapcsolatfelvételi engedélyt.
+### E-mailküldés és utánkövetés
+- Chatből indított levél: a JARVIS megköveteli a felhasználó által pontosan megadott e-mail-címet, előnézetben megmutatja a címzettet, tárgyat és teljes szöveget, majd csak a külön „Jóváhagyom” üzenet után próbál küldeni.
+- Chatküldéshez a szerveroldali `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true` kapcsoló is szükséges. Mindkettő alapértelmezetten hamis.
+- Háttérküldés: első kapcsolatfelvétel és legfeljebb két utánkövető levél kezelhető külön üzenetenkénti jóváhagyás nélkül, de csak `consent_basis=consent`, `approved_to_contact=true`, időbélyeggel igazolt `consent_confirmed_at`, érvényes e-mail-cím és `opted_out=false` esetén.
+- Alapértelmezett utánkövetési várakozás 5 nap; maximum 2 utánkövető levél; futásonként legfeljebb 3 levél; küldések között 30 másodperc.
+- Az `email_inbox.py` IMAP-on ellenőrzi a legutóbbi 200 bejövő üzenetet. Válasz esetén `status=replied`, leiratkozás esetén `opted_out=true` és `status=opted_out`; mindkettő törli a következő utánkövetés időpontját.
+- A háttérküldő csak akkor fut, ha az SMTP, az automatikus küldés és az IMAP-figyelés kapcsolója is aktív. A GitHub Actions workflow előbb az inboxot ellenőrzi, majd az első leveleket és esedékes utánkövetéseket küldi.
+- Új Supabase-tábla vagy jogosultságmódosítás nem szükséges; a meglévő `leads` mezőket használja.
+- A kód és az egységtesztek bekerültek a repositoryba, de a friss e-mailteszt-csomag felhasználói futtatása, az SMTP/IMAP éles konfigurációja és a teljes végponttól végpontig ellenőrzés még hátravan.
+- A tényleges küldés nincs bekapcsolva automatikusan. A `EMAIL_DELIVERY_ENABLED`, `AUTO_SEND_ENABLED`, `EMAIL_INBOX_MONITOR_ENABLED` és (chatküldéshez) `CHAT_EMAIL_ENABLED` kapcsolók szerveroldali konfigurációt igényelnek.
 
 ## Ellenőrzött állapot – 2026-11-20
 
