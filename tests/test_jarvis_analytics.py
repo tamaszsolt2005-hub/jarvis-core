@@ -85,6 +85,7 @@ def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
         {"module": "chat", "level": "info", "message": "chat_request", "created_at": "2026-11-19T08:00:00Z"},
         {"module": "chat", "level": "info", "message": "chat_response", "created_at": "2026-11-19T08:01:00Z"},
         {"module": "lead_gen", "level": "error", "message": "private@example.com", "created_at": "2026-11-19T09:00:00Z"},
+        {"module": "scraper", "level": "warning", "message": "sensitive warning detail", "created_at": "2026-11-19T10:00:00Z"},
     ]
     summary = build_chat_analytics_context(
         records,
@@ -94,5 +95,6 @@ def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
     assert "chatkérés=1" in summary
     assert "AI-válasz esemény=1" in summary
     assert "hiba=1" in summary
+    assert "figyelmeztetés=1" in summary
     assert "private@example.com" not in summary
     assert all(f"{days} nap:" in summary for days in (7, 30, 90, 365))
