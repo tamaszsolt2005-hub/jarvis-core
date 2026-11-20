@@ -206,10 +206,10 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         raise BackupError("Az AGE_IDENTITY_FILE nem található.")
     if os.name == "posix" and identity_path.stat().st_mode & 0o077:
         raise BackupError("Az age privát kulcs fájl jogosultsága túl nyitott; állítsd 0600-ra.")
-    if not shutil.which("age") or not shutil.which("psql"):
-        raise BackupError("A visszaállításhoz az age és a psql program szükséges.")
     if not archive_path.is_file():
         raise BackupError("A mentési fájl nem található.")
+    if not shutil.which("age") or not shutil.which("psql"):
+        raise BackupError("A visszaállításhoz az age és a psql program szükséges.")
 
     with tempfile.TemporaryDirectory(prefix="jarvis-db-restore-") as tmp:
         work = Path(tmp)
