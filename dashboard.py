@@ -699,8 +699,6 @@ if prompt:
         with st.chat_message("assistant"):
             with st.spinner("JARVIS rendszerellenőrzés folyamatban…"):
                 diagnostic_report = run_self_diagnostics()
-            progress_status.update(label="A rendszerellenőrzés befejeződött.", state="complete", expanded=False)
-            progress_placeholder.empty()
             st.markdown(diagnostic_report)
         st.session_state.chat.append(("assistant", diagnostic_report))
         st.stop()
