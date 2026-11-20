@@ -83,8 +83,10 @@ def test_archive_manifest_and_hashes_are_verified(tmp_path):
     result = backup._safe_extract(archive, extracted)
     assert result["backup_id"] == "jarvis-db-test"
     (extracted / "data.sql").write_text("tampered")
+    tampered_extract = tmp_path / "tampered_extract"
+    tampered_extract.mkdir()
     with pytest.raises(backup.BackupError, match="ellenőrzőösszege"):
-        backup._safe_extract(archive, tmp_path / "tampered_extract")
+        backup._safe_extract(archive, tampered_extract)
 
 
 def test_restore_refuses_nonempty_sandbox_without_running_restore(monkeypatch, tmp_path):
@@ -130,3 +132,14 @@ def test_database_password_is_not_in_connection_argument(tmp_path):
     assert passfile.exists()
     assert passfile.stat().st_mode & 0o777 == 0o600
     assert "secret:value" in passfile.read_text()
+
+
+def test_connection_password_is_removed_from_url_and_written_privately(tmp_path):
+    raw = "postgresql://postgres:pa%3Ass%40word@db.kiutreccucbegskxowek.supabase.co:5432/postgres?sslmode=require"
+    safe_url, env = backup._connection_env_and_url(raw, tmp_path)
+    assert "pa%3Ass%40word" not in safe_url
+    assert "postgres@" in safe_url
+    assert env["PGPASSWORD"] == "pa:ss@word"
+    pgpass = Path(env["PGPASSFILE"])
+    assert pgpass.stat().st_mode & 0o777 == 0o600
+    assert "pa\\:ss@word" in pgpass.read_text()
