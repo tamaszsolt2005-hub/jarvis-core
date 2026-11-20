@@ -5,6 +5,8 @@ import os
 import time
 from typing import Any
 
+from jarvis_errors import report_error, sanitize_log_text
+
 from google import genai
 from google.genai import types
 from supabase import Client, create_client
@@ -237,14 +239,23 @@ def generate_text(
 
 
 def log_event(supabase: Client, module: str, message: str, level: str = "info") -> None:
+    """Write a sanitized application event to the existing Supabase logs table."""
+    safe_level = level.lower().strip()
+    if safe_level not in {"debug", "info", "warning", "error", "critical"}:
+        safe_level = "info"
     try:
         supabase.table("logs").insert({
-            "module": module[:80],
-            "level": level[:20],
-            "message": message[:4000],
+            "module": sanitize_log_text(module, max_length=80),
+            "level": safe_level,
+            "message": sanitize_log_text(message, max_length=4000),
         }).execute()
     except Exception as exc:
-        print(f"[{module}] Naplózási hiba: {type(exc).__name__}: {exc}")
+        report_error(
+            exc,
+            module="jarvis_common",
+            operation="write_application_log",
+            severity="error",
+        )
 
 
 def get_setting(supabase: Client, key: str, default: Any = None) -> Any:
@@ -253,7 +264,13 @@ def get_setting(supabase: Client, key: str, default: Any = None) -> Any:
         if result.data:
             return result.data[0].get("value", default)
     except Exception as exc:
-        print(f"Beállítás olvasási hiba ({key}): {type(exc).__name__}: {exc}")
+        report_error(
+            exc,
+            module="jarvis_common",
+            operation=f"read_setting:{sanitize_log_text(key, max_length=80)}",
+            severity="warning",
+            db=supabase,
+        )
     return default
 
 
