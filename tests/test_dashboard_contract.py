@@ -78,3 +78,13 @@ def test_dashboard_shows_live_response_status():
     assert "on_status=lambda message" in source
     assert "JARVIS válaszolt" in source
     assert "JARVIS nem tudott válaszolni" in source
+
+
+
+def test_dashboard_correlates_chat_request_response_and_error_events():
+    source = DASHBOARD.read_text(encoding="utf-8")
+    assert "from uuid import uuid4" in source
+    assert 'request_id = uuid4().hex' in source
+    assert 'chat_request|request_id={request_id}' in source
+    assert 'chat_response|request_id={request_id}' in source
+    assert 'chat_error|request_id={request_id}' in source
