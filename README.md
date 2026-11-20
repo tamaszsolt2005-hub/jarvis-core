@@ -5,6 +5,7 @@ A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafel
 ## Projektállapot – 2026-11-20
 
 - **Elkészült:** chat-first Streamlit felület, Gemini-integráció, globális céges leadkutatás, leadprioritás, weboldal-audit, üzleti stratégiai elemzés, hosszú távú memória, jóváhagyásos feladatkezelés, proaktív változásfigyelés, napi vezetői jelentés és naplóalapú analitika.
+- **Adaptív válaszhossz:** a JARVIS helyi, extra AI-hívás nélküli heurisztikával becsüli meg a kérdés összetettségét, és ehhez igazítja a Gemini kimeneti tokenkeretét. Egyszerű kérdésekre röviden válaszol; explicit elemzési/részletezési kéréseknél nagyobb keretet használ. A válaszkeret 384–4096 token között változhat, a technikai felső korlát 8192 token.
 - **Analitika:** a kifejezetten kért 30 napos vezetői jelentés determinisztikusan, közvetlenül a naplóadatokból készül, nem a Gemini számításaira bízza a tényeket. Külön jelzi a Supabase-projekt létrehozási dátumát és a tényleges naplózási időszakot; a naplóhiányt nem minősíti bizonyított modulleállásnak.
 - **Legutóbbi felhasználói teszteredmény:** 2026-11-20-án a `fd50ea0` kódállapoton `compileall` sikeres, **139 teszt sikeres**. Az ezt követő új analitikai módosítás újrafuttatása még szükséges.
 - **Élő Supabase-ellenőrzés:** a Jarvis projekt (`kiutreccucbegskxowek`) 2026-11-13-án jött létre; a 2026-11-20-i ellenőrzéskor 23 naplórekord volt, 2026-11-13 és 2026-11-20 közötti megfigyelt időszakkal. A chatben 2 kéréshez 2 válaszesemény tartozott.
