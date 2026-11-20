@@ -105,3 +105,35 @@ def test_inbox_uid_checkpoint_rejects_non_numeric_uid_without_advancing():
             {"uidvalidity": "77", "last_uid": 99},
             "77",
         )
+
+
+def test_sender_pipeline_failure_is_reported_and_reraised(monkeypatch):
+    import email_sender
+
+    original = RuntimeError("Supabase unavailable")
+    reports = []
+
+    def fail():
+        raise original
+
+    monkeypatch.setattr(email_sender, "_run", fail)
+    monkeypatch.setattr(
+        email_sender, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    with pytest.raises(RuntimeError, match="Supabase unavailable") as caught:
+        email_sender.run()
+
+    assert caught.value is original
+    assert len(reports) == 1
+    assert reports[0][0] is original
+    assert reports[0][1]["module"] == "email_sender"
+    assert reports[0][1]["operation"] == "run_sender"
+    assert reports[0][1]["severity"] == "critical"
+
+
+def test_supabase_client_requires_server_side_configuration(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name, default=None: default)
+    with pytest.raises(RuntimeError, match="SUPABASE_URL"):
+        jarvis_common.get_supabase()
