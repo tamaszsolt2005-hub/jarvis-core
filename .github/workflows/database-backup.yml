@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL }}
-      JARVIS_BACKUP_SOURCE_PROJECT_REF: \${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
-      BACKUP_AGE_RECIPIENT: \${{ vars.BACKUP_AGE_RECIPIENT }}
-      BACKUP_S3_BUCKET: \${{ vars.BACKUP_S3_BUCKET }}
-      AWS_DEFAULT_REGION: \${{ vars.BACKUP_AWS_REGION }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      JARVIS_BACKUP_SOURCE_PROJECT_REF: ${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,10 +37,10 @@ jobs:
           [[ -n "$BACKUP_AGE_RECIPIENT" ]] || missing+=("BACKUP_AGE_RECIPIENT variable")
           [[ -n "$BACKUP_S3_BUCKET" ]] || missing+=("BACKUP_S3_BUCKET variable")
           [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
-          [[ -n "\${{ secrets.AWS_BACKUP_ROLE_ARN }}" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
-          if (( \${#missing[@]} )); then
+          [[ -n "${{ secrets.AWS_BACKUP_ROLE_ARN }}" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
+          if (( ${#missing[@]} )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Backup skipped; missing external configuration: \${missing[*]}"
+            echo "::notice::Backup skipped; missing external configuration: ${missing[*]}"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -65,8 +65,8 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: \${{ secrets.AWS_BACKUP_ROLE_ARN }}
-          aws-region: \${{ vars.BACKUP_AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
+          aws-region: ${{ vars.BACKUP_AWS_REGION }}
 
       - name: Upload encrypted backup to private S3 bucket
         if: steps.config.outputs.ready == 'true'
@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           file="$(find .private-backups -maxdepth 1 -type f -name '*.tar.gz.age' -print -quit)"
           [[ -n "$file" ]]
-          aws s3 cp "$file" "s3://\${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" --sse aws:kms --only-show-errors
+          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" --sse aws:kms --only-show-errors
 
       - name: Report skipped configuration
         if: steps.config.outputs.ready != 'true'
