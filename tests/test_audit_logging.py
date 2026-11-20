@@ -66,7 +66,7 @@ class FakeDB:
     def __init__(self, fail=False, rows=None):
         self.fail = fail
         self.inserted = []
-        self.rows = rows or []
+        self.rows = rows
         self.last_query = None
 
     def table(self, name):
