@@ -107,8 +107,7 @@ export AGE_IDENTITY_FILE='/secure/path/age-identity.txt'
 
 python scripts/supabase_backup.py restore \
   --archive .private-backups/jarvis-db-....tar.gz.age \
-  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \\
-  --confirm-restore \
+  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \
   --confirm-restore
 ```
 
@@ -120,7 +119,7 @@ A parancs explicit `--confirm-restore` megerősítést követel. A parancs ellen
 5. az SQL fájlok SHA-256 értékei egyeznek;
 6. a cél public séma nem tartalmaz táblát, nézetet vagy szekvenciát;\n7. a parancs tartalmazza a kötelező `--confirm-restore` kapcsolót.
 
-Csak ezután futtatja a sémát és adatokat egyetlen PostgreSQL tranzakcióban, `ON_ERROR_STOP=1` mellett. Nem üres cél esetén a script még SQL-végrehajtás előtt leáll. A sikertelen tranzakció visszagörgethető.
+A visszaállítás előtt visszavonja az `anon` és `authenticated` szerepkörök új public táblákra öröklődő alapértelmezett jogosultságait. Csak ezután futtatja a sémát és adatokat egyetlen PostgreSQL tranzakcióban, `ON_ERROR_STOP=1` mellett. Nem üres cél esetén a script még SQL-végrehajtás előtt leáll. A sikertelen tranzakció visszagörgethető.
 
 A friss célprojektben a szükséges PostgreSQL-kiterjesztéseket és platformbeállításokat előzetesen ellenőrizni kell. A CLI dump nem másolja át az összes Supabase platformobjektumot vagy egyedi role-jelszót.
 
