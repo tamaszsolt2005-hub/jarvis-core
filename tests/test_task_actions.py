@@ -93,9 +93,16 @@ def test_completed_task_is_not_mutated_again():
                 return Result([])
             return Result([{"id": TASK_ID, "title": "Teszt", "status": "done"}])
 
+    class AuditQuery:
+        def insert(self, _payload):
+            return self
+
+        def execute(self):
+            return Result([])
+
     class CompletedDB(FakeDB):
-        def table(self, _name):
-            return CompletedQuery(self)
+        def table(self, name):
+            return AuditQuery() if name == "logs" else CompletedQuery(self)
 
     db = CompletedDB()
     message = execute_task_action(db, {"type": "close", "id": TASK_ID})
