@@ -179,15 +179,18 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 - `.gitignore`: privát mentési könyvtárak és titkosított archívumok kizárva.
 
 **Külső konfiguráció még szükséges:**
-- GitHub Actions Secrets: `SUPABASE_DB_URL`, `BACKUP_AWS_ACCESS_KEY_ID`, `BACKUP_AWS_SECRET_ACCESS_KEY`.
+- GitHub Actions Secret: `SUPABASE_DB_URL` and `AWS_BACKUP_ROLE_ARN` (AWS IAM role ARN assumed through GitHub OIDC).
 - GitHub Actions Variables: `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`.
+- The workflow uses short-lived AWS OIDC credentials; it does not require long-lived AWS access-key secrets.
 - Privát S3 bucket, korlátozott IAM, versioning és 30 napos lifecycle szabály.
 - Age privát kulcs elkülönített, offline tárolása.
 - Külön sandbox Supabase-projekt és integrációs visszaállítási próba; projektet költség/jóváhagyás nélkül nem hoztunk létre.
 
 **Lefedettségi korlát:** a logikai mentés a teljes `public` sémát és adatait fedi. Nem tartalmazza a Supabase kezelt `auth`, `storage`, `realtime` sémákat, Storage bináris fájlokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. A platform napi backup/PITR hozzáférhetősége csomagfüggő, a csomagot és beállítást nem ellenőriztük.
 
-**Állapot:** kód és workflow előkészítve; tényleges mentés, S3 feltöltés és sandbox visszaállítás még nem történt. Az éles DB változatlan maradt. A hozzá tartozó egységtesztek friss futása még nincs igazolva.
+**Tesztelőzmény:** a felhasználó a mentési fejlesztés megkezdése előtt 161 passed in 3.05s eredményt jelzett; ez nem fedi a most hozzáadott mentési teszteket. A backup-specifikus CI-futás eredménye a legutóbbi commit után még ellenőrzés alatt áll.
+
+**Állapot:** kód és workflow előkészítve; tényleges mentés, S3 feltöltés és sandbox visszaállítás még nem történt. Az éles DB változatlan maradt.
 
 
 ## Biztonságos adatbázis-mentés és visszaállítás – 2026-11-20
