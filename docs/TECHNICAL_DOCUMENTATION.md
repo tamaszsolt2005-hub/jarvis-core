@@ -304,3 +304,16 @@ A visszaállítás kizárólag külön, üres, engedélyezett sandbox projektbe 
 A napi 02:15 UTC GitHub Actions workflow külső S3-kompatibilis tárhelyre töltené a titkosított fájlt. Ehhez GitHub Actions Secrets és Variables, privát S3 bucket, szűk IAM-jogosultság, versioning, 30 napos lifecycle és elkülönített offline age privát kulcs szükséges. Ezek külső konfigurációk; a workflow hiányuk esetén kihagyja a futást. A platform napi backup/PITR csomagfüggő és külön ellenőrizendő. A dokumentált beállításokat és parancsokat a [DATABASE_BACKUP_RESTORE.md](DATABASE_BACKUP_RESTORE.md) tartalmazza.
 
 Az egységtesztek mockoltak; nem bizonyítanak valódi backupot, S3 feltöltést vagy visszaállítást. Sandbox integrációs próba még szükséges.
+
+
+## 13. Adatbázis-mentés és visszaállítás
+
+A részletes üzemeltetési leírás a [DATABASE_BACKUP_RESTORE.md](DATABASE_BACKUP_RESTORE.md) fájlban található.
+
+A `scripts/supabase_backup.py` a valós Supabase adatbázisból készít titkosított, időbélyeges és UUID-val azonosított logikai mentést a teljes `public` sémáról. A mentés schema- és data-exportot, SHA-256 manifestet és age titkosítást használ. A DB-jelszó nem kerül a process argumentumokban használt URL-be; rövid életű, szigorú jogosultságú PGPASSFILE és folyamatkörnyezet használatos.
+
+A napi GitHub Actions workflow csak a külső Supabase DB URL, age recipient, privát S3 bucket és AWS OIDC role konfigurációja után fut. Hiányos konfiguráció esetén a mentés kihagyásra kerül. A GitHub repositoryban nincs backup archive; a backup mappa és archívumkiterjesztések gitignore alatt vannak.
+
+A restore kizárólag explicit megerősítéssel, külön allowlistelt nem éles Supabase projektre, URL/ref egyezés és üres public séma ellenőrzése után futhat. Az éles JARVIS project ref kódszinten tiltott. A restore tranzakcióban történik; nem üres cél esetén még SQL végrehajtás előtt leáll.
+
+A logikai backup nem tartalmazza a Supabase által kezelt Auth/Storage/Realtime platformadatokat vagy Storage fájlbinárisokat. Ezekhez külön platformszintű backup/PITR és Storage export szükséges. A mentési infrastruktúra külső AWS/S3 konfiguráció nélkül csak előkészített állapotú; a valós mentés és sandbox restore teszt külön bizonyítandó.
