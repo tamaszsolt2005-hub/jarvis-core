@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event
+from jarvis_errors import report_error
 from lead_scoring import score_lead
 from web_auditor import audit_company_website
 
@@ -123,11 +124,16 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         log_event(db, "email_sender", f"{label}: {lead.get('company_name')}")
         return True
     except Exception as exc:
-        log_event(db, "email_sender", f"Küldési hiba ({lead.get('company_name')}): {type(exc).__name__}", "error")
+        report_error(
+            exc, module="email_sender", operation="send_one", severity="error", db=db
+        )
         try:
             db.table("leads").update({"status": "send_error"}).eq("id", lead["id"]).eq("status", claim_status).execute()
-        except Exception:
-            pass
+        except Exception as state_exc:
+            report_error(
+                state_exc, module="email_sender", operation="mark_send_error",
+                severity="critical", db=db,
+            )
         return False
 
 
