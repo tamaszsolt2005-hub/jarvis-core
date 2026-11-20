@@ -714,6 +714,7 @@ if prompt:
         st.session_state.chat.append(("assistant", diagnostic_report))
         st.stop()
 
+    response_status = st.status("JARVIS megkapta a kérésedet", expanded=True)
     db = None
     stage = "Supabase-kapcsolat"
     try:
@@ -953,6 +954,7 @@ if prompt:
                 f"AKTUÁLIS ADATOK:\n{context}\n\n"
                 f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
                 f"FELHASZNÁLÓ KÉRDÉSE: {prompt}",
+                    on_status=lambda message: response_status.update(label=message, state="running"),
                     )
                 if not answer:
                     raise RuntimeError("A Gemini üres választ adott vissza.")
@@ -960,8 +962,11 @@ if prompt:
                 st.session_state.chat.append(("assistant", answer))
                 st.markdown(answer)
                 st.caption("ADATFORRÁSOK  ·  " + (", ".join(loaded_sources) if loaded_sources else "nincs"))
+        response_status.update(label="JARVIS válaszolt", state="complete", expanded=False)
     
     except Exception as exc:
+        if response_status is not None:
+            response_status.update(label="JARVIS nem tudott válaszolni", state="error", expanded=True)
         if db is not None:
             log_event(db, "chat", "chat_error", level="error")
         # Show actionable diagnostics without ever printing configured credentials.
