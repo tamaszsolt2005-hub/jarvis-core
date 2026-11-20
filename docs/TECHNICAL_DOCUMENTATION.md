@@ -1,156 +1,264 @@
-# JARVIS – műszaki dokumentáció
+# JARVIS – műszaki dokumentáció és AI-kontekstus
 
-**Utolsó dokumentációs felülvizsgálat:** 2026-11-20  
-**Repository:** `tamaszsolt2005-hub/jarvis-core` · **Branch:** `main`
+**Felülvizsgálat:** 2026-11-20  
+**Repository:** `tamaszsolt2005-hub/jarvis-core` · **fő ág:** `main`
 
-Ez a dokumentum a JARVIS belső felépítését, modulhatárait, adatfolyamait és biztonsági szabályait írja le. Nem helyettesíti az aktuális projektállapotot: az elkészült, tesztelt és élesben igazolt funkciók státuszát a [PROJECT_STATUS.md](PROJECT_STATUS.md) tartalmazza. A felhasználói bemutatást és az indítási útmutatót a [README.md](../README.md) tartalmazza.
+## 0. Hogyan használja ezt a dokumentumot egy AI-asszisztens?
 
-> **Dokumentációs szabály:** a leírás a repository dokumentációjából és az ismert implementációs szerződésekből készült. A modulnevek és a működési elvek nem jelentenek automatikus bizonyítékot az éles szolgáltatáskapcsolatokra. Ahol külső integráció szükséges, azt külön jelezzük.
+Ez a fájl a JARVIS tartós műszaki kontextusa. A kód változhat; konkrét működésre vonatkozó kérdésnél mindig ellenőrizd az aktuális forráskódot.
+
+### Források elsőbbségi sorrendje
+
+1. **Aktuális forráskód és SQL-séma:** a tényleges implementáció hiteles forrása.
+2. **GitHub Actions workflow-k:** az ütemezett és CI-folyamatok tényleges definíciója.
+3. **[PROJECT_STATUS.md](PROJECT_STATUS.md):** dátumozott teszteredmények, külső ellenőrzések és nyitott feladatok.
+4. **Ez a dokumentum:** a tartós architektúra és a modulok értelmezése.
+5. **[README.md](../README.md):** felhasználói áttekintés és indítás.
+
+Ha a dokumentum és a kód eltér, ne találgass: jelezd az eltérést, ellenőrizd a forrást, és csak bizonyíték alapján javítsd a leírást.
+
+### Bizonyossági címkék
+
+- **Kódban implementálva:** a funkció forráskódja létezik.
+- **Workflow-val ütemezve:** egy aktív workflow hivatkozik rá.
+- **Automatikusan tesztelve:** az adott teszt igazoltan lefutott.
+- **Integrációsan ellenőrizve:** valós külső szolgáltatással tesztelték.
+- **Nem igazolt / legacy:** a kód létezik, de az aktív alkalmazásfolyamatban való használata vagy működése nincs igazolva.
+
+Soha ne állítsd, hogy egy funkció élesben működik pusztán azért, mert van hozzá Python-fájl, teszt vagy GitHub Actions workflow.
 
 ## 1. Rendszeráttekintés
 
-A JARVIS egy magyar nyelvű, Streamlit-alapú, chat-first B2B üzleti intelligencia-alkalmazás. A felhasználói kérdés alapján a rendszer kiválasztja a szükséges üzleti adatokat, a Supabase-ből olvas, majd a központi Gemini-integrációval állít elő választ.
+A JARVIS magyar nyelvű, Streamlit-alapú, chat-first B2B üzleti intelligencia-alkalmazás. A dashboard a kérdéshez szükséges üzleti kontextust tölti be, a Supabase-t szerveroldali hozzáféréssel használja, és a központi Gemini-klienssel generál választ.
 
-Fő építőelemek:
+Fő rétegek:
 
-- **Felhasználói felület:** Streamlit chat és jóváhagyási folyamatok.
-- **AI-réteg:** központi Gemini-kliens és modellkonfiguráció.
-- **Üzleti logika:** leadkutatás, weboldal-audit, pontozás, memória, döntéstámogatás és feladatkezelés.
-- **Adatréteg:** Supabase-adatbázis és szerveroldali hozzáférés.
-- **Automatizálás:** külön GitHub Actions workflow-k a napi leadkutatáshoz, briefinghez és az e-mail-automatizmushoz.
-- **Minőségbiztosítás:** Python szintaxisellenőrzés, pytest és GitHub Actions CI.
+- **UI és vezérlés:** `dashboard.py`.
+- **AI- és konfigurációs segédek:** `jarvis_common.py`.
+- **Üzleti modulok:** leadkutatás, weboldal-audit, pontozás, stratégia, memória, analitika és feladatkezelés.
+- **Adatréteg:** Supabase/PostgreSQL.
+- **Háttérfolyamatok:** GitHub Actions workflow-k és külön Python entrypointok.
+- **Minőségbiztosítás:** pytest, compileall és GitHub Actions CI.
 
-## 2. Fő adat- és vezérlési folyamatok
+A Gemini modell alapértelmezése a `jarvis_common.py` szerint `gemini-3.8-flash`; a `GEMINI_MODEL` környezeti beállítás felülírhatja. A régi `gemini-2.5-flash` és `gemini-2.5-pro` értékek a központi modellválasztóban az alapértelmezett modellre esnek vissza.
 
-### 2.1 Chatkérés
+## 2. Chat és vezérlési folyamat
 
-1. A felhasználó természetes nyelvű kérdést küld a Streamlit felületen.
-2. A dashboard és a kapcsolódó logika meghatározza a kérdéshez szükséges adatokat.
-3. A szükséges üzleti adatok korlátozott lekérdezéssel érkeznek a Supabase-ből.
-4. A központi Gemini-kliens a releváns kontextussal elkészíti a választ.
-5. A kérés és a válasz eseménye naplózható; a nyers kérdés- és válaszszöveg nem kerül a rendszernaplóba.
-6. A felület megjeleníti a választ és a kérés állapotát.
+### 2.1 Általános chatkérés
 
-A válaszhossz helyi heurisztikával igazodik a kérdés összetettségéhez; ez nem igényel külön AI-hívást. A tokenkeret felső korlát, nem garantált kimeneti hossz.
+1. A felhasználó üzenetet küld a Streamlit chatben.
+2. A dashboard azonosítja a speciális műveleteket (diagnosztika, memória-parancs, feladatparancs, leadkutatás, e-mail-szándék, analitika).
+3. A releváns üzleti adatokat a Supabase-ből tölti be.
+4. A beszélgetési előzmény és a szükséges kontextus a Gemini-klienshez kerül.
+5. A válasz megjelenik; a rendszer eseményeket naplóz.
 
-### 2.2 Jóváhagyást igénylő műveletek
+A naplózás eseménytípusokat és technikai információkat rögzít; a felhasználói kérdés és a Gemini-válasz teljes szövegét nem szabad a technikai naplóba írni.
 
-A módosítást vagy külső hatást végző műveletek előnézeti/jóváhagyási mintát használnak, ahol ezt a funkció megköveteli. A jóváhagyás a bemutatott művelethez kötött; másik felhasználói kérés vagy elutasítás érvénytelenítheti a függő jóváhagyást.
+### 2.2 Jóváhagyási modell
 
-A feladatkezelésnél a létrehozás, módosítás és lezárás először előnézetet készít. Az adatbázis-módosítás csak a külön jóváhagyás után történik.
+A támogatott, adatot módosító vagy külső hatású chatműveletek előnézetet és külön jóváhagyást használnak. A függő jóváhagyás a következő felhasználói üzenetre érvényes: egy új kérés vagy elutasítás törli a korábbi függő műveletet. Jóváhagyás hiányában nem szabad azt állítani, hogy a művelet végrehajtódott.
 
-### 2.3 Leadkutatás
+A dokumentált chatműveletek:
+- célpiacváltás;
+- globális céges leadkutatás indítása;
+- feladat létrehozása, módosítása és lezárása;
+- chatből indított e-mail küldése.
 
-1. A felhasználó megadja a célpiacot és a keresési briefet.
-2. A kutatási modul nyilvános forrásokra és keresési groundingra támaszkodó céges találatokat készít.
-3. A rendszer strukturált céges kutatási adatokat és forrásokat kezel.
-4. Külön értékeli a weboldal információgazdagságát, az üzleti illeszkedést és a kutatási prioritást.
-5. A kutatás önmagában nem ad kapcsolatfelvételi engedélyt.
+A hosszú távú memória csak explicit mentési/törlési parancsra változik. A normál üzleti lekérdezés alapvetően olvasási művelet.
 
-A kutatás nem gyűjthet automatikusan személyes elérhetőségeket; a leadkutatási rekord nem válik pusztán a megtalálásától megkereshetővé.
+## 3. Modulok és felelősségek
 
-### 2.4 E-mail-folyamat
+### 3.1 A dashboard által használt fő modulok
 
-**Chatből indított e-mail:**
-- A rendszer csak a felhasználó által pontosan megadott, érvényes formátumú címre készít tervezetet.
-- A címzett, tárgy és teljes szöveg küldés előtt előnézetben látható.
-- Küldéshez külön, egyértelmű felhasználói jóváhagyás szükséges.
-- A chatküldéshez az `EMAIL_DELIVERY_ENABLED` és `CHAT_EMAIL_ENABLED` szerveroldali kapcsoló szükséges.
-
-**Háttérben futó e-mail és utánkövetés:**
-- Külön automatizmus; nem azonos a chatből indított, felhasználói jóváhagyásos küldéssel.
-- Csak igazolt hozzájárulás, jóváhagyott kapcsolatfelvétel, érvényes e-mail-cím és leiratkozás hiánya esetén futhat.
-- A háttérküldéshez az SMTP-küldés, az automatikus küldés és az inbox-figyelés külön engedélyezése szükséges.
-- A bejövő válasz vagy leiratkozás megállítja a további utánkövetést.
-- A pontos korlátokat és kapcsolókat az aktuális README, illetve a kód konfigurációja tartalmazza.
-
-**Ellenőrzési határ:** a környezeti változók megléte nem bizonyít SMTP/IMAP-kapcsolatot vagy tényleges kézbesítést. Az éles végponttól végpontig teszt külön feladat.
-
-## 3. Modulhatárok és felelősségek
-
-A főbb, dokumentált komponensek felelősségi körei:
-
-| Terület / komponens | Felelősség |
+| Fájl | Felelősség |
 |---|---|
-| `dashboard.py` | Streamlit felület, chatfolyamat és felhasználói jóváhagyási interakciók |
-| `chat_email.py` | Chatből érkező e-mail-szándék értelmezése, címzett-ellenőrzés és tervezet |
-| `email_utils.py` | E-mail-konfiguráció és biztonsági kapcsolók |
-| `email_inbox.py` | Bejövő levelek IMAP-alapú figyelése, válasz/leiratkozás feldolgozása |
-| `email_sender.py` | Háttérküldés és utánkövetési szabályok |
-| `daily_briefing.py` | Napi vezetői összefoglaló |
-| `intelligent_lead_scoring.py` | Kutatási prioritás meghatározása |
-| `supabase/schema.sql` | Adatbázis-séma kiinduló definíciója |
-| `.github/workflows/` | CI és ütemezett háttérfolyamatok |
+| `dashboard.py` | Streamlit UI, chat-router, adatlekérés, jóváhagyási folyamatok, modulok összekapcsolása |
+| `jarvis_common.py` | Gemini-kliens, modellnév, titokkezelés, Supabase-kliens, logolás, tokenkeret |
+| `chat_email.py` | Chat e-mail-szándék felismerése, pontos címzett kinyerése, tervezet |
+| `jarvis_analytics.py` | Chat-analitika, determinisztikus vezetői riport, analitikai dashboard |
+| `global_lead_research.py` | Forrásalapú céges leadkutatás, célpiac és kutatási logika |
+| `intelligent_lead_scoring.py` | Kutatott leadek kutatási prioritás szerinti rangsorolása |
+| `web_auditor.py` | Céges weboldal tartalmának és elérhetőségének vizsgálata |
+| `safe_http.py` | Nyilvános IP-cím ellenőrzése és SSRF-kockázatot csökkentő HTTP-kérés |
+| `business_strategy.py` | Iparági és piaci stratégiai összesítés |
+| `business_learning.py` | Explicit módon mentett üzleti tapasztalatokból óvatos minták |
+| `jarvis_memory.py` | Hosszú távú memória mentése, visszakeresése és inaktiválása |
+| `task_actions.py` | Strukturált feladatparancsok feldolgozása és jóváhagyott végrehajtása |
+| `daily_briefing.py` | Napi vezetői összefoglaló készítése |
+| `health_check.py` | Chatből kérhető rendszerdiagnosztika |
+| `decision_support.py` | Döntéstámogatási promptutasítások |
 
-A repository további moduljai külön üzleti logikát valósítanak meg. Új modul hozzáadásakor ezt a táblázatot és a kapcsolódó adatfolyam-leírást frissíteni kell, miután a tényleges forráskódot ellenőriztük.
+### 3.2 Háttérfolyamatok és segédprogramok
 
-## 4. Adatmodell és Supabase
+| Fájl | Szerep | Megjegyzés |
+|---|---|---|
+| `global_lead_research_job.py` | Napi leadkutatási entrypoint | A `global-lead-research.yml` workflow indítja |
+| `email_sender.py` | Hozzájárulás-ellenőrzött első levél és utánkövetés | Az `email-automation.yml` workflow használja |
+| `email_inbox.py` | IMAP inbox figyelés, válasz és leiratkozás feldolgozása | Az `email-automation.yml` workflow használja |
+| `email_utils.py` | SMTP-küldési segéd és központi küldési kapcsoló | Chat és háttérküldés használja |
+| `lead_scoring.py` | Egyszerű leadpontozó segéd | Az e-mail-küldő használja |
+| `proactive_monitor.py` | Lead/feladat változás-pillanatkép és változásjelentés | A vizsgált aktív dashboard/workflow belépési pontok nem hivatkoztak rá; ütemezett működése nem igazolt |
+| `lead_gen.py` | CSV-alapú leadimport | Különálló segéd, nem a chat-alapú globális kutatás |
+| `jarvis_status.py`, `stats.py` | Régebbi CLI státusz/diagnosztikai segédek | Ne kezeld őket a Streamlit dashboard fő útvonalaként |
 
-A JARVIS a meglévő Supabase-projektet használja. A dokumentált táblák és szerepük:
+### 3.3 Legacy vagy nem aktív e-mail-komponensek
 
-- `leads`: céges leadek és kutatási adatok.
-- `tasks`: felhasználói feladatok és határidők.
-- `settings`: tartós alkalmazásbeállítások, célpiac és technikai checkpointok.
-- `logs`: technikai események és naplóadatok.
-- `jarvis_memory`: kifejezetten mentett preferenciák, döntések, tapasztalatok és tanulságok.
-- `jarvis_proactive_state`: proaktív változásfigyelés technikai pillanatképe.
+- `follow_up.py`: régebbi külön utánkövető script; a jelenlegi e-mail workflow az `email_sender.py` modult indítja.
+- `inbox_monitor.py`, `reply_analyzer.py`: különálló korábbi inbox-feldolgozó útvonal. A jelenlegi e-mail workflow az `email_inbox.py` modult használja.
+- `inbox_analyzer.py`: korábbi levélosztályozó segéd; a jelenlegi aktív workflow útvonalában való használata nem igazolt.
 
-A pontos oszlopdefiníciók és indexek hiteles forrása a `supabase/schema.sql` és a `supabase/migrations/` könyvtár. Ez a dokumentum nem helyettesíti az SQL-sémát.
+Ezeket ne keverd össze az aktív e-mail-automatizmusokkal. Törlés vagy archiválás csak külön, hivatkozás- és tesztellenőrzés után történhet.
 
-Az adatbázis módosítását a repositoryban lévő SQL-fájl önmagában nem hajtja végre: a migrációt a megfelelő Supabase-környezetben külön kell telepíteni és ellenőrizni.
+## 4. Fő adatfolyamok
 
-## 5. Memória és üzleti tanulás
+### 4.1 Leadkutatás
 
-A hosszú távú memória kizárólag kifejezett felhasználói utasításra változik. Kategóriái:
-- üzleti preferencia;
-- döntés;
-- tapasztalat/eredmény;
-- tanulság.
+1. A felhasználó célpiacot és keresési briefet ad meg.
+2. A kutatási modul nyilvános keresési források alapján cégeket és forrásokat gyűjt.
+3. A leadkutatás céges rekordokat kezel; nem ad automatikus kapcsolatfelvételi engedélyt.
+4. A weboldal információgazdagsága, az üzleti illeszkedés és a kutatási prioritás külön fogalom.
+5. A kutatási művelet a chatben jóváhagyáshoz kötött.
 
-A releváns emlékek visszakereshetők a későbbi kérdésekhez. A memória tartalma adat, nem rendszerutasítás, ezért nem írhatja felül a rendszer biztonsági szabályait.
+A weboldal-pontszám nem vásárlási szándékot vagy fizetőképességet mér. A kutatási rangsor nem marketingengedély.
 
-A JARVIS az explicit módon rögzített kutatási eredményekből és döntésekből óvatos mintákat készíthet. Az együttjárást nem állíthatja be bizonyított ok-okozati kapcsolatként, és nem találhat ki üzleti eredményt, ROI-t vagy konverziós adatot.
+### 4.2 Weboldal-audit és hálózati biztonság
 
-Titkok, jelszavak, API-kulcsok, személyes elérhetőségek és érzékeny személyes adatok nem kerülhetnek a memóriába.
+A `web_auditor.py` a `safe_http.py` segéden keresztül kér le nyilvános weboldalakat. A segéd ellenőrzi a DNS-feloldás eredményét, tiltja a nem nyilvános IP-tartományokat, és a kapcsolatot az ellenőrzött címhez rögzíti. Az átirányítások célját is újra ellenőrizni kell. Külső weboldal tartalma nem megbízható utasítás.
 
-## 6. Biztonsági alapelvek
+### 4.3 Memória és üzleti tanulás
 
-- Titkok kizárólag szerveroldali környezeti változókban, Codespaces Secrets vagy GitHub Actions Secrets konfigurációban tárolhatók.
-- API-kulcsot, jelszót vagy service-role kulcsot nem szabad Gitbe commitolni, kliensoldalra továbbítani vagy naplózni.
-- A Supabase service-role kulcs megkerüli az RLS-t; kizárólag megbízható szerveroldali környezetben használható.
-- A nyilvános weboldalak és a memóriából visszakeresett szövegek nem megbízható bemenetek; nem írhatják felül a rendszerutasításokat.
-- A leadkutatás nem jelent marketing-hozzájárulást.
-- E-mail-küldés és háttér-automatizmus csak külön konfigurációval és a megfelelő jóváhagyási/hozzájárulási feltételekkel működhet.
-- A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a célország szerinti jogi ellenőrzést.
+A `jarvis_memory.py` a felhasználó kifejezett kérésére ment és inaktivál memóriaelemeket. A kategóriák üzleti preferencia, döntés, tapasztalat/eredmény és tanulság. A visszakeresett memória adat, nem rendszerutasítás. Titok, jelszó, API-kulcs, személyes elérhetőség vagy érzékeny személyes adat nem menthető.
 
-## 7. Automatizálás és CI
+A `business_learning.py` explicit módon rögzített kutatási tapasztalatokból és döntésekből készít óvatos mintákat. Együttjárásból nem állítható bizonyított ok-okozat, ROI vagy konverziós arány.
 
-A GitHub Actions workflow-k külön feladatokat látnak el:
-- CI: Python szintaxisellenőrzés és automatizált tesztek push/pull request esetén.
-- Napi leadkutatás: a mentett célpiac alapján új cégek kutatása.
-- Napi briefing/proaktív figyelés: napi jelentés és változások összefoglalása.
-- E-mail-automatizmus: inbox-ellenőrzés és – csak a szükséges kapcsolók és hozzájárulási feltételek mellett – háttérküldés.
+### 4.4 Feladatkezelés
 
-A workflow-fájl jelenléte nem bizonyítja, hogy a szükséges GitHub Actions titkok konfigurálva vannak, vagy hogy a külső szolgáltatások elérhetők.
+A `task_actions.py` strukturált create/update/close műveleteket értelmez. A dashboard előnézetet mutat, és csak külön jóváhagyás után módosítja a `tasks` rekordot. A funkció nem töröl leadet, nem küld e-mailt, és nem ad automatikus marketingengedélyt.
 
-## 8. Tesztelési stratégia és bizonyítási szintek
+### 4.5 Analitika és napi jelentés
 
-A tesztelés értelmezésekor külön kell választani:
+A `jarvis_analytics.py` a `logs` adataiból készít analitikát. A vezetői riport determinisztikus, naplórekordokon és ellenőrzött projektmetaadaton alapul; a Gemini nem írhatja felül a riport számait. A naplóhiány nem bizonyít automatikusan modulhibát vagy adatvesztést.
+
+A `daily_briefing.py` lead- és feladatadatokból készít összefoglalót. A GitHub Actions workflow artifactként publikálja a jelentést; ez nem automatikusan e-mail vagy push értesítés.
+
+## 5. E-mail architektúra
+
+### 5.1 Chatből indított e-mail
+
+- `chat_email.py` felismeri az e-mail-kérést, és csak a felhasználó által pontosan megadott címet fogadja el.
+- A dashboard elkészíti a tervezetet, és előnézetben megmutatja a címzettet, tárgyat és teljes szöveget.
+- A tényleges SMTP-küldési kísérlet csak a következő, külön `Jóváhagyom` üzenet után indul.
+- A jóváhagyásra váró művelet egyetlen következő üzenetre érvényes; új kérés vagy elutasítás törli.
+- A küldéshez `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true` szükséges.
+- A kód SMTP-szerver általi átvételét jelezheti; ez önmagában nem bizonyítja a címzett postafiókjába történő kézbesítést.
+
+### 5.2 Háttérküldés és utánkövetés
+
+A `email_sender.py` külön háttérfolyamat. A kód csak akkor engedi a küldést, ha:
+- `EMAIL_DELIVERY_ENABLED=true`;
+- `AUTO_SEND_ENABLED=true`;
+- `EMAIL_INBOX_MONITOR_ENABLED=true`;
+- a lead `consent_basis=consent`;
+- `approved_to_contact=true`;
+- időbélyegzett, érvényes `consent_confirmed_at` van;
+- az e-mail-cím formailag érvényes;
+- a lead nincs leiratkozva.
+
+A workflow konfigurált korlátai: legfeljebb 2 utánkövetés, 5 napos várakozás, futásonként legfeljebb 3 levél, 30 másodperces küldési késleltetés. A kód újraküldés előtt ellenőrzi a válasz és a leiratkozás állapotát.
+
+### 5.3 Inbox
+
+Az aktív workflow az `email_inbox.py` IMAP-modult futtatja. UID-checkpointot tárol a `settings` táblában; a válasz és leiratkozás állapotát a leadrekordon frissíti, és megakadályozza a további utánkövetést.
+
+A környezeti változók megléte nem bizonyítja az SMTP/IMAP kapcsolatot vagy a tényleges kézbesítést. Éles küldési teszt csak korlátozott, jóváhagyott tesztcímzettel végezhető.
+
+## 6. Supabase adatmodell
+
+A repository jelenlegi `supabase/schema.sql` fájlja az alábbi hét alkalmazástáblát definiálja:
+
+| Tábla | Szerep |
+|---|---|
+| `leads` | céges leadek, weboldal és kapcsolatfelvételi/hozzájárulási állapot |
+| `logs` | technikai események, modul, szint, üzenet és időpont |
+| `settings` | kulcs-érték beállítások és technikai checkpointok |
+| `tasks` | feladatok, prioritás, státusz és határidő |
+| `email_drafts` | e-mail-tervezetek tárolására szolgáló tábla |
+| `jarvis_memory` | explicit módon mentett memóriaelemek |
+| `jarvis_proactive_state` | proaktív monitor technikai pillanatképe |
+
+A schema.sql mind a hét táblán RLS-t kapcsol be. A pontos oszlopok, indexek és constraint-ek hiteles forrása a SQL-fájl és a migrációk.
+
+**Ismert eltérés:** a 2026-11-20-i korábbi élő adatbázis-ellenőrzés nyolc alkalmazástáblát sorolt fel, és a `posts` táblát is tartalmazta. A jelenlegi schema.sql nem definiál `posts` táblát. Ez sémaeltérés vagy legacy objektum lehet; további ellenőrzés nélkül ne következtess az eredetére, és ne módosítsd az adatbázist.
+
+A service-role kulcs RLS-t megkerülő szerveroldali jogosultság. Kizárólag szerveroldali titokként használható. Az SQL-fájl repositoryba mentése nem hajt végre automatikusan migrációt a Supabase-projekten.
+
+## 7. Konfiguráció és titkok
+
+A `jarvis_common.py` a Streamlit secrets értékeit részesíti előnyben, majd a környezeti változókra esik vissza. A boolean kapcsolók hiányzó érték esetén alapértelmezetten hamisak.
+
+Fő beállítások:
+
+| Változó | Használat |
+|---|---|
+| `SUPABASE_URL` | Supabase projekt URL |
+| `SUPABASE_SERVICE_ROLE_KEY` vagy `SUPABASE_KEY` | szerveroldali Supabase-hozzáférés |
+| `GEMINI_API_KEY` | Gemini API |
+| `GEMINI_MODEL` | opcionális modellválasztás |
+| `JARVIS_DASHBOARD_PASSWORD` | dashboard hozzáférésvédelme |
+| `EMAIL_USER`, `EMAIL_PASSWORD` | e-mail-fiók |
+| `SMTP_HOST`, `SMTP_PORT` | SMTP-kapcsolat |
+| `IMAP_HOST`, `IMAP_PORT` | IMAP-kapcsolat |
+| `EMAIL_DELIVERY_ENABLED` | központi SMTP-küldési kapcsoló |
+| `CHAT_EMAIL_ENABLED` | chatből indított e-mail engedélyezése |
+| `AUTO_SEND_ENABLED` | háttérküldés engedélyezése |
+| `EMAIL_INBOX_MONITOR_ENABLED` | inbox-figyelés engedélyezése |
+| `SEND_MAX_PER_RUN`, `MAX_FOLLOW_UPS`, `FOLLOW_UP_DAYS`, `SEND_DELAY_SECONDS` | háttérküldési korlátok |
+
+Codespaces Secrets és GitHub Actions Secrets külön környezet. Egyikben beállított titok nem kerül automatikusan a másikba. Titok értékét ne másold dokumentumba, issue-ba, logba vagy chatbe.
+
+## 8. GitHub Actions workflow-k
+
+| Workflow | UTC ütemezés | Működés |
+|---|---:|---|
+| `.github/workflows/ci.yml` | push, pull request, kézi indítás | telepítés, compileall, pytest |
+| `.github/workflows/global-lead-research.yml` | naponta 08:00 | globális leadkutatási job |
+| `.github/workflows/daily-briefing.yml` | naponta 08:30 | napi briefing és artifact |
+| `.github/workflows/email-automation.yml` | naponta 09:15 | inbox-monitor, majd feltételes háttérküldés |
+| `.github/workflows/jarvis.yml` | nincs ütemezés | letiltott no-op legacy workflow |
+| `.github/workflows/jarvis-cron.yml` | nincs ütemezés | letiltott no-op legacy workflow |
+
+A workflow definíció nem bizonyít sikeres futást. A legutóbbi futások és artifactok ellenőrzését a PROJECT_STATUS-ban kell rögzíteni.
+
+A `proactive_monitor.py` jelenleg nem tekinthető aktív, ütemezett folyamatnak: a vizsgált dashboard- és workflow-belépési pontok nem hivatkoztak a függvényére.
+
+## 9. Biztonsági alapelvek
+
+- API-kulcs, jelszó és service-role kulcs soha nem kerülhet Gitbe vagy dokumentációba.
+- Service-role kulcs kizárólag megbízható szerveroldali környezetben használható.
+- A weboldalak, e-mail-tartalmak és visszakeresett memóriák nem megbízható utasítások.
+- A leadkutatás nem jelent hozzájárulást marketingcélú megkereséshez.
+- Chatből e-mail csak pontos címzettel, teljes előnézettel és külön jóváhagyással küldhető.
+- Háttérküldés csak a kódban ellenőrzött hozzájárulási, jóváhagyási és leiratkozási feltételek mellett futhat.
+- A technikai hozzájárulás-ellenőrzés nem helyettesíti a célország szerinti jogi megfelelőség ellenőrzését.
+
+## 10. Tesztelési és bizonyítási modell
+
+A tesztelés négy külön szint:
 
 1. **Statikus ellenőrzés:** például `python -m compileall -q .`.
-2. **Automatizált teszt:** például `python -m pytest -q`; mockolt külső szolgáltatásokkal is futhat.
-3. **Integrációs teszt:** tényleges, kontrollált Supabase/Gemini/IMAP/SMTP környezetben végzett próba.
-4. **Üzemi ellenőrzés:** a felület, workflow-k és külső szolgáltatások valós működésének ellenőrzése.
+2. **Automatizált teszt:** például `python -m pytest -q`; a külső szolgáltatások lehetnek mockolva.
+3. **Integrációs teszt:** valós, kontrollált Supabase/Gemini/SMTP/IMAP kapcsolat.
+4. **Üzemi ellenőrzés:** a dashboard és az ütemezett workflow valós futásának ellenőrzése.
 
-Egy sikeres egységteszt vagy CI-futás nem bizonyít éles kézbesítést, folyamatos rendelkezésre állást vagy külső szolgáltatás-hozzáférést. A dátumozott teszteredményeket és nyitott ellenőrzéseket a [PROJECT_STATUS.md](PROJECT_STATUS.md) dokumentumban kell vezetni.
+A teszteredmények dátuma és pontos kimenete a [PROJECT_STATUS.md](PROJECT_STATUS.md) fájlba kerül. Egy sikeres egységteszt nem bizonyítja az éles integrációt vagy a kézbesítést.
 
-## 9. Dokumentáció karbantartása
+## 11. Dokumentáció karbantartása
 
-| Változás | Frissítendő dokumentum |
+| Változás | Dokumentum |
 |---|---|
-| Új felhasználói képesség vagy telepítési lépés | [README.md](../README.md) |
-| Tesztfutás, elkészült feladat, hiba vagy ellenőrzött környezeti állapot | [PROJECT_STATUS.md](PROJECT_STATUS.md) |
-| Modulhatár, adatfolyam, adatmodell vagy biztonsági architektúra változása | Ez a dokumentum |
-| SQL-tábla/oszlop/index változása | Először a `supabase/schema.sql` és migráció; utána ez a dokumentum, ha az architektúra-leírás is változik |
+| Felhasználói képesség, telepítés, alapvető használat | [README.md](../README.md) |
+| Teszteredmény, futás, külső szolgáltatás állapota, nyitott hiba | [PROJECT_STATUS.md](PROJECT_STATUS.md) |
+| Architektúra, modulhatár, adatfolyam, adatmodell, biztonsági elv | Ez a fájl |
+| Adatbázis-tábla vagy oszlop | Először SQL-séma/migráció, utána szükség szerint ez a dokumentum |
 
-**Alapelv:** a README a felhasználónak szól, a PROJECT_STATUS a fejlesztés aktuális állapotát rögzíti, a TECHNICAL_DOCUMENTATION pedig a rendszer belső működését magyarázza. Ugyanazt a változó állapotot ne tartsuk karban több helyen.
+**AI-karbantartási szabály:** minden változtatás után ellenőrizd az érintett forráskódot és teszteket. Ne másolj dátumozott tesztállapotot ebbe a fájlba. Ne állíts aktívnak olyan modult vagy automatizmust, amelynek belépési pontját és futását nem igazoltad. Ne találgass hiányzó adatbázis-sémát, titokértéket vagy külső szolgáltatásállapotot.
