@@ -140,3 +140,29 @@ def test_executive_report_handles_empty_logs_without_losing_project_metadata():
     assert "Supabase-projekt létrehozása:** 2026-11-13 17:02:24 CET" in report
     assert "Nem áll rendelkezésre érvényes időbélyegű naplórekord." in report
     assert "nincs esemény, ezért hibaarány nem számítható" in report
+
+
+
+def test_executive_report_correlates_chat_outcomes_by_request_id():
+    ts = "2026-11-19T08:00:00Z"
+    records = [
+        {"module": "chat", "level": "info", "message": "chat_request|request_id=" + "a" * 32, "created_at": ts},
+        {"module": "chat", "level": "info", "message": "chat_response|request_id=" + "a" * 32, "created_at": "2026-11-19T08:00:01Z"},
+        {"module": "chat", "level": "info", "message": "chat_request|request_id=" + "b" * 32, "created_at": ts},
+        {"module": "chat", "level": "error", "message": "chat_error|request_id=" + "b" * 32, "created_at": "2026-11-19T08:00:02Z"},
+        {"module": "chat", "level": "info", "message": "chat_request|request_id=" + "c" * 32, "created_at": ts},
+        {"module": "chat", "level": "info", "message": "chat_request", "created_at": ts},
+        {"module": "chat", "level": "info", "message": "chat_response", "created_at": "2026-11-19T08:00:03Z"},
+    ]
+    report = build_executive_analytics_report(
+        records, now=pd.Timestamp("2026-11-20T12:00:00+01:00").to_pydatetime()
+    )
+    assert "sikeres **1**, sikertelen **1**, befejezetlen **1**" in report
+    assert "Régi, request_id nélküli események: kérés **1**, válasz **1**" in report
+
+
+def test_chat_activity_labels_support_correlated_event_messages():
+    from jarvis_analytics import _activity_label
+
+    assert _activity_label({"module": "chat", "message": "chat_request|request_id=" + "a" * 32, "level": "info"}) == "Beszélgetési kérés"
+    assert _activity_label({"module": "chat", "message": "chat_response|request_id=" + "a" * 32, "level": "info"}) == "AI-válasz elkészült"
