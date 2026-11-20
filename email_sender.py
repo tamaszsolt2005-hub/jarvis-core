@@ -137,7 +137,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         return False
 
 
-def run() -> None:
+def _run() -> None:
     if (
         not EMAIL_DELIVERY_ENABLED
         or not env_bool("AUTO_SEND_ENABLED", False)
@@ -166,6 +166,17 @@ def run() -> None:
         if _send_one(db, lead, is_follow_up, now):
             sent += 1
             time.sleep(env_int("SEND_DELAY_SECONDS", 30, 10, 600))
+
+
+def run() -> None:
+    """Run the background sender, report unexpected failures, and fail the workflow."""
+    try:
+        _run()
+    except Exception as exc:
+        report_error(
+            exc, module="email_sender", operation="run_sender", severity="critical"
+        )
+        raise
 
 
 if __name__ == "__main__":
