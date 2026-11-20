@@ -9,7 +9,7 @@ A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafel
 - **Analitika és naplózás:** a kifejezetten kért 30 napos vezetői jelentés determinisztikusan, közvetlenül a naplóadatokból készül, nem a Gemini számításaira bízza a tényeket. Külön jelzi a Supabase-projekt létrehozási dátumát és a tényleges naplózási időszakot; a naplóhiányt nem minősíti bizonyított modulleállásnak. A chatkérések, válaszok és hibák külön eseménytípusokként naplózódnak, a riport pedig megkülönbözteti a sikeres, hibás és befejezetlen kéréseket.
 - **Legutóbbi felhasználói teszteredmény:** 2026-11-20-án a `python -m compileall -q .` sikeres, a teljes `python -m pytest -q` tesztcsomag eredménye **154 passed, 0 failed** az adaptív válaszhossz-szabályozás beépítése után.
 - **Élő Supabase-ellenőrzés:** a Jarvis projekt (`kiutreccucbegskxowek`) 2026-11-13-án jött létre; a 2026-11-20-i ellenőrzéskor 23 naplórekord volt, 2026-11-13 és 2026-11-20 közötti megfigyelt időszakkal. A chatben 2 kéréshez 2 válaszesemény tartozott.
-- **Biztonsági korlát:** az automatikus e-mail-küldés továbbra is kódszinten tiltott; a service-role kulcs kizárólag szerveroldali titok.
+- **E-mail:** elkészült a chatből indított, teljes előnézet utáni külön jóváhagyás, valamint a hozzájárulás-ellenőrzött háttérküldés és az utánkövetés kódja. Az SMTP és az automatizmusok alapértelmezetten tiltottak; az éles küldés csak külön szerveroldali kapcsolókkal és konfigurált SMTP/IMAP hozzáféréssel indulhat.
 - Részletes, dátumozott állapot és nyitott feladatok: [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 ## Fő működési elvek
@@ -20,12 +20,40 @@ A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafel
 - A weboldal-pontszám az oldal üzleti információtartalmát méri, nem vásárlási szándékot; a weboldal tartalma nem megbízható bemenet. A rangsor nem írja át a Supabase-rekordokat.
 - Proaktív üzleti kérésnél JARVIS a lead- és feladatadatokból jelzi a lejárt feladatokat, valamint kizárólag a kifejezetten jóváhagyott és le nem iratkozott leadek esedékes utánkövetését. A jelzések nem indítanak automatikus műveletet.
 - Lehetőségeket és következő lépéseket a meglévő cég-, státusz-, weboldal- és feladatadatok alapján javasol; a hiányzó információt bizonytalanságként jelzi.
-- Kérésre e-mail- vagy utánkövetési szövegtervezetet készít a chatben, másolható formában. A tervezet nem kerül adatbázisba, címzettet nem talál ki, és semmilyen e-mailt nem küld el.
+- Chatből indított e-mailnél a JARVIS csak a felhasználó által pontosan megadott e-mail-címre készít tervezetet. A teljes címzettet, tárgyat és szöveget megmutatja, és csak a külön „Jóváhagyom” üzenet után küldhet, ha a chatküldés szerveroldali kapcsolója aktív.
 - Az alapértelmezett adatlekérdezés csak olvas; kivétel a felhasználó által kifejezetten kért memória mentése/törlése, a külön jóváhagyott feladatművelet és a jóváhagyott, kizárólag céges leadkutatási rekord beszúrása.
 - A leadek személyes e-mail-címei és szabad szöveges megjegyzései, valamint az e-mail-piszkozatok címzettjei nem kerülnek az AI kontextusába.
-- Az e-mail-küldés kódszinten is le van tiltva: sem az `AUTO_SEND_ENABLED=true` beállítás, sem a közvetlen SMTP-függvényhívás nem indíthat küldést. Feloldás csak külön, felülvizsgált kódmódosítással lehetséges. Naponta két korlátozott workflow fut: a globális, kizárólag céges adatokat gyűjtő leadkutatás és a csak olvasási napi vezetői jelentés. A régi, duplikált pipeline-ok hatástalanítottak.
+- Az SMTP-küldés alapértelmezetten tiltott (`EMAIL_DELIVERY_ENABLED=false`). A háttérküldéshez külön `AUTO_SEND_ENABLED=true` és `EMAIL_INBOX_MONITOR_ENABLED=true` is kell; a chatküldéshez `CHAT_EMAIL_ENABLED=true` szükséges. A service-role kulcs kizárólag szerveroldali titok. A régi, duplikált pipeline-ok hatástalanítottak.
 - A Supabase és Gemini hitelesítő adatait kizárólag Codespaces Secrets / Streamlit secrets konfigurációban tárold. Soha ne commitold őket.
 
+## E-mailküldés és utánkövetés
+
+### Chatből indított levelek
+- A JARVIS csak a kérésben megadott, érvényesnek formázott e-mail-címet használja; nevet vagy céget nem alakít át találgatással címmé.
+- A teljes címzettet, tárgyat és levélszöveget megmutatja. Küldés csak az ezt követő külön „Jóváhagyom” üzenetre történhet.
+- A függő jóváhagyás egyetlen következő üzenetre érvényes; másik kérés vagy „Elutasítom” törli.
+- A chatküldéshez `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true` szükséges.
+
+### Háttérben futó levelek
+- A háttérfolyamat első kapcsolatfelvételt és utánkövető leveleket is küldhet külön üzenetenkénti jóváhagyás nélkül.
+- Csak `consent_basis=consent`, `approved_to_contact=true`, időbélyeggel igazolt `consent_confirmed_at`, érvényes e-mail-cím és `opted_out=false` esetén küld.
+- A bejövő válasz a státuszt `replied` értékre állítja és törli a következő utánkövetés időpontját. A leiratkozás `opted_out=true` és `status=opted_out` értéket állít be.
+- Az utánkövetés alapértelmezett várakozása 5 nap; maximum 2 utánkövető levél, futásonként legfeljebb 3 levél, küldések között legalább 30 másodperc.
+- A háttérküldés csak akkor indulhat, ha az SMTP-küldés, az automatikus küldés és az IMAP inbox-figyelés is külön engedélyezett. A workflow először a bejövő leveleket ellenőrzi, és csak utána küld.
+- A bejövő ellenőrzés IMAP-on keresztül a legutóbbi 200 üzenetet vizsgálja. A szolgáltató IMAP-beállításait és a megfelelő hozzáférést külön ellenőrizni kell.
+
+### GitHub Actions konfiguráció
+A napi `JARVIS Email Automation` workflow 09:15 UTC-kor fut, és kézzel is indítható. A repository **Settings → Secrets and variables → Actions** részében szükséges:
+- `SUPABASE_URL` és `SUPABASE_SERVICE_ROLE_KEY` (vagy `SUPABASE_KEY`)
+- `GEMINI_API_KEY`
+- `EMAIL_USER`, `EMAIL_PASSWORD`
+- `EMAIL_DELIVERY_ENABLED=true`, `AUTO_SEND_ENABLED=true`, `EMAIL_INBOX_MONITOR_ENABLED=true`
+- `CHAT_EMAIL_ENABLED=true` csak akkor, ha a chatből indított küldést is engedélyezni szeretnéd a Streamlit szerverkörnyezetben
+- Opcionális: `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST`, `IMAP_PORT`
+
+A hiányzó vagy nem `true` biztonsági kapcsolók esetén a workflow kihagyja a küldést. A Codespaces Secrets és a GitHub Actions Secrets külön konfiguráció. A titkokat soha ne commitold vagy küldd el chatben.
+
+A jelenlegi kód a már létező `leads` mezőket használja; új Supabase-tábla vagy jogosultságmódosítás nem szükséges. Az e-mailküldési funkció kódja és tesztjei elkészültek, de az SMTP/IMAP éles konfigurációja és a teljes végponttól végpontig teszt még nincs igazolva.
 ## Globális leadkutatás
 
 - A JARVIS alapértelmezésben Magyarországon keres Google Search groundinggal alátámasztott, valós nyilvános cégeket; a célpiac chatparanccsal más országra vagy világszintű keresésre váltható. Az iparág és a cégméret nincs korlátozva.
@@ -39,7 +67,7 @@ A JARVIS egy Streamlit-alapú, magyar nyelvű B2B üzleti intelligencia-munkafel
 - A GitHub Actions naponta 08:00 UTC-kor legfeljebb 15 új céget kutat az aktuálisan mentett célpiacon; kézzel is indítható. A duplikátumokat cégnév és domain alapján szűri.
 - A kutatás kizárólag vállalati adatokat ment (cégnév, hivatalos weboldal, ország, iparág, rövid üzleti profil és forrás). Személyes neveket, személyes e-mail-címeket és telefonszámokat nem gyűjt.
 - A kutatásból létrejövő lead e-mail-címe üres, státusza `research`, `approved_to_contact=false`, `consent_basis=null`. A megtalált cég nem válik automatikusan megkereshetővé.
-- **Az e-mail-küldés továbbra is tiltva van.** A napi kutatási workflow nem hívja az e-mail-küldő vagy utánkövető modult.
+- A napi leadkutatás továbbra sem ad kapcsolatfelvételi engedélyt. A háttérküldő csak külön, időbélyeggel igazolt `consent` hozzájárulással, `approved_to_contact=true` és `opted_out=false` rekordot kezel.
 - A napi háttérkutatáshoz a GitHub repository **Settings → Secrets and variables → Actions** részében külön be kell állítani a `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (vagy `SUPABASE_KEY`) és `GEMINI_API_KEY` titkokat. A Codespaces Secrets nem öröklődik automatikusan a GitHub Actions környezetbe; hiányzó titkok esetén a napi feladat biztonságosan kihagyja a futást.
 - A Supabase SQL Editorban futtasd a frissített `supabase/schema.sql` fájlt. A meglévő `leads` táblához a `website` oszlopot is hozzáadó, idempotens migráció külön megtalálható a `supabase/migrations/20261117_add_leads_website.sql` fájlban. A meglévő `logs` táblához a `level` oszlopot hozzáadó migráció a `supabase/migrations/20261117_add_logs_level.sql` fájlban található; a frissített `schema.sql` ezt is idempotensen kezeli. Ha a migráció még nincs telepítve, a napi jelentés a többi mezővel elkészül és figyelmeztetést jelez; a weboldal-alapú kutatási adatokhoz futtasd a migrációt. A `leads.email` mező üresen is tárolható a cégszintű kutatási rekordoknál.
 
