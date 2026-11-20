@@ -257,7 +257,7 @@ def log_event(supabase: Client, module: str, message: str, level: str = "info") 
         }).execute()
     except Exception as exc:
         report_error(
-            exc,
+            RuntimeError(f"Supabase error logging failed: {exc}"),
             module="jarvis_common",
             operation="write_application_log",
             severity="error",
