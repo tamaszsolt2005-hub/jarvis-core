@@ -236,7 +236,7 @@ def authenticated() -> bool:
     st.caption("Biztonságos bejelentkezés a személyes munkaterülethez.")
     with st.form("jarvis_login_form", clear_on_submit=False):
         password = st.text_input("Dashboard jelszó", type="password", placeholder="Írd be a jelszavad")
-        submitted = st.form_submit_button("Belépés", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Belépés", type="primary", width="stretch")
     if submitted:
         if hmac.compare_digest(password, expected):
             st.session_state["authenticated"] = True
@@ -454,7 +454,11 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     wants_drafts = wants_all or any(x in q for x in ("piszkozat", "tervezet", "e-mail", "email", "levél"))
     if wants_drafts:
         wants_leads = True
-    wants_analytics = is_analytics_question(question)
+    wants_analytics = any(term in q for term in (
+        "analitika", "analitik", "elemz", "analíz", "analiz", "teljesít",
+        "trend", "statiszt", "arány", "diagram", "grafikon", "használati adat",
+        "rendszerhasználat", "aktivitási adat",
+    ))
     wants_logs = wants_all or wants_analytics or any(x in q for x in ("napló", "aktivit", "hiba", "rendszer"))
     wants_ranking = wants_opportunities or any(x in q for x in ("rangsor", "rangsorol", "pontoz", "priorit", "legjobb lead", "legjobb cég", "melyik lead", "weboldal"))
     # A website audit request necessarily needs lead rows, even if the user
@@ -598,7 +602,7 @@ with st.sidebar:
         "◉   Chat",
         key="jarvis_nav_chat",
         type="primary" if current_page == "chat" else "secondary",
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown(
         '<div class="jarvis-nav">'
@@ -612,7 +616,7 @@ with st.sidebar:
         "▥   Analitika",
         key="jarvis_nav_analytics",
         type="primary" if current_page == "analytics" else "secondary",
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown(
         '<div class="jarvis-nav">'
