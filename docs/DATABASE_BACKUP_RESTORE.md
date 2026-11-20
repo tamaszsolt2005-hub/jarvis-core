@@ -142,6 +142,8 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - adatbázis-jelszó eltávolítása a parancssori URL-ből és 0600 PGPASSFILE;
 - a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
-Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist.
+Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A mentési modul 13 biztonsági tesztje a teljes CI-futtatás részeként sikeresen lefutott.
+
+**GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
 
 **2026-11-20 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.
