@@ -162,9 +162,13 @@ st.markdown(
         border-top:0 !important; padding:1.1rem clamp(18px,4vw,64px) 1.45rem !important;
     }
     [data-testid="stBottom"] > div { max-width:1040px !important; margin:0 auto !important; }
-    [data-testid="stChatInput"],[data-testid="stChatInput"] > div {
+    [data-testid="stChatInput"] {
         background:#111e35 !important; border:1px solid #2474bb !important; border-radius:25px !important;
         box-shadow:0 7px 26px rgba(0,0,0,.26),0 0 17px rgba(22,139,255,.09) !important;
+    }
+    [data-testid="stChatInput"] > div {
+        background:transparent !important; border:0 !important; border-radius:inherit !important;
+        box-shadow:none !important;
     }
     [data-testid="stChatInput"]:focus-within { border-color:#168bff !important; box-shadow:0 0 0 1px #168bff,0 0 20px rgba(22,139,255,.17) !important; }
     [data-testid="stChatInput"] textarea { color:#f4f7ff !important; caret-color:#00cfff !important; font-size:1rem !important; }
