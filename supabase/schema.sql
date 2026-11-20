@@ -55,6 +55,27 @@ create table if not exists public.logs (
 -- Existing installations may have an older logs table without the level column.
 alter table public.logs add column if not exists level text not null default 'info';
 
+-- Structured audit metadata; additive to preserve the existing log history.
+alter table public.logs
+  add column if not exists operation_id uuid,
+  add column if not exists action text,
+  add column if not exists status text not null default 'unknown',
+  add column if not exists result jsonb,
+  add column if not exists error text,
+  add column if not exists approved boolean,
+  add column if not exists recipient text,
+  add column if not exists subject text,
+  add column if not exists delivery_id text;
+
+create index if not exists logs_created_at_desc_idx
+  on public.logs (created_at desc);
+create index if not exists logs_operation_id_idx
+  on public.logs (operation_id);
+create index if not exists logs_module_action_created_idx
+  on public.logs (module, action, created_at desc);
+create index if not exists logs_status_created_idx
+  on public.logs (status, created_at desc);
+
 create table if not exists public.settings (
   key text primary key,
   value jsonb,
