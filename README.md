@@ -110,7 +110,7 @@ A tesztek nem igényelnek élő Supabase- vagy Gemini-kapcsolatot, és nem haszn
 
 A service-role kulcs megkerüli a Supabase Row Level Security szabályait, ezért csak szerveroldali titokként használd, soha ne jelenítsd meg vagy küldd kliensnek. A dashboard normál adatlekérdezései olvasási műveletek; a kivételes, explicit felhasználói műveletek a memóriát, a jóváhagyott feladatokat és a céges kutatási rekordokat írhatják. A service-role kulcsot ettől függetlenül védeni kell. A bejelentkezési munkamenet legfeljebb 8 óráig érvényes; lejáratkor a függő jóváhagyás is törlődik.
 
-A projekt különálló import-, inbox- és e-mail-műveleti szkriptjei nem részei a chatfelületnek. A régi pipeline workflow-k teljesen hatástalanítottak: nincs ütemezés, és kézi indítás esetén sem futtatnak adatbázis- vagy e-mail-műveletet.
+A különálló import- és inbox-szkriptek nem részei a chatfelületnek; a chatből indított e-mail külön előnézeti és jóváhagyási útvonalon működik. A régi pipeline workflow-k továbbra is hatástalanítottak. Az új e-mail-automatizmus külön, biztonsági kapcsolókhoz kötött workflow.
 
 A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a célország szerinti marketingjogi ellenőrzést.
 
@@ -123,7 +123,7 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - `Mutasd a memóriádat` felsorolja az aktív emlékeket; `Felejtsd el a ...` inaktiválja a megfelelő emléket.
 - Jelszavak, API-kulcsok, személyes elérhetőségek és érzékeny személyes adatok mentését a modul elutasítja. Egy emlék legfeljebb 700 karakter lehet.
 - A memória Supabase-ben tárolódik; nincs beépített fix elemszám-limit. A lekérdezés legfeljebb 100 aktív elemet vizsgál, és legfeljebb 20 releváns elemet ad át a modellnek.
-- Az új táblához futtasd a frissített `supabase/schema.sql` fájlt a Supabase SQL Editorban. Az e-mail-küldés tiltása változatlan.
+- Az új táblához futtasd a frissített `supabase/schema.sql` fájlt a Supabase SQL Editorban. A memóriafunkció nem módosítja az e-mailküldés biztonsági szabályait.
 
 
 ## Intelligens leadprioritás
@@ -138,7 +138,7 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - A `daily_briefing.py` kizárólag olvassa a Supabase lead- és feladatadatait, majd összefoglalja a nyitott és lejárt feladatokat, az aznapi új cégeket és a legmagasabb kutatási prioritású lehetőségeket.
 - A chatben kérhető: `Készíts napi vezetői jelentést`, `Mutasd a mai üzleti tervet`.
 - A GitHub Actions naponta 08:30 UTC-kor elkészíti a Markdown jelentést, és 14 napig elérhető workflow-artifactként tárolja. Kézzel is indítható.
-- Ez nem e-mail és nem külső értesítés: a jelentést a GitHub Actions futás **Artifacts** részéből lehet megnyitni. E-mail-küldés továbbra sincs.
+- Ez nem e-mail és nem külső értesítés: a jelentést a GitHub Actions futás **Artifacts** részéből lehet megnyitni. Az e-mailküldés nem része a napi jelentés workflow-nak.
 
 ## JARVIS memória 2.0
 
@@ -156,7 +156,7 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - Javasolt strukturált eredményrögzítés: `Mentsd el a tapasztalatot: iparág=...; módszer=...; döntés=...; eredmény=...`.
 - A hibák/tanulságok rögzítése: `Rögzítsd a tanulságot: ...`. A későbbi stratégiai kérdésekben a JARVIS ezeket figyelembe veszi.
 - A célpiacváltás és a globális leadkutatás kétlépcsős: először megmutatja a tervezett műveletet, majd csak a `Jóváhagyom` üzenetre hajtja végre. `Elutasítom` megszakítja.
-- A jóváhagyási lista szándékosan szűk: célpiacváltás és nyilvános, céges leadkutatás. Nincs automatikus e-mail-küldés, és a JARVIS nem módosít CRM-lead- vagy feladatrekordokat.
+- A chatben jóváhagyást igénylő műveletek listája szándékosan szűk: célpiacváltás, nyilvános céges leadkutatás, feladatműveletek és chatből indított e-mailek. A háttér-e-mail automatizmus ettől különálló, külön biztonsági kapcsolókkal védett workflow.
 
 ## Jóváhagyással működő feladatkezelés
 
