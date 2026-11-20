@@ -37,6 +37,8 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - A chat-analitika nem teszi az AI kontextusába a nyers naplóüzeneteket.
 - **Új pontosítás:** a jelentés külön megjeleníti a Supabase-projekt létrehozási dátumát és a naplóban ténylegesen megfigyelt első/utolsó esemény időpontját. A projekt létrehozása előtti időszak naplóhiányát nem minősíti automatikusan adatvesztésnek.
 - A Jarvis Supabase-projekt létrehozási ideje a projekt metaadata alapján: **2026-11-13 16:02:24 UTC**. Ez projektmetaadat, nem a naplózás indulási ideje.
+- **Vezetői analitikai jelentés:** a kifejezetten kért analitikai jelentéseket a rendszer most már determinisztikusan, közvetlenül a naplórekordokból állítja elő; ezeknél a Gemini nem írhatja felül a számokat vagy a projektmetaadatot. A riport 30 napos naptári ablakot, 7 napos összehasonlítást, modulmegoszlást, hibákat/figyelmeztetéseket, külön projekt-létrehozási és tényleges naplózási időszakot, valamint adatlefedettségi korlátot mutat. A naplóhiányt nem nevezi bizonyított modulleállásnak.
+- A projekt létrehozási dátuma ismert, ezért annak `system_info` táblába történő utólagos rögzítése nem szükséges; a dátum jelenleg ellenőrzött projektmetaadatból származik.
 
 ### E-mail biztonság
 - Az e-mail-küldés kódszinten tiltott; az alkalmazás nem küld automatikus e-mailt.
@@ -96,7 +98,7 @@ streamlit run dashboard.py --server.port 8501
 
 ## Még ellenőrizendő / nyitott feladatok
 
-1. Az új analitikai projekt-metaadat és naplózási lefedettség módosítás helyi tesztfuttatása.
+1. A determinisztikus 30 napos vezetői analitikai jelentés új tesztjeinek helyi futtatása (`python -m pytest -q tests/test_jarvis_analytics.py`), majd a teljes tesztcsomagé.
 2. Új analitikai riport megnyitása a Streamlit felületen, és ellenőrzése, hogy a projekt létrehozási dátuma, valamint az első/utolsó naplóesemény külön látszik.
 3. A GitHub Actions workflow-k legutóbbi futásának ellenőrzése és az artifactok áttekintése.
 4. A Gemini- és teljes dashboard-folyamat valós, titkokkal végzett végponttól végpontig tesztje.
