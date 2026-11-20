@@ -190,17 +190,16 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
 def _restore_sql_text(schema_sql: str, data_sql: str) -> str:
     """Restore into Supabase's existing public schema, not by recreating it."""
     schema_sql = re.sub(
-        r"(?im)^\\s*CREATE\\s+SCHEMA\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public(?:\\s+AUTHORIZATION\\s+[^;]+)?\\s*;\\s*$",
+        r"(?im)^\s*CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?public(?:\s+AUTHORIZATION\s+[^;]+)?\s*;\s*$",
         "",
         schema_sql,
     )
     schema_sql = re.sub(
-        r"(?im)^\\s*ALTER\\s+SCHEMA\\s+public\\s+OWNER\\s+TO\\s+[^;]+;\\s*$",
+        r"(?im)^\s*ALTER\s+SCHEMA\s+public\s+OWNER\s+TO\s+[^;]+;\s*$",
         "",
         schema_sql,
     )
     return schema_sql + chr(10) + data_sql
-
 
 def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False) -> None:
     if not confirmed:
