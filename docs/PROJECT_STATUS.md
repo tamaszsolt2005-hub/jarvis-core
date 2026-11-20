@@ -170,6 +170,7 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 - A `posts` legacy táblát is tartalmazza a teljes public dump, a repository-sémától függetlenül.
 - A `storage.buckets` lekérdezés üres volt. A projekt bővítménykatalógusa több PostgreSQL-kiterjesztést tartalmaz; célprojektben a szükségeseket külön ellenőrizni kell.
 - Kizárólag olvasási lekérdezések futottak; éles adat nem módosult.
+- **Élő sémaeltérés:** a lekérdezett `public.logs` táblában jelenleg csak az `id`, `module`, `message`, `created_at`, `level` oszlopok látszanak; a repository `schema.sql` auditmezői az élő táblában nem látszottak. A `public.settings` élő táblában `id` az elsődleges kulcs, míg a repository séma `key` alapú kulcsot definiál. A mentés a tényleges élő sémát menti; ezeket a különbségeket nem javítja és nem módosítja.
 
 **Előkészített repository-elemek:**
 - `scripts/supabase_backup.py`: Supabase CLI public schema + data dump, UTC időbélyeg és UUID, SHA-256 manifest, age titkosítás.
