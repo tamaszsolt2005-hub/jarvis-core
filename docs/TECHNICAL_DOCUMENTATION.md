@@ -188,7 +188,7 @@ A repository jelenlegi `supabase/schema.sql` fájlja az alábbi hét alkalmazás
 
 A schema.sql mind a hét táblán RLS-t kapcsol be. A pontos oszlopok, indexek és constraint-ek hiteles forrása a SQL-fájl és a migrációk.
 
-**Ismert eltérés:** a 2026-11-20-i korábbi élő adatbázis-ellenőrzés nyolc alkalmazástáblát sorolt fel, és a `posts` táblát is tartalmazta. A jelenlegi schema.sql nem definiál `posts` táblát. Ez sémaeltérés vagy legacy objektum lehet; további ellenőrzés nélkül ne következtess az eredetére, és ne módosítsd az adatbázist.
+**Élő adatbázis-ellenőrzés (2026-11-20):** a Supabase `public` sémában nyolc tábla található: `leads`, `posts`, `logs`, `settings`, `tasks`, `email_drafts`, `jarvis_memory`, `jarvis_proactive_state`. Mind a nyolcnál RLS engedélyezett. A `posts` tábla 0 rekordot tartalmazott; oszlopai: `id`, `content`, `scheduled_for`, `status`, `created_at`. A repository `supabase/schema.sql` fájlja csak a másik hét táblát definiálja, `posts`-ot nem. A repository-kódban végzett keresés nem talált `posts` hivatkozást. **Következtetés:** a `posts` jelenleg árva/legacy adatbázis-objektumnak látszik, nem része a dokumentált JARVIS-funkcióknak. Mivel üres és RLS-védett, most nem töröljük, nem vesszük fel találgatással az alkalmazássémába. Törlés vagy migráció csak külön döntés, teljes függőségi ellenőrzés és mentés után.
 
 A service-role kulcs RLS-t megkerülő szerveroldali jogosultság. Kizárólag szerveroldali titokként használható. Az SQL-fájl repositoryba mentése nem hajt végre automatikusan migrációt a Supabase-projekten.
 
@@ -229,7 +229,7 @@ Codespaces Secrets és GitHub Actions Secrets külön környezet. Egyikben beál
 
 A workflow definíció nem bizonyít sikeres futást. A legutóbbi futások és artifactok ellenőrzését a PROJECT_STATUS-ban kell rögzíteni.
 
-A `proactive_monitor.py` jelenleg nem tekinthető aktív, ütemezett folyamatnak: a vizsgált dashboard- és workflow-belépési pontok nem hivatkoztak a függvényére.
+`proactive_monitor.py` implementált, de jelenleg nem aktív/ütemezett: a `run_proactive_monitor()` függvény lead- és feladat-pillanatképet olvas, az előző pillanatképpel összeveti az új és módosult rekordokat, határidő- és prioritásjelzéseket készít, majd kizárólag a `jarvis_proactive_state` technikai táblát frissíti. Nem módosít leadet vagy feladatot. A teljes repository-keresés és az aktív workflow-k ellenőrzése nem talált hívást vagy ütemezést. A `dashboard.py` külön `_proactive_signals()` segéde aktuális állapotú jelzéseket számol a chat kontextusához; ez nem a `proactive_monitor.py` előző napi változásfigyelője. **Állapot:** kódban implementálva, automatikus futása nem igazolt; külön workflow/ütemezés vagy dashboard-integráció szükséges, ha aktiválni akarjuk.
 
 ## 9. Biztonsági alapelvek
 
