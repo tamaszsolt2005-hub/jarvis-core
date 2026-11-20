@@ -23,10 +23,12 @@ _SECRET_PATTERNS = (
 def sanitize_log_text(value: Any, *, max_length: int = 4000) -> str:
     """Redact common credential formats and configured secret values."""
     text = str(value if value is not None else "")
-    for pattern in _SECRET_PATTERNS:
-        if pattern.groups >= 2:
-            text = pattern.sub(lambda match: match.group(1) + "[REDACTED]" + (match.group(2) if match.lastindex and match.lastindex >= 2 else ""), text)
+    for index, pattern in enumerate(_SECRET_PATTERNS):
+        if index == 3:
+            # Keep the URL separator after redacting the password.
+            text = pattern.sub(lambda match: match.group(1) + "[REDACTED]" + match.group(2), text)
         else:
+            # Group 2 in the credential-assignment pattern is the secret itself.
             text = pattern.sub(lambda match: match.group(1) + "[REDACTED]", text)
 
     # Also remove exact configured secret values when an SDK includes them in an error.
