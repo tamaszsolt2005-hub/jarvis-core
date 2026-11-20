@@ -112,8 +112,12 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
 
 
 def run() -> None:
-    if not EMAIL_DELIVERY_ENABLED or not env_bool("AUTO_SEND_ENABLED", False):
-        print("Biztonsági mód: e-mail-küldés nincs engedélyezve; nem történt küldés.")
+    if (
+        not EMAIL_DELIVERY_ENABLED
+        or not env_bool("AUTO_SEND_ENABLED", False)
+        or not env_bool("EMAIL_INBOX_MONITOR_ENABLED", False)
+    ):
+        print("Biztonsági mód: az SMTP-küldés, az automatikus küldés és a bejövő levélfigyelés mind szükséges; nem történt küldés.")
         return
     db = get_supabase()
     now = datetime.now(timezone.utc)
