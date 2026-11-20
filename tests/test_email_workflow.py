@@ -5,7 +5,7 @@ from chat_email import (
     extract_explicit_recipient,
     is_chat_email_request,
 )
-from email_inbox import _is_optout
+from email_inbox import _is_optout, _uids_to_process
 from email_sender import _due_follow_up, _valid_consent
 
 
@@ -69,3 +69,14 @@ def test_inbound_opt_out_and_reply_classification():
     assert _is_optout("Re: bemutatkozás", "Kérem, leiratkozom.")
     assert _is_optout("Unsubscribe", "Please remove me")
     assert not _is_optout("Re: bemutatkozás", "Köszönöm, érdekel a téma.")
+
+
+
+def test_inbox_uid_checkpoint_processes_initial_window_then_only_new_messages():
+    uids = [str(value).encode() for value in range(1, 251)]
+    initial = _uids_to_process(uids, {}, "77")
+    assert initial == uids[-200:]
+    later = _uids_to_process(uids + [b"251", b"252"], {"uidvalidity": "77", "last_uid": 250}, "77")
+    assert later == [b"251", b"252"]
+    reset = _uids_to_process(uids, {"uidvalidity": "76", "last_uid": 250}, "77")
+    assert reset == uids[-200:]
