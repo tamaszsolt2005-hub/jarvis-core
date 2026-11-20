@@ -18,6 +18,7 @@ def test_chat_email_request_handles_hungarian_inflections():
 def test_chat_email_requires_explicit_address():
     assert extract_explicit_recipient("Küldj emailt a teszt@example.com címre") == "teszt@example.com"
     assert extract_explicit_recipient("Küldj emailt Péternek") is None
+    assert extract_explicit_recipient("Küldj emailt a teszt@example.com és info@example.com címre") is None
 
 
 def test_chat_email_draft_parses_subject_and_body():
