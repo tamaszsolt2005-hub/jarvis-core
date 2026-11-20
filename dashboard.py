@@ -809,14 +809,18 @@ if prompt:
                                 **audit_fields,
                             )
                             raise
-                        audit_event(
+                        audit_saved = audit_event(
                             db, status="success",
                             result={"smtp_accepted": True},
                             delivery_id=message_id or None,
                             **audit_fields,
                         )
-                        log_event(db, "chat_email", "Jóváhagyott chatből indított e-mail elküldve.")
-                        approval_notice = f"A jóváhagyott e-mailt az SMTP-szerver átvette. Üzenetazonosító: {message_id or 'nem érkezett azonosító'}."
+                        if audit_saved:
+                            log_event(db, "chat_email", "Jóváhagyott chatből indított e-mail elküldve.")
+                            approval_notice = f"A jóváhagyott e-mailt az SMTP-szerver átvette. Üzenetazonosító: {message_id or 'nem érkezett azonosító'}."
+                        else:
+                            log_event(db, "chat_email", "SMTP átvétel megtörtént, de a záró auditbejegyzés nem menthető.", "error")
+                            approval_notice = f"Az SMTP-szerver átvette az e-mailt ({message_id or 'azonosító nélkül'}), de a végső auditbejegyzés mentése nem sikerült. A küldést ne ismételd meg ellenőrzés nélkül."
                 elif task_action:
                     stage = "Jóváhagyott feladatművelet"
                     approval_notice = execute_task_action(db, task_action)
