@@ -254,6 +254,7 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         combined.write_text(
             "-- Restrict default table privileges before restoring the public schema." + chr(10)
             + "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;" + chr(10)
+            + "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;" + chr(10)
             + _restore_sql_text(schema_text, data_text),
             encoding="utf-8",
         )
