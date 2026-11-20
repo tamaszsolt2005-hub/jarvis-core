@@ -131,7 +131,7 @@ def test_database_password_is_not_in_connection_argument(tmp_path):
     passfile = Path(env["PGPASSFILE"])
     assert passfile.exists()
     assert passfile.stat().st_mode & 0o777 == 0o600
-    assert "secret:value" in passfile.read_text()
+    assert "secret\\:value" in passfile.read_text()
 
 
 def test_connection_password_is_removed_from_url_and_written_privately(tmp_path):
