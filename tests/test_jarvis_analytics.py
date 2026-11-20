@@ -109,6 +109,7 @@ def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
 def test_executive_analytics_report_request_is_detected():
     assert is_executive_analytics_report_request("Készíts 30 napos vezetői analitikai jelentést")
     assert not is_executive_analytics_report_request("Mutasd az analitikát")
+    assert not is_executive_analytics_report_request("Miért hiányos az analitikai jelentés?")
 
 
 def test_executive_report_uses_verified_project_date_and_distinguishes_log_window():
