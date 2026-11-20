@@ -91,6 +91,10 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
             or fresh[0].get("opted_out") is True
             or fresh[0].get("last_inbound_message_id")
         ):
+            if fresh and fresh[0].get("status") == claim_status:
+                db.table("leads").update({
+                    "status": "send_blocked", "next_follow_up_at": None
+                }).eq("id", lead["id"]).eq("status", claim_status).execute()
             log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warn")
             return False
         message_id = send_email(str(lead["email"]), subject, body)
