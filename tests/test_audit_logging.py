@@ -1,5 +1,4 @@
 """Structured audit-log tests; no live Supabase or email access."""
-import json
 import uuid
 
 import jarvis_common
@@ -98,7 +97,7 @@ def test_audit_event_writes_structured_fields_and_uuid():
     assert row["recipient"] == "customer@example.com"
     assert row["subject"] == "Project update"
     assert row["delivery_id"] == "<message-123@example.com>"
-    assert json.loads(row["result"]) == {"smtp_accepted": True}
+    assert row["result"] == {"smtp_accepted": True}
     assert row["created_at"].endswith("+00:00")
 
 
@@ -118,6 +117,16 @@ def test_audit_event_reuses_valid_operation_id_and_redacts_secrets():
     assert row["operation_id"] == operation_id
     assert "super-secret-value" not in row["error"]
     assert "secret-subject" not in row["subject"]
+
+
+def test_audit_event_sanitizes_result_values():
+    db = FakeDB(rows=None)
+    assert jarvis_common.audit_event(
+        db, module="test", action="test_result", status="success",
+        result={"details": "api_key=hidden-value", "count": 2},
+    )
+    assert db.inserted[0]["result"]["details"] != "api_key=hidden-value"
+    assert "hidden-value" not in str(db.inserted[0]["result"])
 
 
 def test_audit_event_returns_false_when_persistence_fails(caplog):
