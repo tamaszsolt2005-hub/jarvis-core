@@ -9,6 +9,8 @@ from jarvis_analytics import (
     _sparkline_svg,
     build_chat_analytics_context,
     is_analytics_question,
+    is_executive_analytics_report_request,
+    build_executive_analytics_report,
 )
 
 
@@ -101,3 +103,39 @@ def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
     assert "figyelmeztetés=1" in summary
     assert "private@example.com" not in summary
     assert all(f"{days} nap:" in summary for days in (7, 30, 90, 365))
+
+
+
+def test_executive_analytics_report_request_is_detected():
+    assert is_executive_analytics_report_request("Készíts 30 napos vezetői analitikai jelentést")
+    assert not is_executive_analytics_report_request("Mutasd az analitikát")
+
+
+def test_executive_report_uses_verified_project_date_and_distinguishes_log_window():
+    records = [
+        {"module": "chat", "level": "info", "message": "chat_request", "created_at": "2026-11-19T08:00:00Z"},
+        {"module": "chat", "level": "info", "message": "chat_response", "created_at": "2026-11-19T08:01:00Z"},
+        {"module": "email_sender", "level": "warning", "message": "private warning text", "created_at": "2026-11-10T08:00:00Z"},
+        {"module": "lead_gen", "level": "error", "message": "private error text", "created_at": "2026-11-19T09:00:00Z"},
+        {"module": "dynamic_scraper", "level": "info", "message": "scrape", "created_at": "2026-11-05T09:00:00Z"},
+    ]
+    report = build_executive_analytics_report(
+        records, now=pd.Timestamp("2026-11-20T12:00:00+01:00").to_pydatetime()
+    )
+    assert "Supabase-projekt létrehozása:** 2026-11-13 17:02:24 CET" in report
+    assert "2026-11-05 10:00:00 CET" in report
+    assert "Összes naplózott esemény a 30 napos ablakban: **3**" in report
+    assert "Hibaszintű esemény (error/critical/fatal): **1**" in report
+    assert "Figyelmeztetés (warn/warning): **0**" in report
+    assert "nem bizonyítja a modul leállását" in report
+    assert "private warning text" not in report
+    assert "private error text" not in report
+
+
+def test_executive_report_handles_empty_logs_without_losing_project_metadata():
+    report = build_executive_analytics_report(
+        [], now=pd.Timestamp("2026-11-20T12:00:00+01:00").to_pydatetime()
+    )
+    assert "Supabase-projekt létrehozása:** 2026-11-13 17:02:24 CET" in report
+    assert "Nem áll rendelkezésre érvényes időbélyegű naplórekord." in report
+    assert "nincs esemény, ezért hibaarány nem számítható" in report
