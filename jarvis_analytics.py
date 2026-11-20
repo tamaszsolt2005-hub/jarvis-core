@@ -126,7 +126,7 @@ def build_chat_analytics_context(records: list[dict], now: datetime | None = Non
         previous = frame[(frame["created_at_utc"] >= previous_start_utc) & (frame["created_at_utc"] < start_utc)]
         chat_requests = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_request")).sum())
         chat_responses = int(((current["module"].str.casefold() == "chat") & (current["message"] == "chat_response")).sum())
-        errors = int(current["level"].isin(["error", "critical", "fatal", "warn", "warning"]).sum())
+        errors = int(current["level"].isin(["error", "critical", "fatal"]).sum())
         warnings = int(current["level"].isin(["warn", "warning"]).sum())
         modules = current["module"].value_counts().to_dict()
         lines.append(
@@ -299,7 +299,7 @@ def render_analytics(db: Any) -> None:
         ].copy()
 
     def count_errors(data: pd.DataFrame) -> int:
-        return int(data["level"].isin(["error", "critical", "fatal", "warn", "warning"]).sum()) if not data.empty else 0
+        return int(data["level"].isin(["error", "critical", "fatal"]).sum()) if not data.empty else 0
 
     def count_chat_requests(data: pd.DataFrame) -> int:
         return int(((data["module"].str.casefold() == "chat") & (data["message"] == "chat_request")).sum()) if not data.empty else 0
@@ -382,7 +382,7 @@ def render_analytics(db: Any) -> None:
                 trend.update_xaxes(showgrid=False, zeroline=False, tickfont={"color": "#AFC1DC"})
                 trend.update_yaxes(showgrid=True, gridcolor="rgba(76,111,151,.18)", zeroline=False,
                                    rangemode="tozero", title=None, tickfont={"color": "#AFC1DC"})
-                st.plotly_chart(_chart_layout(trend, 320), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                st.plotly_chart(_chart_layout(trend, 320), width="stretch", config={"displayModeBar": False, "responsive": True})
 
     with right:
         with st.container(border=True):
@@ -406,7 +406,7 @@ def render_analytics(db: Any) -> None:
                     "text": f"<b>{current_events}</b><br><span style='font-size:10px'>esemény</span>",
                     "showarrow": False, "font": {"color": "#F4F7FF", "size": 20},
                 }])
-                st.plotly_chart(_chart_layout(donut, 320), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                st.plotly_chart(_chart_layout(donut, 320), width="stretch", config={"displayModeBar": False, "responsive": True})
 
     bottom_left, bottom_middle, bottom_right = st.columns([1, 1.12, 1.08], gap="medium")
 
@@ -435,7 +435,7 @@ def render_analytics(db: Any) -> None:
                 ))
                 activity.update_xaxes(showgrid=False, tickfont={"color": "#AFC1DC"})
                 activity.update_yaxes(showgrid=False, visible=False, rangemode="tozero")
-                st.plotly_chart(_chart_layout(activity, 235), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                st.plotly_chart(_chart_layout(activity, 235), width="stretch", config={"displayModeBar": False, "responsive": True})
 
     with bottom_middle:
         with st.container(border=True):
@@ -458,7 +458,7 @@ def render_analytics(db: Any) -> None:
                 ))
                 bar.update_xaxes(visible=False, range=[0, max(int(module_counts.max()) * 1.25, 1)])
                 bar.update_yaxes(showgrid=False, tickfont={"color": "#DCE8FA"})
-                st.plotly_chart(_chart_layout(bar, 235), use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                st.plotly_chart(_chart_layout(bar, 235), width="stretch", config={"displayModeBar": False, "responsive": True})
 
     with bottom_right:
         with st.container(border=True):
