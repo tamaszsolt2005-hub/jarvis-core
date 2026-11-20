@@ -1,0 +1,62 @@
+name: JARVIS Email Automation
+
+on:
+  schedule:
+    - cron: "15 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-email-automation
+  cancel-in-progress: false
+
+jobs:
+  email-automation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      EMAIL_USER: ${{ secrets.EMAIL_USER }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      IMAP_HOST: ${{ secrets.IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.IMAP_PORT }}
+      EMAIL_DELIVERY_ENABLED: ${{ secrets.EMAIL_DELIVERY_ENABLED }}
+      AUTO_SEND_ENABLED: ${{ secrets.AUTO_SEND_ENABLED }}
+      EMAIL_INBOX_MONITOR_ENABLED: ${{ secrets.EMAIL_INBOX_MONITOR_ENABLED }}
+      SEND_MAX_PER_RUN: "3"
+      MAX_FOLLOW_UPS: "2"
+      FOLLOW_UP_DAYS: "5"
+      SEND_DELAY_SECONDS: "30"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check required configuration
+        id: config
+        shell: bash
+        run: |
+          if [[ -n "$SUPABASE_URL" && ( -n "$SUPABASE_SERVICE_ROLE_KEY" || -n "$SUPABASE_KEY" ) && -n "$GEMINI_API_KEY" && -n "$EMAIL_USER" && -n "$EMAIL_PASSWORD" && "$EMAIL_DELIVERY_ENABLED" == "true" && "$AUTO_SEND_ENABLED" == "true" && "$EMAIL_INBOX_MONITOR_ENABLED" == "true" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Email automation skipped: required secrets or explicit safety switches are not configured."
+          fi
+      - name: Check inbound replies and unsubscribe requests
+        if: steps.config.outputs.ready == 'true'
+        run: python email_inbox.py
+      - name: Send consent-approved first contacts and due follow-ups
+        if: steps.config.outputs.ready == 'true'
+        run: python email_sender.py
