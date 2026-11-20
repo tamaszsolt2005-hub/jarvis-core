@@ -70,7 +70,7 @@ Ez egy adott időpontban végzett ellenőrzés, nem folyamatos rendelkezésreál
 
 A 2026-11-20-i dokumentációban rögzített biztonsági ellenőrzés szerint RLS aktív volt az alkalmazástáblákon, és az `anon` / `authenticated` közvetlen táblajogosultságai vissza voltak vonva. A `service_role` szerveroldali hozzáférése megmaradt. A `supabase_admin` default ACL módosítási kísérlete permission errorral meghiúsult; ezt nem szabad megoldottként feltüntetni.
 
-## E-mail állapot
+## Hibakezelési fejlesztés – 2026-11-20\n\n**Kódban implementálva:**\n- Új `jarvis_errors.py`: központi hibajelentés UTC időbélyeggel, modullal, művelettel, kivételtípussal és warning/error/critical szintekkel.\n- A naplóüzenetek szűrik a gyakori jelszó-, API-kulcs-, token-, Bearer- és URL-hitelesítő adat formákat, továbbá a környezeti változók ismert titokértékeit.\n- A `jarvis_common.log_event()` már szűri a meglévő alkalmazásnapló üzeneteit; a `get_setting()` hibája a központi jelentőn keresztül warningként jelenthető.\n- Ha a Supabase naplózás maga hibázik, helyi Python logger a tartalék; nincs rekurzív adatbázis-naplózási próbálkozás.\n- Új tesztek készültek a titokszűrésre, súlyossági szintre, metaadatokra és naplózási backend hibájára.\n\n**Még nem igazolt:** a módosítások utáni tesztfuttatás és GitHub Actions CI-eredmény. A teljes repository minden kivételágának központi hibajelentőre átvezetése nem része ennek a részleges bekötésnek; további modulonkénti audit szükséges. Az alkalmazás minden hibája így még nem garantáltan központilag naplózott.\n\n## E-mail állapot
 
 **Implementálva a kódban:**
 - Chatből e-mail-tervezet készítése, pontos címzett, tárgy és teljes szöveg előnézete.
@@ -101,7 +101,7 @@ A `jarvis.yml` és `jarvis-cron.yml` régi, letiltott no-op workflow-k; nem szab
 
 ## Nyitott ellenőrzések és ismert eltérések
 
-1. Futtasd le a jelenlegi teljes tesztcsomagot Codespaces-ben, és rögzítsd az új, dátumozott eredményt.
+1. Futtasd le a jelenlegi teljes tesztcsomagot Codespaces-ben, és rögzítsd az új, dátumozott eredményt.\n2. Ellenőrizd a `jarvis_errors.py`-hoz hozzáadott tesztek és a teljes CI futás eredményét.
 2. Ellenőrizd a Gemini- és dashboard-folyamatot valós, kontrollált környezetben.
 3. Ellenőrizd a legutóbbi GitHub Actions futásokat és artifactokat.
 4. Végezz kontrollált SMTP/IMAP végponttól végpontig tesztet, valódi címzettnek küldés előtt címzettkorlátozással.
