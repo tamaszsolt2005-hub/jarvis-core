@@ -120,7 +120,7 @@ def estimate_response_tokens(question: str) -> int:
         return 384
     if any(marker in text for marker in detailed_markers):
         return 3072 if len(text) < 700 else 4096
-    if len(text) > 900 or sum(text.count(marker) for marker in multi_part_markers) >= 3:
+    if len(text) > 900 or sum(text.count(marker) for marker in multi_part_markers) >= 2:
         return 2048
     if len(text) > 350 or any(marker in text for marker in multi_part_markers):
         return 1536
