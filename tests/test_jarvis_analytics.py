@@ -115,15 +115,15 @@ def test_executive_report_uses_verified_project_date_and_distinguishes_log_windo
     records = [
         {"module": "chat", "level": "info", "message": "chat_request", "created_at": "2026-11-19T08:00:00Z"},
         {"module": "chat", "level": "info", "message": "chat_response", "created_at": "2026-11-19T08:01:00Z"},
-        {"module": "email_sender", "level": "warning", "message": "private warning text", "created_at": "2026-11-10T08:00:00Z"},
+        {"module": "email_sender", "level": "warning", "message": "private warning text", "created_at": "2026-11-13T18:33:00Z"},
         {"module": "lead_gen", "level": "error", "message": "private error text", "created_at": "2026-11-19T09:00:00Z"},
-        {"module": "dynamic_scraper", "level": "info", "message": "scrape", "created_at": "2026-11-05T09:00:00Z"},
+        {"module": "dynamic_scraper", "level": "info", "message": "scrape", "created_at": "2026-11-14T07:00:00Z"},
     ]
     report = build_executive_analytics_report(
         records, now=pd.Timestamp("2026-11-20T12:00:00+01:00").to_pydatetime()
     )
     assert "Supabase-projekt létrehozása:** 2026-11-13 17:02:24 CET" in report
-    assert "2026-11-05 10:00:00 CET" in report
+    assert "2026-11-13 19:33:00 CET" in report
     assert "Összes naplózott esemény a 30 napos ablakban: **5**" in report
     assert "Hibaszintű esemény (error/critical/fatal): **1**" in report
     assert "Figyelmeztetés (warn/warning): **1**" in report
