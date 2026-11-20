@@ -91,6 +91,9 @@ def test_chat_analytics_uses_log_events_and_never_includes_raw_messages():
         records,
         now=pd.Timestamp("2026-11-19T12:00:00+01:00").to_pydatetime(),
     )
+    assert "Supabase-projekt létrehozva: 2026-11-13" in summary
+    assert "Ténylegesen megfigyelt naplózási időszak:" in summary
+    assert "A projekt létrehozása előtti kért időszakra nincs naplóadat" in summary
     assert "Adatforrás: public.logs" in summary
     assert "chatkérés=1" in summary
     assert "AI-válasz esemény=1" in summary
