@@ -43,6 +43,7 @@ def test_restore_requires_explicit_allowlisted_sandbox(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", "abcdefghijklmnopqrst")
     monkeypatch.setenv("AGE_IDENTITY_FILE", str(tmp_path / "identity.txt"))
     (tmp_path / "identity.txt").write_text("not-a-real-key")
+    monkeypatch.setattr(backup.shutil, "which", lambda _: "/usr/bin/fake")
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="nem található"):
             backup.restore_backup(tmp_path / "missing.tar.gz.age", "abcdefghijklmnopqrst", confirmed=True)
@@ -83,11 +84,17 @@ def test_archive_manifest_and_hashes_are_verified(tmp_path):
     extracted.mkdir()
     result = backup._safe_extract(archive, extracted)
     assert result["backup_id"] == "jarvis-db-test"
-    (extracted / "data.sql").write_text("tampered")
+    tampered_data = tmp_path / "tampered_data.sql"
+    tampered_data.write_text("tampered")
+    tampered_archive = tmp_path / "tampered.tar.gz"
+    with tarfile.open(tampered_archive, "w:gz") as tar:
+        tar.add(work / "manifest.json", arcname="manifest.json")
+        tar.add(work / "schema.sql", arcname="schema.sql")
+        tar.add(tampered_data, arcname="data.sql")
     tampered_extract = tmp_path / "tampered_extract"
     tampered_extract.mkdir()
     with pytest.raises(backup.BackupError, match="ellenőrzőösszege"):
-        backup._safe_extract(archive, tampered_extract)
+        backup._safe_extract(tampered_archive, tampered_extract)
 
 
 def test_restore_refuses_nonempty_sandbox_without_running_restore(monkeypatch, tmp_path):
