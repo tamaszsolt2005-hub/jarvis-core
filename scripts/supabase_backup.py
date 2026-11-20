@@ -187,6 +187,21 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
     return manifest
 
 
+def _restore_sql_text(schema_sql: str, data_sql: str) -> str:
+    """Restore into Supabase's existing public schema, not by recreating it."""
+    schema_sql = re.sub(
+        r"(?im)^\\s*CREATE\\s+SCHEMA\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public(?:\\s+AUTHORIZATION\\s+[^;]+)?\\s*;\\s*$",
+        "",
+        schema_sql,
+    )
+    schema_sql = re.sub(
+        r"(?im)^\\s*ALTER\\s+SCHEMA\\s+public\\s+OWNER\\s+TO\\s+[^;]+;\\s*$",
+        "",
+        schema_sql,
+    )
+    return schema_sql + chr(10) + data_sql
+
+
 def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False) -> None:
     if not confirmed:
         raise BackupError("A visszaállításhoz explicit --confirm-restore megerősítés szükséges.")
@@ -224,7 +239,7 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         count = run_checked([
             "psql", "--no-psqlrc", "--tuples-only", "--no-align",
             "--command",
-            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f','S');",
+            "SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f','S')) + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public') + (SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype IN ('c','d','e','r','m'));",
             "--dbname", safe_url,
         ], env=db_env)
         try:
@@ -235,11 +250,12 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
             raise BackupError("A cél public séma nem üres; a visszaállítás biztonsági okból megszakadt.")
 
         combined = work / "restore.sql"
+        schema_text = (work / "schema.sql").read_text(encoding="utf-8")
+        data_text = (work / "data.sql").read_text(encoding="utf-8")
         combined.write_text(
             "-- Restrict default table privileges before restoring the public schema." + chr(10)
             + "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;" + chr(10)
-            + (work / "schema.sql").read_text(encoding="utf-8") + chr(10)
-            + (work / "data.sql").read_text(encoding="utf-8"),
+            + _restore_sql_text(schema_text, data_text),
             encoding="utf-8",
         )
         run_checked([
