@@ -173,3 +173,13 @@ A technikai hozzájárulás-ellenőrzés nem helyettesíti a GDPR/ePrivacy és a
 - A GitHub Actions napi 08:30 UTC futása a jelentést artifactként publikálja; ez nem push értesítés és nem e-mail.
 - A pillanatkép kizárólag a `jarvis_proactive_state` technikai táblába kerül. A táblát a frissített `supabase/schema.sql` hozza létre; futtasd le a Supabase SQL Editorban a frissítést. Amíg a tábla nincs telepítve, a napi jelentés ettől függetlenül elkészül, a monitor külön figyelmeztetést ad.
 - Az első monitorfutás csak alapállapotot rögzít, nem jelenti tévesen újként a már meglévő rekordokat; a következő futások ehhez képest jelzik a változásokat.
+
+## Dokumentáció
+
+A projekt dokumentációja három, egymást kiegészítő fájlra épül:
+
+- **[Projektbemutató és telepítés](README.md):** a JARVIS képességei, fő működési elvei és indítása.
+- **[Aktuális projektállapot](docs/PROJECT_STATUS.md):** mi készült el, mi lett ténylegesen tesztelve, és milyen ellenőrzések vannak még hátra.
+- **[Műszaki dokumentáció](docs/TECHNICAL_DOCUMENTATION.md):** architektúra, modulhatárok, adatfolyamok, adatmodell és biztonsági szabályok.
+
+A részletes belső működést a műszaki dokumentációban, a változó fejlesztési állapotot kizárólag a projektállapot-fájlban tartsuk naprakészen.
