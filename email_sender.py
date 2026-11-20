@@ -1,6 +1,8 @@
-"""Send first-contact emails only for reviewed, timestamp-consented records."""
+"""Send consent-checked first-contact and bounded follow-up emails."""
 from __future__ import annotations
-import re, time
+
+import re
+import time
 from datetime import datetime, timedelta, timezone
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event
@@ -8,50 +10,133 @@ from lead_scoring import score_lead
 from web_auditor import audit_company_website
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+FOLLOW_UP_STATUSES = {"sent", "follow_up_sent"}
+
 
 def _valid_consent(lead: dict) -> bool:
     if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True or lead.get("opted_out") is True:
         return False
     try:
-        confirmed_at = datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z","+00:00"))
+        confirmed_at = datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z", "+00:00"))
         return confirmed_at.tzinfo is not None and confirmed_at.utcoffset() is not None
-    except (TypeError,ValueError):
+    except (TypeError, ValueError):
         return False
 
-def _draft(lead: dict) -> tuple[str,str]:
-    audit = audit_company_website(lead.get("website"))
-    prompt = ("Írj rövid, tényszerű, magyar B2B bemutatkozó e-mailt. Ne találj ki tényeket. "
-              "Legyen udvarias, átlátható, és tartalmazzon egyszerű leiratkozási lehetőséget. "
-              f"Cég: {lead.get('company_name')}\nWeboldal audit: {audit}\n"
-              f"Ajánlatunk: {get_secret('OFFER_DESCRIPTION','üzleti automatizációs megoldás')}")
-    text = generate_text(prompt)
-    lines = [x.strip() for x in text.splitlines() if x.strip()]
-    subject = lines[0].removeprefix("Tárgy:").strip()[:180] if lines else "Rövid szakmai bemutatkozás"
-    body = "\n".join(lines[1:])[:5000] if len(lines)>1 else text[:5000]
-    return subject,body
+
+def _draft(lead: dict, follow_up: bool = False) -> tuple[str, str]:
+    if follow_up:
+        prompt = (
+            "Írj rövid, udvarias, nem sürgető magyar B2B utánkövető e-mailt. "
+            "Ne állítsd, hogy az ügyfél érdeklődött vagy válaszolt. Ne találj ki tényeket. "
+            "Egyetlen könnyű következő lépést ajánlj fel. Tartalmazzon egyszerű leiratkozási lehetőséget.\n"
+            f"Cég: {lead.get('company_name')}\nElső levél dátuma: {lead.get('first_sent_at')}\n"
+            f"Korábbi utánkövetések: {lead.get('follow_up_count', 0)}\n"
+            f"Ajánlatunk: {get_secret('OFFER_DESCRIPTION', 'üzleti automatizációs megoldás')}"
+        )
+    else:
+        audit = audit_company_website(lead.get("website"))
+        prompt = (
+            "Írj rövid, tényszerű, magyar B2B bemutatkozó e-mailt. Ne találj ki tényeket. "
+            "Legyen udvarias, átlátható, és tartalmazzon egyszerű leiratkozási lehetőséget. "
+            f"Cég: {lead.get('company_name')}\nWeboldal audit: {audit}\n"
+            f"Ajánlatunk: {get_secret('OFFER_DESCRIPTION', 'üzleti automatizációs megoldás')}"
+        )
+    generated = generate_text(prompt)
+    lines = [line.strip() for line in generated.splitlines() if line.strip()]
+    subject = lines[0].removeprefix("Tárgy:").strip()[:180] if lines else (
+        "Rövid szakmai utánkövetés" if follow_up else "Rövid szakmai bemutatkozás"
+    )
+    body = "\n".join(lines[1:])[:5000] if len(lines) > 1 else generated[:5000]
+    body = body.rstrip() + (
+        "\n\nHa nem szeretne több megkeresést kapni, válaszoljon erre az e-mailre a LEIRATKOZOM szóval."
+    )
+    return subject, body
+
+
+def _due_follow_up(lead: dict, now: datetime) -> bool:
+    if lead.get("status") not in FOLLOW_UP_STATUSES or lead.get("opted_out") is True:
+        return False
+    try:
+        due = datetime.fromisoformat(str(lead.get("next_follow_up_at")).replace("Z", "+00:00"))
+        count = int(lead.get("follow_up_count") or 0)
+        maximum = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
+        return due.tzinfo is not None and due <= now and count < maximum and not lead.get("last_inbound_message_id")
+    except (TypeError, ValueError):
+        return False
+
+
+def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
+    current_status = str(lead.get("status") or "")
+    claim_status = "follow_up_sending" if follow_up else "sending"
+    claim = (
+        db.table("leads").update({"status": claim_status})
+        .eq("id", lead["id"]).eq("status", current_status).eq("opted_out", False)
+        .select("id").execute()
+    )
+    if not claim.data:
+        return False
+    try:
+        subject, body = _draft(lead, follow_up=follow_up)
+        message_id = send_email(str(lead["email"]), subject, body)
+        if follow_up:
+            count = int(lead.get("follow_up_count") or 0) + 1
+            max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
+            next_at = (
+                now + timedelta(days=env_int("FOLLOW_UP_DAYS", 5, 2, 30))
+            ).isoformat() if count < max_count else None
+            values = {
+                "status": "follow_up_sent", "follow_up_count": count,
+                "followed_up_at": now.isoformat(), "next_follow_up_at": next_at,
+                "last_message_id": message_id,
+            }
+            label = "Utánkövető levél elküldve"
+        else:
+            values = {
+                "status": "sent", "first_sent_at": now.isoformat(),
+                "next_follow_up_at": (
+                    now + timedelta(days=env_int("FOLLOW_UP_DAYS", 5, 2, 30))
+                ).isoformat(),
+                "last_message_id": message_id,
+            }
+            label = "Első levél elküldve"
+        db.table("leads").update(values).eq("id", lead["id"]).eq("status", claim_status).execute()
+        log_event(db, "email_sender", f"{label}: {lead.get('company_name')}")
+        return True
+    except Exception as exc:
+        log_event(db, "email_sender", f"Küldési hiba ({lead.get('company_name')}): {type(exc).__name__}", "error")
+        try:
+            db.table("leads").update({"status": "send_error"}).eq("id", lead["id"]).eq("status", claim_status).execute()
+        except Exception:
+            pass
+        return False
+
 
 def run() -> None:
-    if not EMAIL_DELIVERY_ENABLED or not env_bool("AUTO_SEND_ENABLED",False):
-        print("Biztonsági mód: AUTO_SEND_ENABLED nem true, e-mail nem kerül kiküldésre."); return
-    db=get_supabase()
-    rows=db.table("leads").select("*").eq("status","new").limit(100).execute().data or []
-    eligible=[x for x in rows if _valid_consent(x) and EMAIL_RE.fullmatch(str(x.get("email") or ""))]
-    eligible.sort(key=score_lead,reverse=True)
-    for lead in eligible[:env_int("SEND_MAX_PER_RUN",3,1,10)]:
-        try:
-            subject,body=_draft(lead)
-            claim=db.table("leads").update({"status":"sending"}).eq("id",lead["id"]).eq("status","new").select("id").execute()
-            if not claim.data: continue
-            msgid=send_email(lead["email"],subject,body)
-            now=datetime.now(timezone.utc)
-            db.table("leads").update({"status":"sent","first_sent_at":now.isoformat(),
-                "next_follow_up_at":(now+timedelta(days=env_int("FOLLOW_UP_DAYS",5,2,30))).isoformat(),
-                "last_message_id":msgid}).eq("id",lead["id"]).execute()
-            log_event(db,"email_sender",f"Első levél elküldve: {lead.get('company_name')}")
-            time.sleep(env_int("SEND_DELAY_SECONDS",30,10,600))
-        except Exception as exc:
-            log_event(db,"email_sender",f"Küldési hiba ({lead.get('company_name')}): {type(exc).__name__}","error")
-            try: db.table("leads").update({"status":"send_error"}).eq("id",lead["id"]).eq("status","sending").execute()
-            except Exception: pass
+    if not EMAIL_DELIVERY_ENABLED or not env_bool("AUTO_SEND_ENABLED", False):
+        print("Biztonsági mód: e-mail-küldés nincs engedélyezve; nem történt küldés.")
+        return
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    rows = db.table("leads").select("*").limit(1000).execute().data or []
+    eligible = [
+        row for row in rows
+        if _valid_consent(row) and EMAIL_RE.fullmatch(str(row.get("email") or ""))
+        and row.get("opted_out") is not True
+        and (
+            row.get("status") == "new"
+            or _due_follow_up(row, now)
+        )
+    ]
+    eligible.sort(key=lambda row: (row.get("status") != "new", -score_lead(row)))
+    sent = 0
+    for lead in eligible:
+        if sent >= env_int("SEND_MAX_PER_RUN", 3, 1, 10):
+            break
+        is_follow_up = lead.get("status") in FOLLOW_UP_STATUSES
+        if _send_one(db, lead, is_follow_up, now):
+            sent += 1
+            time.sleep(env_int("SEND_DELAY_SECONDS", 30, 10, 600))
 
-if __name__=="__main__": run()
+
+if __name__ == "__main__":
+    run()
