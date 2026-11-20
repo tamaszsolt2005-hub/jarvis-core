@@ -33,7 +33,7 @@ def test_restore_refuses_production_before_any_external_command(monkeypatch, tmp
     (tmp_path / "identity.txt").write_text("not-a-real-key")
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="éles JARVIS"):
-            backup.restore_backup(tmp_path / "backup.tar.gz.age", backup.PRODUCTION_PROJECT_REF)
+            backup.restore_backup(tmp_path / "backup.tar.gz.age", backup.PRODUCTION_PROJECT_REF, confirmed=True)
         runner.assert_not_called()
 
 
@@ -44,7 +44,7 @@ def test_restore_requires_explicit_allowlisted_sandbox(monkeypatch, tmp_path):
     (tmp_path / "identity.txt").write_text("not-a-real-key")
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="nem található"):
-            backup.restore_backup(tmp_path / "missing.tar.gz.age", "abcdefghijklmnopqrst")
+            backup.restore_backup(tmp_path / "missing.tar.gz.age", "abcdefghijklmnopqrst", confirmed=True)
         runner.assert_not_called()
 
 
@@ -115,3 +115,18 @@ def test_restore_rejects_db_url_allowlist_mismatch(monkeypatch, tmp_path):
         with pytest.raises(backup.BackupError, match="nem egyezik"):
             backup.restore_backup(tmp_path / "backup.tar.gz.age", "bcdefghijklmnopqrstu")
         runner.assert_not_called()
+
+def test_restore_requires_explicit_confirmation(monkeypatch, tmp_path):
+    with pytest.raises(backup.BackupError, match="confirm-restore"):
+        backup.restore_backup(tmp_path / "backup.tar.gz.age", "abcdefghijklmnopqrst")
+
+
+def test_database_password_is_not_in_connection_argument(tmp_path):
+    url = "postgresql://postgres:secret%3Avalue@db.kiutreccucbegskxowek.supabase.co:5432/postgres?sslmode=require"
+    safe_url, env = backup._connection_env_and_url(url, tmp_path)
+    assert "secret" not in safe_url
+    assert "postgres@" in safe_url
+    passfile = Path(env["PGPASSFILE"])
+    assert passfile.exists()
+    assert passfile.stat().st_mode & 0o777 == 0o600
+    assert "secret:value" in passfile.read_text()
