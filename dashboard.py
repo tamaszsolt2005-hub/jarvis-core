@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import time
+from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -715,6 +716,7 @@ if prompt:
         st.stop()
 
     response_status = st.status("JARVIS megkapta a kérésedet", expanded=True)
+    request_id = uuid4().hex
     db = None
     stage = "Supabase-kapcsolat"
     try:
@@ -724,7 +726,7 @@ if prompt:
             st.session_state["_jarvis_db"] = db
 
         # Record event types only; never store the user's prompt or model response.
-        log_event(db, "chat", "chat_request")
+        log_event(db, "chat", f"chat_request|request_id={request_id}")
         active_market = get_research_market(db)
 
         # Memory writes require an explicit user command.
@@ -890,6 +892,13 @@ if prompt:
                             .execute()
                             .data or []
                         )
+                        # Include this report request as completed in its own snapshot;
+                        # the durable response event is written immediately afterwards.
+                        report_records.append({
+                            "module": "chat", "level": "info",
+                            "message": f"chat_response|request_id={request_id}",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        })
                         answer = build_executive_analytics_report(
                             report_records,
                             truncated=len(report_records) >= 5000,
@@ -900,7 +909,7 @@ if prompt:
                             f"lekérdezése sikertelen volt ({type(report_exc).__name__}). "
                             "Nem helyettesítettem becsült vagy kitalált adatokkal."
                         )
-                log_event(db, "chat", "chat_response")
+                log_event(db, "chat", f"chat_response|request_id={request_id}")
                 st.session_state.chat.append(("assistant", answer))
                 st.markdown(answer)
                 st.caption("ADATFORRÁSOK  ·  Supabase public.logs + ellenőrzött projektmetaadat")
@@ -968,7 +977,7 @@ if prompt:
         if response_status is not None:
             response_status.update(label="JARVIS nem tudott válaszolni", state="error", expanded=True)
         if db is not None:
-            log_event(db, "chat", "chat_error", level="error")
+            log_event(db, "chat", f"chat_error|request_id={request_id}", level="error")
         # Show actionable diagnostics without ever printing configured credentials.
         import re
         detail = str(exc).replace("\n", " ").strip()
