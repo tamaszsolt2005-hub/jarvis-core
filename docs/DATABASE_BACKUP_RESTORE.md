@@ -58,33 +58,59 @@ A script:
 
 A helyi `.private-backups/` és a titkosított mentési kiterjesztések Git-ignore alatt vannak. Mentést semmilyen körülmények között ne commitolj a repositoryba.
 
-## 4. Automatizált mentés – GitHub Actions
+## 4. AWS/S3 infrastruktúra és GitHub Actions
 
 Workflow: `.github/workflows/database-backup.yml`  
 Ütemezés: naponta 02:15 UTC, valamint kézi indítás.
 
+### 4.1. AWS erőforrások létrehozása
+
+Az infrastruktúra CloudFormation sablonja: [`infra/aws-backup-stack.yaml`](../infra/aws-backup-stack.yaml). A sablon a következőket hozza létre:
+- privát S3 bucket teljes public-access blokkolással és Bucket Owner Enforced tulajdonosi móddal;
+- S3 versioning és 30 napos lifecycle a `jarvis/database/` prefix alatt;
+- saját, automatikus kulcsrotációval ellátott KMS kulcs és alias;
+- GitHub OIDC provider (vagy megadható már létező provider ARN);
+- IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, és csak a backup prefixre enged feltöltést, a megadott KMS kulccsal.
+
+AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubRepository` alapértéke `tamaszsolt2005-hub/jarvis-core`, a `GitHubBranch` értéke `main`. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
+
+A stack létrehozása után mentsd ki az Outputs értékeit:
+- `BackupBucketName`
+- `BackupKmsKeyArn`
+- `GitHubBackupRoleArn`
+
+A stack AWS-fiókban történő telepítése még nincs végrehajtva. A sablon csak a repositoryban található.
+
+### 4.2. GitHub Actions beállítások
+
+A repository Settings → Secrets and variables → Actions alatt:
+
 GitHub Actions **Secrets**:
-- `SUPABASE_DB_URL`
-- `AWS_BACKUP_ROLE_ARN` (GitHub OIDC-vel felvehető, szűk jogosultságú AWS IAM role ARN)
+- `SUPABASE_DB_URL`: a JARVIS Supabase adatbázis-kapcsolati URL-je, jelszóval együtt; kizárólag GitHub Secretként add meg.
+- `AWS_BACKUP_ROLE_ARN`: a CloudFormation `GitHubBackupRoleArn` outputja.
 
 GitHub Actions **Variables**:
 - `JARVIS_BACKUP_SOURCE_PROJECT_REF` = `kiutreccucbegskxowek`
-- `BACKUP_AGE_RECIPIENT`
-- `BACKUP_AWS_REGION`
-- `BACKUP_S3_BUCKET`
+- `BACKUP_AGE_RECIPIENT` = az age nyilvános recipient kulcsa
+- `BACKUP_AWS_REGION` = az AWS régió, ahol a stack létrejött
+- `BACKUP_S3_BUCKET` = a CloudFormation `BackupBucketName` outputja
+- `BACKUP_S3_KMS_KEY_ARN` = a CloudFormation `BackupKmsKeyArn` outputja
 
-A workflow hiányzó beállítás esetén kihagyja a mentést, és jelzést tesz a futás összefoglalójába. Ha minden konfiguráció rendelkezésre áll, rövid életű GitHub OIDC hitelesítéssel lép be az AWS role-ba, majd a titkosított fájlt a privát S3 bucket `jarvis/database/` prefixébe tölti. Hosszú életű AWS access key/secret key nincs a workflow-ban.
+A workflow hiányzó beállítás esetén kihagyja a mentést, és jelzést tesz a futás összefoglalójába. Teljes konfiguráció esetén rövid életű GitHub OIDC hitelesítéssel lép be az AWS role-ba, majd az age-gel titkosított fájlt a privát S3 bucket `jarvis/database/` prefixébe tölti fel, a customer-managed KMS kulccsal. Hosszú életű AWS access key/secret key nincs a workflow-ban.
 
-**Még beállítandó az S3 szolgáltatónál:**
-- privát bucket, nyilvános hozzáférés teljes tiltása;
-- külön IAM-felhasználó/role, csak a szükséges bucket/prefix jogosultságokkal;
-- bucket versioning;
-- 30 napos lifecycle/retention szabály (vagy a szervezeti igénynek megfelelő idő);
-- titkosítás és hozzáférési naplózás a szolgáltató oldalán.
+A GitHub repository titkait a rendelkezésre álló GitHub-kapcsolat nem tudja írni vagy olvasni; ezeket a repository beállításainál kell megadni. Soha ne küldd el a DB URL-t vagy jelszót a chatben.
 
-A workflow nem hoz létre bucketet, nem konfigurál IAM-et, versioninget vagy lifecycle szabályt. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
+### 4.3. Első próba
 
-Az age privát visszafejtő kulcsát a backup bucket-től és GitHub repositorytól elkülönítve kell őrizni (pl. offline titokkezelőben). A nyilvános recipient kulcs nem alkalmas visszafejtésre.
+1. Először ellenőrizd, hogy a CloudFormation stack állapota `CREATE_COMPLETE`.
+2. Ellenőrizd a bucket public-access block, versioning, default KMS encryption és lifecycle beállításait.
+3. Add meg a GitHub Secret/Variables értékeket.
+4. Actions → JARVIS encrypted database backup → Run workflow.
+5. Ellenőrizd, hogy a futás sikeres, és a privát bucket `jarvis/database/` prefixében megjelent a `.tar.gz.age` fájl.
+6. Ellenőrizd, hogy a feltöltött objektum SSE-KMS titkosítást használ, és a várt KMS kulcs ARN-jével készült.
+7. A visszafejtő age privát kulcsot offline, a GitHubtól és az S3 buckettől elkülönítve őrizd.
+
+A javasolt kezdeti megőrzés 30 nap. Ezt a CloudFormation lifecycle szabály konfigurálja, de csak a stack sikeres telepítése után aktív. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
 
 ## 5. Visszaállítás – kizárólag elkülönített, üres célprojektbe
 
