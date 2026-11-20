@@ -134,3 +134,29 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 **Tesztfuttatás:** ebben a munkamenetben nem sikerült helyi futtatást végezni: a futtatókörnyezet nem tudta elérni a GitHubot, így a Codespaces munkakönyvtár és a projekt függőségei nem voltak elérhetők. A CI futás eredményét sem sikerült lekérdezni. Ezért nincs igazolt új passed/failed tesztszám; a commitok megléte nem bizonyít tesztsikert.
 
 **Nyitott tesztelési területek:** a Streamlit dashboard teljes jóváhagyási/jogosultsági útvonala, valós vagy elkülönített Supabase tranzakciós viselkedés, párhuzamos e-mailküldés/atomikus deduplikáció, valamint SMTP/IMAP végponttól végpontig integráció. Az új tesztek mockoltak; nem végeznek valódi küldést vagy éles adatbázis-módosítást.
+
+## Központi műveleti napló és audit – 2026-11-20
+
+**Meglévő alap ellenőrizve:**
+- A repository már használja a public.logs táblát; a korábbi technikai naplórekordok megmaradnak.
+- A jarvis_common.audit_event() és a supabase/schema.sql strukturált auditmezői már a mostani munka előtt is léteztek: operation_id, action, status, result, error, approved, recipient, subject, delivery_id.
+- Az SQL-séma ezeket ADD COLUMN IF NOT EXISTS formában, indexekkel definiálja. A mostani módosításhoz nem készült új tábla, és nem kellett adatbázis-migrációt futtatni. Ez a repository-sémára vonatkozó állítás; élő Supabase-migráció végrehajtása ebben a munkában nem történt.
+
+**Most bekötött működés:**
+- task_actions.py: feladat create/update/close művelet előtt audit pending rekord; sikernél success, blokkolt/ütköző állapotnál blocked. Ha a kezdő auditrekord nem menthető, a feladatművelet nem fut le.
+- dashboard.py: jóváhagyott chat e-mail előtt pending audit; az e-mail küldési kísérlet eredménye success vagy failed eseményt kap. A kezdő audit nem írható -> SMTP nem indul. Címzett, tárgy, jóváhagyási állapot és SMTP Message-ID tárolható; a levéltörzs nem kerül az auditba.
+- email_sender.py: háttér e-mailküldés előtt pending, SMTP-átvétel után success; hibánál failed esemény. Az audit kezdőrekordjának sikertelensége megakadályozza az SMTP-küldést.
+- email_inbox.py: a bejövő válasz és leiratkozás auditálása; auditírási hiba esetén az IMAP UID checkpoint nem lép tovább, így a feldolgozás nem tűnik sikeresnek.
+- global_lead_research.py: a kutatási futás eredménye darabszámokkal és piaci hatókörrel kerül naplózásra; leadek személyes adatai nem kerülnek az audit eredménymezőjébe.
+- jarvis_common.get_audit_events(): szűrhető, időrendben (legújabb elöl) visszaadott strukturált auditrekordok; limit 1–1000. A régi, strukturálatlan logbejegyzések továbbra is a meglévő log/analitika útvonalon érhetők el.
+- A strukturált eredmény natív JSON értékként kerül a jsonb mezőbe. A szabad szöveges eredményértékek is titokszűrést kapnak. A dashboard logkontextusa audit-metaadatokat kér le, de nem kéri le a címzettet és a tárgyat a Gemini kontextusába.
+
+**Új tesztek:** tests/test_audit_logging.py – auditmezők, UUID, titokszűrés, JSON eredmény, sikertelen auditmentés, időrendi lekérdezés és szűrők. A tests/test_task_actions.py új esete ellenőrzi, hogy audit-adatbázishiba esetén a feladat létrehozása nem történik meg.
+
+**Tesztállapot:** a felhasználó által közölt 161 passed in 6.00s eredmény a korábbi hibakezelési/tesztelési módosítások utáni állapotot igazolja, de a jelen auditfejlesztés commitjai előtti futás volt. A most hozzáadott audit teszteket és az összesített csomagot ebben a munkamenetben még nem futtattuk; ezért friss passed/failed szám nincs igazolva.
+
+**Nyitott pontok:**
+- A supabase/schema.sql migráció tényleges futtatása az élő Supabase-projekten nincs igazolva. A repository-séma tartalmazza a szükséges oszlopokat, de az élő adatbázis állapotát külön kell ellenőrizni.
+- Az audit append-only alkalmazásszintű minta; adatbázis-szintű immutabilitás, adminisztrátori módosítások elleni védelem és retention policy nincs kialakítva.
+- A get_audit_events() lekérdezési segéd elkészült; külön, lapozható admin audit UI még nincs.
+- A leadkutatási és bejövő levél audit utólagos állapotot rögzít. A külső szolgáltatás és adatbázis közötti tranzakciós atomikusság nem garantált.
