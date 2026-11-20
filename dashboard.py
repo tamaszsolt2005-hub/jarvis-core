@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import generate_text, get_secret, get_supabase, get_model_name, log_event
+from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event
 from jarvis_analytics import (build_chat_analytics_context, build_executive_analytics_report, is_analytics_question, is_executive_analytics_report_request, render_analytics)
 
 
@@ -916,6 +916,7 @@ if prompt:
         else:
             with st.chat_message("assistant"):
                 with st.spinner("🧠 A JARVIS AI gondolkodik… A válasz összeállítása folyamatban van."):
+                    response_token_budget = estimate_response_tokens(prompt)
                     answer = generate_text(
                         "Te JARVIS vagy, magyar nyelvű B2B üzleti intelligencia-asszisztens. "
                 + decision_guidance + " "
@@ -950,7 +951,7 @@ if prompt:
                 "bizonytalanságot. Csak approved_to_contact=true és opted_out=false rekordot javasolhatsz "
                 "kapcsolatfelvételre; hiányzó engedély nem jelent beleegyezést. "
                 "Az automatikus e-mail-küldés nincs engedélyezve. "
-                "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva. Hosszabb vezetői jelentésnél is adj teljes, lezárt választ; ha tömöríteni kell, a kevésbé fontos részleteket rövidítsd, de ne hagyj félbe mondatot vagy felsorolást. "
+                "Válaszolj magyarul, áttekinthetően, a kérdés mélységéhez igazodva. A válasz hosszát igazítsd a kérdéshez: egyszerű kérdésre 1–3 mondatban válaszolj, átlagos kérdésnél adj tömör magyarázatot, összetett vagy több részből álló feladatnál használj tagolt, részletes választ. Ha a felhasználó kifejezetten elemzést, részletezést, összehasonlítást vagy jelentést kér, ne rövidítsd le indokolatlanul. Ne töltsd ki a rendelkezésre álló keretet ismétléssel vagy általánosságokkal. Hosszabb jelentésnél is adj teljes, lezárt választ; ne hagyj félbe mondatot vagy felsorolást. "
                 "A válasz elején add meg a közvetlen választ vagy vezetői következtetést. "
                 "Válaszd külön az adatból látható tényeket, az ezekből levont következtetéseket és a javasolt lépéseket. "
                 "Minden fontos állítást köss konkrét adatmezőhöz, forráshoz, mintanagysághoz vagy kifejezetten rögzített tapasztalathoz. "
@@ -962,7 +963,8 @@ if prompt:
                 f"LEKÉRDEZETT ADATFORRÁSOK: {', '.join(loaded_sources) or 'nincs'}\n"
                 f"AKTUÁLIS ADATOK:\n{context}\n\n"
                 f"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"
-                f"FELHASZNÁLÓ KÉRDÉSE: {prompt}",
+                f"FELHASZNÁLÓ KÉRDÉSE: {prompt}\n\nVÁLASZKERET: legfeljebb {response_token_budget} kimeneti token. A keretet a feladat tényleges igénye szerint használd ki; egyszerű kérdésnél maradj rövid.",
+                    max_output_tokens=response_token_budget,
                     on_status=lambda message: response_status.update(label=message, state="running"),
                     )
                 if not answer:
