@@ -31,6 +31,7 @@ def test_restore_refuses_production_before_any_external_command(monkeypatch, tmp
     monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", backup.PRODUCTION_PROJECT_REF)
     monkeypatch.setenv("AGE_IDENTITY_FILE", str(tmp_path / "identity.txt"))
     (tmp_path / "identity.txt").write_text("not-a-real-key")
+    (tmp_path / "identity.txt").chmod(0o600)
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="éles JARVIS"):
             backup.restore_backup(tmp_path / "backup.tar.gz.age", backup.PRODUCTION_PROJECT_REF, confirmed=True)
@@ -95,6 +96,7 @@ def test_restore_refuses_nonempty_sandbox_without_running_restore(monkeypatch, t
     monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", target_ref)
     identity = tmp_path / "identity.txt"
     identity.write_text("test-only-placeholder")
+    identity.chmod(0o600)
     monkeypatch.setenv("AGE_IDENTITY_FILE", str(identity))
     archive = tmp_path / "backup.tar.gz.age"
     archive.write_bytes(b"encrypted-placeholder")
@@ -113,6 +115,7 @@ def test_restore_rejects_db_url_allowlist_mismatch(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_RESTORE_ALLOWED_PROJECT_REF", "abcdefghijklmnopqrst")
     monkeypatch.setenv("AGE_IDENTITY_FILE", str(tmp_path / "identity.txt"))
     (tmp_path / "identity.txt").write_text("test-only-placeholder")
+    (tmp_path / "identity.txt").chmod(0o600)
     with patch.object(backup, "run_checked") as runner:
         with pytest.raises(backup.BackupError, match="nem egyezik"):
             backup.restore_backup(tmp_path / "backup.tar.gz.age", "bcdefghijklmnopqrstu", confirmed=True)
