@@ -1,59 +1,110 @@
 # JARVIS projektállapot
 
-**Utolsó dokumentációs frissítés:** 2026-11-18  
-**Repository:** `tamaszsolt2005-hub/jarvis-core` · **Branch:** `main`
+**Utolsó dokumentációs frissítés:** 2026-11-20  
+**Repository:** `tamaszsolt2005-hub/jarvis-core` · **Branch:** `main`  
+**Supabase-projekt:** `Jarvis` (`kiutreccucbegskxowek`, EU West)
 
-Ez a dokumentum a jelenlegi kódbázis és az elérhető CI-eredmények alapján választja szét az elkészült funkciókat azoktól, amelyek éles környezetben még kipróbálandók.
+Ez a dokumentum a repositoryban található kód, a felhasználó által futtatott tesztek és a 2026-11-20-i közvetlen Supabase-ellenőrzések alapján különíti el a kész, tesztelt és még élesben ellenőrizendő részeket. A „kész” kódfunkciót jelent, nem automatikusan teljes üzemi validációt.
 
-## Elkészült és automatizáltan tesztelt
+## Elkészült funkciók a kódbázisban
 
-- Prémium sötét Streamlit dashboard-téma és egyedi chat-workspace megjelenés.
-- Központi Gemini-kliens és modellkonfiguráció; alapértelmezett modell: `gemini-3.8-flash`.
-- Gemini átmeneti túlterhelésének kezelése korlátozott újrapróbálkozással és fallback modellel.
-- Globális, forrásokra támaszkodó céges leadkutatás, vállalati adatokra korlátozott mentéssel.
-- Külön kezelt weboldal-információs pontszám és üzleti illeszkedési becslés.
-- Kutatási prioritás, piaci összesítés és napi vezetői jelentés.
-- Kifejezett utasítással működő JARVIS-memória és strukturált üzleti tanulómemória.
-- Jóváhagyáshoz kötött célpiacváltás, leadkutatás és feladatkezelés.
-- Olvasásközpontú Supabase-adatkezelés és read-only rendszerdiagnosztika.
-- Biztonságos weboldal-lekérési segéd: nyilvános IP-ellenőrzés, IP-rögzítés, átirányítás tiltása és időkorlát.
-- Az e-mail-küldés kódszinten letiltva; a napi jelentés artifactként készül, nem e-mailben.
-- Titokkonfigurációs súgó és Supabase-jogosultság-diagnosztika pontosítva.
+### Chat és AI
+- Streamlit-alapú, magyar nyelvű, chat-first B2B üzleti intelligencia felület; prémium sötét téma és állapotjelzések.
+- Központi Gemini-kliens és modellkonfiguráció; alapértelmezett modell a repository leírása szerint `gemini-3.8-flash`; a modell környezeti beállítással felülírható.
+- Átmeneti Gemini túlterhelés kezelése korlátozott újrapróbálkozással/fallback logikával.
+- A chatkérések és a sikeresen elkészült AI-válaszok eseménytípusa naplózódik (`chat_request`, `chat_response`); a kérdés- és válaszszöveg nem kerül a rendszernaplóba.
+- Hosszabb vezetői jelentésekhez teljes, lezárt válaszra és az adathiányok jelzésére vonatkozó promptszabályok.
 
-## Legutóbbi automatikus ellenőrzés
+### Leadkutatás és üzleti elemzés
+- Google Search grounding alapú, globális, forrásokkal alátámasztott céges leadkutatás.
+- Célpiac és keresési brief chatből megadható; a célpiacváltás és a leadkutatás jóváhagyáshoz kötött.
+- A leadkutatási rekordok céges adatokat tárolnak; a kutatás önmagában nem ad kapcsolatfelvételi engedélyt.
+- Külön weboldal-információs pontszám és AI/automatizálási üzleti illeszkedési becslés.
+- Kutatási prioritás és iparági/ország szerinti stratégiai összesítés; a pontszámok nem vásárlási szándékot vagy fizetőképességet mérnek.
+- Weboldal-auditor legfeljebb 30 nyilvános weboldal vizsgálatára, biztonságos HTTP-lekérési segéddel.
+- Üzleti tanulómemória: a kifejezetten rögzített döntések, tapasztalatok és tanulságok későbbi elemzésekben felhasználhatók.
 
-| Ellenőrzés | Eredmény |
-|---|---|
-| GitHub Actions workflow | JARVIS CI #296 |
-| Commit | `143f9af3ed2f45eaf91b0e962517fdfd4f929d84` |
-| Függőségek telepítése | Sikeres |
-| `python -m compileall -q .` | Sikeres |
-| `python -m pytest -q` | **130 passed** |
-| Workflow összesített állapota | **success** |
+### CRM, memória és proaktív működés
+- Leadek, feladatok, e-mail-tervezetek és naplók kérdésfüggő, olvasásközpontú lekérdezése.
+- JARVIS hosszú távú memóriája kizárólag explicit felhasználói utasításra ment/módosít; titkok és érzékeny személyes adatok tiltottak.
+- Strukturált feladat létrehozása, módosítása és lezárása előnézet + külön jóváhagyás után.
+- Proaktív változásfigyelés a lead- és feladatállapotokhoz, technikai pillanatkép-táblával.
+- Napi vezetői jelentés és napi globális leadkutatás GitHub Actions workflow-kban; a jelentés artifactként érhető el.
 
-A CI automatizált kód- és tesztellenőrzés. Nem igazolja a valódi API-kulcsok érvényességét, a Supabase-séma telepítettségét vagy a teljes felhasználói folyamatot.
+### Analitika és naplózás
+- A `public.logs` rekordjaiból 7/30/90/365 napos aktivitási összesítés készül, modulbontással, chatkérés/válaszesemény-számmal, hibákkal és figyelmeztetésekkel.
+- A dashboard analitikai felülete valódi naplóadatokból készíti a KPI-kat és grafikonokat.
+- A chat-analitika nem teszi az AI kontextusába a nyers naplóüzeneteket.
+- **Új pontosítás:** a jelentés külön megjeleníti a Supabase-projekt létrehozási dátumát és a naplóban ténylegesen megfigyelt első/utolsó esemény időpontját. A projekt létrehozása előtti időszak naplóhiányát nem minősíti automatikusan adatvesztésnek.
+- A Jarvis Supabase-projekt létrehozási ideje a projekt metaadata alapján: **2026-11-13 16:02:24 UTC**. Ez projektmetaadat, nem a naplózás indulási ideje.
 
-## Konfiguráció
+### E-mail biztonság
+- Az e-mail-küldés kódszinten tiltott; az alkalmazás nem küld automatikus e-mailt.
+- E-mail/utánkövetés kérésére másolható tervezet készülhet, de az nem kerül automatikusan mentésre vagy elküldésre.
+- A leadek nem kapnak automatikus kapcsolatfelvételi engedélyt.
 
-A felhasználó visszajelzése szerint a Codespaces-ben rendelkezésre áll:
+## Ellenőrzött állapot – 2026-11-20
 
-- `GEMINI_API_KEY`
+### Automatizált helyi tesztek
+A felhasználó Codespaces környezetében az alábbi parancsok futottak le a `fd50ea0` commitra történő frissítés után:
+
+```bash
+python -m compileall -q .
+python -m pytest -q
+```
+
+Eredmény: **139 passed, 0 failed**. Ez a korábbi kódállapot teszteredménye; a most hozzáadott projekt-életkor/naplólefedettség funkció és új teszt még újrafuttatásra vár.
+
+### Közvetlen Supabase-ellenőrzés
+2026-11-20-án a megfelelő Jarvis projektben kizárólag olvasó SQL-lekérdezések futottak. Az adatbázis nem módosult.
+
+- Projekt: `kiutreccucbegskxowek`, állapot: `ACTIVE_HEALTHY`, régió: `eu-west-1`.
+- Projekt létrehozása: `2026-11-13T16:02:24.276230Z`.
+- A `public.logs` oszlopai: `id`, `module`, `message`, `created_at`, `level`.
+- Ellenőrzéskor 23 naplórekord volt.
+- Első naplóesemény: `2026-11-13 18:33:44.635249 UTC`.
+- Legutolsó naplóesemény: `2026-11-20 17:54:37.793367 UTC`.
+- 2026-11-13 előtti naplórekord nem volt.
+- A chat modulban 2 `chat_request` és 2 `chat_response` esemény volt; a korábban hiányzónak tűnő második válasz 17:54:37 UTC-kor rögzült.
+- A 23 vizsgált rekord mind `info` szintű volt; a mintában nem volt `error` vagy `warning`.
+
+**Értelmezési korlát:** a projekt csak 2026-11-13-án jött létre, ezért az azt megelőző 30 napos részre nem lehetett ebből a projektből naplóadat. Ez nem bizonyít automatikus törlést vagy naplóretenciós hibát. A naplóban rögzített hiba hiánya nem bizonyítja önmagában minden üzleti művelet sikerességét.
+
+### Supabase jogosultsági és adatvédelmi állapot
+A korábbi, külön ellenőrzött Jarvis adatbázis-biztonsági beállítások:
+- RLS aktív a nyolc alkalmazástáblán: `email_drafts`, `jarvis_memory`, `jarvis_proactive_state`, `leads`, `logs`, `posts`, `settings`, `tasks`.
+- Nincs RLS policy; az `anon` és `authenticated` táblajogosultságai vissza vannak vonva.
+- A `service_role` hozzáférése megmaradt, és csak szerveroldali titokként használható.
+- A `postgres` default ACL új public táblák/szekvenciák esetén nem ad automatikus hozzáférést az `anon`/`authenticated` szerepköröknek.
+- A `supabase_admin` default ACL módosítási kísérlete permission errorral meghiúsult; ezt nem tekintjük megoldottnak, és nem történt jogosultsággyengítés.
+
+## Konfiguráció és telepítés
+
+A Codespaces/Streamlit futtatási környezetben szükséges titkok:
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (kizárólag szerveroldali secret)
+- `GEMINI_API_KEY`
+- `JARVIS_DASHBOARD_PASSWORD`
 
-A dashboard indításához a `JARVIS_DASHBOARD_PASSWORD` is szükséges. A napi GitHub Actions workflow-k külön GitHub Actions Secrets konfigurációt igényelnek; a Codespaces Secrets nem öröklődik automatikusan az Actions futtatókörnyezetbe. A titkok értékét soha ne commitold, és ne oszd meg chatben.
+A napi GitHub Actions workflow-k külön GitHub Actions Secrets konfigurációt igényelnek; a Codespaces Secrets nem öröklődik automatikusan az Actions környezetébe. A titkokat soha ne commitold vagy küldd el chatben.
 
-## Következő ellenőrzési lépések
+Indítás Codespaces-ben:
+```bash
+python -m pip install -r requirements.txt
+streamlit run dashboard.py --server.port 8501
+```
 
-1. A dashboardban futtasd a beépített rendszerdiagnosztikát.
-2. Ellenőrizd, hogy a Gemini próbakérés sikeres-e.
-3. Ellenőrizd a Supabase-kapcsolatot, a szükséges táblákat és oszlopokat (`leads.website`, `logs.level`).
-4. Próbáld végig a dashboardot: bejelentkezés, természetes nyelvű kérdés, leadlista/elemzés, jóváhagyási előnézet.
-5. Külön ellenőrizd a GitHub Actions napi workflow-it és az artifactokat.
+## Még ellenőrizendő / nyitott feladatok
 
-## Tudatosan korlátozott / nem bekapcsolt funkciók
+1. Az új analitikai projekt-metaadat és naplózási lefedettség módosítás helyi tesztfuttatása.
+2. Új analitikai riport megnyitása a Streamlit felületen, és ellenőrzése, hogy a projekt létrehozási dátuma, valamint az első/utolsó naplóesemény külön látszik.
+3. A GitHub Actions workflow-k legutóbbi futásának ellenőrzése és az artifactok áttekintése.
+4. A Gemini- és teljes dashboard-folyamat valós, titkokkal végzett végponttól végpontig tesztje.
+5. A Supabase `supabase_admin` default ACL kérdésének külön vizsgálata, ha a jövőben szükségessé válik; jelenleg nem blokkolja a meglévő szerveroldali működést.
 
-- Automatikus e-mail-küldés nincs; a küldés kódszinten tiltott.
-- A leadkutatásból származó új cégek nem kapnak automatikus kapcsolatfelvételi engedélyt.
-- A CI nem végez valódi Gemini- vagy Supabase-hívásokat.
-- A napi workflow-k GitHub Actions titkok nélkül nem tudnak éles adatbázis-műveletet végezni; a Codespaces titkok önmagukban nem elegendők ehhez.
+## Tudatosan nem bekapcsolt funkciók
+
+- Automatikus e-mail-küldés.
+- Leadek automatikus kapcsolatfelvételi engedélyezése.
+- Nyers chatkérések és AI-válaszok tartalmának naplózása.
+- Anonim vagy bejelentkezett böngészői szerepkörök közvetlen hozzáférése az alkalmazástáblákhoz.
