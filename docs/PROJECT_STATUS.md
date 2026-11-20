@@ -14,6 +14,7 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - Átmeneti Gemini túlterhelés kezelése korlátozott újrapróbálkozással/fallback logikával.
 - A chatkérések és a sikeresen elkészült AI-válaszok eseménytípusa naplózódik (`chat_request`, `chat_response`); a kérdés- és válaszszöveg nem kerül a rendszernaplóba.
 - Hosszabb vezetői jelentésekhez teljes, lezárt válaszra és az adathiányok jelzésére vonatkozó promptszabályok.
+- Adaptív válaszhossz: helyi heurisztika becsüli a kérdés összetettségét extra AI-hívás nélkül, majd 384–4096 közötti kimeneti tokenkeretet állít be; a központi Gemini-kliens 8192 tokenes technikai plafont tart fenn.
 
 ### Leadkutatás és üzleti elemzés
 - Google Search grounding alapú, globális, forrásokkal alátámasztott céges leadkutatás.
