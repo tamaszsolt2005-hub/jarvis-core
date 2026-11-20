@@ -1,0 +1,78 @@
+name: JARVIS encrypted database backup
+
+on:
+  schedule:
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      JARVIS_BACKUP_SOURCE_PROJECT_REF: ${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check external backup configuration
+        id: config
+        shell: bash
+        run: |
+          missing=()
+          [[ -n "$SUPABASE_DB_URL" ]] || missing+=("SUPABASE_DB_URL secret")
+          [[ -n "$JARVIS_BACKUP_SOURCE_PROJECT_REF" ]] || missing+=("JARVIS_BACKUP_SOURCE_PROJECT_REF variable")
+          [[ -n "$BACKUP_AGE_RECIPIENT" ]] || missing+=("BACKUP_AGE_RECIPIENT variable")
+          [[ -n "$AWS_ACCESS_KEY_ID" ]] || missing+=("BACKUP_AWS_ACCESS_KEY_ID secret")
+          [[ -n "$AWS_SECRET_ACCESS_KEY" ]] || missing+=("BACKUP_AWS_SECRET_ACCESS_KEY secret")
+          [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
+          [[ -n "$BACKUP_S3_BUCKET" ]] || missing+=("BACKUP_S3_BUCKET variable")
+          if (( ${#missing[@]} )); then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Backup skipped; missing external configuration: ${missing[*]}"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Supabase CLI
+        if: steps.config.outputs.ready == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install age
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age
+
+      - name: Create encrypted logical backup
+        if: steps.config.outputs.ready == 'true'
+        run: python3 scripts/supabase_backup.py backup --output-dir .private-backups
+
+      - name: Upload encrypted backup to private S3-compatible bucket
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$(find .private-backups -maxdepth 1 -type f -name '*.tar.gz.age' -print -quit)"
+          [[ -n "$file" ]]
+          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" \
+            --sse AES256 --only-show-errors
+
+      - name: Report skipped configuration
+        if: steps.config.outputs.ready != 'true'
+        run: echo "A mentés automatizmusa elő van készítve, de külső tárhely/titkosítási konfiguráció nélkül nem futott." >> "$GITHUB_STEP_SUMMARY"
