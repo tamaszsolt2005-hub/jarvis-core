@@ -386,7 +386,14 @@ def get_audit_events(
     ):
         if value:
             query = query.eq(field, value)
-    return query.execute().data or []
+    try:
+        return query.execute().data or []
+    except Exception as exc:
+        report_error(
+            exc, module="jarvis_common", operation="query_audit_events",
+            severity="warning", db=supabase,
+        )
+        return []
 
 
 
