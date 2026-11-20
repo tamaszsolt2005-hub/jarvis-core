@@ -5,6 +5,9 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
+from uuid import uuid4
+
+from jarvis_common import audit_event
 
 
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
@@ -96,6 +99,14 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
 def execute_task_action(db: Any, action: dict[str, Any]) -> str:
     """Execute a previously parsed action only after the chat approval gate."""
     kind = action.get("type")
+    operation_id = str(uuid4())
+    audit_action = "task_" + str(kind or "unknown")
+    if not audit_event(
+        db, module="task_actions", action=audit_action, status="pending",
+        operation_id=operation_id, approved=True,
+        result={"task_id": action.get("id"), "title": action.get("title")},
+    ):
+        raise RuntimeError("A feladatműveletet nem hajtottam végre: az auditnapló nem írható.")
     if kind == "create":
         payload = {
             "title": action["title"], "priority": action["priority"],
@@ -104,13 +115,16 @@ def execute_task_action(db: Any, action: dict[str, Any]) -> str:
         }
         result = db.table("tasks").insert(payload).execute()
         row = (result.data or [{}])[0]
+        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": row.get("id")})
         return f"Feladat létrehozva: **{action['title']}** (azonosító: {row.get('id', 'a rendszer visszaigazolása szerint')})."
 
     task_id = action.get("id")
     existing = db.table("tasks").select("id,title,status").eq("id", task_id).limit(1).execute().data or []
     if not existing:
+        audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "not_found"})
         return "A feladat nem található; nem történt módosítás."
     if str(existing[0].get("status") or "").casefold() != "open":
+        audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "not_open"})
         return "A feladat már nem nyitott; az előkészített műveletet nem hajtottam végre."
     title = existing[0].get("title") or task_id
     if kind == "close":
@@ -119,13 +133,17 @@ def execute_task_action(db: Any, action: dict[str, Any]) -> str:
             "status": "done", "completed_at": now, "updated_at": now,
         }).eq("id", task_id).eq("status", "open").select("id").execute()
         if not result.data:
+            audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt lezárás."
+        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id})
         return f"Feladat lezárva: **{title}**."
     if kind == "update":
         payload = dict(action["updates"])
         payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         result = db.table("tasks").update(payload).eq("id", task_id).eq("status", "open").select("id").execute()
         if not result.data:
+            audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt módosítás."
+        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id, "updated_fields": sorted(action["updates"])})
         return f"Feladat módosítva: **{title}**."
     return "Ismeretlen feladatművelet; nem történt módosítás."
