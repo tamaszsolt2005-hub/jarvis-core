@@ -153,7 +153,7 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 
 **Új tesztek:** tests/test_audit_logging.py – auditmezők, UUID, titokszűrés, JSON eredmény, sikertelen auditmentés, időrendi lekérdezés és szűrők. A tests/test_task_actions.py új esete ellenőrzi, hogy audit-adatbázishiba esetén a feladat létrehozása nem történik meg.
 
-**Tesztállapot:** a felhasználó által közölt 161 passed in 6.00s eredmény a korábbi hibakezelési/tesztelési módosítások utáni állapotot igazolja, de a jelen auditfejlesztés commitjai előtti futás volt. A most hozzáadott audit teszteket és az összesített csomagot ebben a munkamenetben még nem futtattuk; ezért friss passed/failed szám nincs igazolva.
+**Tesztállapot:** az auditfejlesztés után a felhasználó `161 passed in 3.05s` eredményt jelentett. A későbbi teljes CI-futtatás már a mentési fejlesztéseket is tartalmazza: `194 passed in 2.22s` (lásd az adatbázis-mentési szakaszt).
 
 **Nyitott pontok:**
 - A supabase/schema.sql migráció tényleges futtatása az élő Supabase-projekten nincs igazolva. A repository-séma tartalmazza a szükséges oszlopokat, de az élő adatbázis állapotát külön kell ellenőrizni.
