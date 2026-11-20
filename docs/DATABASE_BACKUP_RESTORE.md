@@ -107,7 +107,7 @@ export AGE_IDENTITY_FILE='/secure/path/age-identity.txt'
 
 python scripts/supabase_backup.py restore \
   --archive .private-backups/jarvis-db-....tar.gz.age \
-  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF"
+  --target-project-ref "$JARVIS_RESTORE_ALLOWED_PROJECT_REF" \\\n  --confirm-restore
 ```
 
 A parancs ellenőrzi:
@@ -116,7 +116,7 @@ A parancs ellenőrzi:
 3. a forrás és cél különböző projekt;
 4. az archívum pontosan a várt fájlokat tartalmazza;
 5. az SQL fájlok SHA-256 értékei egyeznek;
-6. a cél public séma nem tartalmaz táblát, nézetet vagy szekvenciát.
+6. a cél public séma nem tartalmaz táblát, nézetet vagy szekvenciát;\n7. a parancs tartalmazza a kötelező `--confirm-restore` kapcsolót.
 
 Csak ezután futtatja a sémát és adatokat egyetlen PostgreSQL tranzakcióban, `ON_ERROR_STOP=1` mellett. Nem üres cél esetén a script még SQL-végrehajtás előtt leáll. A sikertelen tranzakció visszagörgethető.
 
