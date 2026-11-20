@@ -73,7 +73,7 @@ A hosszú távú memória csak explicit mentési/törlési parancsra változik. 
 | Fájl | Felelősség |
 |---|---|
 | `dashboard.py` | Streamlit UI, chat-router, adatlekérés, jóváhagyási folyamatok, modulok összekapcsolása |
-| `jarvis_common.py` | Gemini-kliens, modellnév, titokkezelés, Supabase-kliens, logolás, tokenkeret |
+| `jarvis_common.py` | Gemini-kliens, modellnév, titokkezelés, Supabase-kliens, alkalmazásnaplózás, tokenkeret |\n| `jarvis_errors.py` | Központi, titokszűrő hibajelentés; Python logger és opcionális Supabase `logs` bejegyzés |
 | `chat_email.py` | Chat e-mail-szándék felismerése, pontos címzett kinyerése, tervezet |
 | `jarvis_analytics.py` | Chat-analitika, determinisztikus vezetői riport, analitikai dashboard |
 | `global_lead_research.py` | Forrásalapú céges leadkutatás, célpiac és kutatási logika |
@@ -231,7 +231,7 @@ A workflow definíció nem bizonyít sikeres futást. A legutóbbi futások és 
 
 `proactive_monitor.py` implementált, de jelenleg nem aktív/ütemezett: a `run_proactive_monitor()` függvény lead- és feladat-pillanatképet olvas, az előző pillanatképpel összeveti az új és módosult rekordokat, határidő- és prioritásjelzéseket készít, majd kizárólag a `jarvis_proactive_state` technikai táblát frissíti. Nem módosít leadet vagy feladatot. A teljes repository-keresés és az aktív workflow-k ellenőrzése nem talált hívást vagy ütemezést. A `dashboard.py` külön `_proactive_signals()` segéde aktuális állapotú jelzéseket számol a chat kontextusához; ez nem a `proactive_monitor.py` előző napi változásfigyelője. **Állapot:** kódban implementálva, automatikus futása nem igazolt; külön workflow/ütemezés vagy dashboard-integráció szükséges, ha aktiválni akarjuk.
 
-## 9. Biztonsági alapelvek
+## 9. Hibakezelés és naplózás\n\nA `jarvis_errors.py` központi `report_error()` függvénye egységesen kezeli a `warning`, `error` és `critical` súlyosságú hibajelentéseket. A bejegyzés UTC időbélyeget, modult, műveletet, kivételtípust és szűrt hibaüzenetet tartalmaz. A meglévő `logs` táblát használja, ezért ehhez a változtatáshoz nem szükséges adatbázis-migráció.\n\nA `sanitize_log_text()` kiszűri a gyakori kulcs/jelszó/token mezőket, Bearer hitelesítő adatokat, URL-be ágyazott jelszavakat, query paraméteres kulcsokat, valamint a környezeti változókban szereplő ismert titokértékeket. A `jarvis_common.log_event()` minden meglévő eseményüzenetet szűrve ír ki; a beállításolvasási hiba `warning` szintű központi jelentést kap. Ha maga a Supabase-naplózás hibásodik meg, a jelentő modul a helyi Python loggerre esik vissza, és nem próbál végtelen, rekurzív naplózást.\n\n**Korlát:** a központi modul és a közös naplózási útvonal be van kötve, de ez nem jelenti azt, hogy minden modul minden kivételkezelő ága már át lett vezetve. A teljes repository-szintű bekötés és az éles loggyűjtés külön ellenőrzendő. A naplózási szűrés védekező réteg, nem helyettesíti azt, hogy a hívó ne adjon át titkokat vagy teljes személyes tartalmat naplóüzenetként.\n\n## 10. Biztonsági alapelvek
 
 - API-kulcs, jelszó és service-role kulcs soha nem kerülhet Gitbe vagy dokumentációba.
 - Service-role kulcs kizárólag megbízható szerveroldali környezetben használható.
@@ -241,7 +241,7 @@ A workflow definíció nem bizonyít sikeres futást. A legutóbbi futások és 
 - Háttérküldés csak a kódban ellenőrzött hozzájárulási, jóváhagyási és leiratkozási feltételek mellett futhat.
 - A technikai hozzájárulás-ellenőrzés nem helyettesíti a célország szerinti jogi megfelelőség ellenőrzését.
 
-## 10. Tesztelési és bizonyítási modell
+## 11. Tesztelési és bizonyítási modell
 
 A tesztelés négy külön szint:
 
@@ -252,7 +252,7 @@ A tesztelés négy külön szint:
 
 A teszteredmények dátuma és pontos kimenete a [PROJECT_STATUS.md](PROJECT_STATUS.md) fájlba kerül. Egy sikeres egységteszt nem bizonyítja az éles integrációt vagy a kézbesítést.
 
-## 11. Dokumentáció karbantartása
+## 12. Dokumentáció karbantartása
 
 | Változás | Dokumentum |
 |---|---|
