@@ -14,6 +14,7 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - Átmeneti Gemini túlterhelés kezelése korlátozott újrapróbálkozással/fallback logikával.
 - A chatkérések és a sikeresen elkészült AI-válaszok eseménytípusa naplózódik (`chat_request`, `chat_response`); a kérdés- és válaszszöveg nem kerül a rendszernaplóba.
 - Hosszabb vezetői jelentésekhez teljes, lezárt válaszra és az adathiányok jelzésére vonatkozó promptszabályok.
+- Adaptív válaszhossz-szabályozás: az `estimate_response_tokens()` a kérdés megfogalmazása, hossza és összetettségi jelzései alapján helyben választ kimeneti tokenkeretet. A rövid kérdések jellemzően 512, az átlagosak 768–1024, a több szempontú kérdések 2048, az explicit részletes elemzések 3072–4096, a kifejezetten rövid választ kérők 384 tokent kapnak. A heurisztika nem indít külön AI-hívást; a `generate_text()` a megadott keretet alkalmazza (technikai plafon: 8192). A keret felső korlát, nem célérték vagy garantált tokenfelhasználás.
 - Adaptív válaszhossz: helyi heurisztika becsüli a kérdés összetettségét extra AI-hívás nélkül, majd 384–4096 közötti kimeneti tokenkeretet állít be; a központi Gemini-kliens 8192 tokenes technikai plafont tart fenn.
 
 ### Leadkutatás és üzleti elemzés
@@ -36,6 +37,7 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - A `public.logs` rekordjaiból 7/30/90/365 napos aktivitási összesítés készül, modulbontással, chatkérés/válaszesemény-számmal, hibákkal és figyelmeztetésekkel.
 - A dashboard analitikai felülete valódi naplóadatokból készíti a KPI-kat és grafikonokat.
 - A chat-analitika nem teszi az AI kontextusába a nyers naplóüzeneteket.
+- A chatfolyamat naplózása külön eseménytípusokat használ a kérésekhez, válaszokhoz és hibákhoz; az analitika a sikeres, hibás és befejezetlen kéréseket külön kezeli. A régebbi, korrelációs azonosító nélküli naplóbejegyzések nem kezelhetők bizonyítottan összetartozó kérés-válasz párként.
 - **Új pontosítás:** a jelentés külön megjeleníti a Supabase-projekt létrehozási dátumát és a naplóban ténylegesen megfigyelt első/utolsó esemény időpontját. A projekt létrehozása előtti időszak naplóhiányát nem minősíti automatikusan adatvesztésnek.
 - A Jarvis Supabase-projekt létrehozási ideje a projekt metaadata alapján: **2026-11-13 16:02:24 UTC**. Ez projektmetaadat, nem a naplózás indulási ideje.
 - **Vezetői analitikai jelentés:** a kifejezetten kért analitikai jelentéseket a rendszer most már determinisztikusan, közvetlenül a naplórekordokból állítja elő; ezeknél a Gemini nem írhatja felül a számokat vagy a projektmetaadatot. A riport 30 napos naptári ablakot, 7 napos összehasonlítást, modulmegoszlást, hibákat/figyelmeztetéseket, külön projekt-létrehozási és tényleges naplózási időszakot, valamint adatlefedettségi korlátot mutat. A naplóhiányt nem nevezi bizonyított modulleállásnak.
@@ -49,14 +51,15 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 ## Ellenőrzött állapot – 2026-11-20
 
 ### Automatizált helyi tesztek
-A felhasználó Codespaces környezetében az alábbi parancsok futottak le a `fd50ea0` commitra történő frissítés után:
+
+A felhasználó Codespaces környezetében a legutóbbi adaptív válaszhossz-módosítások letöltése után az alábbi parancsok futottak le:
 
 ```bash
 python -m compileall -q .
 python -m pytest -q
 ```
 
-Eredmény: **139 passed, 0 failed**. Ez a korábbi kódállapot teszteredménye; a most hozzáadott projekt-életkor/naplólefedettség funkció és új teszt még újrafuttatásra vár.
+Legutóbbi felhasználó által visszaigazolt eredmény: **154 passed, 0 failed** (2026-11-20). Ez a teljes helyi tesztcsomag eredménye az adaptív válaszhossz-szabályozást is tartalmazó kódállapoton. A tesztek a kód szerződéses és egységszintű működését ellenőrzik; nem helyettesítik a külső szolgáltatásokkal végzett éles végponttól végpontig tesztet.
 
 ### Közvetlen Supabase-ellenőrzés
 2026-11-20-án a megfelelő Jarvis projektben kizárólag olvasó SQL-lekérdezések futottak. Az adatbázis nem módosult.
