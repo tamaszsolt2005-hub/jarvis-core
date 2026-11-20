@@ -271,3 +271,23 @@ Az aktív `email_sender.run()` és `email_inbox.run()` belépési pontok a vára
 Az `email_sender._send_one()` a küldési hibát központilag jelenti, majd megpróbálja a lead státuszát `send_error` értékre állítani. Ha ez a státuszfrissítés is hibázik, külön kritikus hibajelentés készül. A küldési eredmény bizonytalansága nem indít automatikus vak újraküldést. A kikapcsolt küldési feltételnél a figyelmeztetés támogatott `warning` szintet használ.
 
 A `tests/test_error_resilience.py` a központi naplózási fallbacket, titokszűrést, kikapcsolt SMTP-zárat, inbox/sender kivételjelentést és hibás konfigurációt mockokkal ellenőrzi. Ez egységteszt, nem bizonyít valós Supabase-, SMTP- vagy IMAP-kapcsolatot.
+
+
+### 9.2 Strukturált műveleti audit
+
+A strukturált audit a meglévő public.logs táblát bővíti, nem külön táblát használ. A repository supabase/schema.sql fájlja már tartalmazza az operation_id, action, status, result (jsonb), error, approved, recipient, subject és delivery_id mezőket, valamint a created_at, operation_id, module/action és status indexeket. A módosítás nem igényel új SQL-migrációt, ha az élő adatbázis már a repository-sémával egyezik; az élő séma egyezése külön ellenőrzendő.
+
+A jarvis_common.audit_event() egy UUID műveletazonosítót és UTC created_at időpontot rögzít. A státuszok: pending, success, failed, blocked, unknown. Az eredmény natív JSON-érték, a szöveges mezők és eredményértékek a központi titokszűrőn mennek át. A helper bool értékkel jelzi, ha az auditbejegyzés nem menthető; érzékeny külső műveletek előtt a hívó félnek fail-closed módon kell eljárnia.
+
+A jarvis_common.get_audit_events() 1–1000 közötti korlátozott elemszámmal, legújabb elöl rendezve kér le strukturált auditrekordokat; opcionálisan module, action, status és operation_id szerint szűr. A régi log_event() rekordok action nélküliek lehetnek, ezért azokat ez a strukturált lekérdezés kihagyja, de a korábbi napló/analitika továbbra is eléri őket.
+
+Audit-integrációk:
+- task_actions.py: jóváhagyott feladat create/update/close; a pending audit sikertelensége megállítja a műveletet.
+- dashboard.py: chatből külön jóváhagyott e-mail; pending audit nélkül nincs SMTP-küldés. A címzett, tárgy, approved állapot és SMTP Message-ID auditálható; levéltörzs nem kerül mentésre.
+- email_sender.py: hozzájárulás-ellenőrzött háttérküldés; SMTP előtt pending rekord, utána success/failed.
+- email_inbox.py: válasz és leiratkozás auditálása; auditírási hiba esetén a UID checkpoint nem lép tovább.
+- global_lead_research.py: a futás összesített eredménye és piaci hatóköre; egyedi lead-személyes adatok nélkül.
+
+A dashboard naplókontextusa csak a strukturált, nem közvetlenül személyes auditmezőket tölti be a modell számára; recipient és subject nem kerül a Gemini promptba. A címzett és tárgy a jogosultsággal védett adatbázisban az audit-visszakeresés céljára marad.
+
+Korlátok: az append-only jelleg alkalmazásszintű, nem adatbázis-szintű immutabilitási garancia. Külön admin audit UI, export, retention policy és adminisztrátori módosítások elleni DB-védelem nincs kész. A külső SMTP/IMAP művelet és a Supabase naplózás nem egyetlen tranzakció; az SMTP elfogadás után fellépő audit-hiba bizonytalan naplóállapotot eredményezhet. A repository SQL megléte nem bizonyítja, hogy azt az élő Supabase-projekten lefuttatták.
