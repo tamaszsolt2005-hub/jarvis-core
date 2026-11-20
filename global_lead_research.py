@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import json
 import re
+from uuid import uuid4
 from typing import Any
 from urllib.parse import urlparse
 
 from google.genai import types
 
-from jarvis_common import get_gemini_client, get_model_name, log_event
+from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event
 
 
 MAX_RESULTS = 15
@@ -272,6 +273,20 @@ def research_global_companies(db: Any, request: str, client: Any | None = None,
         "email_sending": "disabled",
         "contact_permission": "not_granted",
     }
+    audit_event(
+        db,
+        module="global_lead_research",
+        action="research_companies",
+        status="success",
+        operation_id=str(uuid4()),
+        result={
+            "market": market_country,
+            "saved_count": len(inserted),
+            "skipped_count": skipped,
+            "contact_permission_granted": False,
+            "email_sending": "disabled",
+        },
+    )
     log_event(db, "global_lead_research",
               f"Leadkutatás ({market_country}): {len(inserted)} új céges lead, {skipped} kihagyva; e-mail-küldés tiltva.")
     return result
