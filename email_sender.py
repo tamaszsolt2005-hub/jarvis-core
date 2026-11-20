@@ -70,13 +70,29 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     claim_status = "follow_up_sending" if follow_up else "sending"
     claim = (
         db.table("leads").update({"status": claim_status})
-        .eq("id", lead["id"]).eq("status", current_status).eq("opted_out", False)
-        .select("id").execute()
+        .eq("id", lead["id"]).eq("status", current_status)
+        .eq("opted_out", False).eq("approved_to_contact", True)
+        .eq("consent_basis", "consent").select("id").execute()
     )
     if not claim.data:
         return False
     try:
         subject, body = _draft(lead, follow_up=follow_up)
+        # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
+        fresh = (
+            db.table("leads")
+            .select("id,status,consent_basis,approved_to_contact,opted_out,last_inbound_message_id")
+            .eq("id", lead["id"]).limit(1).execute().data or []
+        )
+        if (
+            not fresh or fresh[0].get("status") != claim_status
+            or fresh[0].get("consent_basis") != "consent"
+            or fresh[0].get("approved_to_contact") is not True
+            or fresh[0].get("opted_out") is True
+            or fresh[0].get("last_inbound_message_id")
+        ):
+            log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warn")
+            return False
         message_id = send_email(str(lead["email"]), subject, body)
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
