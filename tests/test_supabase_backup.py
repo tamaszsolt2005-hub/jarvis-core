@@ -154,3 +154,13 @@ def test_connection_password_is_removed_from_url_and_written_privately(tmp_path)
     pgpass = Path(env["PGPASSFILE"])
     assert pgpass.stat().st_mode & 0o777 == 0o600
     assert "pa\\:ss@word" in pgpass.read_text()
+
+
+def test_restore_sql_reuses_existing_public_schema():
+    schema = "CREATE SCHEMA public;\\nALTER SCHEMA public OWNER TO postgres;\\nCREATE TABLE public.sample(id integer);"
+    data = "COPY public.sample (id) FROM stdin;\\n1\\n\\\\.\\n"
+    restored = backup._restore_sql_text(schema, data)
+    assert "CREATE SCHEMA public" not in restored
+    assert "ALTER SCHEMA public OWNER" not in restored
+    assert "CREATE TABLE public.sample" in restored
+    assert "COPY public.sample" in restored
