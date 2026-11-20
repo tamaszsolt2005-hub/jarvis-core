@@ -188,3 +188,25 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 **Lefedettségi korlát:** a logikai mentés a teljes `public` sémát és adatait fedi. Nem tartalmazza a Supabase kezelt `auth`, `storage`, `realtime` sémákat, Storage bináris fájlokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. A platform napi backup/PITR hozzáférhetősége csomagfüggő, a csomagot és beállítást nem ellenőriztük.
 
 **Állapot:** kód és workflow előkészítve; tényleges mentés, S3 feltöltés és sandbox visszaállítás még nem történt. Az éles DB változatlan maradt. A hozzá tartozó egységtesztek friss futása még nincs igazolva.
+
+
+## Biztonságos adatbázis-mentés és visszaállítás – 2026-11-20
+
+**Kódban előkészítve:**
+- `scripts/supabase_backup.py`: a rögzített JARVIS Supabase projektből a teljes `public` séma és adat logikai exportja, UUID-alapú azonosító, UTC időbélyeg, SHA-256 manifest, age titkosítás.
+- A DB-jelszó nem kerül parancssori URL-be; a script privát, 0600 jogosultságú PGPASSFILE/folyamatkörnyezet használatára készült.
+- `.github/workflows/database-backup.yml`: napi 02:15 UTC és kézi indítás; hiányos konfiguráció esetén kihagyja a futást. Az AWS-feltöltés GitHub OIDC rövid életű role-hitelesítéssel történik.
+- A visszaállítás explicit `--confirm-restore` kapcsolót, külön allowlistelt nem éles projektazonosítót, URL/ref egyezést, age kulcsot és üres `public` sémát követel. Az éles JARVIS projektazonosító kódszinten tiltott.
+- A helyi backup könyvtár és titkosított archívumok Git-ignore alatt vannak.
+
+**Élő adatbázis-ellenőrzés 2026-11-20:** a megfelelő Jarvis projekten csak olvasási ellenőrzés történt. A `public` sémában nyolc tábla volt: `leads` (11), `posts` (0), `logs` (28), `settings` (1), `tasks` (0), `email_drafts` (0), `jarvis_memory` (0), `jarvis_proactive_state` (1). A teljes public dump a legacy `posts` táblát is tartalmazza. Az élő séma eltér a repository `supabase/schema.sql` fájljától, ezért a mentés nem abból épül újra.
+
+**Még nem konfigurált / nem igazolt:**
+- GitHub Actions `SUPABASE_DB_URL` és `AWS_BACKUP_ROLE_ARN` secret, valamint a projektref, age recipient, AWS régió és privát bucket változók.
+- AWS IAM OIDC trust policy, privát S3 bucket, SSE-KMS, versioning és lifecycle retention.
+- Az age privát visszafejtő kulcs biztonságos, offline megőrzése.
+- Sikeres éles mentési futás, S3 feltöltés és izolált Supabase sandbox restore próba.
+
+A Supabase Auth és Storage platform-sémák, Storage fájlbinárisok, platformtitkok és külső szolgáltatások nem részei a public sémás logikai mentésnek; ezekhez külön platform backup/PITR és Storage export kell. A feladat során az éles Supabase-adatbázist nem módosítottuk, visszaállítást nem futtattunk.
+
+**Tesztállapot:** a korábban jelentett `161 passed in 3.05s` futás a mentési fejlesztés előtti állapotot igazolja. Az új backup tesztek után friss teljes tesztfuttatás még nem áll rendelkezésre; nem állítunk friss sikeres teszteredményt.
