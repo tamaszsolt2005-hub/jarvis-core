@@ -23,6 +23,7 @@ jobs:
       BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
       BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
       AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+      AWS_BACKUP_ROLE_ARN: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +38,7 @@ jobs:
           [[ -n "$BACKUP_AGE_RECIPIENT" ]] || missing+=("BACKUP_AGE_RECIPIENT variable")
           [[ -n "$BACKUP_S3_BUCKET" ]] || missing+=("BACKUP_S3_BUCKET variable")
           [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
-          [[ -n "${{ secrets.AWS_BACKUP_ROLE_ARN }}" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
+          [[ -n "$AWS_BACKUP_ROLE_ARN" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
           if (( ${#missing[@]} )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Backup skipped; missing external configuration: ${missing[*]}"
