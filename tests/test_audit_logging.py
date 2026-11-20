@@ -123,10 +123,12 @@ def test_audit_event_sanitizes_result_values():
     db = FakeDB(rows=None)
     assert jarvis_common.audit_event(
         db, module="test", action="test_result", status="success",
-        result={"details": "api_key=hidden-value", "count": 2},
+        result={"details": "api_key=hidden-value", "api_key": "hidden-by-field-name", "count": 2},
     )
     assert db.inserted[0]["result"]["details"] != "api_key=hidden-value"
     assert "hidden-value" not in str(db.inserted[0]["result"])
+    assert db.inserted[0]["result"]["api_key"] == "[REDACTED]"
+    assert "hidden-by-field-name" not in str(db.inserted[0]["result"])
 
 
 def test_audit_event_returns_false_when_persistence_fails(caplog):
