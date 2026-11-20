@@ -236,7 +236,7 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
 
         combined = work / "restore.sql"
         combined.write_text(
-            (work / "schema.sql").read_text(encoding="utf-8") + "\\n" +
+            (work / "schema.sql").read_text(encoding="utf-8") + chr(10) +
             (work / "data.sql").read_text(encoding="utf-8"),
             encoding="utf-8",
         )
