@@ -67,7 +67,7 @@ A háttérküldés további kapcsolói:
 
 A kapcsolók alapértelmezése biztonsági okból kikapcsolt. A Codespaces Secrets és a GitHub Actions Secrets külön környezetek; egyik nem helyettesíti automatikusan a másikat. A titkok értékét soha ne tedd dokumentációba vagy Gitbe.
 
-## Tesztelés
+## Adatbázis-mentés és visszaállítás\n\nA titkosított Supabase-mentési és kizárólag elkülönített tesztprojektbe engedélyezett visszaállítási eljárást a [DATABASE_BACKUP_RESTORE.md](docs/DATABASE_BACKUP_RESTORE.md) dokumentálja. A workflow külső S3-kompatibilis tárhely és age titkosítási kulcs konfigurációja nélkül kihagyja a mentést; a GitHub-repozitórium nem tárol adatbázis-mentést.\n\n## Tesztelés
 
 ```bash
 python -m compileall -q .
