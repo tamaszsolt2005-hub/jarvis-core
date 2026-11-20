@@ -205,6 +205,12 @@ Ne másold át a dátumozott teszt- vagy szolgáltatásállapotot a műszaki dok
 
 **Élő adatbázis-ellenőrzés 2026-11-20:** a megfelelő Jarvis projekten csak olvasási ellenőrzés történt. A `public` sémában nyolc tábla volt: `leads` (11), `posts` (0), `logs` (28), `settings` (1), `tasks` (0), `email_drafts` (0), `jarvis_memory` (0), `jarvis_proactive_state` (1). A teljes public dump a legacy `posts` táblát is tartalmazza. Az élő séma eltér a repository `supabase/schema.sql` fájljától, ezért a mentés nem abból épül újra.
 
+**AWS/S3 infrastruktúra-előkészítés – 2026-11-20:**
+- Hozzáadva: `infra/aws-backup-stack.yaml` CloudFormation sablon. Privát S3 bucket, public-access block, versioning, 30 napos lifecycle, KMS kulcs/rotáció, GitHub OIDC trust és prefixre korlátozott feltöltési IAM role.
+- A workflow explicit KMS key ARN-t kér, és a feltöltéskor ezt használja.
+- A CloudFormation stack nincs telepítve AWS-fiókba; a GitHub Actions Secrets/Variables sincsenek beállítva. A GitHub connector nem biztosít hozzáférést a repository titkok API-jához.
+- Nem történt AWS-erőforrás-létrehozás, GitHub secret módosítás, valódi backup vagy S3 feltöltés.
+
 **Még nem konfigurált / nem igazolt:**
 - GitHub Actions `SUPABASE_DB_URL` és `AWS_BACKUP_ROLE_ARN` secret, valamint a projektref, age recipient, AWS régió és privát bucket változók.
 - AWS IAM OIDC trust policy, privát S3 bucket, SSE-KMS, versioning és lifecycle retention.
