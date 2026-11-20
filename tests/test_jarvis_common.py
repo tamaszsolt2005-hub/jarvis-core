@@ -184,3 +184,33 @@ def test_required_secret_points_to_runtime_secret_locations(monkeypatch):
     assert "Codespaces secretként" in str(error.value)
     assert ".streamlit/secrets.toml" in str(error.value)
     assert "GitHub Actions Secretként" not in str(error.value)
+
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("Szia!", 512),
+        ("Mi az a CRM?", 512),
+        ("Hogyan működik a CRM rendszer?", 768),
+        ("Mutasd be a CRM előnyeit és hátrányait több szempontból.", 1536),
+        ("Elemezd részletesen a CRM bevezetésének kockázatait.", 3072),
+        ("Röviden elemezd a CRM-et.", 384),
+    ],
+)
+def test_estimate_response_tokens_adapts_to_question_complexity(question, expected):
+    assert jarvis_common.estimate_response_tokens(question) == expected
+
+
+def test_generate_text_uses_requested_output_token_budget(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.8-flash")
+    client = FakeClient(["rövid válasz"])
+    assert jarvis_common.generate_text("hello", client, max_output_tokens=512) == "rövid válasz"
+    assert client.models.configs[0].max_output_tokens == 512
+
+
+def test_generate_text_clamps_output_token_budget(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.8-flash")
+    client = FakeClient(["válasz"])
+    jarvis_common.generate_text("hello", client, max_output_tokens=50000)
+    assert client.models.configs[0].max_output_tokens == 8192
