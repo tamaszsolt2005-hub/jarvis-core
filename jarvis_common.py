@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -13,6 +14,8 @@ from jarvis_errors import report_error, sanitize_log_text
 from google import genai
 from google.genai import types
 from supabase import Client, create_client
+
+LOGGER = logging.getLogger("jarvis")
 
 
 def get_secret(name: str, default: str | None = None) -> str | None:
