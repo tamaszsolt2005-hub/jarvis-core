@@ -181,7 +181,7 @@ def restore_backup(archive_path: Path, target_ref: str) -> None:
         count = run_checked([
             "psql", "--no-psqlrc", "--tuples-only", "--no-align",
             "--command",
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';",
+            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f','S');",
             "--dbname", db_url,
         ])
         try:
