@@ -88,3 +88,11 @@ def test_dashboard_correlates_chat_request_response_and_error_events():
     assert 'chat_request|request_id={request_id}' in source
     assert 'chat_response|request_id={request_id}' in source
     assert 'chat_error|request_id={request_id}' in source
+
+
+
+def test_dashboard_uses_question_based_output_token_budget():
+    source = DASHBOARD.read_text(encoding="utf-8")
+    assert "estimate_response_tokens(prompt)" in source
+    assert "max_output_tokens=response_token_budget" in source
+    assert "egyszerű kérdésre 1–3 mondatban" in source
