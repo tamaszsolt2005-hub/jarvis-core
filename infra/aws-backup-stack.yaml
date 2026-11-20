@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: JARVIS encrypted database backup bucket and GitHub Actions OIDC upload role.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: tamaszsolt2005-hub/jarvis-core
+    Description: Exact owner/repository allowed to assume the backup role.
+    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+  GitHubBranch:
+    Type: String
+    Default: main
+    AllowedPattern: "^[A-Za-z0-9_.-]+$"
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Optional existing IAM OIDC provider ARN for token.actions.githubusercontent.com. Leave empty to create one.
+
+Conditions:
+  CreateGitHubOidcProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, ""]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  BackupKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: JARVIS encrypted database backup objects in S3.
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableAccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: "kms:*"
+            Resource: "*"
+
+  BackupKmsAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/jarvis-database-backups
+      TargetKeyId: !Ref BackupKmsKey
+
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt BackupKmsKey.Arn
+            BucketKeyEnabled: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireCurrentBackupsAfter30Days
+            Status: Enabled
+            Prefix: jarvis/database/
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  GitHubBackupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Allows only the JARVIS main-branch GitHub Actions workflow to upload encrypted backup objects.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GitHubActionsOidcTrust
+            Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateGitHubOidcProvider
+                - !GetAtt GitHubOidcProvider.Arn
+                - !Ref ExistingGitHubOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepository}:ref:refs/heads/${GitHubBranch}
+      Policies:
+        - PolicyName: UploadEncryptedJarvisBackupsOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: PutBackupObjects
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*
+              - Sid: EncryptBackupObjects
+                Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Encrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt BackupKmsKey.Arn
+
+Outputs:
+  BackupBucketName:
+    Description: Set this as GitHub Actions variable BACKUP_S3_BUCKET.
+    Value: !Ref BackupBucket
+  BackupBucketArn:
+    Value: !GetAtt BackupBucket.Arn
+  BackupKmsKeyArn:
+    Description: Set this as GitHub Actions variable BACKUP_S3_KMS_KEY_ARN.
+    Value: !GetAtt BackupKmsKey.Arn
+  GitHubBackupRoleArn:
+    Description: Set this as GitHub Actions secret AWS_BACKUP_ROLE_ARN.
+    Value: !GetAtt GitHubBackupRole.Arn
+  GitHubOidcProviderArn:
+    Condition: CreateGitHubOidcProvider
+    Value: !GetAtt GitHubOidcProvider.Arn
