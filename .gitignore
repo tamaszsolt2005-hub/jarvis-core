@@ -9,4 +9,8 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
-\n# Encrypted database backups and temporary restore material\n.private-backups/\nbackups/\n*.tar.gz.age\n
+
+# Encrypted database backups and temporary restore material
+.private-backups/
+backups/
+*.tar.gz.age
