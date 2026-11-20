@@ -12,7 +12,7 @@ _LEVELS = {"warning": logging.WARNING, "error": logging.ERROR, "critical": loggi
 _ALLOWED_LEVELS = {"warning", "error", "critical"}
 
 _SECRET_PATTERNS = (
-    re.compile(r"(?i)(\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|passwd|secret|service[_-]?role[_-]?key)\b\s*[:=]\s*)([^\s,;]+)"),
+    re.compile(r"(?i)(\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|service[_-]?role[_-]?key)\b\s*[:=]\s*)([^\s,;]+)"),
     re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s,;]+"),
     re.compile(r"(?i)(\bBearer\s+)[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)(://[^:/\s]+:)[^@/\s]+(@)"),
