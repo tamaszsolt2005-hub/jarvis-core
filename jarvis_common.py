@@ -1,8 +1,11 @@
 """Shared configuration, Supabase, Gemini and logging helpers."""
 from __future__ import annotations
 
+import json
 import os
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from jarvis_errors import report_error, sanitize_log_text
@@ -256,6 +259,84 @@ def log_event(supabase: Client, module: str, message: str, level: str = "info") 
             operation="write_application_log",
             severity="error",
         )
+
+
+
+def audit_event(
+    supabase: Client,
+    *,
+    module: str,
+    action: str,
+    status: str,
+    operation_id: str | None = None,
+    result: Any | None = None,
+    error: BaseException | str | None = None,
+    approved: bool | None = None,
+    recipient: str | None = None,
+    subject: str | None = None,
+    delivery_id: str | None = None,
+    level: str = "info",
+) -> bool:
+    """Append a structured, secret-safe audit event to the existing logs table.
+
+    Returns False on persistence failure. Callers performing sensitive external
+    actions must fail closed when the required audit record cannot be persisted.
+    Email bodies and arbitrary payloads are intentionally not accepted.
+    """
+    safe_status = str(status or "").strip().lower()
+    if safe_status not in {"pending", "success", "failed", "blocked", "unknown"}:
+        safe_status = "unknown"
+    safe_level = str(level or "info").strip().lower()
+    if safe_level not in {"debug", "info", "warning", "error", "critical"}:
+        safe_level = "info"
+    try:
+        op_id = str(uuid.UUID(operation_id)) if operation_id else str(uuid.uuid4())
+    except (TypeError, ValueError, AttributeError):
+        LOGGER.warning("Invalid audit operation id supplied; generated a new id")
+        op_id = str(uuid.uuid4())
+
+    safe_module = sanitize_log_text(module, max_length=80) or "unknown"
+    safe_action = sanitize_log_text(action, max_length=120) or "unspecified"
+    safe_recipient = sanitize_log_text(recipient, max_length=254) if recipient else None
+    safe_subject = sanitize_log_text(subject, max_length=300) if subject else None
+    safe_delivery_id = sanitize_log_text(delivery_id, max_length=250) if delivery_id else None
+    safe_error = sanitize_log_text(
+        f"{type(error).__name__}: {error}" if isinstance(error, BaseException) else error,
+        max_length=1500,
+    ) if error else None
+    try:
+        safe_result = (
+            json.dumps(result, ensure_ascii=False, default=str)[:2000]
+            if result is not None else None
+        )
+    except (TypeError, ValueError):
+        safe_result = None
+
+    row = {
+        "module": safe_module,
+        "level": safe_level,
+        "message": f"audit:{safe_action}|status={safe_status}",
+        "operation_id": op_id,
+        "action": safe_action,
+        "status": safe_status,
+        "result": safe_result,
+        "error": safe_error,
+        "approved": approved,
+        "recipient": safe_recipient,
+        "subject": safe_subject,
+        "delivery_id": safe_delivery_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        supabase.table("logs").insert(row).execute()
+        return True
+    except Exception as exc:
+        LOGGER.error(
+            "[jarvis_common] Audit persistence failed for %s/%s: %s",
+            safe_module, safe_action,
+            sanitize_log_text(f"{type(exc).__name__}: {exc}", max_length=500),
+        )
+        return False
 
 
 def get_setting(supabase: Client, key: str, default: Any = None) -> Any:
