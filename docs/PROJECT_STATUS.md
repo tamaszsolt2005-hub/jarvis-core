@@ -48,7 +48,7 @@ Ez a dokumentum a repositoryban található kód, a felhasználó által futtato
 - Chatküldéshez a szerveroldali `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true` kapcsoló is szükséges. Mindkettő alapértelmezetten hamis.
 - Háttérküldés: első kapcsolatfelvétel és legfeljebb két utánkövető levél kezelhető külön üzenetenkénti jóváhagyás nélkül, de csak `consent_basis=consent`, `approved_to_contact=true`, időbélyeggel igazolt `consent_confirmed_at`, érvényes e-mail-cím és `opted_out=false` esetén.
 - Alapértelmezett utánkövetési várakozás 5 nap; maximum 2 utánkövető levél; futásonként legfeljebb 3 levél; küldések között 30 másodperc.
-- Az `email_inbox.py` IMAP-on ellenőrzi a legutóbbi 200 bejövő üzenetet. Válasz esetén `status=replied`, leiratkozás esetén `opted_out=true` és `status=opted_out`; mindkettő törli a következő utánkövetés időpontját.
+- Az `email_inbox.py` IMAP-on az első futáskor a legutóbbi 200 bejövő üzenetet dolgozza fel, majd a `settings` táblában tárolt UID-checkpoint alapján minden új üzenetet ellenőriz. Válasz esetén `status=replied`, leiratkozás esetén `opted_out=true` és `status=opted_out`; mindkettő törli a következő utánkövetés időpontját.
 - A háttérküldő csak akkor fut, ha az SMTP, az automatikus küldés és az IMAP-figyelés kapcsolója is aktív. A GitHub Actions workflow előbb az inboxot ellenőrzi, majd az első leveleket és esedékes utánkövetéseket küldi.
 - Új Supabase-tábla vagy jogosultságmódosítás nem szükséges; a meglévő `leads` mezőket használja.
 - A kód és az egységtesztek bekerültek a repositoryba, de a friss e-mailteszt-csomag felhasználói futtatása, az SMTP/IMAP éles konfigurációja és a teljes végponttól végpontig ellenőrzés még hátravan.
