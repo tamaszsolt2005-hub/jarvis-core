@@ -8,7 +8,7 @@ from email import message_from_bytes
 from email.header import decode_header
 from email.utils import parseaddr
 
-from jarvis_common import env_bool, get_secret, get_supabase, log_event, required_secret
+from jarvis_common import env_bool, get_secret, get_supabase, log_event, required_secret, audit_event
 
 OPTOUT_TERMS = (
     "leiratkozom", "leiratkozás", "leiratkozas", "unsubscribe", "remove me", "stop emailing",
@@ -122,6 +122,20 @@ def _run() -> int:
                 "reply_category": "opt_out" if opted_out else "reply",
             }
             db.table("leads").update(values).eq("id", lead["id"]).execute()
+            audit_ok = audit_event(
+                db,
+                module="email_inbox",
+                action="inbound_opt_out" if opted_out else "inbound_reply",
+                status="success",
+                delivery_id=message_id,
+                result={"lead_id": lead["id"], "follow_up_stopped": True},
+                level="warning" if opted_out else "info",
+            )
+            if not audit_ok:
+                raise RuntimeError(
+                    "A bejövő e-mail állapotát frissítettem, de az auditnapló nem írható; "
+                    "az IMAP UID checkpoint nem lép tovább."
+                )
             lead["last_inbound_message_id"] = message_id
             lead["opted_out"] = bool(opted_out)
             log_event(
