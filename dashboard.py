@@ -578,7 +578,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     log_rows: list[dict] = []
     if wants_logs:
         log_limit = 5000 if wants_analytics else 100
-        log_rows = _safe_rows(db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,recipient,subject,delivery_id", log_limit)
+        log_rows = _safe_rows(db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,delivery_id", log_limit)
         if not wants_analytics:
             sections.append("RENDSZERNAPLÓ:\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
         loaded.append("naplók")
