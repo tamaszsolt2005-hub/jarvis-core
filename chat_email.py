@@ -15,8 +15,8 @@ def is_chat_email_request(text: str) -> bool:
 
 
 def extract_explicit_recipient(text: str) -> str | None:
-    match = EMAIL_RE.search(str(text or ""))
-    return match.group(0).lower() if match else None
+    matches = EMAIL_RE.findall(str(text or ""))
+    return matches[0].lower() if len(matches) == 1 else None
 
 
 def build_chat_email_draft(request: str, generate: Callable[..., str]) -> tuple[str, str]:
