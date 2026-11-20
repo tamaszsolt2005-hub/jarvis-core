@@ -339,6 +339,38 @@ def audit_event(
         return False
 
 
+
+def get_audit_events(
+    supabase: Client,
+    *,
+    limit: int = 100,
+    module: str | None = None,
+    action: str | None = None,
+    status: str | None = None,
+    operation_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return newest structured audit events from the existing logs table."""
+    safe_limit = max(1, min(int(limit), 1000))
+    query = (
+        supabase.table("logs")
+        .select(
+            "id,operation_id,created_at,module,action,status,result,error,"
+            "approved,recipient,subject,delivery_id,level"
+        )
+        .not_.is_("action", "null")
+        .order("created_at", desc=True)
+        .limit(safe_limit)
+    )
+    for field, value in (
+        ("module", module), ("action", action),
+        ("status", status), ("operation_id", operation_id),
+    ):
+        if value:
+            query = query.eq(field, value)
+    return query.execute().data or []
+
+
+
 def get_setting(supabase: Client, key: str, default: Any = None) -> Any:
     try:
         result = supabase.table("settings").select("value").eq("key", key).limit(1).execute()
