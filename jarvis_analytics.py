@@ -12,6 +12,8 @@ import streamlit as st
 
 
 _ANALYTICS_TZ = ZoneInfo("Europe/Budapest")
+# Verified Supabase project metadata for the Jarvis project (not the first log event).
+_SUPABASE_PROJECT_CREATED_AT = datetime(2026, 11, 13, 16, 2, 24, 276230, tzinfo=timezone.utc)
 _RANGE_DAYS = {"7 nap": 7, "30 nap": 30, "90 nap": 90, "1 év": 365}
 _COLORS = {
     "blue": "#168BFF",
@@ -97,9 +99,14 @@ def is_analytics_question(question: str) -> bool:
     ))
 
 
-def build_chat_analytics_context(records: list[dict], now: datetime | None = None) -> str:
-    """Summarize the private log events used by the dashboard charts."""
+def build_chat_analytics_context(
+    records: list[dict],
+    now: datetime | None = None,
+    project_created_at: datetime | None = None,
+) -> str:
+    """Summarize log events and distinguish project age from observed log coverage."""
     current_local = (now or datetime.now(_ANALYTICS_TZ)).astimezone(_ANALYTICS_TZ)
+    created_at = (project_created_at or _SUPABASE_PROJECT_CREATED_AT).astimezone(_ANALYTICS_TZ)
     frame = pd.DataFrame(records or [])
     if frame.empty or "created_at" not in frame:
         return "A naplótábla jelenleg nem tartalmaz elemezhető eseményt. Adatforrás: public.logs."
@@ -112,7 +119,10 @@ def build_chat_analytics_context(records: list[dict], now: datetime | None = Non
     frame["message"] = frame.get("message", pd.Series("", index=frame.index)).fillna("").astype(str).str.casefold()
     lines = [
         "JARVIS ANALITIKA – VALÓS SUPABASE-NAPLÓADATOK",
+        f"Supabase-projekt létrehozva: {created_at:%Y-%m-%d %H:%M:%S %Z}.",
+        f"Ténylegesen megfigyelt naplózási időszak: {frame['created_at_utc'].min().tz_convert(_ANALYTICS_TZ):%Y-%m-%d %H:%M:%S %Z} – {frame['created_at_utc'].max().tz_convert(_ANALYTICS_TZ):%Y-%m-%d %H:%M:%S %Z}.",
         f"Adatforrás: public.logs; beolvasott és időbélyeggel rendelkező rekordok: {len(frame)}.",
+        "A projekt létrehozási dátuma és az első naplóbejegyzés dátuma külön adat. A projekt létrehozása előtti kért időszakra nincs naplóadat; ez önmagában nem bizonyít adatvesztést vagy automatikus törlést.",
         "A naptári napok Europe/Budapest szerint értendők; minden időszak az előző azonos hosszúságú időszakkal összehasonlítható.",
         "A jelentést készítő chatkérés válaszeseménye csak a válasz elkészülte után kerül a naplóba, ezért azt a következő analitikai lekérdezés fogja tartalmazni.",
     ]
