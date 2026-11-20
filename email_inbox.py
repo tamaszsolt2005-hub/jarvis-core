@@ -41,7 +41,7 @@ def _body(message) -> str:
 
 def _is_optout(subject: str, body: str) -> bool:
     text = f"{subject}\n{body}".casefold()
-    return any(term in text for term in OPT_OUT_TERMS)
+    return any(term in text for term in OPTOUT_TERMS)
 
 
 def run() -> int:
