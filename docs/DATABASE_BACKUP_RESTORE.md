@@ -95,7 +95,7 @@ Előfeltételek:
 - a célprojekt `public` sémája teljesen üres;
 - külön cél DB URL;
 - `--confirm-restore` explicit kapcsoló;
-- az age privát kulcs fájlja, amelynek útvonalát az `AGE_IDENTITY_FILE` változó tartalmazza;
+- az age privát kulcs fájlja, amelynek útvonalát az `AGE_IDENTITY_FILE` változó tartalmazza; POSIX rendszeren a fájl jogosultsága legfeljebb 0600 lehet;
 - `JARVIS_RESTORE_ALLOWED_PROJECT_REF` értéke pontosan a jóváhagyott sandbox projektazonosító.
 
 Példa:
