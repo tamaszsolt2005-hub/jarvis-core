@@ -10,7 +10,7 @@ from email.utils import parseaddr
 from jarvis_common import env_bool, get_secret, get_supabase, log_event, required_secret
 
 OPTOUT_TERMS = (
-    "leiratkozom", "leiratkozas", "unsubscribe", "remove me", "stop emailing",
+    "leiratkozom", "leiratkozás", "leiratkozas", "unsubscribe", "remove me", "stop emailing",
     "ne keressen", "ne keressetek", "töröljenek", "toroljenek",
 )
 
