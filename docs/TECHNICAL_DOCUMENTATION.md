@@ -262,3 +262,12 @@ A teszteredmények dátuma és pontos kimenete a [PROJECT_STATUS.md](PROJECT_STA
 | Adatbázis-tábla vagy oszlop | Először SQL-séma/migráció, utána szükség szerint ez a dokumentum |
 
 **AI-karbantartási szabály:** minden változtatás után ellenőrizd az érintett forráskódot és teszteket. Ne másolj dátumozott tesztállapotot ebbe a fájlba. Ne állíts aktívnak olyan modult vagy automatizmust, amelynek belépési pontját és futását nem igazoltad. Ne találgass hiányzó adatbázis-sémát, titokértéket vagy külső szolgáltatásállapotot.
+
+
+### 9.1 Háttér e-mail-folyamatok központi hibajelentése
+
+Az aktív `email_sender.run()` és `email_inbox.run()` belépési pontok a váratlan folyamat-hibát a `jarvis_errors.report_error()` segítségével jelentik, majd az eredeti kivételt újradobják. Ez szándékos: a GitHub Actions nem jelezhet sikeres futást egy hibás IMAP/SMTP/DB folyamat után. A központi naplózás nem nyeli el a biztonsági hibát és nem engedélyez küldést.
+
+Az `email_sender._send_one()` a küldési hibát központilag jelenti, majd megpróbálja a lead státuszát `send_error` értékre állítani. Ha ez a státuszfrissítés is hibázik, külön kritikus hibajelentés készül. A küldési eredmény bizonytalansága nem indít automatikus vak újraküldést. A kikapcsolt küldési feltételnél a figyelmeztetés támogatott `warning` szintet használ.
+
+A `tests/test_error_resilience.py` a központi naplózási fallbacket, titokszűrést, kikapcsolt SMTP-zárat, inbox/sender kivételjelentést és hibás konfigurációt mockokkal ellenőrzi. Ez egységteszt, nem bizonyít valós Supabase-, SMTP- vagy IMAP-kapcsolatot.
