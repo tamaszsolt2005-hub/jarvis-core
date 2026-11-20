@@ -120,3 +120,13 @@ streamlit run dashboard.py --server.port 8501
 - Leadek automatikus kapcsolatfelvételi engedélyezése.
 - Nyers chatkérések és AI-válaszok tartalmának naplózása.
 - Anonim vagy bejelentkezett böngészői szerepkörök közvetlen hozzáférése az alkalmazástáblákhoz.
+
+## Dokumentációs felosztás
+
+A repository három elsődleges dokumentuma külön felelősséget kap:
+
+- `README.md`: felhasználói bemutatás, képességek és telepítés.
+- Ez a fájl: aktuális fejlesztési állapot, igazolt tesztek, nyitott feladatok és környezeti ellenőrzések.
+- `docs/TECHNICAL_DOCUMENTATION.md`: architektúra, modulok, adatfolyamok, Supabase-adatmodell és biztonsági alapelvek.
+
+A dátumozott teszteredményeket és a külső szolgáltatások ellenőrzését itt kell vezetni. A műszaki dokumentáció nem tekinthető az éles működés bizonyítékának.
