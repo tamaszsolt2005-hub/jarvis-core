@@ -97,16 +97,52 @@ def format_conversation_history(messages: list[tuple[str, str]], max_chars: int 
     return "\n".join(reversed(selected))
 
 
+def estimate_response_tokens(question: str) -> int:
+    """Estimate a sensible output-token budget locally, without an extra model call."""
+    text = " ".join(str(question or "").casefold().split())
+    if not text:
+        return 512
+
+    concise_markers = (
+        "röviden", "roviden", "egy mondatban", "csak a választ",
+        "tömören", "tomoren", "tl;dr",
+    )
+    detailed_markers = (
+        "részletezd", "reszletezd", "részletesen", "reszletesen",
+        "elemezd", "elemzést", "elemzest", "hasonlítsd össze", "hasonlitsd ossze",
+        "lépésről lépésre", "lepesrol lepesre", "tervezz", "dolgozd ki",
+        "stratégia", "strategia", "jelentés", "jelentes", "vezetői", "vezetoi",
+        "audit", "értékeld", "ertekeld", "indokold meg", "mélyreható",
+        "melyrehato", "pro és kontra", "pro es kontra",
+    )
+    multi_part_markers = (" és ", " továbbá ", "valamint", "illetve", "1.", "2.", "3.", "•", "\n-", "\n*")
+    if any(marker in text for marker in concise_markers):
+        return 384
+    if any(marker in text for marker in detailed_markers):
+        return 3072 if len(text) < 700 else 4096
+    if len(text) > 900 or sum(text.count(marker) for marker in multi_part_markers) >= 2:
+        return 2048
+    if len(text) > 350 or any(marker in text for marker in multi_part_markers):
+        return 1536
+    if len(text) > 120:
+        return 1024
+    if len(text) < 45:
+        return 512
+    return 768
+
+
 def generate_text(
     prompt: str,
     client: genai.Client | None = None,
     on_status: Any | None = None,
+    max_output_tokens: int = 8192,
 ) -> str:
     """Generate with bounded retries and current fallback models for temporary overloads."""
     client = client or get_gemini_client()
     primary_model = get_model_name()
     fallback_models = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
     max_attempts = env_int("GEMINI_RETRY_ATTEMPTS", 2, minimum=1, maximum=5)
+    output_token_budget = max(128, min(int(max_output_tokens), 8192))
 
     def notify(message: str) -> None:
         if callable(on_status):
@@ -124,12 +160,12 @@ def generate_text(
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         **(
-                            {"max_output_tokens": 8192}
+                            {"max_output_tokens": output_token_budget}
                             if model == "gemini-3.8-flash"
                             else {
                                 "temperature": 0.35,
                                 "top_p": 0.9,
-                                "max_output_tokens": 8192,
+                                "max_output_tokens": output_token_budget,
                             }
                         )
                     ),
