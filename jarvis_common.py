@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from jarvis_errors import report_error, sanitize_log_text
+from jarvis_errors import report_error, sanitize_log_text, register_secret_value
 
 from google import genai
 from google.genai import types
@@ -19,16 +19,33 @@ LOGGER = logging.getLogger("jarvis")
 
 
 def get_secret(name: str, default: str | None = None) -> str | None:
-    """Read Streamlit secrets first, then environment variables."""
+    """Read Streamlit secrets first, then environment variables.
+
+    Missing optional Streamlit configuration is normal in CLI/test contexts;
+    unexpected access failures are reported without exposing the secret value.
+    """
     try:
         import streamlit as st
         value = st.secrets.get(name)
         if value not in (None, ""):
-            return str(value)
-    except Exception:
-        pass
+            resolved = str(value)
+            register_secret_value(resolved)
+            return resolved
+    except Exception as exc:
+        # Streamlit raises this when no secrets.toml is configured. A missing
+        # file/key is not an operational error; other access failures are.
+        if type(exc).__name__ not in {"StreamlitSecretNotFoundError", "KeyError"}:
+            report_error(
+                exc,
+                module="jarvis_common",
+                operation=f"read_streamlit_secret:{name}",
+                severity="warning",
+            )
     value = os.environ.get(name)
-    return value if value not in (None, "") else default
+    if value not in (None, ""):
+        register_secret_value(value)
+        return value
+    return default
 
 
 def required_secret(name: str) -> str:

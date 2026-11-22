@@ -10,6 +10,7 @@ from typing import Any
 LOGGER = logging.getLogger("jarvis")
 _LEVELS = {"warning": logging.WARNING, "error": logging.ERROR, "critical": logging.CRITICAL}
 _ALLOWED_LEVELS = {"warning", "error", "critical"}
+_REGISTERED_SECRET_VALUES: set[str] = set()
 
 _SECRET_PATTERNS = (
     # Assignment-style credentials, including quoted JSON/YAML values.
@@ -24,8 +25,17 @@ _SECRET_PATTERNS = (
 _SECRET_ENV_MARKERS = ("KEY", "TOKEN", "PASSWORD", "PASSWD", "SECRET", "CREDENTIAL", "AUTH")
 
 
+def register_secret_value(value: Any) -> None:
+    """Register a secret read from a non-environment config source for log redaction."""
+    if value is None:
+        return
+    secret = str(value)
+    if len(secret) >= 2:
+        _REGISTERED_SECRET_VALUES.add(secret)
+
+
 def sanitize_log_text(value: Any, *, max_length: int = 4000) -> str:
-    """Redact credential fields, URL credentials, known env secrets, and common key formats."""
+    """Redact named credentials, registered/configured secrets, and common key formats."""
     text = str(value if value is not None else "")
     for index, pattern in enumerate(_SECRET_PATTERNS):
         if index == 3:
@@ -35,8 +45,9 @@ def sanitize_log_text(value: Any, *, max_length: int = 4000) -> str:
         else:
             text = pattern.sub(lambda match: match.group(1) + "[REDACTED]", text)
 
-    # Redact configured secrets even when short; do not expose their values in diagnostics.
-    # Ignore empty values and avoid replacing ubiquitous one-character environment values.
+    # Values returned by get_secret() include Streamlit secrets as well as env vars.
+    for secret in _REGISTERED_SECRET_VALUES:
+        text = text.replace(secret, "[REDACTED]")
     for name, secret in os.environ.items():
         if any(marker in name.upper() for marker in _SECRET_ENV_MARKERS) and secret and len(secret) >= 2:
             text = text.replace(secret, "[REDACTED]")
@@ -64,12 +75,7 @@ def report_error(
     safe_detail = sanitize_log_text(f"{type(error).__name__}: {error}", max_length=2500)
     message = f"timestamp={timestamp} operation={safe_operation} {safe_detail}"
 
-    LOGGER.log(
-        _LEVELS[level],
-        "[%s] %s",
-        safe_module,
-        message,
-    )
+    LOGGER.log(_LEVELS[level], "[%s] %s", safe_module, message)
 
     if db is not None:
         try:
