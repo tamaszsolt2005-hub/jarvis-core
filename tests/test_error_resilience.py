@@ -137,3 +137,48 @@ def test_supabase_client_requires_server_side_configuration(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_secret", lambda _name, default=None: default)
     with pytest.raises(RuntimeError, match="SUPABASE_URL"):
         jarvis_common.get_supabase()
+
+
+
+def test_task_action_failure_is_reported_and_original_error_reraised(monkeypatch):
+    import task_actions
+
+    original = RuntimeError("database unavailable")
+    reports = []
+
+    def fail_audit(*args, **kwargs):
+        raise original
+
+    monkeypatch.setattr(task_actions, "audit_event", fail_audit)
+    monkeypatch.setattr(
+        task_actions, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(RuntimeError) as caught:
+        task_actions.execute_task_action(object(), {"type": "create", "title": "Test"})
+    assert caught.value is original
+    assert reports[0][0] is original
+    assert reports[0][1]["module"] == "task_actions"
+    assert reports[0][1]["severity"] == "critical"
+
+
+def test_proactive_monitor_failure_is_reported_and_reraised(monkeypatch):
+    import proactive_monitor
+
+    original = RuntimeError("snapshot read failed")
+    reports = []
+
+    def fail(*args, **kwargs):
+        raise original
+
+    monkeypatch.setattr(proactive_monitor, "_run_proactive_monitor", fail)
+    monkeypatch.setattr(
+        proactive_monitor, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(RuntimeError) as caught:
+        proactive_monitor.run_proactive_monitor(object())
+    assert caught.value is original
+    assert reports[0][0] is original
+    assert reports[0][1]["module"] == "proactive_monitor"
+    assert reports[0][1]["severity"] == "warning"
