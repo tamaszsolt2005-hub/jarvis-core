@@ -8,10 +8,13 @@ import os
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
+pytestmark = [
+    pytest.mark.live_integration,
+    pytest.mark.skipif(
     os.getenv("JARVIS_LIVE_INTEGRATION_TESTS") != "1",
     reason="Live integrations are opt-in; set JARVIS_LIVE_INTEGRATION_TESTS=1.",
-)
+    ),
+]
 
 
 def test_live_supabase_read_only_connection():
