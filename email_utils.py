@@ -19,6 +19,8 @@ def send_email(recipient: str, subject: str, body: str) -> str:
     from_name = get_secret("EMAIL_FROM_NAME", "JARVIS") or "JARVIS"
     host = get_secret("SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com"
     port = int(get_secret("SMTP_PORT", "587") or "587")
+    if not 1 <= port <= 65535:
+        raise ValueError("SMTP_PORT must be between 1 and 65535.")
 
     message = EmailMessage()
     message["From"] = formataddr((from_name, sender))
