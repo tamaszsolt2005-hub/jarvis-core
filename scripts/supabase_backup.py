@@ -45,31 +45,25 @@ def project_ref_from_db_url(db_url: str) -> str:
 
 
 
-def _pgpass_escape(value: str) -> str:
-    return value.replace("\\", "\\\\").replace(":", "\\:").replace("\r", "").replace("\n", "")
-
-
 def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str]]:
-    """Move the DB password out of argv into a private pgpass file."""
+    """Build a percent-encoded URL for Supabase CLI's pg_dump container.
+
+    Supabase CLI runs pg_dump inside a container. A runner-local PGPASSFILE
+    or PGPASSWORD is not reliably available inside that container, so the
+    password must be included in the --remote URL. Never log argv or stderr.
+    """
     parsed = urlsplit(db_url)
     if not parsed.hostname or not parsed.username or not parsed.password:
         raise BackupError("A DB URL-nek hostot, felhasználót és jelszót kell tartalmaznia.")
-    username = unquote(parsed.username)
-    password = unquote(parsed.password)
+    username = quote(unquote(parsed.username), safe="")
+    password = quote(unquote(parsed.password), safe="")
+    host = parsed.hostname
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
     port = parsed.port or 5432
-    database = parsed.path.lstrip("/") or "postgres"
-    pgpass = work / "pgpass"
-    pgpass.write_text(
-        ":".join(_pgpass_escape(v) for v in (parsed.hostname, str(port), database, username, password)) + "\n",
-        encoding="utf-8",
-    )
-    pgpass.chmod(0o600)
-    env = os.environ.copy()
-    env["PGPASSFILE"] = str(pgpass)
-    env["PGPASSWORD"] = password
-    safe_netloc = f"{quote(username, safe='')}@{parsed.hostname}:{port}"
-    safe_url = urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, ""))
-    return safe_url, env
+    netloc = f"{username}:{password}@{host}:{port}"
+    cli_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", parsed.query, ""))
+    return cli_url, os.environ.copy()
 
 
 def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
@@ -82,9 +76,21 @@ def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
     except FileNotFoundError as exc:
         raise BackupError(f"Hiányzó külső program: {args[0]}") from exc
     except subprocess.CalledProcessError as exc:
-        # Never echo command arguments: they may contain a database URL/password.
-        # stderr can contain connection details; do not expose it in console/logs.
-        raise BackupError(f"A(z) {args[0]} parancs hibával leállt. A részletes kimenet biztonsági okból elrejtve.") from exc
+        # Never echo argv or raw stderr: either may contain credentials.
+        detail = (exc.stderr or "").lower()
+        if "password authentication failed" in detail or "authentication failed" in detail:
+            reason = "adatbázis-hitelesítés sikertelen (ellenőrizd a jelszót és annak URL-kódolását)"
+        elif "could not translate host" in detail or "name or service not known" in detail or "no such host" in detail:
+            reason = "a megadott adatbázis-hosztnév nem oldható fel"
+        elif "timeout expired" in detail or "connection timed out" in detail or "could not connect to server" in detail:
+            reason = "az adatbázis nem érhető el a megadott hoston/porton (hálózat vagy pooler-beállítás)"
+        elif "ssl" in detail or "certificate" in detail:
+            reason = "SSL/TLS-kapcsolati hiba"
+        elif "docker" in detail or "daemon" in detail or "container" in detail:
+            reason = "a Supabase CLI pg_dump konténerének indítása hibázott"
+        else:
+            reason = "Supabase CLI / pg_dump hiba; a titkos adatokat tartalmazó részletes kimenet rejtve marad"
+        raise BackupError(f"A(z) {args[0]} parancs hibával leállt: {reason}.") from exc
 
 
 def sha256_file(path: Path) -> str:
