@@ -150,7 +150,8 @@ def test_database_password_is_passed_via_environment_not_url(tmp_path):
     safe_url, env = backup._connection_env_and_url(url, tmp_path)
     assert "secret" not in safe_url
     assert "postgres@" in safe_url
-    assert safe_url.endswith("/postgres?sslmode=require")
+    assert "sslmode=require" in safe_url
+    assert "hostaddr=203.0.113.10" in safe_url
     assert env["PGPASSWORD"] == "secret:value@{test}"
 
 
