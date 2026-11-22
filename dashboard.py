@@ -834,7 +834,7 @@ if prompt:
                             approval_notice = f"Az SMTP-szerver átvette az e-mailt ({message_id or 'azonosító nélkül'}), de a végső auditbejegyzés mentése nem sikerült. A küldést ne ismételd meg ellenőrzés nélkül."
                 elif task_action:
                     stage = "Jóváhagyott feladatművelet"
-                    approval_notice = execute_task_action(db, task_action)
+                    approval_notice = execute_task_action(db, task_action, approved=True)
                 else:
                     approval_notice = "A jóváhagyott művelet végrehajtása elindult."
             else:
