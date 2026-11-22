@@ -354,10 +354,10 @@ def audit_event(
         supabase.table("logs").insert(row).execute()
         return True
     except Exception as exc:
-        LOGGER.error(
-            "[jarvis_common] Audit persistence failed for %s/%s: %s",
-            safe_module, safe_action,
-            sanitize_log_text(f"{type(exc).__name__}: {exc}", max_length=500),
+        report_error(
+            exc, module="jarvis_common",
+            operation=f"audit_persist:{safe_module}:{safe_action}",
+            severity="critical",
         )
         return False
 

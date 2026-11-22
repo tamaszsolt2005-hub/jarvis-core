@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from intelligent_lead_scoring import rank_researched_leads
+from jarvis_errors import report_error
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
 
@@ -208,10 +209,15 @@ def main() -> None:
     from proactive_monitor import run_proactive_monitor
 
     db = get_supabase()
-    report = build_daily_briefing(db)
+    try:
+        report = build_daily_briefing(db)
+    except Exception as exc:
+        report_error(exc, module="daily_briefing", operation="build_report", severity="critical", db=db)
+        raise
     try:
         report += "\n" + run_proactive_monitor(db)
     except Exception as exc:
+        # proactive_monitor reports the original failure centrally; keep this caller-level fallback quiet.
         report += (
             "\n## Proaktív változásfigyelés\n"
             f"- A monitor most nem futott le ({type(exc).__name__}). "

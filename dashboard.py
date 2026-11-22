@@ -17,6 +17,7 @@ import pandas as pd
 import streamlit as st
 
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
+from jarvis_errors import report_error, sanitize_log_text
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
 from jarvis_analytics import (build_chat_analytics_context, build_executive_analytics_report, is_analytics_question, is_executive_analytics_report_request, render_analytics)
@@ -372,8 +373,10 @@ def _website_profile(url: Any) -> dict[str, Any]:
                     "content_excerpt": text[:3500]}
         return {"status": "az oldal nem adott használható választ", "score": 0, "url": current_url}
     except requests.RequestException as exc:
+        report_error(exc, module="dashboard", operation="audit_lead_website_http", severity="warning")
         return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": current_url}
     except Exception as exc:
+        report_error(exc, module="dashboard", operation="audit_lead_website_parse", severity="error")
         return {"status": f"weboldal feldolgozási hiba ({type(exc).__name__})", "score": 0, "url": current_url}
     finally:
         if response is not None:
@@ -655,6 +658,7 @@ if st.session_state.get("jarvis_page") == "analytics":
             st.session_state["_jarvis_db"] = analytics_db
         render_analytics(analytics_db)
     except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_analytics", severity="error", db=analytics_db if "analytics_db" in locals() else None)
         st.error("Az Analitika oldal nem tudott betöltődni.")
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
@@ -1049,12 +1053,12 @@ if prompt:
             response_status.update(label="JARVIS nem tudott válaszolni", state="error", expanded=True)
         if db is not None:
             log_event(db, "chat", f"chat_error|request_id={request_id}", level="error")
-        # Show actionable diagnostics without ever printing configured credentials.
-        import re
-        detail = str(exc).replace("\n", " ").strip()
-        detail = re.sub(r"(?i)(api[_ -]?key|service[_ -]?role[_ -]?key|password|token)(\s*[:=]\s*)\S+", r"\1\2[REDACTED]", detail)
-        detail = re.sub(r"(?i)eyJ[A-Za-z0-9_-]{20,}\.?[A-Za-z0-9_.-]*", "[REDACTED_TOKEN]", detail)
-        detail = detail[:500] or "Nincs további hibaüzenet."
+        # Use the same redaction rules for persisted logs and user-visible diagnostics.
+        report_error(
+            exc, module="dashboard", operation=f"chat_request:{stage}",
+            severity="error", db=db,
+        )
+        detail = sanitize_log_text(exc, max_length=500) or "Nincs további hibaüzenet."
         st.error(f"A JARVIS művelet a következő szakaszban állt meg: {stage}.")
         st.warning(f"Hiba típusa: {type(exc).__name__} · Részlet: {detail}")
         st.info("A fenti hibaüzenet alapján célzottan javítható a kapcsolat vagy a konfiguráció. API-kulcsot és jelszót ne küldj be.")

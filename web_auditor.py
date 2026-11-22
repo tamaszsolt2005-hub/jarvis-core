@@ -8,6 +8,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 from safe_http import safe_get, close_response
+from jarvis_errors import report_error
 
 USER_AGENT = "JARVIS-Business-Audit/1.0"
 MAX_BYTES = 350_000
@@ -100,8 +101,10 @@ def audit_company_website(url: str | None) -> str:
             return f"Oldalcím: {title}. Nyilvános szövegminta: {sample or 'Nincs szövegminta.'}"
         return "Az oldal nem adott használható választ."
     except requests.RequestException as exc:
+        report_error(exc, module="web_auditor", operation="audit_company_website_http", severity="warning")
         return f"A weboldal nem volt elérhető ({type(exc).__name__})."
     except Exception as exc:
+        report_error(exc, module="web_auditor", operation="audit_company_website_parse", severity="error")
         return f"Weboldal-elemzési hiba ({type(exc).__name__})."
     finally:
         if response is not None:

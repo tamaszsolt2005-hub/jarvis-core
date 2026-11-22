@@ -4,6 +4,12 @@ from __future__ import annotations
 from typing import Any
 
 from jarvis_common import get_secret, get_supabase, get_gemini_client, get_model_name
+from jarvis_errors import report_error
+
+
+def _report_diagnostic_error(error: Exception, operation: str) -> None:
+    # Diagnostics are read-only; keep failures local and never write to business tables.
+    report_error(error, module="health_check", operation=operation, severity="warning")
 
 
 REQUIRED_TABLES = (
@@ -40,6 +46,7 @@ def run_self_diagnostics() -> str:
             db = get_supabase()
             checks.append(_check("Supabase kapcsolat", True, "A kliens létrehozása sikerült."))
         except Exception as exc:
+            _report_diagnostic_error(exc, "initialize_supabase")
             checks.append(_check("Supabase kapcsolat", False, f"Kapcsolat inicializálása sikertelen ({type(exc).__name__})."))
     else:
         checks.append(_check("Supabase kapcsolat", False, "A hiányzó konfiguráció miatt nem futott le."))
@@ -50,6 +57,7 @@ def run_self_diagnostics() -> str:
                 db.table(table).select("*").limit(1).execute()
                 checks.append(_check(f"Supabase tábla: {table}", True, "Lekérdezhető (üres tábla is megfelelő)."))
             except Exception as exc:
+                _report_diagnostic_error(exc, "probe_table")
                 checks.append(_check(f"Supabase tábla: {table}", False, f"Nem kérdezhető le ({type(exc).__name__}); ellenőrizd a sémát és az RLS-hozzáférést."))
     else:
         for table in REQUIRED_TABLES:
@@ -60,6 +68,7 @@ def run_self_diagnostics() -> str:
             db.table("leads").select("website").limit(1).execute()
             checks.append(_check("Supabase oszlop: leads.website", True, "Az oszlop lekérdezhető."))
         except Exception as exc:
+            _report_diagnostic_error(exc, "probe_leads_website")
             checks.append(_check("Supabase oszlop: leads.website", False, f"Hiányzó vagy nem lekérdezhető oszlop ({type(exc).__name__}); futtasd a website migrációt."))
     else:
         checks.append(_check("Supabase oszlop: leads.website", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
@@ -69,6 +78,7 @@ def run_self_diagnostics() -> str:
             db.table("logs").select("level").limit(1).execute()
             checks.append(_check("Supabase oszlop: logs.level", True, "Az oszlop lekérdezhető."))
         except Exception as exc:
+            _report_diagnostic_error(exc, "probe_logs_level")
             checks.append(_check("Supabase oszlop: logs.level", False, f"Hiányzó vagy nem lekérdezhető oszlop ({type(exc).__name__}); ellenőrizd a logs migrációt."))
     else:
         checks.append(_check("Supabase oszlop: logs.level", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
@@ -86,6 +96,7 @@ def run_self_diagnostics() -> str:
             else:
                 checks.append(_check("Gemini API próbakérés", False, "A modell üres választ adott."))
         except Exception as exc:
+            _report_diagnostic_error(exc, "probe_gemini")
             checks.append(_check("Gemini API próbakérés", False, f"A próbakérés sikertelen ({type(exc).__name__})."))
     else:
         checks.append(_check("Gemini API próbakérés", False, "A hiányzó API-kulcs miatt nem futott le."))
@@ -96,6 +107,7 @@ def run_self_diagnostics() -> str:
         checks.append(_check("E-mail-küldési biztonsági zár", email_disabled,
                              "A küldés kódszinten letiltva." if email_disabled else "Figyelem: a küldési zár nincs tiltott állapotban."))
     except Exception as exc:
+        _report_diagnostic_error(exc, "check_email_safety_lock")
         checks.append(_check("E-mail-küldési biztonsági zár", False, f"Nem ellenőrizhető ({type(exc).__name__})."))
 
     passed = sum(1 for item in checks if item["ok"])
