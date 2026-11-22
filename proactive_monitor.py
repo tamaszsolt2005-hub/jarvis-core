@@ -5,6 +5,8 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from jarvis_errors import report_error
+
 
 STATE_KEY = "daily_proactive_snapshot"
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
@@ -26,7 +28,7 @@ def _rows(db: Any, table: str, columns: str, limit: int) -> list[dict]:
     return db.table(table).select(columns).limit(limit).execute().data or []
 
 
-def run_proactive_monitor(db: Any, today: date | None = None) -> str:
+def _run_proactive_monitor(db: Any, today: date | None = None) -> str:
     today = today or datetime.now(LOCAL_TZ).date()
     leads = _rows(db, "leads", "id,company_name,status,created_at,updated_at,source", 2000)
     tasks = _rows(db, "tasks", "id,title,status,priority,due_at,updated_at,completed_at", 1000)
@@ -118,3 +120,16 @@ def run_proactive_monitor(db: Any, today: date | None = None) -> str:
     }
     db.table("jarvis_proactive_state").upsert({"key": STATE_KEY, "snapshot": snapshot}).execute()
     return "\n".join(lines) + "\n"
+
+
+
+def run_proactive_monitor(db: Any, today: date | None = None) -> str:
+    """Report monitor failures centrally; caller retains control of optional fallback."""
+    try:
+        return _run_proactive_monitor(db, today=today)
+    except Exception as exc:
+        report_error(
+            exc, module="proactive_monitor", operation="run_daily_snapshot",
+            severity="warning", db=db,
+        )
+        raise
