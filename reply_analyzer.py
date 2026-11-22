@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from jarvis_common import generate_text
+from jarvis_errors import report_error
 
 OPT_OUT_TERMS = (
     "leiratko", "iratkoztassanak le", "iratkoztasson le", "ne keress",
@@ -38,5 +39,11 @@ def classify_reply(body: str) -> str:
     try:
         label = generate_text(prompt).strip().lower().replace(".", "")
         return label if label in {"interested", "later", "rejected", "opt_out", "unknown"} else "unknown"
-    except Exception:
+    except Exception as exc:
+        report_error(
+            exc,
+            module="reply_analyzer",
+            operation="classify_reply_with_model",
+            severity="warning",
+        )
         return "unknown"
