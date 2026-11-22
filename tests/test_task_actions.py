@@ -122,3 +122,17 @@ def test_task_action_fails_closed_when_audit_log_is_unavailable(monkeypatch):
             db, {"type": "create", "title": "Ne jöjjön létre", "priority": "normal"}, approved=True
         )
     assert db.created is None
+
+
+def test_task_action_requires_explicit_approval_before_database_access():
+    import pytest
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("Database must not be accessed without explicit approval")
+
+    with pytest.raises(PermissionError, match="jóváhagyás"):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Tiltott művelet", "priority": "normal"},
+        )
