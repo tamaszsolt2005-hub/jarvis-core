@@ -373,8 +373,10 @@ def _website_profile(url: Any) -> dict[str, Any]:
                     "content_excerpt": text[:3500]}
         return {"status": "az oldal nem adott használható választ", "score": 0, "url": current_url}
     except requests.RequestException as exc:
+        report_error(exc, module="dashboard", operation="audit_lead_website_http", severity="warning")
         return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": current_url}
     except Exception as exc:
+        report_error(exc, module="dashboard", operation="audit_lead_website_parse", severity="error")
         return {"status": f"weboldal feldolgozási hiba ({type(exc).__name__})", "score": 0, "url": current_url}
     finally:
         if response is not None:
