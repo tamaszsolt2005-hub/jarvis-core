@@ -812,6 +812,13 @@ if prompt:
                                 db, status="failed", error=email_exc, level="error",
                                 **audit_fields,
                             )
+                            report_error(
+                                email_exc,
+                                module="dashboard",
+                                operation="send_approved_chat_email",
+                                severity="error",
+                                db=db,
+                            )
                             raise
                         audit_saved = audit_event(
                             db, status="success",
@@ -976,6 +983,13 @@ if prompt:
                             truncated=len(report_records) >= 5000,
                         )
                     except Exception as report_exc:
+                        report_error(
+                            report_exc,
+                            module="dashboard",
+                            operation="build_executive_analytics_report",
+                            severity="error",
+                            db=db,
+                        )
                         answer = (
                             "A vezetői analitikai jelentés most nem készíthető el, mert a Supabase-naplók "
                             f"lekérdezése sikertelen volt ({type(report_exc).__name__}). "
