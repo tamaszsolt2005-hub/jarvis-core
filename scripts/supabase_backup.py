@@ -46,24 +46,20 @@ def project_ref_from_db_url(db_url: str) -> str:
 
 
 def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str]]:
-    """Build a percent-encoded URL for Supabase CLI's pg_dump container.
-
-    Supabase CLI runs pg_dump inside a container. A runner-local PGPASSFILE
-    or PGPASSWORD is not reliably available inside that container, so the
-    password must be included in the --remote URL. Never log argv or stderr.
-    """
+    """Build a password-free libpq URL and pass credentials via environment."""
     parsed = urlsplit(db_url)
     if not parsed.hostname or not parsed.username or not parsed.password:
         raise BackupError("A DB URL-nek hostot, felhasználót és jelszót kell tartalmaznia.")
     username = quote(unquote(parsed.username), safe="")
-    password = quote(unquote(parsed.password), safe="")
     host = parsed.hostname
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
     port = parsed.port or 5432
-    netloc = f"{username}:{password}@{host}:{port}"
-    cli_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", parsed.query, ""))
-    return cli_url, os.environ.copy()
+    netloc = f"{username}@{host}:{port}"
+    safe_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", parsed.query, ""))
+    db_env = os.environ.copy()
+    db_env["PGPASSWORD"] = unquote(parsed.password)
+    return safe_url, db_env
 
 
 def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
@@ -110,8 +106,8 @@ def create_backup(output_dir: Path) -> Path:
     actual_ref = project_ref_from_db_url(db_url)
     if source_ref != PRODUCTION_PROJECT_REF or actual_ref != PRODUCTION_PROJECT_REF:
         raise BackupError("A mentés csak az előre rögzített JARVIS éles projektből indulhat; a forrásazonosító nem egyezik.")
-    if not shutil.which("supabase") or not shutil.which("age"):
-        raise BackupError("A mentéshez a supabase CLI és az age program szükséges.")
+    if not shutil.which("pg_dump") or not shutil.which("age"):
+        raise BackupError("A mentéshez a pg_dump és az age program szükséges.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -129,11 +125,12 @@ def create_backup(output_dir: Path) -> Path:
         manifest_path = work / "manifest.json"
         archive = work / "backup.tar.gz"
 
-        # Password is supplied through a private PGPASSFILE, never command-line args.
+        # Use the runner-installed pg_dump directly; no Supabase CLI Docker container.
+        # PGPASSWORD is inherited by libpq and is never placed in the command arguments.
         safe_url, db_env = _connection_env_and_url(db_url, work)
         # Capture every public-schema object and row, including legacy tables.
-        run_checked(["supabase", "db", "dump", f"--remote={safe_url}", "--schema", "public", "--file", str(schema)], env=db_env)
-        run_checked(["supabase", "db", "dump", f"--remote={safe_url}", "--schema", "public", "--data-only", "--use-copy", "--file", str(data)], env=db_env)
+        run_checked(["pg_dump", "--dbname", safe_url, "--schema=public", "--no-owner", "--no-privileges", "--format=plain", "--file", str(schema)], env=db_env)
+        run_checked(["pg_dump", "--dbname", safe_url, "--schema=public", "--data-only", "--no-owner", "--no-privileges", "--format=plain", "--file", str(data)], env=db_env)
         if not schema.is_file() or not data.is_file() or schema.stat().st_size == 0:
             raise BackupError("A Supabase CLI nem készített teljes sémamentést és adatmentést.")
 
