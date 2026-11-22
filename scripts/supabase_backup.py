@@ -12,13 +12,14 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import tarfile
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlsplit, urlunsplit
 
 PRODUCTION_PROJECT_REF = "kiutreccucbegskxowek"
 BACKUP_PREFIX = "jarvis-db"
@@ -56,7 +57,17 @@ def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str
         host = f"[{host}]"
     port = parsed.port or 5432
     netloc = f"{username}@{host}:{port}"
-    safe_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", parsed.query, ""))
+    # GitHub-hosted runners may resolve Supabase's AAAA record first despite
+    # having no IPv6 route. Pin libpq to a resolved IPv4 address while keeping
+    # the original hostname for TLS certificate verification.
+    try:
+        ipv4 = socket.getaddrinfo(parsed.hostname, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except (OSError, IndexError) as exc:
+        raise BackupError("Az adatbázis hosztnevéhez nem található elérhető IPv4-cím a futtatókörnyezetben.") from exc
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    query = [(key, value) for key, value in query if key.lower() != "hostaddr"]
+    query.append(("hostaddr", ipv4))
+    safe_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", urlencode(query), ""))
     db_env = os.environ.copy()
     db_env["PGPASSWORD"] = unquote(parsed.password)
     return safe_url, db_env
