@@ -151,8 +151,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
 
 
 
-def execute_task_action(db: Any, action: dict[str, Any]) -> str:
-    """Centrally report task-action failures without bypassing audit or approval gates."""
+def execute_task_action(
+    db: Any, action: dict[str, Any], *, approved: bool = False
+) -> str:
+    """Execute a task only when the caller confirms the dashboard approval gate."""
+    if not approved:
+        raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
     try:
         return _execute_task_action(db, action)
     except Exception as exc:
