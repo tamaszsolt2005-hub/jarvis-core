@@ -86,3 +86,20 @@ def test_invalid_severity_defaults_to_error():
     db = FakeDB()
     report_error(RuntimeError("failure"), module="test", operation="run", severity="debug", db=db)
     assert db.rows[0]["level"] == "error"
+
+
+
+def test_sanitize_redacts_short_configured_secret_and_json_fields(monkeypatch):
+    monkeypatch.setenv("JARVIS_TEST_API_TOKEN", "s3cr")
+    safe = sanitize_log_text('{"client_secret":"json-secret","note":"s3cr"}')
+    assert "json-secret" not in safe
+    assert "s3cr" not in safe
+
+
+def test_sanitize_redacts_query_credentials_and_common_key_prefixes():
+    safe = sanitize_log_text(
+        "https://example.test/?access_token=query-secret "
+        "key=sk-abcdefghijklmnopqr"
+    )
+    assert "query-secret" not in safe
+    assert "sk-abcdefghijklmnopqr" not in safe
