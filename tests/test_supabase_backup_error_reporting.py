@@ -1,4 +1,6 @@
+import subprocess
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -39,3 +41,16 @@ def test_backup_cli_reports_unexpected_failure_as_critical(monkeypatch, capsys):
     assert captured[0][1]["operation"] == "restore_backup"
     assert captured[0][1]["severity"] == "critical"
     assert "unexpected-secret" not in capsys.readouterr().err
+
+
+
+def test_backup_subprocess_diagnostic_redacts_unclassified_password():
+    failure = subprocess.CalledProcessError(
+        1, ["pg_dump"], stderr="pg_dump: FATAL: password=unclassified-secret"
+    )
+    with patch.object(backup.subprocess, "run", side_effect=failure):
+        with pytest.raises(backup.BackupError) as exc:
+            backup.run_checked(["pg_dump"])
+
+    assert "unclassified-secret" not in str(exc.value)
+    assert "[REDACTED]" in str(exc.value)
