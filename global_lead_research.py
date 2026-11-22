@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from google.genai import types
 
 from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event
+from jarvis_errors import report_error
 
 
 MAX_RESULTS = 15
@@ -106,8 +107,11 @@ def get_research_market(db: Any) -> str:
         value = rows[0].get("value") if rows else None
         if isinstance(value, dict) and isinstance(value.get("country"), str):
             return value["country"]
-    except Exception:
-        pass
+    except Exception as exc:
+        report_error(
+            exc, module="global_lead_research", operation="read_research_market",
+            severity="warning", db=db,
+        )
     return DEFAULT_MARKET
 
 
