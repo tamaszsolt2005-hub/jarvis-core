@@ -10,6 +10,7 @@ from email.header import decode_header
 from email.utils import parseaddr
 
 from jarvis_common import get_secret, get_supabase, log_event
+from jarvis_errors import report_error
 from reply_analyzer import classify_reply
 
 
@@ -49,7 +50,7 @@ def _pending_messages(messages, last_seen_message_id):
     return messages
 
 
-def run():
+def _run():
     user = get_secret("EMAIL_USER")
     password = get_secret("EMAIL_PASSWORD")
     if not user or not password:
@@ -99,8 +100,28 @@ def run():
     finally:
         try:
             mail.logout()
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error(
+                exc,
+                module="inbox_monitor",
+                operation="close_imap_connection",
+                severity="warning",
+                db=db,
+            )
+
+
+def run():
+    """Run the legacy IMAP worker, reporting failures without hiding them."""
+    try:
+        _run()
+    except Exception as exc:
+        report_error(
+            exc,
+            module="inbox_monitor",
+            operation="process_inbox_monitor",
+            severity="error",
+        )
+        raise
 
 
 if __name__ == "__main__":
