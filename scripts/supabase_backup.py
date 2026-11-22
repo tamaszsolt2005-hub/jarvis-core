@@ -83,9 +83,9 @@ def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
         elif "ssl" in detail or "certificate" in detail:
             reason = "SSL/TLS-kapcsolati hiba"
         elif "docker" in detail or "daemon" in detail or "container" in detail:
-            reason = "a Supabase CLI pg_dump konténerének indítása hibázott"
+            reason = "a külső adatbázis-eszköz futtatókörnyezete hibázott"
         else:
-            reason = "Supabase CLI / pg_dump hiba; a titkos adatokat tartalmazó részletes kimenet rejtve marad"
+            reason = "pg_dump / psql adatbázis-műveleti hiba; a titkos adatokat tartalmazó részletes kimenet rejtve marad"
         raise BackupError(f"A(z) {args[0]} parancs hibával leállt: {reason}.") from exc
 
 
@@ -129,8 +129,9 @@ def create_backup(output_dir: Path) -> Path:
         # PGPASSWORD is inherited by libpq and is never placed in the command arguments.
         safe_url, db_env = _connection_env_and_url(db_url, work)
         # Capture every public-schema object and row, including legacy tables.
-        run_checked(["pg_dump", "--dbname", safe_url, "--schema=public", "--no-owner", "--no-privileges", "--format=plain", "--file", str(schema)], env=db_env)
-        run_checked(["pg_dump", "--dbname", safe_url, "--schema=public", "--data-only", "--no-owner", "--no-privileges", "--format=plain", "--file", str(data)], env=db_env)
+        # --no-password prevents an unattended runner from hanging on a prompt.
+        run_checked(["pg_dump", "--no-password", "--dbname", safe_url, "--schema=public", "--no-owner", "--no-privileges", "--format=plain", "--file", str(schema)], env=db_env)
+        run_checked(["pg_dump", "--no-password", "--dbname", safe_url, "--schema=public", "--data-only", "--no-owner", "--no-privileges", "--format=plain", "--file", str(data)], env=db_env)
         if not schema.is_file() or not data.is_file() or schema.stat().st_size == 0:
             raise BackupError("A Supabase CLI nem készített teljes sémamentést és adatmentést.")
 
