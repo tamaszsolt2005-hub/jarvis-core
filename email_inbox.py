@@ -78,6 +78,8 @@ def _run() -> int:
         return 0
     host = get_secret("IMAP_HOST", "imap.gmail.com") or "imap.gmail.com"
     port = int(get_secret("IMAP_PORT", "993") or "993")
+    if not 1 <= port <= 65535:
+        raise ValueError("IMAP_PORT must be between 1 and 65535.")
     username = required_secret("EMAIL_USER")
     password = required_secret("EMAIL_PASSWORD")
     db = get_supabase()
