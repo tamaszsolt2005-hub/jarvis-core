@@ -99,7 +99,7 @@ def test_supabase_read_failure_does_not_break_local_configuration_helpers(monkey
     assert reports[0][1]["module"] == "jarvis_common"
 
 
-@pytest.mark.parametrize("bad_port", ["not-a-port", "70000"])
+@pytest.mark.parametrize("bad_port", ["not-a-port", "0", "-1", "70000"])
 def test_invalid_smtp_port_fails_before_network_connection(monkeypatch, bad_port):
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
@@ -119,11 +119,12 @@ def test_invalid_smtp_port_fails_before_network_connection(monkeypatch, bad_port
         email_utils.send_email("recipient@example.test", "Subject", "Body")
 
 
-def test_invalid_imap_port_fails_before_network_or_database_access(monkeypatch):
+@pytest.mark.parametrize("bad_port", ["not-a-port", "0", "-1", "70000"])
+def test_invalid_imap_port_fails_before_network_or_database_access(monkeypatch, bad_port):
     monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
     monkeypatch.setattr(
         email_inbox, "get_secret",
-        lambda name, default=None: "not-a-port" if name == "IMAP_PORT" else default,
+        lambda name, default=None: bad_port if name == "IMAP_PORT" else default,
     )
     monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "test-credential")
     monkeypatch.setattr(
@@ -185,4 +186,77 @@ def test_gemini_overload_uses_mocked_fallback_model(monkeypatch):
 @pytest.mark.parametrize("raw", ["", "abc", "1.5", "999999999999999999999999"])
 def test_integer_configuration_never_crashes_local_helpers(monkeypatch, raw):
     monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: raw)
-    assert jarvis_common.env_int("LOCAL_LIMIT", 4, minimum=1, maximum=10) == 4
+    expected = 10 if raw.isdigit() and int(raw) > 10 else 4
+    assert jarvis_common.env_int("LOCAL_LIMIT", 4, minimum=1, maximum=10) == expected
+
+
+def test_missing_supabase_api_key_fails_before_client_creation(monkeypatch):
+    monkeypatch.setattr(
+        jarvis_common, "get_secret",
+        lambda name, default=None: "https://example.supabase.test" if name == "SUPABASE_URL" else default,
+    )
+    monkeypatch.setattr(
+        jarvis_common, "create_client",
+        lambda *_args, **_kwargs: pytest.fail("Supabase client must not be created without an API key"),
+    )
+
+    with pytest.raises(RuntimeError, match="SUPABASE_KEY"):
+        jarvis_common.get_supabase()
+
+
+def test_missing_imap_credentials_fail_before_connecting_or_database_access(monkeypatch):
+    monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
+    monkeypatch.setattr(email_inbox, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(
+        email_inbox, "required_secret",
+        lambda name: (_ for _ in ()).throw(RuntimeError(f"missing {name}")),
+    )
+    monkeypatch.setattr(
+        email_inbox.imaplib, "IMAP4_SSL",
+        lambda *_args, **_kwargs: pytest.fail("IMAP must not connect without credentials"),
+    )
+    monkeypatch.setattr(
+        email_inbox, "get_supabase",
+        lambda: pytest.fail("Supabase must not be initialized without IMAP credentials"),
+    )
+
+    with pytest.raises(RuntimeError, match="EMAIL_USER"):
+        email_inbox._run()
+
+
+def test_invalid_email_subject_is_rejected_before_smtp_connection(monkeypatch):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda name: "sender@example.test" if name == "EMAIL_USER" else "mock-password",
+    )
+    monkeypatch.setattr(email_utils, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(
+        email_utils.smtplib, "SMTP",
+        lambda *_args, **_kwargs: pytest.fail("Invalid header input must fail before SMTP connection"),
+    )
+
+    with pytest.raises(ValueError):
+        email_utils.send_email("recipient@example.test", "Subject\\r\\nBcc: attacker@example.test", "Body")
+
+
+def test_imap_transport_outage_is_reported_and_propagated(monkeypatch):
+    monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
+    monkeypatch.setattr(email_inbox, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "mock-credential")
+    monkeypatch.setattr(email_inbox, "get_supabase", lambda: object())
+    monkeypatch.setattr(
+        email_inbox.imaplib, "IMAP4_SSL",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mock IMAP unavailable")),
+    )
+    reports = []
+    monkeypatch.setattr(
+        email_inbox, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    with pytest.raises(OSError, match="mock IMAP unavailable"):
+        email_inbox.run()
+    assert len(reports) == 1
+    assert reports[0][1]["module"] == "email_inbox"
+    assert reports[0][1]["operation"] == "process_inbox"
