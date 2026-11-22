@@ -11,6 +11,10 @@ Parameters:
     Type: String
     Default: main
     AllowedPattern: "^[A-Za-z0-9_.-]+$"
+  GitHubOidcSubject:
+    Type: String
+    Default: repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main
+    Description: Exact GitHub OIDC sub claim. Repositories created after 2026-07-15 use immutable owner and repository IDs.
   ExistingGitHubOidcProviderArn:
     Type: String
     Default: ""
@@ -101,7 +105,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepository}:ref:refs/heads/${GitHubBranch}
+                token.actions.githubusercontent.com:sub: !Ref GitHubOidcSubject
       Policies:
         - PolicyName: UploadEncryptedJarvisBackupsOnly
           PolicyDocument:
