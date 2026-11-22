@@ -103,3 +103,39 @@ def test_sanitize_redacts_query_credentials_and_common_key_prefixes():
     )
     assert "query-secret" not in safe
     assert "sk-abcdefghijklmnopqr" not in safe
+
+
+def test_report_error_populates_structured_error_and_timestamp_columns():
+    db = FakeDB()
+    report_error(
+        RuntimeError("database unavailable password=do-not-store-this"),
+        module="stats",
+        operation="load_statistics",
+        severity="critical",
+        db=db,
+    )
+    row = db.rows[0]
+    assert row["created_at"].endswith("+00:00")
+    assert row["error"].startswith("RuntimeError: database unavailable")
+    assert "do-not-store-this" not in row["error"]
+    assert "operation=load_statistics" in row["message"]
+
+
+def test_sanitizer_redacts_quoted_password_with_spaces_and_basic_auth():
+    safe = sanitize_log_text(
+        'request failed password="two words are secret" '
+        'Authorization: Basic dXNlcjpwYXNzd29yZA=='
+    )
+    assert "two words are secret" not in safe
+    assert "dXNlcjpwYXNzd29yZA==" not in safe
+    assert "[REDACTED]" in safe
+
+
+def test_only_credential_named_streamlit_values_are_registered():
+    from jarvis_errors import register_secret_value
+
+    register_secret_value("visible-model-name", name="GEMINI_MODEL")
+    register_secret_value("private-config-token", name="GEMINI_API_KEY")
+    safe = sanitize_log_text("model=visible-model-name key=private-config-token")
+    assert "visible-model-name" in safe
+    assert "private-config-token" not in safe
