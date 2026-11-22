@@ -11,6 +11,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from jarvis_errors import report_error
+
 
 _ANALYTICS_TZ = ZoneInfo("Europe/Budapest")
 # Verified Supabase project metadata for the Jarvis project (not the first log event).
@@ -472,6 +474,13 @@ def render_analytics(db: Any) -> None:
         )
         records = result.data or []
     except Exception as exc:
+        report_error(
+            exc,
+            module="jarvis_analytics",
+            operation="load_analytics_logs",
+            severity="error",
+            db=db,
+        )
         st.error("Az analitikai naplók most nem tölthetők be.")
         st.caption(f"Hibatípus: {type(exc).__name__}. A meglévő adatokhoz nem történt módosítás.")
         return

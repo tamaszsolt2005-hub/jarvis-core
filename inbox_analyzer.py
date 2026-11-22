@@ -4,6 +4,7 @@ from __future__ import annotations
 from google import genai
 
 from jarvis_common import get_model_name
+from jarvis_errors import report_error
 
 
 def analyze_incoming_reply(reply_text: str, gemini_api_key: str) -> str:
@@ -30,5 +31,11 @@ def analyze_incoming_reply(reply_text: str, gemini_api_key: str) -> str:
         if "LATER" in result:
             return "later"
         return "rejected"
-    except Exception:
+    except Exception as exc:
+        report_error(
+            exc,
+            module="inbox_analyzer",
+            operation="classify_incoming_reply",
+            severity="warning",
+        )
         return "later"
