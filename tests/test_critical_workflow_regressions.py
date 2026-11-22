@@ -148,6 +148,7 @@ def test_task_database_write_failure_is_reported_and_original_error_reraised(mon
         task_actions.execute_task_action(
             BrokenDB(),
             {"type": "create", "title": "Mock task", "priority": "normal"},
+            approved=True,
         )
 
     assert caught.value is database_error
