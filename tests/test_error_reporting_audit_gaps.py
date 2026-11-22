@@ -100,3 +100,13 @@ def test_missing_streamlit_secrets_file_is_not_reported_as_operational_error(mon
 
     assert jarvis_common.get_secret("JARVIS_OPTIONAL_NOT_SET") is None
     assert reports == []
+
+
+def test_get_secret_does_not_register_non_credential_configuration(monkeypatch):
+    import jarvis_common
+    from jarvis_errors import sanitize_log_text
+
+    fake_streamlit = SimpleNamespace(secrets=SimpleNamespace(get=lambda _name: "gemini-3.8-flash"))
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    assert jarvis_common.get_secret("GEMINI_MODEL") == "gemini-3.8-flash"
+    assert "gemini-3.8-flash" in sanitize_log_text("Configured model: gemini-3.8-flash")
