@@ -9,6 +9,17 @@ import pytest
 from scripts import supabase_backup as backup
 
 
+@pytest.fixture(autouse=True)
+def mock_ipv4_dns(monkeypatch):
+    monkeypatch.setattr(
+        backup.socket,
+        "getaddrinfo",
+        lambda host, port, family, socktype: [
+            (family, socktype, 6, "", ("203.0.113.10", port))
+        ],
+    )
+
+
 def test_extract_direct_project_ref():
     assert backup.project_ref_from_db_url(
         "postgresql://postgres:password@db.kiutreccucbegskxowek.supabase.co:5432/postgres"
