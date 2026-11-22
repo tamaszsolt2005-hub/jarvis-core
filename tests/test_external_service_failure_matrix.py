@@ -239,7 +239,7 @@ def test_invalid_email_subject_is_rejected_before_smtp_connection(monkeypatch):
     )
 
     with pytest.raises(ValueError):
-        email_utils.send_email("recipient@example.test", "Subject\\r\\nBcc: attacker@example.test", "Body")
+        email_utils.send_email("recipient@example.test", "Subject\r\nBcc: attacker@example.test", "Body")
 
 
 def test_imap_transport_outage_is_reported_and_propagated(monkeypatch):
