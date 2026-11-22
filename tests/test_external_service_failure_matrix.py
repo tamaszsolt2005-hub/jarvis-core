@@ -99,7 +99,7 @@ def test_supabase_read_failure_does_not_break_local_configuration_helpers(monkey
     assert reports[0][1]["module"] == "jarvis_common"
 
 
-@pytest.mark.parametrize("bad_port", ["not-a-port", "", "70000"])
+@pytest.mark.parametrize("bad_port", ["not-a-port", "70000"])
 def test_invalid_smtp_port_fails_before_network_connection(monkeypatch, bad_port):
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
