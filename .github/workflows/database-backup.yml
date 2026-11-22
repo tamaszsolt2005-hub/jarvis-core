@@ -48,17 +48,11 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up Supabase CLI
-        if: steps.config.outputs.ready == 'true'
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Install age and AWS CLI
+      - name: Install PostgreSQL client, age and AWS CLI
         if: steps.config.outputs.ready == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes age awscli
+          sudo apt-get install --yes postgresql-client age awscli
 
       - name: Create encrypted logical backup
         if: steps.config.outputs.ready == 'true'
