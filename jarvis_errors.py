@@ -13,13 +13,13 @@ _ALLOWED_LEVELS = {"warning", "error", "critical"}
 
 _SECRET_PATTERNS = (
     # Assignment-style credentials, including quoted JSON/YAML values.
-    re.compile(r"""(?i)(["']?\\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|service[_-]?role[_-]?key|client[_-]?secret)["']?\\s*[:=]\\s*["']?)([^"'\\s,;}&]+)"""),
-    re.compile(r"(?i)(authorization\\s*[:=]\\s*bearer\\s+)[^\\s,;]+"),
-    re.compile(r"(?i)(\\bBearer\\s+)[A-Za-z0-9._~+/=-]{4,}"),
-    re.compile(r"(?i)(://[^:/\\s]+:)[^@/\\s]+(@)"),
-    re.compile(r"(?i)([?&](?:key|token|api_key|access_token|password|client_secret)=)[^&#\\s]+"),
+    re.compile(r"""(?i)(["']?\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|service[_-]?role[_-]?key|client[_-]?secret)["']?\s*[:=]\s*["']?)([^"'\s,;}&]+)"""),
+    re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+"),
+    re.compile(r"(?i)(\bBearer\s+)[A-Za-z0-9._~+/=-]{4,}"),
+    re.compile(r"(?i)(://[^:/\s]+:)[^@/\s]+(@)"),
+    re.compile(r"(?i)([?&](?:key|token|api_key|access_token|password|client_secret)=)[^&#\s]+"),
     # Common cloud/API key prefixes even when the error omits a field name.
-    re.compile(r"\\b(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,})\\b"),
+    re.compile(r"\b(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,})\b"),
 )
 _SECRET_ENV_MARKERS = ("KEY", "TOKEN", "PASSWORD", "PASSWD", "SECRET", "CREDENTIAL", "AUTH")
 
@@ -38,7 +38,7 @@ def sanitize_log_text(value: Any, *, max_length: int = 4000) -> str:
     # Redact configured secrets even when short; do not expose their values in diagnostics.
     # Ignore empty values and avoid replacing ubiquitous one-character environment values.
     for name, secret in os.environ.items():
-        if any(marker in name.upper() for marker in _SECRET_ENV_MARKERS) and secret:
+        if any(marker in name.upper() for marker in _SECRET_ENV_MARKERS) and secret and len(secret) >= 2:
             text = text.replace(secret, "[REDACTED]")
     return text[:max(0, int(max_length))]
 
