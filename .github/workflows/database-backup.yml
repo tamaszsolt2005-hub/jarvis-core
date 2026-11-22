@@ -67,12 +67,39 @@ jobs:
 
       - name: Upload encrypted backup to private S3 bucket
         if: steps.config.outputs.ready == 'true'
+        id: upload
         shell: bash
         run: |
           set -euo pipefail
           file="$(find .private-backups -maxdepth 1 -type f -name '*.tar.gz.age' -print -quit)"
           [[ -n "$file" ]]
-          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/jarvis/database/$(basename "$file")" --sse aws:kms --sse-kms-key-id "$BACKUP_S3_KMS_KEY_ARN" --only-show-errors
+          key="jarvis/database/$(basename "$file")"
+          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/$key" --sse aws:kms --sse-kms-key-id "$BACKUP_S3_KMS_KEY_ARN" --only-show-errors
+          echo "s3_key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Verify uploaded S3 object and SSE-KMS encryption
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        env:
+          BACKUP_S3_KEY: ${{ steps.upload.outputs.s3_key }}
+        run: |
+          set -euo pipefail
+          head_json="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$BACKUP_S3_KEY")"
+          printf '%s' "$head_json" | python3 -c '
+          import json, os, sys
+          obj = json.load(sys.stdin)
+          expected_key = os.environ["BACKUP_S3_KMS_KEY_ARN"]
+          encryption = obj.get("ServerSideEncryption")
+          actual_key = obj.get("SSEKMSKeyId")
+          size = obj.get("ContentLength", 0)
+          if encryption != "aws:kms":
+              raise SystemExit(f"Unexpected server-side encryption: {encryption!r}")
+          if actual_key != expected_key:
+              raise SystemExit(f"Unexpected KMS key: {actual_key!r}")
+          if not isinstance(size, int) or size <= 0:
+              raise SystemExit(f"Invalid object size: {size!r}")
+          print(f"S3 object verified: size={size} bytes; SSE-KMS key matches.")
+          '
 
       - name: Report skipped configuration
         if: steps.config.outputs.ready != 'true'
