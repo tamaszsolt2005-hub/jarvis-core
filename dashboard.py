@@ -277,6 +277,8 @@ def _public_http_url(value: Any) -> str | None:
         if parsed.port is not None and parsed.port != (443 if parsed.scheme == "https" else 80):
             return None
         host = parsed.hostname.rstrip(".")
+        if host.casefold() == "localhost" or host.casefold().endswith(".localhost"):
+            return None
         try:
             literal_address = ipaddress.ip_address(host)
         except ValueError:
