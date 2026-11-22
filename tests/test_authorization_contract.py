@@ -161,3 +161,12 @@ def test_every_repository_application_table_has_rls_enabled_in_schema():
     )
     for table in tables:
         assert f"alter table public.{table} enable row level security;" in schema
+
+
+def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
+    assert "execute_task_action(db, task_action, approved=True)" in DASHBOARD_SOURCE
+
+    task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
+    assert "approved: bool = False" in task_source
+    assert "if not approved:" in task_source
+    assert "raise PermissionError" in task_source
