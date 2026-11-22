@@ -85,7 +85,12 @@ def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
         elif "docker" in detail or "daemon" in detail or "container" in detail:
             reason = "a külső adatbázis-eszköz futtatókörnyezete hibázott"
         else:
-            reason = "pg_dump / psql adatbázis-műveleti hiba; a titkos adatokat tartalmazó részletes kimenet rejtve marad"
+            # Keep useful PostgreSQL diagnostics while removing any URI credentials.
+            safe_detail = (exc.stderr or "").strip().splitlines()
+            safe_detail = safe_detail[0][:400] if safe_detail else "nincs részletes hibaüzenet"
+            safe_detail = re.sub(r"(postgres(?:ql)?://)[^/@\\s]+:[^/@\\s]+@", r"\\1[REDACTED]@", safe_detail, flags=re.I)
+            safe_detail = re.sub(r"(?i)(password\\s*[=:]\\s*)[^\\s]+", r"\\1[REDACTED]", safe_detail)
+            reason = f"PostgreSQL hiba: {safe_detail}"
         raise BackupError(f"A(z) {args[0]} parancs hibával leállt: {reason}.") from exc
 
 
