@@ -108,9 +108,11 @@ def get_research_market(db: Any) -> str:
         if isinstance(value, dict) and isinstance(value.get("country"), str):
             return value["country"]
     except Exception as exc:
+        # This is an optional read with a safe default; report locally only.
+        # Do not write to the database from this fallback path.
         report_error(
             exc, module="global_lead_research", operation="read_research_market",
-            severity="warning", db=db,
+            severity="warning",
         )
     return DEFAULT_MARKET
 
