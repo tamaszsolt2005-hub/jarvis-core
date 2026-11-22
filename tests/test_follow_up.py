@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timedelta, timezone
 
 import follow_up
@@ -53,7 +54,10 @@ class _Query:
         self.returning = False
 
     def select(self, _columns):
-        self.operation = "select"
+        if self.operation == "update":
+            self.returning = True
+        else:
+            self.operation = "select"
         return self
 
     def limit(self, _limit):
@@ -79,20 +83,6 @@ class _Query:
             return _Result([{"id": row["id"]} for row in matches] if self.returning else [])
         return _Result([dict(row) for row in matches])
 
-    def __getattribute__(self, name):
-        if name == "select":
-            return object.__getattribute__(self, name)
-        return object.__getattribute__(self, name)
-
-
-# Mark update(...).select(...) as a returning update without changing select reads.
-_original_query_select = _Query.select
-def _select(self, columns):
-    if self.operation == "update":
-        self.returning = True
-    return _original_query_select(self, columns)
-_Query.select = _select
-
 
 class _DB:
     def __init__(self, rows):
@@ -107,10 +97,14 @@ def _configure_run(monkeypatch, db, *, send=None, draft=None, audit=None):
     monkeypatch.setattr(follow_up, "env_bool", lambda _name, default=False: True)
     monkeypatch.setattr(follow_up, "env_int", lambda _name, default, *_args: default)
     monkeypatch.setattr(follow_up, "get_supabase", lambda: db)
-    monkeypatch.setattr(follow_up, "generate_text", lambda _prompt: "mock follow-up body" if draft is None else draft())
+    monkeypatch.setattr(
+        follow_up, "generate_text",
+        lambda _prompt: "mock follow-up body" if draft is None else draft(),
+    )
     monkeypatch.setattr(follow_up, "send_email", (lambda *_args: "mock-id") if send is None else send)
     monkeypatch.setattr(follow_up, "audit_event", (lambda *_args, **_kwargs: True) if audit is None else audit)
     monkeypatch.setattr(follow_up, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(follow_up, "report_error", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(follow_up.time, "sleep", lambda *_args: None)
 
 
@@ -135,13 +129,12 @@ def test_follow_up_does_not_send_without_consent(monkeypatch):
 
 
 def test_uncertain_smtp_failure_is_not_reset_to_sendable_status(monkeypatch):
-    import pytest
-
     db = _DB([_lead()])
+
     def fail_send(*_args):
         raise OSError("mock SMTP outcome unknown")
-    _configure_run(monkeypatch, db, send=fail_send)
 
+    _configure_run(monkeypatch, db, send=fail_send)
     follow_up._run()
 
     assert db.rows[0]["status"] == "followup_unknown"
@@ -149,21 +142,18 @@ def test_uncertain_smtp_failure_is_not_reset_to_sendable_status(monkeypatch):
 
 
 def test_draft_failure_before_smtp_restores_eligible_status(monkeypatch):
-    import pytest
-
     db = _DB([_lead()])
+
     def fail_draft():
         raise RuntimeError("mock generation failure")
-    _configure_run(monkeypatch, db, draft=fail_draft)
 
+    _configure_run(monkeypatch, db, draft=fail_draft)
     follow_up._run()
 
     assert db.rows[0]["status"] == "sent"
 
 
 def test_pending_audit_failure_prevents_smtp_and_restores_status(monkeypatch):
-    import pytest
-
     db = _DB([_lead()])
     sent = []
     _configure_run(
