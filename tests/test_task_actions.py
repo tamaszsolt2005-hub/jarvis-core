@@ -78,9 +78,9 @@ class FakeDB:
 
 def test_execute_create_and_close():
     db = FakeDB()
-    assert "létrehozva" in execute_task_action(db, {"type": "create", "title": "Teszt", "priority": "normal"})
+    assert "létrehozva" in execute_task_action(db, {"type": "create", "title": "Teszt", "priority": "normal"}, approved=True)
     assert db.created["title"] == "Teszt"
-    assert "lezárva" in execute_task_action(db, {"type": "close", "id": TASK_ID})
+    assert "lezárva" in execute_task_action(db, {"type": "close", "id": TASK_ID}, approved=True)
     assert db.updated["status"] == "done"
 
 
@@ -105,7 +105,7 @@ def test_completed_task_is_not_mutated_again():
             return AuditQuery() if name == "logs" else CompletedQuery(self)
 
     db = CompletedDB()
-    message = execute_task_action(db, {"type": "close", "id": TASK_ID})
+    message = execute_task_action(db, {"type": "close", "id": TASK_ID}, approved=True)
     assert "már nem nyitott" in message
     assert db.updated is None
 
@@ -119,6 +119,6 @@ def test_task_action_fails_closed_when_audit_log_is_unavailable(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError, match="auditnapló"):
         execute_task_action(
-            db, {"type": "create", "title": "Ne jöjjön létre", "priority": "normal"}
+            db, {"type": "create", "title": "Ne jöjjön létre", "priority": "normal"}, approved=True
         )
     assert db.created is None
