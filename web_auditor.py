@@ -8,6 +8,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 from safe_http import safe_get, close_response
+from jarvis_errors import report_error
 
 USER_AGENT = "JARVIS-Business-Audit/1.0"
 MAX_BYTES = 350_000
