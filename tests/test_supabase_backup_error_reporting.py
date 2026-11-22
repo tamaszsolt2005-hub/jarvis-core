@@ -1,5 +1,4 @@
 import sys
-from unittest.mock import patch
 
 import pytest
 
@@ -19,7 +18,7 @@ def test_backup_cli_reports_expected_failure_without_leaking_secret(monkeypatch,
 
     assert exc.value.code == 2
     assert captured[0][1]["module"] == "supabase_backup"
-    assert captured[0][1]["operation"] == "backup_backup"
+    assert captured[0][1]["operation"] == "create_backup"
     assert captured[0][1]["severity"] == "error"
     assert "do-not-print-this" not in capsys.readouterr().err
 

@@ -307,17 +307,17 @@ def main() -> int:
     except (BackupError, OSError, tarfile.TarError, json.JSONDecodeError) as exc:
         report_error(
             exc, module="supabase_backup",
-            operation=f"{args.command}_backup" if args.command == "backup" else "restore_backup",
+            operation="create_backup" if args.command == "backup" else "restore_backup",
             severity="error",
         )
-        parser.exit(2, f"HIBA: {sanitize_log_text(exc, max_length=1000)}\\n")
+        parser.exit(2, f"HIBA: {sanitize_log_text(exc, max_length=1000)}\n")
     except Exception as exc:
         report_error(
             exc, module="supabase_backup",
             operation=f"{args.command}_backup" if args.command == "backup" else "restore_backup",
             severity="critical",
         )
-        parser.exit(2, "HIBA: váratlan hiba történt; a részleteket a helyi hibajelentés rögzítette.\\n")
+        parser.exit(2, "HIBA: váratlan hiba történt; a részleteket a helyi hibajelentés rögzítette.\n")
     return 0
 
 
