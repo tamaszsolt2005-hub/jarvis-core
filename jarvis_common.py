@@ -29,7 +29,7 @@ def get_secret(name: str, default: str | None = None) -> str | None:
         value = st.secrets.get(name)
         if value not in (None, ""):
             resolved = str(value)
-            register_secret_value(resolved)
+            register_secret_value(resolved, name=name)
             return resolved
     except Exception as exc:
         # Streamlit raises this when no secrets.toml is configured. A missing
@@ -43,7 +43,7 @@ def get_secret(name: str, default: str | None = None) -> str | None:
             )
     value = os.environ.get(name)
     if value not in (None, ""):
-        register_secret_value(value)
+        register_secret_value(value, name=name)
         return value
     return default
 
