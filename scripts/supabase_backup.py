@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlsplit, urlunsplit
 
+from jarvis_errors import report_error, sanitize_log_text
+
 PRODUCTION_PROJECT_REF = "kiutreccucbegskxowek"
 BACKUP_PREFIX = "jarvis-db"
 ALLOWED_ARCHIVE_FILES = {"manifest.json", "schema.sql", "data.sql"}
@@ -97,10 +99,8 @@ def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
             reason = "a külső adatbázis-eszköz futtatókörnyezete hibázott"
         else:
             # Keep useful PostgreSQL diagnostics while removing any URI credentials.
-            safe_detail = (exc.stderr or "").strip().splitlines()
-            safe_detail = safe_detail[0][:400] if safe_detail else "nincs részletes hibaüzenet"
-            safe_detail = re.sub(r"(postgres(?:ql)?://)[^/@\\s]+:[^/@\\s]+@", r"\\1[REDACTED]@", safe_detail, flags=re.I)
-            safe_detail = re.sub(r"(?i)(password\\s*[=:]\\s*)[^\\s]+", r"\\1[REDACTED]", safe_detail)
+            raw_detail = (exc.stderr or "").strip().splitlines()
+            safe_detail = sanitize_log_text(raw_detail[0] if raw_detail else "nincs részletes hibaüzenet", max_length=400)
             reason = f"PostgreSQL hiba: {safe_detail}"
         raise BackupError(f"A(z) {args[0]} parancs hibával leállt: {reason}.") from exc
 
@@ -305,7 +305,19 @@ def main() -> int:
             restore_backup(args.archive, args.target_project_ref, args.confirm_restore)
             print("A visszaállítás befejeződött az elkülönített célprojektben.")
     except (BackupError, OSError, tarfile.TarError, json.JSONDecodeError) as exc:
-        parser.exit(2, f"HIBA: {exc}\n")
+        report_error(
+            exc, module="supabase_backup",
+            operation=f"{args.command}_backup" if args.command == "backup" else "restore_backup",
+            severity="error",
+        )
+        parser.exit(2, f"HIBA: {sanitize_log_text(exc, max_length=1000)}\\n")
+    except Exception as exc:
+        report_error(
+            exc, module="supabase_backup",
+            operation=f"{args.command}_backup" if args.command == "backup" else "restore_backup",
+            severity="critical",
+        )
+        parser.exit(2, "HIBA: váratlan hiba történt; a részleteket a helyi hibajelentés rögzítette.\\n")
     return 0
 
 
