@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from uuid import uuid4
 
 from jarvis_common import audit_event
+from jarvis_errors import report_error
 
 
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
@@ -96,7 +97,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
     return None
 
 
-def execute_task_action(db: Any, action: dict[str, Any]) -> str:
+def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
     """Execute a previously parsed action only after the chat approval gate."""
     kind = action.get("type")
     operation_id = str(uuid4())
@@ -147,3 +148,16 @@ def execute_task_action(db: Any, action: dict[str, Any]) -> str:
         audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id, "updated_fields": sorted(action["updates"])})
         return f"Feladat módosítva: **{title}**."
     return "Ismeretlen feladatművelet; nem történt módosítás."
+
+
+
+def execute_task_action(db: Any, action: dict[str, Any]) -> str:
+    """Centrally report task-action failures without bypassing audit or approval gates."""
+    try:
+        return _execute_task_action(db, action)
+    except Exception as exc:
+        report_error(
+            exc, module="task_actions", operation=f"execute:{action.get('type', 'unknown')}",
+            severity="critical", db=db,
+        )
+        raise
