@@ -217,7 +217,7 @@ def main() -> None:
     try:
         report += "\n" + run_proactive_monitor(db)
     except Exception as exc:
-        report_error(exc, module="daily_briefing", operation="run_proactive_monitor", severity="warning", db=db)
+        # proactive_monitor reports the original failure centrally; keep this caller-level fallback quiet.
         report += (
             "\n## Proaktív változásfigyelés\n"
             f"- A monitor most nem futott le ({type(exc).__name__}). "
