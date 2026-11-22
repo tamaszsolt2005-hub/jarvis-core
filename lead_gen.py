@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 
 from jarvis_common import get_supabase, log_event
+from jarvis_errors import report_error
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
@@ -40,22 +41,30 @@ def _validated_import_row(row):
 
 
 def run(path="data/leads.csv"):
-    db = get_supabase()
-    imported = skipped = 0
-    with open(path, newline="", encoding="utf-8-sig") as handle:
-        for row in csv.DictReader(handle):
-            record = _validated_import_row(row)
-            if record is None:
-                skipped += 1
-                continue
-            exists = db.table("leads").select("id").ilike("email", record["email"]).limit(1).execute().data
-            if exists:
-                skipped += 1
-                continue
-            db.table("leads").insert(record).execute()
-            imported += 1
-    log_event(db, "lead_gen", f"CSV import: {imported} új lead, {skipped} kihagyva.")
-    print(f"Import kész: {imported} új, {skipped} kihagyott rekord.")
+    db = None
+    try:
+        db = get_supabase()
+        imported = skipped = 0
+        with open(path, newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle):
+                record = _validated_import_row(row)
+                if record is None:
+                    skipped += 1
+                    continue
+                exists = db.table("leads").select("id").ilike("email", record["email"]).limit(1).execute().data
+                if exists:
+                    skipped += 1
+                    continue
+                db.table("leads").insert(record).execute()
+                imported += 1
+        log_event(db, "lead_gen", f"CSV import: {imported} új lead, {skipped} kihagyva.")
+        print(f"Import kész: {imported} új, {skipped} kihagyott rekord.")
+    except Exception as exc:
+        report_error(
+            exc, module="lead_gen", operation="import_reviewed_csv",
+            severity="error", db=db,
+        )
+        raise
 
 
 if __name__ == "__main__":
