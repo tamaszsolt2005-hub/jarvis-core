@@ -32,18 +32,19 @@ def test_missing_supabase_url_fails_before_network_client_creation(monkeypatch):
         jarvis_common.get_supabase()
 
 
-def test_missing_smtp_credentials_fail_before_opening_smtp(monkeypatch):
+@pytest.mark.parametrize("missing_name", ["EMAIL_USER", "EMAIL_PASSWORD"])
+def test_missing_smtp_credentials_fail_before_opening_smtp(monkeypatch, missing_name):
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
         email_utils, "required_secret",
-        lambda name: (_ for _ in ()).throw(RuntimeError(f"missing {name}")),
+        lambda name: (_ for _ in ()).throw(RuntimeError(f"missing {name}")) if name == missing_name else "mock-value",
     )
     monkeypatch.setattr(
         email_utils.smtplib, "SMTP",
         lambda *_args, **_kwargs: pytest.fail("SMTP connection must not be opened"),
     )
 
-    with pytest.raises(RuntimeError, match="EMAIL_USER"):
+    with pytest.raises(RuntimeError, match=missing_name):
         email_utils.send_email("recipient@example.test", "Subject", "Body")
 
 
@@ -204,12 +205,13 @@ def test_missing_supabase_api_key_fails_before_client_creation(monkeypatch):
         jarvis_common.get_supabase()
 
 
-def test_missing_imap_credentials_fail_before_connecting_or_database_access(monkeypatch):
+@pytest.mark.parametrize("missing_name", ["EMAIL_USER", "EMAIL_PASSWORD"])
+def test_missing_imap_credentials_fail_before_connecting_or_database_access(monkeypatch, missing_name):
     monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
     monkeypatch.setattr(email_inbox, "get_secret", lambda _name, default=None: default)
     monkeypatch.setattr(
         email_inbox, "required_secret",
-        lambda name: (_ for _ in ()).throw(RuntimeError(f"missing {name}")),
+        lambda name: (_ for _ in ()).throw(RuntimeError(f"missing {name}")) if name == missing_name else "mock-value",
     )
     monkeypatch.setattr(
         email_inbox.imaplib, "IMAP4_SSL",
@@ -220,7 +222,7 @@ def test_missing_imap_credentials_fail_before_connecting_or_database_access(monk
         lambda: pytest.fail("Supabase must not be initialized without IMAP credentials"),
     )
 
-    with pytest.raises(RuntimeError, match="EMAIL_USER"):
+    with pytest.raises(RuntimeError, match=missing_name):
         email_inbox._run()
 
 
