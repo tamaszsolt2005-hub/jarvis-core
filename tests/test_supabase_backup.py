@@ -134,20 +134,20 @@ def test_restore_requires_explicit_confirmation(monkeypatch, tmp_path):
         backup.restore_backup(tmp_path / "backup.tar.gz.age", "abcdefghijklmnopqrst")
 
 
-def test_database_password_is_percent_encoded_for_supabase_cli(tmp_path):
+def test_database_password_is_passed_via_environment_not_url(tmp_path):
     url = "postgresql://postgres:secret%3Avalue%40%7Btest%7D@db.kiutreccucbegskxowek.supabase.co:5432/postgres?sslmode=require"
-    cli_url, env = backup._connection_env_and_url(url, tmp_path)
-    assert "secret%3Avalue%40%7Btest%7D" in cli_url
-    assert "postgres@" not in cli_url
-    assert cli_url.endswith("/postgres?sslmode=require")
-    assert "PGPASSFILE" not in env
+    safe_url, env = backup._connection_env_and_url(url, tmp_path)
+    assert "secret" not in safe_url
+    assert "postgres@" in safe_url
+    assert safe_url.endswith("/postgres?sslmode=require")
+    assert env["PGPASSWORD"] == "secret:value@{test}"
 
 
-def test_connection_password_special_characters_are_encoded_once(tmp_path):
+def test_connection_password_special_characters_are_decoded_once(tmp_path):
     raw = "postgresql://postgres:pa%3Ass%40word@db.kiutreccucbegskxowek.supabase.co:5432/postgres?sslmode=require"
-    cli_url, _ = backup._connection_env_and_url(raw, tmp_path)
-    assert "pa%3Ass%40word@" in cli_url
-    assert "pa:ss@word" not in cli_url
+    safe_url, env = backup._connection_env_and_url(raw, tmp_path)
+    assert "pa:ss@word" not in safe_url
+    assert env["PGPASSWORD"] == "pa:ss@word"
 
 
 def test_restore_sql_reuses_existing_public_schema():
