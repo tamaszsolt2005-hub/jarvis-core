@@ -97,3 +97,92 @@ def test_supabase_read_failure_does_not_break_local_configuration_helpers(monkey
     assert jarvis_common.env_int("LOCAL_LIMIT", 1, minimum=1, maximum=10) == 7
     assert len(reports) == 1
     assert reports[0][1]["module"] == "jarvis_common"
+
+
+@pytest.mark.parametrize("bad_port", ["not-a-port", "", "70000"])
+def test_invalid_smtp_port_fails_before_network_connection(monkeypatch, bad_port):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda name: "sender@example.test" if name == "EMAIL_USER" else "test-password",
+    )
+    monkeypatch.setattr(
+        email_utils, "get_secret",
+        lambda name, default=None: bad_port if name == "SMTP_PORT" else default,
+    )
+    monkeypatch.setattr(
+        email_utils.smtplib, "SMTP",
+        lambda *_args, **_kwargs: pytest.fail("Invalid SMTP configuration must fail before connecting"),
+    )
+
+    with pytest.raises(ValueError):
+        email_utils.send_email("recipient@example.test", "Subject", "Body")
+
+
+def test_invalid_imap_port_fails_before_network_or_database_access(monkeypatch):
+    monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
+    monkeypatch.setattr(
+        email_inbox, "get_secret",
+        lambda name, default=None: "not-a-port" if name == "IMAP_PORT" else default,
+    )
+    monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "test-credential")
+    monkeypatch.setattr(
+        email_inbox.imaplib, "IMAP4_SSL",
+        lambda *_args, **_kwargs: pytest.fail("Invalid IMAP port must fail before connecting"),
+    )
+    monkeypatch.setattr(
+        email_inbox, "get_supabase",
+        lambda: pytest.fail("Invalid IMAP port must fail before database access"),
+    )
+
+    with pytest.raises(ValueError):
+        email_inbox._run()
+
+
+def test_smtp_transport_outage_is_propagated_without_real_network(monkeypatch):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda name: "sender@example.test" if name == "EMAIL_USER" else "mock-password",
+    )
+    monkeypatch.setattr(email_utils, "get_secret", lambda _name, default=None: default)
+
+    class OfflineSMTP:
+        def __enter__(self):
+            raise OSError("mock SMTP unavailable")
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", lambda *_args, **_kwargs: OfflineSMTP())
+
+    with pytest.raises(OSError, match="mock SMTP unavailable"):
+        email_utils.send_email("recipient@example.test", "Subject", "Body")
+
+
+def test_gemini_overload_uses_mocked_fallback_model(monkeypatch):
+    calls = []
+
+    class Overloaded(Exception):
+        code = 503
+
+    class Models:
+        def generate_content(self, *, model, contents, config):
+            calls.append((model, contents, config.max_output_tokens))
+            if model == "configured-primary":
+                raise Overloaded("temporary overload")
+            return type("Response", (), {"text": "mocked fallback answer"})()
+
+    client = type("Client", (), {"models": Models()})()
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "configured-primary")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(jarvis_common.time, "sleep", lambda *_args: None)
+
+    assert jarvis_common.generate_text("test prompt", client=client) == "mocked fallback answer"
+    assert [call[0] for call in calls] == ["configured-primary", "gemini-3.8-flash"]
+
+
+@pytest.mark.parametrize("raw", ["", "abc", "1.5", "999999999999999999999999"])
+def test_integer_configuration_never_crashes_local_helpers(monkeypatch, raw):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: raw)
+    assert jarvis_common.env_int("LOCAL_LIMIT", 4, minimum=1, maximum=10) == 4
