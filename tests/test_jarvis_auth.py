@@ -95,7 +95,7 @@ def test_sign_in_uses_auth_user_and_trusted_app_metadata_role():
     }
 
 
-@pytest.mark.parametrize("role", [None, "superuser", ""])
+@pytest.mark.parametrize("role", [None, "superuser", "", [], {}, ["admin"], {"admin": True}, 1])
 def test_sign_in_rejects_missing_or_unknown_trusted_role(role):
     metadata = {} if role is None else {"role": role}
     auth = FakeAuth(
