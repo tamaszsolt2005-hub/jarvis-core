@@ -32,6 +32,8 @@ jobs:
       - name: Check external backup configuration
         id: config
         shell: bash
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
         run: |
           missing=()
           [[ -n "$SUPABASE_DB_URL" ]] || missing+=("SUPABASE_DB_URL secret")
