@@ -54,6 +54,14 @@ database verification.
    advisors and verify anon, reader, admin, and service-role behavior.
 
 The repository branch does not apply either migration to the live project.
+
+A read-only comparison also found migration-history drift: the live project
+reports versions `20261119191911`, `20261119192040`, `20261119192145`,
+`20261119192412`, and `20261119192559`, while the repository migration
+directory does not contain matching files for those versions. Do not run
+`supabase db push` until the missing migration sources/history have been
+reconciled with `supabase migration list` and an approved `db pull` /
+migration-repair workflow. The missing SQL must not be reconstructed by guess.
 The live project's last read-only inspection showed the legacy `logs`
 columns only and did not show the structured-audit migration in migration
 history. Production therefore does not yet have the schema required by this
