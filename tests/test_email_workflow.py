@@ -46,6 +46,8 @@ def test_background_requires_timestamped_explicit_consent():
     assert not _valid_consent({**valid, "approved_to_contact": False})
     assert not _valid_consent({**valid, "opted_out": True})
     assert not _valid_consent({**valid, "consent_basis": "legitimate_interest"})
+    assert not _valid_consent({**valid, "consent_confirmed_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()})
+    assert not _valid_consent({**valid, "opted_out": None})
 
 
 def test_follow_up_is_only_due_for_eligible_unreplied_lead(monkeypatch):
@@ -62,6 +64,9 @@ def test_follow_up_is_only_due_for_eligible_unreplied_lead(monkeypatch):
     assert not _due_follow_up({**base, "last_inbound_message_id": "<reply@example.com>"}, now)
     assert not _due_follow_up({**base, "follow_up_count": 2}, now)
     assert not _due_follow_up({**base, "status": "replied"}, now)
+    assert not _due_follow_up({**base, "reply_category": "reply"}, now)
+    assert not _due_follow_up({**base, "follow_up_count": -1}, now)
+    assert not _due_follow_up({**base, "opted_out": None}, now)
     assert not _due_follow_up({**base, "next_follow_up_at": (now + timedelta(days=1)).isoformat()}, now)
 
 
