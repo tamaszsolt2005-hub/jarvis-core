@@ -20,8 +20,10 @@ workflow-jának kézi futtatásával.
   a már meglévő rekordokat.
 - A következő futások az előző sikeres pillanatképhez viszonyítják az új
   rekordokat és a státusz-, prioritás- és határidő-változásokat.
-- Kizárólag a `jarvis_proactive_state` tábla
-  `daily_proactive_snapshot` kulcsú sorát írja.
+- Sikeres futáskor a `jarvis_proactive_state` tábla
+  `daily_proactive_snapshot` kulcsú sorát upserteli; ez technikai állapotírás,
+  tehát a monitor nem teljesen read-only. Hiba esetén a központi hibajelentő
+  a `logs` táblába is megpróbálhat warning eseményt írni.
 - Nem módosít leadet, feladatot, beállítást vagy e-mail-tervezetet; nem küld
   e-mailt és nem indít külső kapcsolatfelvételt.
 - A workflow hiányzó Supabase titkok esetén kihagyja a futást, adatbázishiba
@@ -34,5 +36,8 @@ táblákban 2000-nél több lead vagy 1000-nél több feladat van, a monitor
 jelenlegi lekérdezése csak a Supabase által visszaadott mintát vizsgálja.
 A jelentés artifactként 14 napig érhető el.
 
-A mockolt tesztek az alkalmazáslogikát ellenőrzik; nem helyettesítik az éles
-Supabase-kapcsolat és a GitHub Actions titkok konfigurációjának ellenőrzését.
+A PR #12 commitján a GitHub Actions JARVIS CI 2026-11-23-án sikeresen lefutott:
+`compileall`, a teljes unit/AppTest/browser tesztlépés, CloudFormation-validáció
+és a böngészőfüggőségek telepítése is sikeres volt. A mockolt tesztek és a CI
+nem helyettesítik az éles Supabase-kapcsolat, a GitHub Actions titkok vagy az
+ütemezett futás ellenőrzését. Éles integrációs futás még nincs igazolva.
