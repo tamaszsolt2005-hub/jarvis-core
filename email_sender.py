@@ -77,7 +77,12 @@ def _due_follow_up(lead: dict, now: datetime) -> bool:
         due = datetime.fromisoformat(str(lead.get("next_follow_up_at")).replace("Z", "+00:00"))
         count = int(lead.get("follow_up_count") or 0)
         maximum = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
-        return due.tzinfo is not None and due <= now and count < maximum and not lead.get("last_inbound_message_id")
+        return (
+            due.tzinfo is not None
+            and due.utcoffset() is not None
+            and due <= now
+            and 0 <= count < maximum
+        )
     except (TypeError, ValueError):
         return False
 
