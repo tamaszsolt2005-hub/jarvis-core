@@ -205,7 +205,7 @@ def test_task_update_conflict_does_not_report_success_or_mutate():
     class ConflictQuery(Query):
         def execute(self):
             if self.payload is not None:
-                self.db.updated = self.payload
+                self.db.attempted_update = self.payload
                 return Result([])
             return Result([{"id": TASK_ID, "title": "Teszt", "status": "open"}])
 
@@ -228,7 +228,8 @@ def test_task_update_conflict_does_not_report_success_or_mutate():
 
     assert "időközben megváltozott" in message
     assert audit_statuses == ["pending", "blocked"]
-    assert db.updated is not None
+    assert db.updated is None
+    assert db.attempted_update is not None
 
 
 def test_missing_task_is_not_mutated_and_is_audited_as_blocked():
@@ -237,7 +238,7 @@ def test_missing_task_is_not_mutated_and_is_audited_as_blocked():
     class MissingQuery(Query):
         def execute(self):
             if self.payload is not None:
-                self.db.updated = self.payload
+                self.db.attempted_update = self.payload
                 return Result([])
             return Result([])
 
