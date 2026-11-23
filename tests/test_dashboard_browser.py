@@ -46,7 +46,7 @@ class _Query:
 class _DB:
     def table(self, name):
         return _Query(_ROWS if name == "logs" else [])
-jarvis_common.get_supabase = lambda: _DB()
+jarvis_common.get_service_supabase = lambda: _DB()
 jarvis_common.generate_text = lambda *_args, **_kwargs: "BROWSER_CHAT_RESPONSE"
 jarvis_common.log_event = lambda *_args, **_kwargs: True
 jarvis_common.audit_event = lambda *_args, **_kwargs: True
