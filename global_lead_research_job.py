@@ -2,16 +2,27 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 from global_lead_research import get_research_market, research_global_companies
-from jarvis_common import get_supabase
+from jarvis_common import audit_event, get_supabase
 from jarvis_errors import report_error
 
 
 def main() -> None:
     db = None
+    operation_id = str(uuid.uuid4())
     try:
         db = get_supabase()
+        if not audit_event(
+            db,
+            module="global_lead_research_job",
+            action="daily_global_research",
+            status="pending",
+            operation_id=operation_id,
+            result={"max_results": 15, "contact_permission": "never_granted_by_research"},
+        ):
+            raise RuntimeError("Kutatási automatizmus leállítva: a pending audit nem menthető.")
         market = get_research_market(db)
         result = research_global_companies(
             db,
@@ -22,6 +33,20 @@ def main() -> None:
             max_results=15,
             market_country=market,
         )
+        if not audit_event(
+            db,
+            module="global_lead_research_job",
+            action="daily_global_research",
+            status="success",
+            operation_id=operation_id,
+            result={
+                "saved_count": int(result.get("saved_count", 0)),
+                "skipped_count": int(result.get("skipped_count", 0)),
+                "email_sending": bool(result.get("email_sending", False)),
+                "contact_permission": result.get("contact_permission"),
+            },
+        ):
+            raise RuntimeError("A kutatás befejeződött, de a záró audit nem menthető.")
         print(json.dumps({
             "scope": result["scope"],
             "saved_count": result["saved_count"],
@@ -31,6 +56,16 @@ def main() -> None:
             "companies": result["companies"],
         }, ensure_ascii=False))
     except Exception as exc:
+        if db is not None:
+            audit_event(
+                db,
+                module="global_lead_research_job",
+                action="daily_global_research",
+                status="failed",
+                operation_id=operation_id,
+                error=exc,
+                level="critical",
+            )
         report_error(
             exc,
             module="global_lead_research_job",
