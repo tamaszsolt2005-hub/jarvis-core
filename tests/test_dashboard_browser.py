@@ -68,8 +68,9 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+@pytest.mark.parametrize("browser_name", ["chromium", "firefox", "webkit"])
 @pytest.mark.browser_e2e
-def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monkeypatch):
+def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path, monkeypatch, browser_name):
     playwright = pytest.importorskip("playwright.sync_api")
     from playwright.sync_api import sync_playwright
     from plotly.offline import get_plotlyjs
@@ -115,10 +116,11 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     time.sleep(0.25)
             assert ready, f"Streamlit did not start. Log: {server_log.read_text(encoding='utf-8')}"
 
-            screenshot_dir = Path(os.getenv("JARVIS_BROWSER_ARTIFACT_DIR", str(tmp_path / "screenshots")))
+            screenshot_root = Path(os.getenv("JARVIS_BROWSER_ARTIFACT_DIR", str(tmp_path / "screenshots")))
+            screenshot_dir = screenshot_root / browser_name
             screenshot_dir.mkdir(parents=True, exist_ok=True)
             with sync_playwright() as runtime:
-                browser = runtime.chromium.launch(headless=True)
+                browser = getattr(runtime, browser_name).launch(headless=True)
                 context = browser.new_context(
                     viewport={"width": 1440, "height": 960},
                     device_scale_factor=1,
