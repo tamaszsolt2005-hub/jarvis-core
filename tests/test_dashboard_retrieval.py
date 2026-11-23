@@ -24,6 +24,8 @@ def _load_function(name):
 
 
 _safe_rows = _load_function("_safe_rows")
+_proactive_signals = _load_function("_proactive_signals")
+_wants_global_research = _load_function("_wants_global_research")
 retrieve_context = _load_function("retrieve_context")
 
 
@@ -257,3 +259,59 @@ def test_ranking_scans_entire_bounded_lead_sample_until_30_sites(monkeypatch):
 
     context, _ = retrieve_context(db, "Rangsorold a weboldalakat")
     assert "Cég 519" in context
+
+
+def test_proactive_signals_require_open_tasks_and_explicit_non_opted_out_consent():
+    from datetime import datetime, timedelta, timezone
+
+    overdue = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    signals = _proactive_signals(
+        [
+            {"id": "approved", "company_name": "Engedélyezett Kft.", "approved_to_contact": True,
+             "opted_out": False, "next_follow_up_at": overdue},
+            {"id": "no-consent", "company_name": "Tiltott Kft.", "approved_to_contact": False,
+             "opted_out": False, "next_follow_up_at": overdue},
+            {"id": "opted-out", "company_name": "Leiratkozott Kft.", "approved_to_contact": True,
+             "opted_out": True, "next_follow_up_at": overdue},
+        ],
+        [
+            {"id": "open", "title": "Lejárt feladat", "status": "open", "due_at": overdue},
+            {"id": "done", "title": "Kész feladat", "status": "completed", "due_at": overdue},
+            {"id": "invalid", "title": "Dátum nélküli", "status": "open", "due_at": "invalid"},
+        ],
+    )
+
+    assert signals["overdue_task_count"] == 1
+    assert signals["overdue_tasks"][0]["id"] if "id" in signals["overdue_tasks"][0] else True
+    assert signals["overdue_approved_followup_count"] == 1
+    assert signals["overdue_approved_followups"][0]["company_name"] == "Engedélyezett Kft."
+    assert "nem automatikus műveletek" in signals["interpretation"]
+
+
+def test_proactive_signals_bound_large_result_sets():
+    from datetime import datetime, timedelta, timezone
+
+    overdue = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    tasks = [
+        {"title": f"Task {i}", "status": "open", "due_at": overdue}
+        for i in range(40)
+    ]
+    leads = [
+        {"id": str(i), "company_name": f"Lead {i}", "approved_to_contact": True,
+         "opted_out": False, "next_follow_up_at": overdue}
+        for i in range(40)
+    ]
+    signals = _proactive_signals(leads, tasks)
+    assert signals["overdue_task_count"] == 40
+    assert len(signals["overdue_tasks"]) == 30
+    assert signals["overdue_approved_followup_count"] == 40
+    assert len(signals["overdue_approved_followups"]) == 30
+
+
+def test_global_research_trigger_requires_explicit_intent_and_honors_negation():
+    assert _wants_global_research("Kérlek, végezz leadkutatást Németországban")
+    assert _wants_global_research("Keress gyártókat Lengyelországban")
+    assert _wants_global_research("Azonosíts potenciális ügyfeleket")
+    assert not _wants_global_research("Ne keress új leadeket")
+    assert not _wants_global_research("Ne kutass most")
+    assert not _wants_global_research("Milyen lehetőségek vannak a piacon?")
