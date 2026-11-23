@@ -1,3 +1,5 @@
+import csv
+import io
 from types import SimpleNamespace
 
 import pytest
@@ -152,3 +154,10 @@ def test_sign_in_rejects_unverified_email(monkeypatch):
     with pytest.raises(PermissionError, match="e-mail-címét"):
         audit_admin.sign_in_audit_admin("admin@example.test", "secret")
     assert client.auth.signed_out is True
+
+
+def test_audit_csv_neutralizes_spreadsheet_formula_cells():
+    payload = "=HYPERLINK(\"https://example.invalid\",\"click\")"
+    raw = audit_admin.audit_rows_to_csv([{"subject": payload}]).decode("utf-8-sig")
+    row = next(csv.DictReader(io.StringIO(raw)))
+    assert row["subject"] == "'" + payload
