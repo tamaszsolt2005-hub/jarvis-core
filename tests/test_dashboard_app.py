@@ -368,6 +368,7 @@ def test_streamlit_task_close_and_update_require_preview_then_approval(monkeypat
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
+    _submit_chat(app, "Szia")
     app.session_state["_jarvis_db"].rows = [
         {"id": "123e4567-e89b-42d3-a456-426614174000", "title": "Existing task", "status": "open"}
     ]
@@ -398,17 +399,23 @@ def test_streamlit_task_close_missing_id_does_not_stage_mutation(monkeypatch):
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
-
+    captured_prompts = []
+    monkeypatch.setattr(
+        jarvis_common, "generate_text",
+        lambda prompt, **_kwargs: (captured_prompts.append(prompt) or "APPT_CHAT_RESPONSE"),
+    )
     _submit_chat(app, "Zárd le a feladatot: 123e4567-e89b-42d3-a456-426614174000")
 
     assert task_calls == []
     assert "_jarvis_pending_action" not in app.session_state
-    assert any("nem található" in value for value in _markdown_values(app))
+    assert any("nem található" in prompt for prompt in captured_prompts)
+    assert not app.exception
 
 
 def test_streamlit_market_change_and_global_research_run_only_after_approval(monkeypatch):
     import global_lead_research
 
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     markets, research_calls = [], []
     market_state = {"value": "Hungary"}
     monkeypatch.setattr(global_lead_research, "get_research_market", lambda _db: market_state["value"])
@@ -425,7 +432,6 @@ def test_streamlit_market_change_and_global_research_run_only_after_approval(mon
             }
         ),
     )
-    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
