@@ -463,6 +463,11 @@ def test_streamlit_explicit_memory_save_command_isolated_and_categorized(monkeyp
         ),
     )
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    prompts = []
+    monkeypatch.setattr(
+        jarvis_common, "generate_text",
+        lambda prompt, **_kwargs: (prompts.append(prompt) or "APPT_CHAT_RESPONSE"),
+    )
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -473,13 +478,18 @@ def test_streamlit_explicit_memory_save_command_isolated_and_categorized(monkeyp
     assert memory_calls[0][1:] == (
         "A német piac legyen a második célpiac", "decision"
     )
-    assert any("hosszú távú memóriába" in value for value in _markdown_values(app))
+    assert any("hosszú távú memóriába" in prompt for prompt in prompts)
     assert not app.exception
 
 
 def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypatch):
     calls = []
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    prompts = []
+    monkeypatch.setattr(
+        jarvis_common, "generate_text",
+        lambda prompt, **_kwargs: (prompts.append(prompt) or "APPT_CHAT_RESPONSE"),
+    )
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -492,7 +502,7 @@ def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypa
         ],
     )
     _submit_chat(app, "Mutasd a memóriádat")
-    assert any("A német piac második." in value for value in _markdown_values(app))
+    assert any("A német piac második." in prompt for prompt in prompts)
 
     monkeypatch.setattr(
         jarvis_memory, "memory_command",
@@ -505,7 +515,7 @@ def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypa
     _submit_chat(app, "Felejtsd el a régi döntést")
     assert len(calls) == 1
     assert calls[0][1] == "régi döntés"
-    assert any("2 memóriaelemet inaktiváltam" in value for value in _markdown_values(app))
+    assert any("2 memóriaelemet inaktiváltam" in prompt for prompt in prompts)
     assert not app.exception
 
 
@@ -520,6 +530,11 @@ def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypa
         lambda *_args, **_kwargs: (memory_calls.append("attempted") or False),
     )
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    prompts = []
+    monkeypatch.setattr(
+        jarvis_common, "generate_text",
+        lambda prompt, **_kwargs: (prompts.append(prompt) or "APPT_CHAT_RESPONSE"),
+    )
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -527,5 +542,5 @@ def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypa
     _submit_chat(app, "Jegyezd meg a titkot")
 
     assert memory_calls == ["attempted"]
-    assert any("túl hosszú lehet" in value for value in _markdown_values(app))
+    assert any("túl hosszú lehet" in prompt for prompt in prompts)
     assert not app.exception
