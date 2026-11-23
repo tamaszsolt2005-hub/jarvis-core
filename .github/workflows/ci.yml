@@ -16,7 +16,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: python -m pip install -r requirements-test.txt
-      - run: python -m playwright install --with-deps chromium
+      - run: python -m playwright install --with-deps chromium firefox webkit
       - run: python -m compileall -q .
       - name: Run unit, AppTest and browser tests
         env:
@@ -27,5 +27,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-dashboard-responsive-screenshots
-          path: test-results/*.png
+          path: test-results/**/*.png
           if-no-files-found: ignore
