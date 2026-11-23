@@ -32,6 +32,8 @@ _ROWS = [
     {"module": "follow_up", "level": "warning", "message": "followup_pending", "created_at": (_now - timedelta(minutes=1)).isoformat()},
 ]
 class _Query:
+    def __init__(self, rows):
+        self.rows = rows
     def select(self, *_args, **_kwargs): return self
     def gte(self, *_args, **_kwargs): return self
     def lte(self, *_args, **_kwargs): return self
@@ -39,11 +41,10 @@ class _Query:
     def limit(self, *_args, **_kwargs): return self
     def execute(self):
         from types import SimpleNamespace
-        return SimpleNamespace(data=list(_ROWS))
+        return SimpleNamespace(data=list(self.rows))
 class _DB:
     def table(self, name):
-        assert name == "logs"
-        return _Query()
+        return _Query(_ROWS if name == "logs" else [])
 jarvis_common.get_supabase = lambda: _DB()
 jarvis_common.generate_text = lambda *_args, **_kwargs: "BROWSER_CHAT_RESPONSE"
 jarvis_common.log_event = lambda *_args, **_kwargs: True
