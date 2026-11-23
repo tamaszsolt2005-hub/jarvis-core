@@ -46,9 +46,12 @@ class SenderQuery:
             return Result([{
                 "id": "lead-1",
                 "status": "sending",
+                "email": "person@example.test",
                 "consent_basis": "consent",
+                "consent_confirmed_at": datetime.now(timezone.utc).isoformat(),
                 "approved_to_contact": True,
                 "opted_out": False,
+                "reply_category": None,
                 "last_inbound_message_id": None,
             }])
         self.db.updates.append(self.payload)
@@ -246,9 +249,12 @@ def test_sender_rechecks_opt_out_immediately_before_smtp(monkeypatch):
                 return Result([{
                     "id": "lead-1",
                     "status": "sending",
+                    "email": "person@example.test",
                     "consent_basis": "consent",
+                    "consent_confirmed_at": datetime.now(timezone.utc).isoformat(),
                     "approved_to_contact": True,
                     "opted_out": True,
+                    "reply_category": None,
                     "last_inbound_message_id": None,
                 }])
             self.db.updates.append(self.payload)
