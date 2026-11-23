@@ -61,7 +61,8 @@ A helyi `.private-backups/` és a titkosított mentési kiterjesztések Git-igno
 ## 4. AWS/S3 infrastruktúra és GitHub Actions
 
 Workflow: `.github/workflows/database-backup.yml`  
-Ütemezés: naponta 02:15 UTC, valamint kézi indítás.
+Ütemezés: naponta 02:15 UTC, valamint kézi indítás.  
+A workflow rögzített `ubuntu-24.04` runneren fut, és a PGDG tárolóból telepített PostgreSQL 17 `pg_dump`, `pg_restore` és `psql` binárisok verzióját futás előtt ellenőrzi; ez illeszkedik az ellenőrzött éles PostgreSQL 17.11 szerverhez.
 
 ### 4.1. AWS erőforrások létrehozása
 
