@@ -9,8 +9,10 @@ class FakeModels:
         self.outcomes = list(outcomes)
         self.model_calls = []
         self.configs = []
+        self.calls = 0
 
     def generate_content(self, *, model, contents, config=None):
+        self.calls += 1
         self.model_calls.append(model)
         self.configs.append(config)
         outcome = self.outcomes.pop(0)
