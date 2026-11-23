@@ -41,6 +41,104 @@ alter table public.audit_chain_state enable row level security;
 revoke all on table public.audit_chain_state from anon, authenticated;
 grant select, insert, update on table public.audit_chain_state to service_role;
 
+grant select on table public.audit_chain_state to authenticated;
+drop policy if exists "Admins can read audit chain state" on public.audit_chain_state;
+create policy "Admins can read audit chain state"
+  on public.audit_chain_state
+  for select
+  to authenticated
+  using ((select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+create or replace function public.verify_logs_audit_chain()
+returns table (
+  ok boolean,
+  total_entries bigint,
+  invalid_hashes bigint,
+  missing_predecessors bigint,
+  forks bigint,
+  disconnected_entries bigint,
+  state_matches boolean
+)
+language sql
+stable
+security invoker
+set search_path = pg_catalog, public, extensions
+as $
+  with recursive entries as (
+    select
+      l.previous_hash,
+      l.entry_hash,
+      encode(
+        extensions.digest(
+          convert_to(
+            l.previous_hash || ':' || (to_jsonb(l) - 'previous_hash' - 'entry_hash')::text,
+            'UTF8'
+          ),
+          'sha256'
+        ),
+        'hex'
+      ) as computed_hash
+    from public.logs as l
+    where l.entry_hash is not null
+  ),
+  walk(entry_hash) as (
+    select e.entry_hash
+      from entries as e
+     where e.previous_hash = repeat('0', 64)
+    union
+    select child.entry_hash
+      from entries as child
+      join walk as parent on child.previous_hash = parent.entry_hash
+  ),
+  metrics as (
+    select
+      count(*)::bigint as total_entries,
+      count(*) filter (where computed_hash is distinct from entry_hash)::bigint as invalid_hashes,
+      count(*) filter (
+        where previous_hash is distinct from repeat('0', 64)
+          and not exists (
+            select 1 from entries as parent
+             where parent.entry_hash = entries.previous_hash
+          )
+      )::bigint as missing_predecessors,
+      (select count(*)::bigint from (
+        select previous_hash from entries group by previous_hash having count(*) > 1
+      ) as forked) as forks,
+      count(*) filter (where previous_hash = repeat('0', 64))::bigint as genesis_entries,
+      (select count(*)::bigint from walk) as reachable_entries,
+      (select last_hash from public.audit_chain_state where singleton = true) as state_hash
+    from entries
+  ),
+  checks as (
+    select
+      *,
+      case
+        when total_entries = 0 then state_hash = repeat('0', 64)
+        else state_hash is not null
+          and exists (select 1 from entries where entry_hash = state_hash)
+          and not exists (select 1 from entries where previous_hash = state_hash)
+      end as state_matches
+    from metrics
+  )
+  select
+    invalid_hashes = 0
+      and missing_predecessors = 0
+      and forks = 0
+      and genesis_entries = case when total_entries = 0 then 0 else 1 end
+      and reachable_entries = total_entries
+      and state_matches as ok,
+    total_entries,
+    invalid_hashes,
+    missing_predecessors,
+    forks,
+    (total_entries - reachable_entries)::bigint as disconnected_entries,
+    state_matches
+  from checks;
+$;
+
+revoke all on function public.verify_logs_audit_chain() from public, anon;
+grant execute on function public.verify_logs_audit_chain() to authenticated, service_role;
+
 create or replace function public.set_logs_audit_hash_chain()
 returns trigger
 language plpgsql
