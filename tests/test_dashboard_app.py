@@ -145,6 +145,7 @@ def test_streamlit_analytics_navigation_renders_empty_state_and_returns_to_chat(
     assert not app.exception
     assert app.session_state["jarvis_page"] == "analytics"
     assert any("Analitika" in item.value for item in app.markdown)
+    assert len(app.chat_input) == 0
     assert any("Ebben az időszakban még nincs naplózott aktivitás" in item.value for item in app.markdown)
 
     app.button(key="jarvis_nav_chat").click().run()
