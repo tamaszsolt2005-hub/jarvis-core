@@ -12,6 +12,7 @@ from jarvis_errors import report_error
 def main() -> None:
     db = None
     operation_id = str(uuid.uuid4())
+    research_started = False
     try:
         db = get_supabase()
         if not audit_event(
@@ -24,6 +25,7 @@ def main() -> None:
         ):
             raise RuntimeError("Kutatási automatizmus leállítva: a pending audit nem menthető.")
         market = get_research_market(db)
+        research_started = True
         result = research_global_companies(
             db,
             "Globális, iparág- és cégméret-független üzleti lehetőségkutatás. "
@@ -61,7 +63,7 @@ def main() -> None:
                 db,
                 module="global_lead_research_job",
                 action="daily_global_research",
-                status="failed",
+                status="unknown" if research_started else "failed",
                 operation_id=operation_id,
                 error=exc,
                 level="critical",
