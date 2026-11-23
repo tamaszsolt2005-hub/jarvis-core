@@ -88,3 +88,8 @@ adatbázis módosítása külön jóváhagyást igényel.
   szabály. Ezekhez külön, jóváhagyott tárolási és megőrzési követelmény, valamint
   külső infrastruktúra szükséges.
 - A batch audit nem helyettesíti a soronkénti üzleti rekordtörténetet.
+
+
+## Irányítás és éles bevezetés
+
+A felhasználó-azonosítás, RBAC, RLS-ellenőrzés, megőrzési döntés, változtathatatlan archiválás, integritás-ellenőrzés, riasztások és audit-export bevezetési feltételeit a [AUDIT_GOVERNANCE.md](AUDIT_GOVERNANCE.md) rögzíti. Ezek közül a külső infrastruktúrát vagy üzleti döntést igénylő kontrollokat ez a PR nem állítja késznek.
