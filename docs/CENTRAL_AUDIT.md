@@ -83,8 +83,6 @@ adatbázis módosítása külön jóváhagyást igényel.
 
 - A `logs` táblán az RLS be van kapcsolva, de a repository sémája nem ad
   végleges, szerepkörspecifikus policy-kat. A service-role kulcs megkerüli az RLS-t.
-- Nincs igazolt immutable/WORM tárolás, aláírt auditlánc vagy megőrzési/retenciós
-  szabály.
 - Admin-only audit UI még nincs; bevezetése az Auth/RBAC migrációtól függ.
 - Nincs igazolt immutable/WORM tárolás, aláírt auditlánc vagy megőrzési/retenciós
   szabály. Ezekhez külön, jóváhagyott tárolási és megőrzési követelmény, valamint
