@@ -161,7 +161,7 @@ def create_backup(output_dir: Path) -> Path:
     actual_ref = _validated_project_ref(db_url, allow_local_test=local_test)
     expected_ref = "local-test" if local_test else PRODUCTION_PROJECT_REF
     if source_ref != expected_ref or actual_ref != expected_ref:
-        raise BackupError("A mentés forrásprojekt-azonosítója nem egyezik az engedélyezett JARVIS-forrással.")
+        raise BackupError("A mentés forrásazonosítója nem egyezik az engedélyezett JARVIS-forrással.")
     if not all(shutil.which(program) for program in ("pg_dump", "pg_restore", "age")):
         raise BackupError("A mentéshez a pg_dump, pg_restore és age program szükséges.")
 
@@ -338,7 +338,10 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         work = Path(tmp)
         decrypted = work / "backup.tar.gz"
         run_checked(["age", "--decrypt", "--identity", identity, "--output", str(decrypted), str(archive_path)])
-        manifest = _safe_extract(decrypted, work, allow_local_test=local_test)
+        manifest = (
+            _safe_extract(decrypted, work, allow_local_test=True)
+            if local_test else _safe_extract(decrypted, work)
+        )
         if manifest["source_project_ref"] == target_ref and not local_test:
             raise BackupError("A forrás és cél projekt nem lehet azonos.")
         # Refuse any non-empty public schema: restore is only allowed into a fresh,
