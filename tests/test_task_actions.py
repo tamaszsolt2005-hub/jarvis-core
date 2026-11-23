@@ -136,3 +136,47 @@ def test_task_action_requires_explicit_approval_before_database_access():
             ForbiddenDB(),
             {"type": "create", "title": "Tiltott művelet", "priority": "normal"},
         )
+
+
+def test_invalid_task_payload_is_rejected_before_database_or_audit_access(monkeypatch):
+    import pytest
+    import task_actions
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("Invalid task payload must not access the database")
+
+    monkeypatch.setattr(
+        task_actions, "audit_event",
+        lambda *_args, **_kwargs: pytest.fail("Invalid task payload must not write an audit event"),
+    )
+    invalid_actions = [
+        {"type": "create", "title": "", "priority": "normal"},
+        {"type": "create", "title": "Test", "priority": "urgent; DROP"},
+        {"type": "create", "title": "Test", "priority": []},
+        {"type": "create", "title": "Test", "priority": "normal", "notes": "x" * 1001},
+        {"type": "close", "id": "not-a-uuid"},
+        {"type": "update", "id": TASK_ID, "updates": {"admin": True}},
+        {"type": "update", "id": TASK_ID, "updates": {"priority": []}},
+        {"type": "delete", "id": TASK_ID},
+        {"type": ["create"]},
+    ]
+
+    for action in invalid_actions:
+        with pytest.raises(ValueError):
+            execute_task_action(ForbiddenDB(), action, approved=True)
+
+
+def test_truthy_non_boolean_approval_does_not_authorize_task_mutation():
+    import pytest
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("Non-boolean approval must not access the database")
+
+    with pytest.raises(PermissionError):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Test", "priority": "normal"},
+            approved="yes",
+        )
