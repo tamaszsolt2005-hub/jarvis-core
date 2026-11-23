@@ -89,6 +89,15 @@ def _due_follow_up(lead: dict, now: datetime) -> bool:
 
 def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     current_status = str(lead.get("status") or "")
+    allowed_statuses = FOLLOW_UP_STATUSES if follow_up else {"new"}
+    if (
+        current_status not in allowed_statuses
+        or not _valid_consent(lead)
+        or not EMAIL_RE.fullmatch(str(lead.get("email") or ""))
+        or lead.get("reply_category")
+        or lead.get("last_inbound_message_id")
+    ):
+        return False
     claim_status = "follow_up_sending" if follow_up else "sending"
     claim = (
         db.table("leads").update({"status": claim_status})
