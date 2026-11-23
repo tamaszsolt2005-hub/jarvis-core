@@ -70,7 +70,9 @@ def _verified_user(response: Any) -> Any:
     if not isinstance(metadata, dict):
         raise PermissionError("A trusted application role is required.")
     role = metadata.get("role")
-    if role not in ROLE_PERMISSIONS:
+    # app_metadata is server-managed, but malformed claims must still fail closed.
+    # Check the type before dictionary membership to avoid TypeError for list/dict claims.
+    if not isinstance(role, str) or role not in ROLE_PERMISSIONS:
         raise PermissionError("The account has no valid trusted application role.")
     return user
 
