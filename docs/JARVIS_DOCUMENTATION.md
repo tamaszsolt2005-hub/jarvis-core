@@ -227,3 +227,121 @@ Az `audit_admin.py` külön Supabase Auth admin útvonalat használ; csak `SUPAB
 A `safe_http.py` és `web_auditor.py` DNS/IP-validálással és redirect-ellenőrzéssel csökkenti az SSRF-kockázatot. Külső weboldal, e-mail vagy memória tartalma nem megbízható utasítás. Soha ne kerüljön logba nyers jelszó, token, API-kulcs, hitelesített URL, e-mail-törzs vagy teljes lead-payload. A technikai hozzájárulás-ellenőrzés nem helyettesíti a célország és kommunikációs cél jogi vizsgálatát.
 
 Nincs tenant-szintű adatszegregáció; a jelenlegi adatmodell egy üzleti munkaterületet feltételez. Az `approved=True` belső alkalmazáskorlát, nem hitelesítési token.
+
+## 7. Audit és hibakezelés
+
+A repository auditmegoldása a `public.logs` táblát bővíti. A kódban definiált mezők közé tartozik: `operation_id`, `action`, `status`, `result`, `error`, `approved`, `recipient`, `subject`, `delivery_id`, `actor_user_id`, `previous_hash`, `entry_hash`. Audit státuszok: `pending`, `success`, `failed`, `blocked`, `unknown`.
+
+Auditált útvonalak: jóváhagyott feladatműveletek, chat- és háttér e-mail, inbox válasz/leiratkozás, CSV-import, globális kutatási job. Érzékeny művelet előtt a `pending` audit mentése kötelező; hiba esetén a művelet álljon le. SMTP-átvétel utáni bizonytalan auditállapotban ne történjen vak újraküldés.
+
+A repository SQL-kód admin-only olvasást, kliensoldali módosítás tiltását, append-only triggerelést, SHA-256 hash-láncot, ellenőrző függvényt, kurzoros lapozást és CSV-exportot tartalmaz. Ez nem WORM: privilegizált DB-tulajdonos módosíthatja a védelmeket. Külső immutable archívum, külső hash-ankor, jóváhagyott megőrzési idő, jogi hold és ütemezett független integritásellenőrzés nincs igazolva.
+
+**Production:** a 2026-11-23-i auditkor a production `logs` csak a legacy oszlopokat tartalmazta, az audit SQL-migrációk nem voltak alkalmazva. A kódban meglévő audit nem tekinthető élesben aktív, teljes védelemnek.
+
+### Központi hibakezelés
+
+A `jarvis_errors.report_error()` három szintet kezel:
+
+| Szint | Jelentés |
+|---|---|
+| `warning` | Helyreállítható/opcionális probléma; a kihagyott funkciót jelezni kell. |
+| `error` | Az aktuális művelet sikertelen; azt meg kell szakítani. |
+| `critical` | Nem garantálható a biztonságos folytatás; job hibás zárása vagy kivétel továbbdobása szükséges. |
+
+A modul maszkolja a gyakori jelszó-, kulcs-, token-, Bearer- és URL-hitelesítő adat mintákat, valamint ismert secret értékeket. Supabase log hiba esetén Python logger a fallback; tilos rekurzív DB logolás. A redakció védelmi réteg, nem garancia minden érzékeny adatra. Új hibakezeléshez redakciós, metaadat-, kivétel- és fail-closed tesztek kellenek.
+
+## 8. Mentés és visszaállítás
+
+A `scripts/supabase_backup.py` a teljes `public` sémáról és adatairól PostgreSQL logical dumpot készít, UTC timestampet, UUID-t és SHA-256 manifestet használ, majd `age` recipient kulccsal titkosítható. A DB-jelszó nem kerülhet parancssori URL-be. A tényleges production dump a repo snapshoton kívüli `posts` táblát is megőrzi.
+
+A napi 02:15 UTC workflow csak konfiguráció esetén fut. Rövid életű GitHub OIDC AWS role, privát S3 bucket és SSE-KMS feltöltés szükséges. Az `infra/aws-backup-stack.yaml` előkészített, de a stack telepítése nem igazolt.
+
+**Szükséges Actions secret-ek:** `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN`.
+
+**Szükséges Actions változók:** `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`, `BACKUP_S3_KMS_KEY_ARN`.
+
+A valós mentés, feltöltés és restore-próba nincs igazolva. A restore kizárólag külön, üres, jóváhagyott nem éles Supabase-projektbe engedhető; a kód ellenőrzi a production projekt tiltását, a célprojekt allowlistet, DB URL/projektazonosságot, age dekódolást, hash-t és üres public sémát, majd tranzakcióban állít vissza. A felhasználói döntés szerint nem hozunk létre új tesztprojektet, így sandbox restore nem történt.
+
+A public dump nem tartalmazza a Supabase által kezelt `auth`, `storage`, `realtime` sémák teljes tartalmát, Storage bináris objektumokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. Auth/Storage használat előtt külön platform- és objektummentési terv és restore-próba szükséges.
+
+## 9. Telepítés és konfiguráció
+
+Helyi indítás:
+
+```bash
+python -m pip install -r requirements.txt
+streamlit run dashboard.py --server.port 8501
+```
+
+Tesztfüggőségek és tesztfuttatás:
+
+```bash
+python -m pip install -r requirements-test.txt
+python -m playwright install chromium firefox webkit
+python -m compileall -q .
+python -m pytest -q
+```
+
+A CI coverage riportot is generál (`pytest --cov`); a küszöb 80%.
+
+Fő konfigurációs kulcsok – csak neveket dokumentálunk, értékeket soha:
+
+| Kulcs | Cél |
+|---|---|
+| `SUPABASE_URL` | Supabase URL |
+| `SUPABASE_SERVICE_ROLE_KEY` / legacy `SUPABASE_KEY` | Szerveroldali adatbáziskliens |
+| `SUPABASE_PUBLISHABLE_KEY` / legacy `SUPABASE_ANON_KEY` | Külön publikus/Auth kliens |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Gemini |
+| `JARVIS_DASHBOARD_PASSWORD` | Dashboard |
+| `EMAIL_USER`, `EMAIL_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST`, `IMAP_PORT` | E-mail és inbox |
+| `EMAIL_DELIVERY_ENABLED`, `CHAT_EMAIL_ENABLED`, `AUTO_SEND_ENABLED`, `EMAIL_INBOX_MONITOR_ENABLED` | E-mail biztonsági kapcsolók |
+| `SEND_MAX_PER_RUN`, `MAX_FOLLOW_UPS`, `FOLLOW_UP_DAYS`, `SEND_DELAY_SECONDS` | E-mail korlátok |
+| `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN` | Backup workflow secret |
+| `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`, `BACKUP_S3_KMS_KEY_ARN` | Backup workflow változók |
+
+Az e-mail-kapcsolók alapértelmezésben kikapcsoltak. Chat-küldéshez `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true`; háttérküldéshez ezen felül `AUTO_SEND_ENABLED=true`, `EMAIL_INBOX_MONITOR_ENABLED=true` és érvényes lead-hozzájárulás kell. A Codespaces és a GitHub Actions secret-tára külön van.
+
+## 10. Tesztelés és bizonyítékok
+
+A minőségbiztosítási rétegek: `compileall`; mockolt pytest/AppTest/Playwright; külön kontrollált live integráció; valós dashboard- és Actions-futások megfigyelése. A mockolt teszt nem bizonyít éles séma/RLS/SMTP-kézbesítés/API-elérhetőséget.
+
+Dátumhoz kötött bizonyítékok:
+
+- **2026-11-23 – történeti coverage baseline:** a [45132352299 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45132352299) PR #9 headjén 594 sikeres, 2 kihagyott, 0 hibás tesztet és 97,70% statement coverage-et mutatott. Ez nem a jelenlegi main tesztszáma.
+- **2026-11-23 – PR #13 CI:** a [45251071690 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45251071690) sikeres volt compileall, CloudFormation, Playwright telepítés, unit/AppTest/browser tesztek és artifact-lépések tekintetében. Ez draft PR head; nem igazolja az Auth/RLS production integrációt.
+- **2026-11-23 – production leadkutatás:** a [45252422431 workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) a hiányzó `logs.action` és `logs.error` mezők miatt sikertelen volt; a `pending` audit hibája megállította a kutatás indítását.
+
+Tesztbiztonsági határok:
+
+- A normál pytest a Python-folyamaton belül tilt DNS- és kimenő socket-hívásokat; ez nem OS-szintű sandbox, nem korlátoz minden subprocess hálózatot.
+- Read-only live integrációhoz `tests/test_live_integrations.py`, `live_integration` marker és `JARVIS_LIVE_INTEGRATION_TESTS=1` szükséges.
+- SMTP/IMAP unit tesztek mockoltak; valós levelet nem küldenek.
+- Supabase unit tesztek fake klienst használnak; production DB-t nem módosítanak.
+- A `supabase/tests/audit_access_and_integrity.test.sql` pgTAP teszt külön adatbázist és a két auditmigrációt igényli; a Python CI nem futtatja.
+
+## 11. Ismert hibák és blokkolók
+
+### Production adatbázis
+
+- Öt remote migráció eredeti SQL-forrása hiányzik a Gitből.
+- A repo schema snapshot nem pontos production snapshot.
+- A production `logs` tábla hiányzó mezői már leállították a globális leadkutatási workflow-t.
+- A production táblákon RLS engedélyezett, de policy nincs; a backend service-role-ra támaszkodik.
+- Nincs jóváhagyott, külön tesztadatbázis a valódi policy-k és pgTAP tesztek ellenőrzéséhez.
+
+### RBAC és audit
+
+- A közös dashboard-jelszó nem egyedi felhasználói identitás.
+- A teljes admin/operator/reader modell nincs bekötve az üzleti adatútvonalakba.
+- Nincs tenant-adatszegregáció.
+- Az audit UI/hash-lánc SQL repositoryban létezik, de production migráció nem alkalmazott.
+- Nincs WORM-archívum, külső hash-ankor, retention/jogi hold vagy igazolt független riasztás.
+- A hash-lánc DB-tulajdonossal szemben nem megváltoztathatatlan.
+
+### Üzemeltetés / külső kapcsolatok
+
+- A backup stack, Actions beállítások, valódi backup, S3-feltöltés és sandbox restore nem igazolt.
+- A Gemini/SMTP/IMAP külső integrációk és az e-mail-kézbesítés sikeres üzemi működése nincs bizonyítva mockolt tesztekkel.
+- A proaktív monitor napi workflow kódban létezik, de a sikeres éles futás külön igazolandó.
+
+A production `posts` tábla legacy/árva objektumnak tűnik, de a repo-hivatkozás hiánya nem elegendő törléshez. Ugyanez minden ismeretlen DB-objektumra igaz.
