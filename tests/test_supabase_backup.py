@@ -170,3 +170,122 @@ def test_restore_sql_reuses_existing_public_schema():
     assert "ALTER SCHEMA public OWNER" not in restored
     assert "CREATE TABLE public.sample" in restored
     assert "COPY public.sample" in restored
+
+
+def test_create_backup_uses_mocked_tools_and_writes_encrypted_output(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "SUPABASE_DB_URL",
+        "postgresql://postgres:mock-password@db.kiutreccucbegskxowek.supabase.co:5432/postgres",
+    )
+    monkeypatch.setenv("BACKUP_AGE_RECIPIENT", "age1mockrecipient")
+    monkeypatch.setenv("JARVIS_BACKUP_SOURCE_PROJECT_REF", backup.PRODUCTION_PROJECT_REF)
+    monkeypatch.setattr(backup.shutil, "which", lambda _name: "/usr/bin/mock")
+    monkeypatch.setattr(
+        backup, "_connection_env_and_url",
+        lambda *_args: ("postgresql://postgres@db.example.test/postgres", {"PGPASSWORD": "mock-password"}),
+    )
+    commands = []
+
+    def fake_run_checked(args, *, env=None):
+        commands.append((args, env))
+        if args[0] == "pg_dump":
+            output = Path(args[args.index("--file") + 1])
+            output.write_text("SELECT 1;" if "--data-only" not in args else "INSERT INTO sample VALUES (1);")
+        elif args[0] == "age":
+            output = Path(args[args.index("--output") + 1])
+            output.write_bytes(b"mock encrypted backup")
+        return ""
+
+    monkeypatch.setattr(backup, "run_checked", fake_run_checked)
+
+    result = backup.create_backup(tmp_path / "private")
+
+    assert result.is_file()
+    assert result.read_bytes() == b"mock encrypted backup"
+    assert result.suffix == ".age"
+    assert len(commands) == 3
+    assert all("--no-password" in args for args, _env in commands[:2])
+    assert all("mock-password" not in " ".join(args) for args, _env in commands)
+    assert commands[0][1]["PGPASSWORD"] == "mock-password"
+    if os.name == "posix":
+        assert result.stat().st_mode & 0o777 == 0o600
+        assert (tmp_path / "private").stat().st_mode & 0o777 == 0o700
+
+
+def test_create_backup_rejects_wrong_source_before_running_external_tools(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "SUPABASE_DB_URL",
+        "postgresql://postgres:pw@db.kiutreccucbegskxowek.supabase.co:5432/postgres",
+    )
+    monkeypatch.setenv("BACKUP_AGE_RECIPIENT", "age1mockrecipient")
+    monkeypatch.setenv("JARVIS_BACKUP_SOURCE_PROJECT_REF", "abcdefghijklmnopqrst")
+    monkeypatch.setattr(backup.shutil, "which", lambda _name: "/usr/bin/mock")
+    with patch.object(backup, "run_checked") as runner:
+        with pytest.raises(backup.BackupError, match="forrásazonosító"):
+            backup.create_backup(tmp_path / "private")
+        runner.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("stderr", "expected"),
+    [
+        ("password authentication failed", "hitelesítés sikertelen"),
+        ("could not translate host name", "hosztnév nem oldható fel"),
+        ("connection timed out", "nem érhető el"),
+        ("SSL certificate verify failed", "SSL/TLS"),
+        ("docker daemon is unavailable", "futtatókörnyezete hibázott"),
+    ],
+)
+def test_run_checked_maps_known_postgres_failures_without_raw_diagnostics(stderr, expected):
+    failure = subprocess.CalledProcessError(1, ["pg_dump"], stderr=stderr)
+    with patch.object(backup.subprocess, "run", side_effect=failure):
+        with pytest.raises(backup.BackupError) as exc:
+            backup.run_checked(["pg_dump"])
+    assert expected in str(exc.value)
+    assert stderr not in str(exc.value)
+
+
+def test_run_checked_reports_missing_external_program():
+    with patch.object(backup.subprocess, "run", side_effect=FileNotFoundError):
+        with pytest.raises(backup.BackupError, match="Hiányzó külső program"):
+            backup.run_checked(["pg_dump"])
+
+
+def test_connection_url_requires_credentials_and_available_ipv4(tmp_path, monkeypatch):
+    with pytest.raises(backup.BackupError, match="hostot, felhasználót és jelszót"):
+        backup._connection_env_and_url("postgresql://postgres@db.example.test/postgres", tmp_path)
+
+    monkeypatch.setattr(
+        backup.socket, "getaddrinfo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("DNS unavailable")),
+    )
+    with pytest.raises(backup.BackupError, match="IPv4-cím"):
+        backup._connection_env_and_url(
+            "postgresql://postgres:pw@db.example.test/postgres", tmp_path
+        )
+
+
+def test_archive_rejects_unknown_manifest_version(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    schema = work / "schema.sql"
+    data = work / "data.sql"
+    schema.write_text("SELECT 1;")
+    data.write_text("SELECT 2;")
+    manifest = {
+        "format_version": 99,
+        "source_project_ref": backup.PRODUCTION_PROJECT_REF,
+        "files": {
+            "schema.sql": {"sha256": backup.sha256_file(schema)},
+            "data.sql": {"sha256": backup.sha256_file(data)},
+        },
+    }
+    (work / "manifest.json").write_text(json.dumps(manifest))
+    archive = tmp_path / "unknown-version.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        for name in ("manifest.json", "schema.sql", "data.sql"):
+            tar.add(work / name, arcname=name)
+    destination = tmp_path / "out"
+    destination.mkdir()
+    with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
+        backup._safe_extract(archive, destination)
