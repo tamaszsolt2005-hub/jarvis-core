@@ -300,6 +300,24 @@ def render_audit_admin_page() -> None:
         st.caption(f"Hitelesített admin: {refreshed_session.get('email') or 'Supabase Auth felhasználó'}")
     with action:
         if st.button("Kilépés", key="jarvis_audit_admin_logout"):
+            pending_export = st.session_state.get("_jarvis_audit_export_pending")
+            if pending_export:
+                try:
+                    audit_event(
+                        get_supabase(),
+                        module="audit_admin",
+                        action="export_csv",
+                        status="blocked",
+                        operation_id=pending_export["operation_id"],
+                        result={"reason": "admin_signed_out_before_download"},
+                        approved=True,
+                        actor_user_id=pending_export.get("actor_user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_cancel",
+                        severity="warning",
+                    )
             try:
                 sign_out_audit_admin(refreshed_session)
             except Exception as exc:
@@ -449,7 +467,24 @@ def render_audit_admin_page() -> None:
                     )
                     completed = False
                 if not completed:
-                    st.error("A letöltés megtörtént, de a completion auditbejegyzés nem menthető.")
+                    try:
+                        audit_event(
+                            get_supabase(),
+                            module="audit_admin",
+                            action="export_csv",
+                            status="unknown",
+                            operation_id=pending["operation_id"],
+                            result={"completion_audit_failed": True, "download_was_triggered": True},
+                            approved=True,
+                            actor_user_id=pending.get("actor_user_id"),
+                            level="critical",
+                        )
+                    except Exception as exc:
+                        report_error(
+                            exc, module="dashboard", operation="audit_export_unknown",
+                            severity="critical",
+                        )
+                    st.error("A letöltés megtörtént, de a lezáró audit bizonytalan maradt.")
                 st.session_state.pop(pending_key, None)
                 st.rerun()
     else:
