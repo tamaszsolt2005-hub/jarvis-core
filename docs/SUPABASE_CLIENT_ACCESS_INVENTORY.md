@@ -5,14 +5,14 @@
 
 ## Összefoglaló
 
-A vizsgált Python-forrásokban 17 közvetlen `get_supabase()` hívás található 12 hívómodulban. A kliensgyár a `jarvis_common.py` fájlban található, és jelenleg a `SUPABASE_SERVICE_ROLE_KEY` kulcsot használja (régi `SUPABASE_KEY` fallbackkel). Ez a kulcs RLS-t megkerülő, privilegizált hozzáférést ad, ezért a jelenlegi hívások nem tekinthetők felhasználói JWT-alapú hozzáférésnek.
+A kiinduló refen 17 közvetlen `get_supabase()` hívás volt 12 hívómodulban. A leltárban a `dashboard.py` tényleges száma 6 (309, 417, 456, 474, 1043, 1120), a többi 11 modulban egy-egy hívás. A jelenlegi kód ezeket explicit kliensgyárakra választotta szét; a régi `get_supabase()` csak deprecated kompatibilitási alias.
 
 ## Híváshelyek és besorolás
 
 | Modul | Közvetlen hívás | Folyamat / hozzáférési osztály | Megjegyzés |
 |---|---:|---|---|
-| `dashboard.py` | 6 | Interaktív dashboard – átmeneti legacy | Audit események, analitika és chat műveletek; jelenleg service-role klienssel. |
-| `health_check.py` | 1 | Vegyes diagnosztika – átmeneti legacy | Dashboardból is elérhető diagnosztika, ezért nem sorolható tisztán háttérfolyamatnak. |
+| `dashboard.py` | 6 | Interaktív dashboard – átmeneti legacy | Audit események, analitika és chat műveletek; explicit `get_legacy_dashboard_supabase()` service-role klienssel. |
+| `health_check.py` | 1 | Operációs diagnosztika – service-role | Read-only diagnosztika, explicit `get_service_supabase()` klienssel; a dashboardról is elérhető. |
 | `daily_briefing.py` | 1 | CLI/háttérfeladat | A `main()` belépési pontban épít napi jelentést. |
 | `email_inbox.py` | 1 | Háttérfolyamat | IMAP inbox feldolgozás és adatbázis-műveletek. |
 | `email_sender.py` | 1 | Háttérfolyamat | Ütemezett, engedélyezési kapcsolókkal védett e-mail feldolgozás/küldés. |
