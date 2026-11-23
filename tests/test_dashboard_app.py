@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class _Query:
+    def __init__(self, rows=None):
+        self.rows = rows or []
+
     def select(self, *_args, **_kwargs):
         return self
 
@@ -28,13 +31,22 @@ class _Query:
     def eq(self, *_args, **_kwargs):
         return self
 
+    def gte(self, *_args, **_kwargs):
+        return self
+
+    def lte(self, *_args, **_kwargs):
+        return self
+
     def execute(self):
-        return SimpleNamespace(data=[])
+        return SimpleNamespace(data=self.rows)
 
 
 class _ReadOnlyDB:
+    def __init__(self, rows=None):
+        self.rows = rows or []
+
     def table(self, _name):
-        return _Query()
+        return _Query(self.rows)
 
 
 def _prepare_dashboard(monkeypatch):
@@ -117,3 +129,71 @@ def test_streamlit_login_chat_and_email_preview_are_isolated(monkeypatch):
     assert len(smtp_calls) == 1
     assert smtp_calls[0][0] == ("teszt@example.com", "APPT tárgy", "APPT levéltörzs")
     assert any("SMTP-szerver átvette" in value for value in _markdown_values(app))
+
+
+
+def test_streamlit_analytics_navigation_renders_empty_state_and_returns_to_chat(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    assert not app.exception
+
+    app.button(key="jarvis_nav_analytics").click().run()
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "analytics"
+    assert any("Analitika" in item.value for item in app.markdown)
+    assert any("Még nincs naplózott aktivitás" in item.value for item in app.markdown)
+
+    app.button(key="jarvis_nav_chat").click().run()
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "chat"
+    assert any("Üdvözöllek!" in item.value for item in app.markdown)
+
+
+def test_streamlit_analytics_period_selector_renders_populated_charts(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    records = [
+        {"module": "chat", "level": "info", "message": "chat_request", "created_at": (datetime.now(timezone.utc) - timedelta(minutes=4)).isoformat()},
+        {"module": "chat", "level": "info", "message": "chat_response", "created_at": (datetime.now(timezone.utc) - timedelta(minutes=3)).isoformat()},
+        {"module": "email_sender", "level": "error", "message": "delivery_failure", "created_at": (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()},
+        {"module": "follow_up", "level": "warning", "message": "followup_pending", "created_at": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()},
+    ]
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    db = _ReadOnlyDB(records)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: db)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_analytics").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "analytics"
+    assert len(app.get("plotly_chart")) == 4
+    assert any("Naplózott események" in item.value for item in app.markdown)
+    assert len(app.radio) == 1
+    app.radio[0].set_value("7 nap").run()
+    assert not app.exception
+    assert app.session_state["jarvis_analytics_range"] == "7 nap"
+    assert len(app.get("plotly_chart")) == 4
+
+
+def test_streamlit_analytics_database_failure_is_isolated_from_chat(monkeypatch):
+    class BrokenDB:
+        def table(self, _name):
+            raise RuntimeError("mock analytics database outage")
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: BrokenDB())
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_analytics").click().run()
+
+    assert not app.exception
+    assert any("Az analitikai naplók most nem tölthetők be." in item.value for item in app.error)
+    assert app.session_state["jarvis_page"] == "analytics"
+    app.button(key="jarvis_nav_chat").click().run()
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "chat"
