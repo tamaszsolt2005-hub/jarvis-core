@@ -138,3 +138,16 @@ No production-code change was required in this final pass: the new tests did not
 **Final validation:** GitHub Actions run [45132352299](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45132352299) passed on PR head `c3dfddfd1ae7b049c61c6aa3b2636541c9b092ba`: **594 passed, 2 skipped, 0 failed; 97.70% statement coverage; compileall successful**. Chromium, Firefox and WebKit browser tests passed. CI uploaded responsive screenshots and `coverage.xml` as separate artifacts.
 
 The remaining 72 uncovered statements are documented by the CI `term-missing` report. They include defensive/rare exception branches and script-entry guards; this result is not 100% coverage and is not a claim that every production integration or authorization scenario has been exercised. Live integrations were not enabled, no real SMTP delivery occurred, and no production Supabase records or schema were modified.
+
+
+## Central operational audit completion
+
+The `tests/test_central_audit_completion.py` regression tests verify that:
+- a reviewed CSV import does not write lead rows when its pending audit cannot be persisted;
+- the global research automation does not start when its pending audit cannot be persisted;
+- inbound email processing does not update lead state when its pending audit cannot be persisted.
+
+The implementation reuses the existing `logs` table and `audit_event()` helper.
+It does not apply a live database migration or enable live SMTP/IMAP integration.
+See [CENTRAL_AUDIT.md](CENTRAL_AUDIT.md) for the lifecycle matrix, retry behavior,
+privacy boundaries, and rollout requirements.
