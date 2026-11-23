@@ -73,11 +73,30 @@ def test_daily_briefing_prioritizes_urgent_overdue_tasks():
 def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     db = FakeDB()
     db.rows["leads"].extend([
-        {"company_name": "Engedélyezett Kft.", "approved_to_contact": True, "opted_out": False,
+        {"company_name": "Engedélyezett Kft.", "status": "sent", "email": "ok@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-14T09:00:00Z"},
-        {"company_name": "Nem engedélyezett Kft.", "approved_to_contact": False, "opted_out": False,
+        {"company_name": "Nem engedélyezett Kft.", "status": "sent", "email": "no@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": False, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-13T09:00:00Z"},
-        {"company_name": "Leiratkozott Kft.", "approved_to_contact": True, "opted_out": True,
+        {"company_name": "Leiratkozott Kft.", "status": "sent", "email": "out@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": True, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Válaszolt Kft.", "status": "sent", "email": "reply@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": "reply",
+         "last_inbound_message_id": "<reply>", "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Hozzájárulás nélküli Kft.", "status": "sent", "email": "none@example.test",
+         "consent_basis": None, "consent_confirmed_at": None,
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-12T09:00:00Z"},
     ])
     report = build_daily_briefing(db, today=date(2026, 11, 15))
@@ -85,6 +104,8 @@ def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     assert "Engedélyezett Kft." in report
     assert "Nem engedélyezett Kft." not in report
     assert "Leiratkozott Kft." not in report
+    assert "Válaszolt Kft." not in report
+    assert "Hozzájárulás nélküli Kft." not in report
 
 
 def test_deadlines_are_compared_using_budapest_local_date():
