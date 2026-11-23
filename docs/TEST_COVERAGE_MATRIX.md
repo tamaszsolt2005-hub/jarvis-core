@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`0c816b32b8064f8e903963f6bc695a20754c5ba0` (2026-11-23; Actions run `45092709670`):
+`6d0b56d31279c909bfa57ef2819914646565291e` (2026-11-23; Actions run `45095248644`):
 
 - Application Python modules in the repository: 31
-- Test Python files: 47
-- Tests: 421 passed, 2 skipped, 0 failed
-- Statement coverage: 90.17%
+- Test Python files: 48
+- Tests: 429 passed, 2 skipped, 0 failed
+- Statement coverage: 91.77%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -23,7 +23,7 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 78% | Streamlit AppTest covers login, normal chat, email preview, disabled-switch blocking and mocked SMTP after explicit approval; AST contracts cover task approval sequencing. Remaining UI branches and analytics presentation still need direct interaction tests |
+| `dashboard.py` | 87% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task approval/rejection, diagnostics and executive report. Chromium E2E covers responsive chat and analytics at five viewports |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 88% | Consent, state claims, pending audit, SMTP and failure paths |
 | `follow_up.py` | 87% | Consent recheck and uncertain-delivery no-retry state |
@@ -50,8 +50,32 @@ below lists the remaining files reported by coverage.
 
 Coverage is a statement-level signal, not proof that every business scenario,
 authorization boundary, external integration, or production configuration is
-correct. Dashboard AppTest uses mocked dependencies; it does not exercise live SMTP,
-a real Supabase project, browser rendering across devices, or every dashboard action branch.
+correct. AppTest and browser tests use fake/read-only database data and mocked
+AI/SMTP dependencies; they do not contact a production Supabase project or send
+real email.
+
+## Dashboard UI test commands
+
+Install the browser-test dependencies and Chromium:
+
+```bash
+python -m pip install -r requirements-test.txt
+python -m playwright install chromium
+```
+
+Run the focused UI tests:
+
+```bash
+python -m pytest -q tests/test_dashboard_app.py tests/test_dashboard_browser.py
+```
+
+The Chromium test launches a local Streamlit process with a test-only read-only
+database shim and mocked AI output. Browser requests are restricted to the local
+server; Plotly.js is served from the locally installed Python package. It checks
+chat and analytics rendering, the analytics period selector, hidden chat input
+on the analytics page, no horizontal overflow, and readable KPI widths at
+1440×960, 1024×768, 768×1024, 390×844, and 320×720. CI uploads the screenshots
+as the `jarvis-dashboard-responsive-screenshots` workflow artifact.
 
 ## Safety boundaries
 
