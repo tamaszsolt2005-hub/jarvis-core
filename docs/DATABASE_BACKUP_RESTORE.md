@@ -170,6 +170,4 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 
 Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul mockolt biztonsági tesztjei a teljes CI-futtatás részeként futnak; a legfrissebb futás eredményét a PR Actions ellenőrzése mutatja.
 
-**GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
-
 **2026-11-23 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.
