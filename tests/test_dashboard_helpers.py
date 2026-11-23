@@ -517,3 +517,13 @@ def test_safe_rows_filters_non_dictionary_rows_without_losing_valid_rows(monkeyp
     assert namespace["_safe_rows"](MixedDB(), "leads", "*") == [
         {"id": "valid"}, {"id": "also-valid"}
     ]
+
+
+def test_conversation_history_stops_after_exact_budget_without_adding_older_turns(monkeypatch):
+    fn = _load_helpers(monkeypatch, {"format_conversation_history"})["format_conversation_history"]
+    newest = "assistant: latest"
+    result = fn(
+        [("user", "older question"), ("assistant", "latest")],
+        max_chars=len(newest), max_message_chars=100,
+    )
+    assert result == newest
