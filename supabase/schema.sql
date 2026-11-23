@@ -146,7 +146,8 @@ alter table public.jarvis_proactive_state enable row level security;
 -- Admin-only audit reads and append-only hash-chain integrity controls.
 alter table public.logs
   add column if not exists previous_hash text,
-  add column if not exists entry_hash text;
+  add column if not exists entry_hash text,
+  add column if not exists actor_user_id uuid;
 
 revoke all on table public.logs from anon, authenticated;
 grant select on table public.logs to authenticated;
