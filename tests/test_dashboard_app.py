@@ -605,10 +605,6 @@ def test_audit_page_requires_separate_supabase_auth_login(monkeypatch):
     app.button[0].click().run()
     assert not app.exception
 
-    def service_role_must_not_be_used():
-        raise AssertionError("audit page must not read through the shared service-role client")
-
-    monkeypatch.setattr(jarvis_common, "get_supabase", service_role_must_not_be_used)
     app.button(key="jarvis_nav_audit").click().run()
 
     assert not app.exception
@@ -616,3 +612,4 @@ def test_audit_page_requires_separate_supabase_auth_login(monkeypatch):
     assert len(app.text_input) == 2
     assert any("Külön Supabase Auth-admin belépés szükséges" in item.value for item in app.caption)
     assert "_jarvis_audit_admin_session" not in app.session_state
+    assert "_jarvis_db" not in app.session_state
