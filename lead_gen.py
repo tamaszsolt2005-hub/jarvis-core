@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import csv
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from jarvis_common import get_supabase, log_event
 from jarvis_errors import report_error
@@ -23,11 +23,26 @@ def _validated_import_row(row):
     confirmed = str(row.get("consent_confirmed_at") or "").strip()
     try:
         parsed = datetime.fromisoformat(confirmed.replace("Z", "+00:00"))
-        timestamp_is_aware = parsed.tzinfo is not None and parsed.utcoffset() is not None
+        timestamp_is_aware = (
+            parsed.tzinfo is not None
+            and parsed.utcoffset() is not None
+            and parsed <= datetime.now(timezone.utc)
+        )
     except (TypeError, ValueError):
         timestamp_is_aware = False
 
-    if not company or len(company) > 250 or not EMAIL_RE.fullmatch(address) or basis != "consent" or not approved or not timestamp_is_aware:
+    if (
+        not company
+        or len(company) > 250
+        or len(address) > 254
+        or not EMAIL_RE.fullmatch(address)
+        or basis != "consent"
+        or not approved
+        or not timestamp_is_aware
+        or _truth(row.get("opted_out", ""))
+        or bool(str(row.get("reply_category") or "").strip())
+        or bool(str(row.get("last_inbound_message_id") or "").strip())
+    ):
         return None
 
     return {
