@@ -42,7 +42,7 @@ A mentési script:
 python scripts/supabase_backup.py backup --output-dir .private-backups
 ```
 
-Szükséges programok: Supabase CLI, `age`, Python 3.11+. A Supabase CLI Docker-alapú dump futtatást használhat, ezért Docker-kompatibilis runner szükséges. A visszaállításhoz az `age` mellett PostgreSQL `psql` kliens is kell, a szerverrel kompatibilis főverzióban.
+Szükséges programok: PostgreSQL 17-kompatibilis `pg_dump`, `pg_restore` és `psql`, `age`, Python 3.11+. A mentés egyetlen custom-format `pg_dump` snapshotból készül; a sémát és adatokat ebből a változatlan archívumból bontja ki a `pg_restore`, így a két SQL-fájl ugyanahhoz az MVCC-pillanatképhez tartozik. Docker és Supabase CLI nem szükséges.
 
 Szükséges környezeti beállítások:
 - `SUPABASE_DB_URL`: közvetlen vagy session-pooler adatbázis-kapcsolati URL, titokként kezelendő.
@@ -51,7 +51,7 @@ Szükséges környezeti beállítások:
 
 A script:
 1. ellenőrzi, hogy a DB URL és a rögzített forrásprojekt az éles JARVIS-projektre mutat;
-2. külön SQL-fájlba dumpolja a teljes `public` sémát és adatokat;
+2. egyetlen konzisztens custom-format PostgreSQL-pillanatképet készít, majd ebből külön SQL-fájlba bontja a teljes `public` sémát és adatokat;
 3. manifestet készít UTC időbélyeggel, UUID-s mentésazonosítóval és SHA-256 hash-ekkel;
 4. a teljes archívumot age nyilvános kulccsal titkosítja;
 5. csak a titkosított `.tar.gz.age` fájlt hagyja meg a kimeneti könyvtárban.
@@ -165,10 +165,10 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - éles projekt visszaállításának tiltása külső parancs futtatása előtt;
 - explicit `--confirm-restore` és sandbox allowlist követelménye;
 - nem várt archívumfájlok és sérült hash elutasítása;
-- adatbázis-jelszó eltávolítása a parancssori URL-ből és 0600 PGPASSFILE;
+- adatbázis-jelszó eltávolítása a parancssori URL-ből, a credential URL-ek kiszűrése a gyermekfolyamatok örökölt környezetéből, és 0600 age identity fájl;
 - a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
-Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A mentési modul 13 biztonsági tesztje a teljes CI-futtatás részeként sikeresen lefutott.
+Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul 13 biztonsági tesztje a teljes CI-futtatás részeként sikeresen lefutott.
 
 **GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
 
