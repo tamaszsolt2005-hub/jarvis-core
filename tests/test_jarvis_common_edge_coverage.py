@@ -29,7 +29,8 @@ class _Query:
         return self
 
     def is_(self, key, value):
-        self.filters.append((key, value))
+        # This is invoked through .not_.is_("action", "null"); all fake rows
+        # represent non-null audit actions.
         return self
 
     def eq(self, key, value):
