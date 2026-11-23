@@ -193,3 +193,74 @@ def test_inbox_monitor_run_reports_and_reraises_worker_failure(monkeypatch):
     assert reports[0][0] is failure
     assert reports[0][1]["operation"] == "process_inbox_monitor"
     assert reports[0][1]["severity"] == "error"
+
+
+
+def test_inbox_monitor_skips_failed_search_fetch_and_unmatched_sender_and_reports_logout(monkeypatch):
+    import inbox_monitor
+
+    leads = [
+        {"id": "search-fail", "email": "one@example.test", "company_name": "One", "opted_out": False},
+        {"id": "fetch-fail", "email": "two@example.test", "company_name": "Two", "opted_out": False},
+        {"id": "wrong-sender", "email": "three@example.test", "company_name": "Three", "opted_out": False},
+    ]
+    reports = []
+
+    class Query:
+        def select(self, *_args):
+            return self
+        def in_(self, *_args):
+            return self
+        def limit(self, *_args):
+            return self
+        def update(self, _payload):
+            raise AssertionError("no inbound message should be processed")
+        def execute(self):
+            return type("Result", (), {"data": leads})()
+
+    class DB:
+        def table(self, _name):
+            return Query()
+
+    class Mail:
+        def __init__(self):
+            self.search_count = 0
+            self.fetch_count = 0
+        def login(self, *_args):
+            return "OK"
+        def select(self, *_args):
+            return "OK"
+        def search(self, *_args):
+            self.search_count += 1
+            if self.search_count == 1:
+                return "NO", []
+            return "OK", [b"1"]
+        def fetch(self, *_args):
+            self.fetch_count += 1
+            if self.fetch_count == 1:
+                return "NO", []
+            msg = EmailMessage()
+            msg["Message-ID"] = "<wrong-sender>"
+            msg["From"] = "intruder@example.test"
+            msg.set_content("hello")
+            return "OK", [(b"RFC822", msg.as_bytes())]
+        def logout(self):
+            raise OSError("mock logout failure")
+
+    mail = Mail()
+    monkeypatch.setattr(inbox_monitor, "get_secret", lambda name, default=None: {
+        "EMAIL_USER": "sender@example.test",
+        "EMAIL_PASSWORD": "mock-password",
+        "IMAP_HOST": "imap.example.test",
+        "IMAP_PORT": "993",
+    }.get(name, default))
+    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: DB())
+    monkeypatch.setattr(inbox_monitor.imaplib, "IMAP4_SSL", lambda *_args: mail)
+    monkeypatch.setattr(inbox_monitor, "report_error", lambda error, **kwargs: reports.append(kwargs))
+
+    inbox_monitor._run()
+
+    assert mail.search_count == 3
+    assert mail.fetch_count == 2
+    assert reports[0]["operation"] == "close_imap_connection"
+    assert reports[0]["severity"] == "warning"
