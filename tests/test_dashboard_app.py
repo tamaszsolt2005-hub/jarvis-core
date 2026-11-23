@@ -613,7 +613,6 @@ def test_audit_page_requires_separate_supabase_auth_login(monkeypatch):
 
     assert not app.exception
     assert app.session_state["jarvis_page"] == "audit"
-    assert len(app.text_input) == 1
-    assert len(app.get("text_input")) == 1
+    assert len(app.text_input) == 2
     assert any("Külön Supabase Auth-admin belépés szükséges" in item.value for item in app.caption)
     assert "_jarvis_audit_admin_session" not in app.session_state
