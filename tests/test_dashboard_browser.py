@@ -45,6 +45,16 @@ class _DB:
         assert name == "logs"
         return _Query()
 jarvis_common.get_supabase = lambda: _DB()
+jarvis_common.generate_text = lambda *_args, **_kwargs: "BROWSER_CHAT_RESPONSE"
+jarvis_common.log_event = lambda *_args, **_kwargs: True
+jarvis_common.audit_event = lambda *_args, **_kwargs: True
+jarvis_common.get_model_name = lambda: "browser-test-model"
+jarvis_common.estimate_response_tokens = lambda *_args, **_kwargs: 256
+import global_lead_research
+global_lead_research.get_research_market = lambda _db: "Hungary"
+import jarvis_memory
+jarvis_memory.memory_command = lambda _prompt: ("", None)
+jarvis_memory.get_memories = lambda *_args, **_kwargs: []
 """.lstrip(),
         encoding="utf-8",
     )
@@ -117,9 +127,15 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     lambda route: route.continue_() if route.request.url.startswith(base_url) else route.abort(),
                 )
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60000)
+                page.screenshot(path=str(screenshot_dir / "login-desktop.png"), full_page=True)
                 page.get_by_label("Dashboard jelszó").fill("browser-test-password")
                 page.get_by_role("button", name="Belépés").click()
                 page.get_by_text("Üdvözöllek!").wait_for(timeout=30000)
+
+                chat_input = page.get_by_placeholder("Írj üzenetet a JARVIS-nak...")
+                chat_input.fill("Szia JARVIS, böngészős ellenőrzés.")
+                chat_input.press("Enter")
+                page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=30000)
 
                 page.get_by_role("button", name="Analitika").click()
                 page.get_by_text("Naplózott aktivitási trend").wait_for(timeout=30000)
@@ -157,7 +173,7 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     page.screenshot(path=str(screenshot_dir / f"analytics-{label}.png"), full_page=True)
 
                 page.get_by_role("button", name="Chat").click()
-                page.get_by_text("Üdvözöllek!").wait_for(timeout=15000)
+                page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=15000)
                 page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
                 context.close()
                 browser.close()
