@@ -18,6 +18,10 @@ import streamlit as st
 
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
 from jarvis_errors import report_error, sanitize_log_text
+from audit_admin import (
+    audit_rows_to_csv, fetch_audit_rows, sign_in_audit_admin,
+    sign_out_audit_admin, verified_admin_client,
+)
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
 from jarvis_analytics import (build_chat_analytics_context, build_executive_analytics_report, is_analytics_question, is_executive_analytics_report_request, render_analytics)
@@ -239,6 +243,108 @@ st.markdown(
 
 
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
+
+
+def render_audit_admin_page() -> None:
+    """Render the audit viewer only after a separately verified Supabase admin login."""
+    st.title("Központi auditnapló")
+    st.caption(
+        "Külön Supabase Auth-admin belépés szükséges. A közös dashboard-jelszó "
+        "nem ad hozzáférést az auditbejegyzésekhez."
+    )
+    session_key = "_jarvis_audit_admin_session"
+    session = st.session_state.get(session_key)
+
+    if not session:
+        with st.form("jarvis_audit_admin_login", clear_on_submit=True):
+            email = st.text_input("Admin e-mail-cím", key="jarvis_audit_admin_email")
+            password = st.text_input(
+                "Supabase Auth jelszó", type="password",
+                key="jarvis_audit_admin_password",
+            )
+            submitted = st.form_submit_button("Admin belépés", type="primary")
+        if submitted:
+            try:
+                st.session_state[session_key] = sign_in_audit_admin(email, password)
+                st.rerun()
+            except PermissionError:
+                st.error("A belépés nem engedélyezett. Admin szerepkör szükséges.")
+            except (ValueError, RuntimeError) as exc:
+                st.error(str(exc))
+            except Exception as exc:
+                report_error(
+                    exc, module="dashboard", operation="audit_admin_sign_in",
+                    severity="warning",
+                )
+                st.error("A biztonságos audit-belépés nem sikerült.")
+        st.info(
+            "A belépéshez megerősített Supabase Auth-fiók és a megbízható "
+            "app_metadata.role = admin beállítás szükséges."
+        )
+        return
+
+    try:
+        audit_client, refreshed_session = verified_admin_client(session)
+        st.session_state[session_key] = refreshed_session
+    except Exception as exc:
+        st.session_state.pop(session_key, None)
+        report_error(
+            exc, module="dashboard", operation="audit_admin_session_validation",
+            severity="warning",
+        )
+        st.error("Az audit-admin munkamenet érvénytelen vagy lejárt. Jelentkezz be újra.")
+        return
+
+    header, action = st.columns([4, 1])
+    with header:
+        st.caption(f"Hitelesített admin: {refreshed_session.get('email') or 'Supabase Auth felhasználó'}")
+    with action:
+        if st.button("Kilépés", key="jarvis_audit_admin_logout"):
+            try:
+                sign_out_audit_admin(refreshed_session)
+            except Exception as exc:
+                report_error(
+                    exc, module="dashboard", operation="audit_admin_sign_out",
+                    severity="warning",
+                )
+            st.session_state.pop(session_key, None)
+            st.rerun()
+
+    module_filter = st.text_input(
+        "Modul szűrő (üres = minden modul)", key="jarvis_audit_module_filter"
+    ).strip() or None
+    status_filter = st.selectbox(
+        "Művelet státusza",
+        ["Összes státusz", "pending", "success", "failed", "blocked", "unknown"],
+        key="jarvis_audit_status_filter",
+    )
+    try:
+        rows = fetch_audit_rows(
+            audit_client, module=module_filter, status=status_filter, limit=500
+        )
+    except Exception as exc:
+        report_error(
+            exc, module="dashboard", operation="audit_admin_read",
+            severity="error",
+        )
+        st.error(
+            "Az auditnapló nem olvasható. Ellenőrizd, hogy az auditmezőket "
+            "és az admin-only RLS policy-t tartalmazó adatbázis-migráció alkalmazva van-e."
+        )
+        return
+
+    st.caption(f"Legfeljebb 500 legfrissebb bejegyzés • megjelenítve: {len(rows)}")
+    if rows:
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.download_button(
+            "Audit CSV export",
+            data=audit_rows_to_csv(rows),
+            file_name="jarvis-audit-export.csv",
+            mime="text/csv",
+            key="jarvis_audit_csv_export",
+        )
+    else:
+        st.info("A szűrésnek megfelelő auditbejegyzés nem található.")
 
 
 def authenticated() -> bool:
@@ -749,6 +855,12 @@ with st.sidebar:
         type="primary" if current_page == "analytics" else "secondary",
         width="stretch",
     )
+    audit_clicked = st.button(
+        "▤   Audit napló",
+        key="jarvis_nav_audit",
+        type="primary" if current_page == "audit" else "secondary",
+        width="stretch",
+    )
     st.markdown(
         '<div class="jarvis-nav">'
         '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
@@ -766,6 +878,14 @@ if chat_clicked:
 if analytics_clicked:
     st.session_state["jarvis_page"] = "analytics"
     st.rerun()
+if audit_clicked:
+    st.session_state["jarvis_page"] = "audit"
+    st.rerun()
+
+if st.session_state.get("jarvis_page") == "audit":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    render_audit_admin_page()
+    st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
     # st.chat_input is anchored in Streamlit's global bottom container; hide it on this page.
