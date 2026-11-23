@@ -428,7 +428,8 @@ def get_audit_events(
         supabase.table("logs")
         .select(
             "id,operation_id,created_at,module,action,status,result,error,"
-            "approved,recipient,subject,delivery_id,level"
+            "approved,recipient,subject,delivery_id,actor_user_id,"
+            "previous_hash,entry_hash,message,level"
         )
         .not_.is_("action", "null")
         .order("created_at", desc=True)
