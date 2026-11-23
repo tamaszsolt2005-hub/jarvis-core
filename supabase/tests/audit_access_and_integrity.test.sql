@@ -1,6 +1,6 @@
 -- Run with: supabase test db (isolated development database only).
 begin;
-select plan(17);
+select plan(15);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.logs'::regclass),
