@@ -148,6 +148,8 @@ The `tests/test_central_audit_completion.py` regression tests verify that:
 - inbound email processing does not update lead state when its pending audit cannot be persisted.
 
 The implementation reuses the existing `logs` table and `audit_event()` helper.
-It does not apply a live database migration or enable live SMTP/IMAP integration.
+`tests/test_audit_pagination.py` covers bounded pages, stable composite cursors,
+same-timestamp ordering, invalid cursors, and page-size caps. It does not apply a
+live database migration or enable live SMTP/IMAP integration.
 See [CENTRAL_AUDIT.md](CENTRAL_AUDIT.md) for the lifecycle matrix, retry behavior,
 privacy boundaries, and rollout requirements.
