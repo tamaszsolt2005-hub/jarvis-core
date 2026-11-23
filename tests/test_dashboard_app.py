@@ -51,7 +51,7 @@ def _prepare_dashboard(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_supabase", lambda: db)
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(jarvis_common, "estimate_response_tokens", lambda _prompt: 256)
-    monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "APPT_CHAT_RESPONSE")
+    monkeypatch.setattr(jarvis_common, "generate_text", lambda prompt, **_kwargs: ("APPT_TASK_EXECUTED" if "APPT_TASK_EXECUTED" in prompt else "APPT_CHAT_RESPONSE"))
     monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "audit_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: False)
