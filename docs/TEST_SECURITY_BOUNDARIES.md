@@ -45,3 +45,8 @@ python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xm
 ```
 
 A repository jelenlegi minimum küszöbe 80%. A küszöb alatti futás hibás CI-eredményt ad. A százalék a Python statement-lefedettséget méri; önmagában nem bizonyítja az összes üzleti útvonal, integráció, jogosultsági szabály vagy éles szolgáltatás helyességét. A nagy Streamlit UI-felület és az összetett adatbázis-/külső szolgáltatási folyamatok további célzott tesztelést igényelnek.
+
+
+## Jóváhagyott RBAC célmodell
+
+A jóváhagyott `admin` / `operator` / `reader` szerepkörmodell részletes hozzáférési mátrixa, a biztonságos Supabase Auth + RLS architektúra követelményei és a kötelező negatív tesztek a [`ROLE_BASED_ACCESS_CONTROL.md`](ROLE_BASED_ACCESS_CONTROL.md) dokumentumban találhatók. Ez célmodell, nem aktív jogosultsági védelem: a jelenlegi közös jelszavas és service-role klienses architektúra változatlan, amíg az Auth/RLS migráció és az izolált adatbázis-integrációs tesztelés el nem készül.
