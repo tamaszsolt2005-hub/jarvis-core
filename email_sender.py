@@ -16,11 +16,21 @@ FOLLOW_UP_STATUSES = {"sent", "follow_up_sent"}
 
 
 def _valid_consent(lead: dict) -> bool:
-    if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True or lead.get("opted_out") is True:
+    if (
+        lead.get("consent_basis") != "consent"
+        or lead.get("approved_to_contact") is not True
+        or lead.get("opted_out") is not False
+    ):
         return False
     try:
-        confirmed_at = datetime.fromisoformat(str(lead.get("consent_confirmed_at")).replace("Z", "+00:00"))
-        return confirmed_at.tzinfo is not None and confirmed_at.utcoffset() is not None
+        confirmed_at = datetime.fromisoformat(
+            str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
+        )
+        return (
+            confirmed_at.tzinfo is not None
+            and confirmed_at.utcoffset() is not None
+            and confirmed_at <= datetime.now(timezone.utc)
+        )
     except (TypeError, ValueError):
         return False
 
@@ -56,7 +66,12 @@ def _draft(lead: dict, follow_up: bool = False) -> tuple[str, str]:
 
 
 def _due_follow_up(lead: dict, now: datetime) -> bool:
-    if lead.get("status") not in FOLLOW_UP_STATUSES or lead.get("opted_out") is True:
+    if (
+        lead.get("status") not in FOLLOW_UP_STATUSES
+        or lead.get("opted_out") is not False
+        or lead.get("reply_category")
+        or lead.get("last_inbound_message_id")
+    ):
         return False
     try:
         due = datetime.fromisoformat(str(lead.get("next_follow_up_at")).replace("Z", "+00:00"))
@@ -88,15 +103,15 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
         fresh = (
             db.table("leads")
-            .select("id,status,consent_basis,approved_to_contact,opted_out,last_inbound_message_id")
+            .select("id,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id")
             .eq("id", lead["id"]).limit(1).execute().data or []
         )
         if (
             not fresh or fresh[0].get("status") != claim_status
-            or fresh[0].get("consent_basis") != "consent"
-            or fresh[0].get("approved_to_contact") is not True
-            or fresh[0].get("opted_out") is True
+            or not _valid_consent(fresh[0])
+            or fresh[0].get("reply_category")
             or fresh[0].get("last_inbound_message_id")
+            or fresh[0].get("email") != lead.get("email")
         ):
             if fresh and fresh[0].get("status") == claim_status:
                 db.table("leads").update({
