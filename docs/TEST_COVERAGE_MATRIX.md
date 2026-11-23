@@ -20,28 +20,28 @@ below lists the remaining files reported by coverage.
 
 | Module | Coverage | Notes |
 |---|---:|---|
-| `business_learning.py` | 96% | Evidence-based learning and memory inputs |
+| `business_learning.py` | 99% | Evidence-based learning and memory inputs |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
 | `dashboard.py` | 97% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
 | `email_inbox.py` | 99% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 98% | Consent recheck, atomic state claims, pending audit, SMTP failure and follow-up limit paths |
-| `follow_up.py` | 95% | Consent recheck, opt-out race, uncertain delivery, audit failure and recovery paths |
+| `follow_up.py` | 97% | Consent recheck, opt-out race, uncertain delivery, audit failure and recovery paths |
 | `global_lead_research.py` | 97% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
 | `global_lead_research_job.py` | 94% | Scheduled-job orchestration and error reporting |
 | `health_check.py` | 96% | Configuration, table/column probes, Gemini and safety-lock failures |
 | `inbox_monitor.py` | 98% | Inbox monitoring and error paths |
 | `intelligent_lead_scoring.py` | 97% | Lead scoring |
-| `jarvis_analytics.py` | 96% | Empty/populated analytics rendering and database failure |
-| `jarvis_common.py` | 94% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
+| `jarvis_analytics.py` | 97% | Empty/populated analytics rendering and database failure |
+| `jarvis_common.py` | 96% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
 | `jarvis_errors.py` | 96% | Centralized error reporting and sanitization |
-| `jarvis_memory.py` | 97% | Explicit save/list/forget, bounded retrieval and sensitive-data rejection |
+| `jarvis_memory.py` | 98% | Explicit save/list/forget, bounded retrieval and sensitive-data rejection |
 | `jarvis_status.py` | 95% | Status helpers |
 | `lead_gen.py` | 98% | Reviewed CSV validation, duplicate detection and error handling |
-| `lead_scoring.py` | 88% | Lead score calculations |
+| `lead_scoring.py` | 96% | Lead score calculations |
 | `proactive_monitor.py` | 94% | Read-only monitoring |
 | `safe_http.py` | 99% | DNS-pinned HTTP transport, private/mixed DNS rejection, proxy and TLS hostname restrictions |
 | `scripts/supabase_backup.py` | 98% | Mocked backup/restore, archive checks and external-tool failures |
-| `stats.py` | 93% | Operational counts and sanitized log reporting |
+| `stats.py` | 96% | Operational counts and sanitized log reporting |
 | `task_actions.py` | 99% | Strict payload validation, explicit approval, create/update/close, concurrency paths, and failed completion-audit reporting |
 | `web_auditor.py` | 96% | SSRF checks, redirects, transport and parser errors |
 
