@@ -95,7 +95,7 @@ jobs:
           set -euo pipefail
           export PATH="/usr/lib/postgresql/17/bin:$PATH"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres restore
-          PGPASSWORD=postgres psql "postgresql://postgres@127.0.0.1:5432/restore" \\
+          PGPASSWORD=postgres psql "postgresql://postgres@127.0.0.1:5432/restore" \
             --set ON_ERROR_STOP=1 --command "CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role NOLOGIN BYPASSRLS;"
           age-keygen --output "$RUNNER_TEMP/jarvis-age-identity.txt" 2> "$RUNNER_TEMP/age-keygen.log"
           chmod 600 "$RUNNER_TEMP/jarvis-age-identity.txt"
