@@ -228,11 +228,10 @@ def test_follow_up_unknown_delivery_when_post_smtp_state_update_returns_no_row(m
 def test_follow_up_success_audit_failure_keeps_completed_delivery_non_sendable(monkeypatch):
     db = _DB([_lead()])
     statuses = []
-    _configure_run(
-        monkeypatch, db,
-        audit=lambda *args, **kwargs: statuses.append(kwargs["status"]) and False
-        if kwargs["status"] == "success" else statuses.append(kwargs["status"]) or True,
-    )
+    def audit(*_args, **kwargs):
+        statuses.append(kwargs["status"])
+        return kwargs["status"] != "success"
+    _configure_run(monkeypatch, db, audit=audit)
     follow_up._run()
     assert db.rows[0]["status"] == "followed_up"
     assert statuses == ["pending", "success", "unknown"]
