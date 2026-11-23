@@ -153,3 +153,22 @@ same-timestamp ordering, invalid cursors, and page-size caps. It does not apply 
 live database migration or enable live SMTP/IMAP integration.
 See [CENTRAL_AUDIT.md](CENTRAL_AUDIT.md) for the lifecycle matrix, retry behavior,
 privacy boundaries, and rollout requirements.
+
+
+## Audit-admin security and integrity tests
+
+- `tests/test_audit_admin_auth.py`: trusted Supabase Auth admin claim, verified
+  email requirement, non-admin rejection/sign-out, no fallback to ambiguous or
+  service-role API keys, and refreshed-session validation.
+- `tests/test_audit_actor_identity.py`: UUID actor attribution, invalid actor
+  rejection, bounded cursor page size, and filter/cursor forwarding.
+- `tests/test_audit_sql_contract.py`: admin-only `app_metadata` RLS contract,
+  no authenticated mutation grants, append-only triggers, locked hash-chain
+  head, and SECURITY INVOKER integrity verifier.
+- `tests/test_dashboard_app.py`: shared dashboard password alone cannot open
+  the audit data path or reuse the service-role read client.
+- `supabase/tests/audit_access_and_integrity.test.sql`: pgTAP assertions for
+  reader/admin visibility, denied writes, append-only triggers, hash chaining,
+  and integrity verification. Must run against an isolated Supabase database
+  with the two audit migrations applied; this SQL test is not executed by the
+  Python-only GitHub CI workflow.
