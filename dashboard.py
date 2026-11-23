@@ -266,7 +266,9 @@ def _safe_rows(
     database read.
     """
     if status is not None:
-        status.update({"ok": False, "error": False, "error_type": None})
+        status["ok"] = False
+        status["error"] = False
+        status["error_type"] = None
     try:
         result = db.table(table).select(columns).limit(limit).execute()
         rows = result.data or []
@@ -274,11 +276,15 @@ def _safe_rows(
             raise TypeError(f"Unexpected row collection for table {table!r}.")
         clean_rows = [row for row in rows if isinstance(row, dict)]
         if status is not None:
-            status.update({"ok": True, "error": False, "error_type": None})
+            status["ok"] = True
+            status["error"] = False
+            status["error_type"] = None
         return clean_rows
     except Exception as exc:
         if status is not None:
-            status.update({"ok": False, "error": True, "error_type": type(exc).__name__})
+            status["ok"] = False
+            status["error"] = True
+            status["error_type"] = type(exc).__name__
         # A missing optional column or unavailable table must not take down the
         # whole chat/analytics flow. Keep the failure visible in the central log.
         try:
@@ -666,7 +672,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,delivery_id",
             log_limit, status=log_status,
         )
-        if log_status.get("error"):
+        if log_status.get("error") or not log_rows:
             # Backward-compatible fallback for installations not yet migrated.
             fallback_status: dict[str, Any] = {}
             log_rows = _safe_rows(
