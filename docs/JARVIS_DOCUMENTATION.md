@@ -1,7 +1,7 @@
 # JARVIS – teljes projekt- és műszaki dokumentáció
 
 > **Felülvizsgálat:** 2026-11-23  
-> **Vizsgált main commit:** `0b1afaf7e18e9a292e0ef3e38ac63953697edff6`  
+> **Vizsgált main commit:** `8650ce6b22fc7669c58cb3241730a0ab49b55342`  
 > **Repository:** `tamaszsolt2005-hub/jarvis-core`
 
 Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A forráskód, a Supabase-migrációk és a GitHub Actions workflow-k az elsődleges technikai bizonyítékok. A dokumentum külön választja a kódban létező funkciót, a tesztelt működést és az éles környezetben ténylegesen igazolt állapotot.
@@ -317,7 +317,7 @@ Tesztbiztonsági határok:
 - Read-only live integrációhoz `tests/test_live_integrations.py`, `live_integration` marker és `JARVIS_LIVE_INTEGRATION_TESTS=1` szükséges.
 - SMTP/IMAP unit tesztek mockoltak; valós levelet nem küldenek.
 - Supabase unit tesztek fake klienst használnak; production DB-t nem módosítanak.
-- A `supabase/tests/audit_access_and_integrity.test.sql` pgTAP teszt külön Supabase-kompatibilis adatbázist és a két auditmigrációt igényli; a Python CI nem futtatja.
+- A `supabase/tests/audit_access_and_integrity.test.sql` pgTAP tesztet a CI külön PostgreSQL 17 adatbázisban futtatja, a két verziókezelt auditmigráció alkalmazása után; az Auth JWT-függvény lokális tesztstub, nem éles Auth-integráció.
 
 ## 11. Ismert hibák és blokkolók
 
@@ -340,7 +340,7 @@ Tesztbiztonsági határok:
 
 ### Üzemeltetés / külső kapcsolatok
 
-- Az AWS backup stack telepítése, a GitHub backup secret-ek/változók megléte, az éles Supabase dump és az S3-feltöltés még nem igazolt; hiányzó konfigurációval a workflow most hibás állapotot jelez.
+- Az AWS backup stack telepítése, a GitHub backup secret-ek/változók megléte, az éles Supabase dump és az S3-feltöltés még nem igazolt; hiányzó konfigurációval a workflow most hibás állapotot jelez. A lokális backup/restore round-tripet a CI külön jobban ellenőrzi.
 - A Gemini/SMTP/IMAP külső integrációk és az e-mail-kézbesítés sikeres üzemi működése nincs bizonyítva mockolt tesztekkel.
 - A proaktív monitor napi workflow kódban létezik, de a sikeres éles futás külön igazolandó.
 
