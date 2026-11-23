@@ -380,6 +380,23 @@ def audit_event(
 
 
 
+def _validate_audit_cursor(before_created_at: str | None, before_id: str | None) -> tuple[str, str] | None:
+    """Validate a stable, timestamp-plus-UUID keyset cursor before building a query."""
+    if before_created_at is None and before_id is None:
+        return None
+    if not before_created_at or not before_id:
+        raise ValueError("Audit cursor requires both before_created_at and before_id.")
+    try:
+        timestamp = datetime.fromisoformat(str(before_created_at).replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            raise ValueError("Audit cursor timestamp must include a timezone.")
+        normalized_timestamp = timestamp.astimezone(timezone.utc).isoformat()
+        normalized_id = str(uuid.UUID(str(before_id)))
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("Invalid audit cursor.") from exc
+    return normalized_timestamp, normalized_id
+
+
 def get_audit_events(
     supabase: Client,
     *,
@@ -388,9 +405,12 @@ def get_audit_events(
     action: str | None = None,
     status: str | None = None,
     operation_id: str | None = None,
+    before_created_at: str | None = None,
+    before_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return newest structured audit events from the existing logs table."""
+    """Return newest structured audit events, optionally continuing a keyset page."""
     safe_limit = max(1, min(int(limit), 1000))
+    cursor = _validate_audit_cursor(before_created_at, before_id)
     query = (
         supabase.table("logs")
         .select(
@@ -399,8 +419,14 @@ def get_audit_events(
         )
         .not_.is_("action", "null")
         .order("created_at", desc=True)
-        .limit(safe_limit)
+        .order("id", desc=True)
     )
+    if cursor:
+        timestamp, event_id = cursor
+        query = query.or_(
+            f"created_at.lt.{timestamp},and(created_at.eq.{timestamp},id.lt.{event_id})"
+        )
+    query = query.limit(safe_limit)
     for field, value in (
         ("module", module), ("action", action),
         ("status", status), ("operation_id", operation_id),
@@ -415,6 +441,42 @@ def get_audit_events(
             severity="warning", db=supabase,
         )
         return []
+
+
+def get_audit_events_page(
+    supabase: Client,
+    *,
+    page_size: int = 100,
+    module: str | None = None,
+    action: str | None = None,
+    status: str | None = None,
+    operation_id: str | None = None,
+    cursor: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Return one bounded audit page and an opaque next-page cursor when more rows exist."""
+    safe_page_size = max(1, min(int(page_size), 500))
+    if cursor is not None and not isinstance(cursor, dict):
+        raise ValueError("Audit cursor must be a mapping.")
+    before_created_at = cursor.get("created_at") if cursor else None
+    before_id = cursor.get("id") if cursor else None
+    rows = get_audit_events(
+        supabase,
+        limit=safe_page_size + 1,
+        module=module,
+        action=action,
+        status=status,
+        operation_id=operation_id,
+        before_created_at=before_created_at,
+        before_id=before_id,
+    )
+    has_more = len(rows) > safe_page_size
+    events = rows[:safe_page_size]
+    next_cursor = None
+    if has_more and events:
+        last = events[-1]
+        if last.get("created_at") and last.get("id"):
+            next_cursor = {"created_at": str(last["created_at"]), "id": str(last["id"])}
+    return {"events": events, "next_cursor": next_cursor}
 
 
 
