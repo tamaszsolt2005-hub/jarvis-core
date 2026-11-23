@@ -15,10 +15,13 @@ import pytest
 from scripts import supabase_backup as backup
 
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("JARVIS_BACKUP_INTEGRATION_TEST") != "1",
-    reason="requires the isolated PostgreSQL + age CI service",
-)
+pytestmark = [
+    pytest.mark.backup_restore_integration,
+    pytest.mark.skipif(
+        os.environ.get("JARVIS_BACKUP_INTEGRATION_TEST") != "1",
+        reason="requires the isolated PostgreSQL + age CI service",
+    ),
+]
 
 
 def _psql(db_url: str, sql: str) -> str:
