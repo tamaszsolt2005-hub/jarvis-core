@@ -147,7 +147,7 @@ A parancs explicit `--confirm-restore` megerősítést követel. A parancs ellen
 
 A visszaállítás előtt visszavonja az `anon` és `authenticated` szerepkörök új public táblákra öröklődő alapértelmezett jogosultságait. Csak ezután futtatja a sémát és adatokat egyetlen PostgreSQL tranzakcióban, `ON_ERROR_STOP=1` mellett. Nem üres cél esetén a script még SQL-végrehajtás előtt leáll. A sikertelen tranzakció visszagörgethető.
 
-A friss célprojektben a szükséges PostgreSQL-kiterjesztéseket és platformbeállításokat előzetesen ellenőrizni kell. A CLI dump nem másolja át az összes Supabase platformobjektumot vagy egyedi role-jelszót.
+A friss célprojektben a szükséges PostgreSQL-kiterjesztéseket és platformbeállításokat előzetesen ellenőrizni kell. A PostgreSQL logikai dump nem másolja át az összes Supabase platformobjektumot vagy egyedi role-jelszót.
 
 ## 6. Megőrzés és helyreállítási célok
 
@@ -168,7 +168,7 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - adatbázis-jelszó eltávolítása a parancssori URL-ből, a credential URL-ek kiszűrése a gyermekfolyamatok örökölt környezetéből, és 0600 age identity fájl;
 - a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
-Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul 13 biztonsági tesztje a teljes CI-futtatás részeként sikeresen lefutott.
+Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul mockolt biztonsági tesztjei a teljes CI-futtatás részeként futnak; a legfrissebb futás eredményét a PR Actions ellenőrzése mutatja.
 
 **GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
 
