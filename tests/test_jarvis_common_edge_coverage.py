@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 
 import jarvis_common
+import pytest
 
 
 class FakeModels:
