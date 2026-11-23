@@ -53,7 +53,9 @@ def test_backup_create_ignores_filesystem_permission_hardening_errors(monkeypatc
 
     def fake_runner(args, **_kwargs):
         if args[0] == "pg_dump":
-            Path(args[args.index("--file") + 1]).write_text("SELECT 1;")
+            Path(args[args.index("--file") + 1]).write_text("mock custom-format dump")
+        elif args[0] == "pg_restore":
+            Path(args[args.index("--file") + 1]).write_text("-- extracted mock SQL\\n")
         elif args[0] == "age":
             Path(args[args.index("--output") + 1]).write_bytes(b"encrypted")
         return ""
