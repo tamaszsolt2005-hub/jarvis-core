@@ -32,6 +32,8 @@ A Supabase CLI `db dump` a Supabase által kezelt sémákat kizárja. Ez a megol
 
 A 2026-11-20-i olvasási ellenőrzéskor a `storage.buckets` üres volt, tehát nem volt Supabase Storage bucket. Ha ez változik, a fájlobjektumokra külön mentési folyamat kell.
 
+**Élesítési kapu:** az audit-admin Auth-felhasználó létrehozása előtt külön Auth-mentési és visszaállítási terv szükséges. Az `auth.users`, identitások, munkamenetek és az Auth-konfiguráció nem része ennek a mentésnek; a vizsgálatkori 0 felhasználó nem jelent jövőbeli védelmet. Hasonlóképpen, Storage bucket vagy fájlobjektum használatba vétele előtt külön objektummentést kell beállítani és visszaállítási próbával igazolni.
+
 A Supabase platform napi backup/PITR funkciója a csomagtól függ. A projekt csomagját és a Backups/PITR beállítást nem ellenőriztük. A külső logikai mentés nem helyettesíti a platform backupot.
 
 ## 3. Titkosított mentés
