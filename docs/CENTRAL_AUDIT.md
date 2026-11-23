@@ -18,12 +18,14 @@ A strukturált rekord fontos mezői: `id`, `operation_id`, `created_at`,
 | Feladatok | `task_actions` műveletek | pending a DB-művelet előtt; success/blocked/failed/unknown a kimenet szerint |
 | Kimenő e-mail | `email_sender` | pending az SMTP előtt; címzett, tárgy, jóváhagyás; siker esetén delivery/message ID |
 | Follow-up e-mail | `follow_up.send_follow_up_email` | pending az SMTP előtt; egyetlen UUID köti össze a pending és a lezáró eseményt |
-| CSV lead import | `lead_gen.import_reviewed_csv` | batch pending az import DB-írásai előtt; success számlálókkal; failed hiba esetén |
+| CSV lead import | `lead_gen.import_reviewed_csv` + `create_reviewed_lead` | batch pending/success; minden tényleges lead beszúrás saját pending/success vagy failed/unknown eseménnyel és külön operation ID-val; e-mail-cím és lead payload nélkül |
 | Globális kutatási automatizmus | `global_lead_research_job.daily_global_research` | pending a kutatás előtt; success csak a futás lezárása után; failed hiba esetén |
 | Bejövő e-mail | `email_inbox.inbound_reply` / `inbound_opt_out` | pending a lead állapotmódosítása előtt; success utána; UID-alapú determinisztikus operation ID segíti az audit helyreállítását |
 
-A lead import és a kutatási automatizmus batch-szintű auditot ad. Nem állítja,
-hogy minden egyes kutatási jelölt vagy minden kihagyott CSV-sor külön auditrekordot kap.
+A CSV-import batch- és ténylegesen beszúrt lead-szintű auditot ad; a duplikált vagy
+validáció miatt kihagyott sorok csak a batch számlálóiban jelennek meg. A globális
+kutatási automatizmus batch-szintű auditot ad; nem állítja, hogy minden kutatási
+jelölt vagy kihagyott jelölt külön auditrekordot kap.
 
 ## Hibakezelési szabály
 
