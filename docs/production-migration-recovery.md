@@ -10,7 +10,7 @@ sequence for reconciling its migration history with this repository.
 by this plan.** Do not run `supabase db push` until the reconciliation is
 reviewed and the exact migration state is proven.
 
-## Verified production facts (2026-11-23 audit)
+## Verified production facts (2026-11-24 read-only audit)
 
 - Project status: `ACTIVE_HEALTHY`.
 - Eight `public` tables were listed: `leads`, `tasks`, `email_drafts`,
@@ -34,10 +34,26 @@ reviewed and the exact migration state is proven.
 - Existing production rows are present in `leads`, `logs`, and
   `settings`. Preserve them; do not drop/recreate or replace tables to align
   them with the repository schema.
-- Catalog inspection found table grants for `postgres` and `service_role`.
-  Default-privilege catalog entries include historical entries for more than
-  one object owner; these must be reconciled deliberately rather than inferred
-  from the current table grants.
+- Direct table grants on all eight live public tables are currently limited to
+  `postgres` and `service_role`; no direct `anon` or `authenticated` table
+  grants were returned. This is consistent with the absence of RLS policies,
+  and means the advisor findings alone do not establish current Data API row
+  exposure.
+- **A separate default-privilege issue remains:** `pg_default_acl` contains
+  entries for objects created by `supabase_admin` in `public`. Its default ACLs
+  include `anon` and `authenticated` privileges on future tables
+  (`arwdDxtm`), sequences (`rwU`), and function execution (`X`). The current
+  `postgres` owner defaults are restricted to `postgres` and `service_role`.
+  These defaults apply to objects created by the corresponding owner; they do
+  not retroactively grant access to the existing tables. Before creating new
+  public objects, determine which role actually owns migration-created
+  objects, then review and correct the `supabase_admin` defaults with a
+  version-controlled migration and postcondition checks. Function defaults
+  deserve particular care because PUBLIC execution can expose newly created
+  privileged functions.
+- All eight tables currently have RLS enabled, `FORCE ROW LEVEL SECURITY`
+  disabled, zero policies, and zero non-internal triggers in the read-only
+  catalog query.
 
 ## Migration inventory
 
@@ -72,6 +88,26 @@ Their original SQL source files were not found in the repository's `main`
 branch during the inventory. Do not recreate files under these exact historical
 names and present guessed SQL as the originals. Do not mark versions applied
 or reverted merely to make the CLI output look clean.
+
+## Additional security finding: owner-specific default privileges
+
+The production catalog query returned these defaults for objects created by
+`supabase_admin` in `public`:
+
+- Tables: `anon` and `authenticated` receive all ordinary table privileges.
+- Sequences: `anon` and `authenticated` receive sequence usage/select/update.
+- Functions: `anon` and `authenticated` receive EXECUTE.
+
+By contrast, the `postgres` defaults grant these object privileges only to
+`postgres` and `service_role`. This is an owner-specific PostgreSQL behavior:
+changing defaults for `postgres` does not change defaults for objects created
+by `supabase_admin`. The existing direct grants were checked separately and do
+not currently include `anon` or `authenticated` on the eight listed tables.
+
+Do not issue a blanket `ALTER DEFAULT PRIVILEGES` until the owner role for each
+migration/deployment path is confirmed. The eventual migration must use the
+correct `FOR ROLE` owner, cover tables, sequences, and functions, preserve the
+required `service_role` access, and verify resulting ACLs by catalog query.
 
 ## Required recovery sequence
 
