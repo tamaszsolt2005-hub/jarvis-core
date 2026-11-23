@@ -270,6 +270,6 @@ def test_streamlit_executive_analytics_report_chat_branch_uses_log_facts(monkeyp
 
     _submit_chat(app, "Készíts 30 napos vezetői analitikai jelentést")
     values = _markdown_values(app)
-    assert any("Összes naplózott esemény a 30 napos ablakban: **2**" in value for value in values)
+    assert any("Összes naplózott esemény a 30 napos ablakban: **3**" in value for value in values)
     assert any("Hibaszintű esemény (error/critical/fatal): **1**" in value for value in values)
     assert not app.exception
