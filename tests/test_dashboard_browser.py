@@ -140,7 +140,17 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
 
                 page.get_by_role("button", name="Analitika").click()
                 page.get_by_text("Naplózott aktivitási trend").wait_for(timeout=30000)
-                assert page.locator('[data-testid="stPlotlyChart"]').count() == 4
+                page.screenshot(path=str(screenshot_dir / "analytics-debug.png"), full_page=True)
+                chart_count = page.locator('[data-testid="stPlotlyChart"]').count()
+                if chart_count != 4:
+                    testids = page.locator("[data-testid]").evaluate_all(
+                        "(nodes) => nodes.map(node => node.getAttribute('data-testid')).filter(value => /chart|plot/i.test(value || ''))"
+                    )
+                    raise AssertionError(
+                        f"Expected 4 Plotly charts, got {chart_count}; "
+                        f"chart testids={testids}; body={page.locator('body').inner_text()[-3000:]}; "
+                        f"server log={server_log.read_text(encoding='utf-8')[-3000:]}"
+                    )
                 page.get_by_text("7 nap", exact=True).click()
                 page.wait_for_timeout(500)
                 assert page.locator('[data-testid="stPlotlyChart"]').count() == 4
