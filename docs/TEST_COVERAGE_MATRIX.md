@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`85125f2d1453ce600ab52ef3069bc8fa8d34ca0d` (2026-11-23; Actions run `45091687420`):
+`014597edfe1086bdc561374734400f58811ccb0e` (2026-11-23; Actions run `45092570580`):
 
 - Application Python modules in the repository: 31
-- Test Python files: 45
-- Tests: 404 passed, 2 skipped, 0 failed
-- Statement coverage: 85.15%
+- Test Python files: 47
+- Tests: 421 passed, 2 skipped, 0 failed
+- Statement coverage: 89.88%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -23,7 +23,7 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 52% | Authentication/retrieval/security helpers tested; Streamlit presentation and chat UI remain the largest gap |
+| `dashboard.py` | 77% | Streamlit AppTest covers login, normal chat, email preview and disabled-send behavior; AST contracts cover approval sequencing. Remaining UI branches and analytics presentation still need direct interaction tests |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 88% | Consent, state claims, pending audit, SMTP and failure paths |
 | `follow_up.py` | 87% | Consent recheck and uncertain-delivery no-retry state |
@@ -50,7 +50,8 @@ below lists the remaining files reported by coverage.
 
 Coverage is a statement-level signal, not proof that every business scenario,
 authorization boundary, external integration, or production configuration is
-correct. In particular, dashboard UI behavior still needs more isolated tests.
+correct. Dashboard AppTest uses mocked dependencies; it does not exercise live SMTP,
+a real Supabase project, browser rendering across devices, or every dashboard action branch.
 
 ## Safety boundaries
 
