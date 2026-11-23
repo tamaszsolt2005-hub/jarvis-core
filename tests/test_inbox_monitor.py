@@ -141,3 +141,55 @@ def test_run_processes_new_replies_in_order_and_never_clears_opt_out(monkeypatch
     assert updates[1]["status"] == "opted_out"
     assert updates[1]["reply_category"] == "opt_out"
     assert updates[1]["last_inbound_message_id"] == "<three>"
+
+
+def test_inbox_helpers_handle_missing_headers_empty_payload_and_duplicate_markers():
+    from email.message import EmailMessage
+    from email.header import Header
+
+    assert _decode(None) == ""
+    encoded = Header("Árvíztűrő tükörfúrógép", "utf-8").encode()
+    assert _decode(encoded) == "Árvíztűrő tükörfúrógép"
+    assert _pending_messages(None, None) == []
+
+    empty = EmailMessage()
+    empty.set_type("multipart/mixed")
+    assert _body(empty) == ""
+
+    messages = [
+        (b"1", _message("<marker>")),
+        (b"2", _message("<middle>")),
+        (b"3", _message("<marker>")),
+        (b"4", _message("<newest>")),
+    ]
+    assert [msg["Message-ID"] for _, msg in _pending_messages(messages, "<marker>")] == ["<newest>"]
+
+
+def test_inbox_monitor_skips_when_credentials_are_missing(monkeypatch, capsys):
+    import inbox_monitor
+
+    monkeypatch.setattr(inbox_monitor, "get_secret", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
+    assert inbox_monitor._run() is None
+    assert "hiányzik" in capsys.readouterr().out
+
+
+def test_inbox_monitor_run_reports_and_reraises_worker_failure(monkeypatch):
+    import pytest
+    import inbox_monitor
+
+    failure = ConnectionError("mock IMAP outage")
+    reports = []
+    monkeypatch.setattr(
+        inbox_monitor, "_run",
+        lambda: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(
+        inbox_monitor, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(ConnectionError, match="mock IMAP outage"):
+        inbox_monitor.run()
+    assert reports[0][0] is failure
+    assert reports[0][1]["operation"] == "process_inbox_monitor"
+    assert reports[0][1]["severity"] == "error"
