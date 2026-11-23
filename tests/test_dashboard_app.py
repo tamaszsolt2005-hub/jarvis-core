@@ -543,3 +543,55 @@ def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypa
     assert memory_calls == ["attempted"]
     assert any("túl hosszú lehet" in prompt for prompt in prompts)
     assert not app.exception
+
+
+
+def test_streamlit_executive_report_database_failure_is_explicit_and_reported(monkeypatch):
+    import jarvis_errors
+
+    class BrokenDB:
+        def table(self, _name):
+            raise RuntimeError("mock executive report DB outage")
+
+    reports = []
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: BrokenDB())
+    monkeypatch.setattr(
+        jarvis_errors, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Készíts 30 napos vezetői analitikai jelentést")
+
+    assert any("most nem készíthető el" in value for value in _markdown_values(app))
+    assert reports and reports[0][1]["operation"] == "build_executive_analytics_report"
+    assert "nem helyettesítettem becsült" in " ".join(_markdown_values(app))
+    assert not app.exception
+
+
+def test_streamlit_outer_chat_failure_is_reported_without_fabricated_answer(monkeypatch):
+    import jarvis_errors
+
+    reports = []
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(
+        jarvis_common, "generate_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("mock model failure")),
+    )
+    monkeypatch.setattr(
+        jarvis_errors, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Szia JARVIS")
+
+    assert any("JARVIS művelet" in item.value for item in app.error)
+    assert reports and reports[0][1]["module"] == "dashboard"
+    assert reports[0][1]["severity"] == "error"
+    assert not app.exception
