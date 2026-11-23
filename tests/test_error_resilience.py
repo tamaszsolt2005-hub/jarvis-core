@@ -155,7 +155,7 @@ def test_task_action_failure_is_reported_and_original_error_reraised(monkeypatch
         lambda error, **kwargs: reports.append((error, kwargs)),
     )
     with pytest.raises(RuntimeError) as caught:
-        task_actions.execute_task_action(object(), {"type": "create", "title": "Test"}, approved=True)
+        task_actions.execute_task_action(object(), {"type": "create", "title": "Test", "priority": "normal"}, approved=True)
     assert caught.value is original
     assert reports[0][0] is original
     assert reports[0][1]["module"] == "task_actions"
