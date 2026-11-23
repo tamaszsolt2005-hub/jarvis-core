@@ -256,8 +256,24 @@ def authenticated() -> bool:
 
 
 def _safe_rows(db: Any, table: str, columns: str, limit: int = 500) -> list[dict]:
-    """Read-only, bounded Supabase query. Never writes or exposes credentials."""
-    return db.table(table).select(columns).limit(limit).execute().data or []
+    """Read-only, bounded Supabase query; isolate optional data-source failures."""
+    try:
+        result = db.table(table).select(columns).limit(limit).execute()
+        rows = result.data or []
+        if not isinstance(rows, list):
+            raise TypeError(f"Unexpected row collection for table {table!r}.")
+        return [row for row in rows if isinstance(row, dict)]
+    except Exception as exc:
+        # A missing optional column or unavailable table must not take down the
+        # whole chat/analytics flow. Keep the failure visible in the central log.
+        try:
+            report_error(
+                exc, module="dashboard", operation=f"read_rows:{table}",
+                severity="warning",
+            )
+        except Exception:
+            pass
+        return []
 
 
 def _public_http_url(value: Any) -> str | None:
