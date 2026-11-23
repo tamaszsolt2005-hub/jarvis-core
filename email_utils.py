@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import smtplib
+import re
 from email.message import EmailMessage
 from email.utils import formataddr
 
@@ -9,6 +10,7 @@ from jarvis_common import env_bool, get_secret, required_secret
 
 # Must be explicitly enabled in the server-side environment/secrets.
 EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
+_EMAIL_ADDRESS_RE = re.compile(r"^[^\\s@,;<>]+@[^\\s@,;<>]+\\.[^\\s@,;<>]+$")
 
 
 def send_email(recipient: str, subject: str, body: str) -> str:
