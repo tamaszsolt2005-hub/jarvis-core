@@ -83,8 +83,9 @@ def report_error(
     """Report a sanitized error locally and, when supplied, to the existing logs table.
 
     Supabase persistence is best-effort and never changes the caller's control flow.
-    The logs table's existing error and created_at columns are populated explicitly;
-    operation remains in message because no dedicated operation column exists.
+    The structured error column is populated when available; on a confirmed
+    missing-column error, the event is retried using legacy logs columns.
+    Operation remains in message because no dedicated operation column exists.
     """
     level = str(severity or "error").lower().strip()
     if level not in _ALLOWED_LEVELS:
