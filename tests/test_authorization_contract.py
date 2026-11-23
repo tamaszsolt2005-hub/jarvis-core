@@ -173,50 +173,26 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
 
 
 
+
 def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
-    task_call = next(
-        node for node in ast.walk(DASHBOARD_TREE)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "execute_task_action"
+    approval_start = DASHBOARD_SOURCE.index('elif q in {"jóváhagyom"')
+    consume_index = DASHBOARD_SOURCE.index(
+        'st.session_state.pop("_jarvis_pending_action", None)', approval_start
     )
-    consume_call = next(
-        node for node in ast.walk(DASHBOARD_TREE)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "pop"
-        and len(node.args) >= 1
-        and isinstance(node.args[0], ast.Constant)
-        and node.args[0].value == "_jarvis_pending_action"
-        and node.lineno < task_call.lineno
+    execute_index = DASHBOARD_SOURCE.index(
+        "execute_task_action(db, task_action, approved=True)", approval_start
     )
-    assert consume_call.lineno < task_call.lineno
-    assert "approved=True" in ast.get_source_segment(DASHBOARD_SOURCE, task_call)
+    assert consume_index < execute_index
 
 
 def test_new_chat_request_invalidates_previous_pending_approval():
-    invalidation = next(
-        node for node in ast.walk(DASHBOARD_TREE)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "pop"
-        and len(node.args) >= 1
-        and isinstance(node.args[0], ast.Constant)
-        and node.args[0].value == "_jarvis_pending_action"
-        and "Any new request invalidates it" in ast.get_source_segment(
-            DASHBOARD_SOURCE,
-            next(
-                parent for parent in ast.walk(DASHBOARD_TREE)
-                if isinstance(parent, ast.If)
-                and any(
-                    isinstance(child, ast.Expr)
-                    and isinstance(child.value, ast.Call)
-                    and isinstance(child.value.func, ast.Attribute)
-                    and child.value.func.attr == "pop"
-                    for child in parent.body
-                )
-                and parent.lineno < node.lineno
-            ),
-        )
+    invalidation_comment = DASHBOARD_SOURCE.index(
+        "# A pending approval is valid for exactly the next user message."
     )
-    assert invalidation is not None
+    invalidate_index = DASHBOARD_SOURCE.index(
+        'st.session_state.pop("_jarvis_pending_action", None)', invalidation_comment
+    )
+    parse_index = DASHBOARD_SOURCE.index(
+        "requested_task_action = parse_task_command(prompt)", invalidation_comment
+    )
+    assert invalidation_comment < invalidate_index < parse_index
