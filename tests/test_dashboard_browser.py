@@ -152,7 +152,7 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                 page.get_by_role("button", name="Analitika").click()
                 page.get_by_text("Naplózott aktivitási trend").wait_for(timeout=30000)
                 page.wait_for_function(
-                    "document.querySelectorAll('[data-testid=\\\"stPlotlyChart\\\"]').length === 4",
+                    "document.querySelectorAll('[data-testid=stPlotlyChart]').length === 4",
                     timeout=20000,
                 )
                 page.screenshot(path=str(screenshot_dir / "analytics-debug.png"), full_page=True)
