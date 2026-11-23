@@ -104,10 +104,13 @@ changing defaults for `postgres` does not change defaults for objects created
 by `supabase_admin`. The existing direct grants were checked separately and do
 not currently include `anon` or `authenticated` on the eight listed tables.
 
-Do not issue a blanket `ALTER DEFAULT PRIVILEGES` until the owner role for each
-migration/deployment path is confirmed. The eventual migration must use the
-correct `FOR ROLE` owner, cover tables, sequences, and functions, preserve the
-required `service_role` access, and verify resulting ACLs by catalog query.
+Do not issue a blanket `ALTER DEFAULT PRIVILEGES` solely because the historical
+`supabase_admin` entry exists. The current eight tables and `settings_id_seq`
+are owned by `postgres`, whose defaults are already restricted. Before any
+future migration creates public objects under `supabase_admin`, either ensure
+that path is not used or add a separately reviewed owner-specific default-ACL
+correction. Any such migration must preserve required `service_role` access and
+verify resulting ACLs by catalog query.
 
 ## Required recovery sequence
 
