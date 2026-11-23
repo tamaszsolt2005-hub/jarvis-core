@@ -375,3 +375,77 @@ def test_retrieve_context_suppresses_proactive_zero_counts_when_task_source_fail
     assert "PROAKTÍV JELZÉSEK NEM KÉSZÜLTEK" in context
     assert "overdue_task_count" not in context
     assert "feladatok (adatforrás-hiba)" in loaded
+
+
+
+def test_retrieve_context_keeps_healthy_leads_when_task_source_fails(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class PartiallyAvailableDB:
+        def table(self, name):
+            if name == "tasks":
+                class FailedQuery(_Query):
+                    def execute(self):
+                        raise OSError("mock task store outage")
+                return FailedQuery([])
+            if name == "leads":
+                return _Query([{"id": "lead-healthy", "company_name": "Healthy Ltd", "status": "new"}])
+            return _Query([])
+
+    context, loaded = namespace["retrieve_context"](
+        PartiallyAvailableDB(), "mutasd a leadeket és a feladatokat"
+    )
+    assert "Healthy Ltd" in context
+    assert "ADATFORRÁS NEM ELÉRHETŐ" in context
+    assert "FELADATOK" not in context
+    assert "leadek" in loaded
+    assert "feladatok (adatforrás-hiba)" in loaded
+
+
+def test_optional_draft_read_failure_does_not_hide_lead_context(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class DraftFailureDB:
+        def table(self, name):
+            if name == "email_drafts":
+                class FailedQuery(_Query):
+                    def execute(self):
+                        raise OSError("mock drafts store outage")
+                return FailedQuery([])
+            if name == "leads":
+                return _Query([{"id": "lead-healthy", "company_name": "Healthy Ltd", "status": "new"}])
+            return _Query([])
+
+    context, loaded = namespace["retrieve_context"](
+        DraftFailureDB(), "mutasd az e-mail piszkozatokat"
+    )
+    assert "Healthy Ltd" in context
+    assert "e-mail-piszkozatok metaadatainak olvasása nem sikerült" in context
+    assert "leadek" in loaded
+    assert "e-mail-piszkozatok (adatforrás-hiba)" in loaded
+
+
+def test_analytics_is_not_built_when_both_current_and_legacy_log_reads_fail(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    reports = []
+    namespace["report_error"] = lambda error, **kwargs: reports.append((error, kwargs))
+    namespace["build_chat_analytics_context"] = lambda _rows: pytest.fail(
+        "analytics must not be generated from a failed log read"
+    )
+
+    class LogsUnavailableDB:
+        def table(self, name):
+            if name == "logs":
+                class FailedQuery(_Query):
+                    def execute(self):
+                        raise ConnectionError("mock logs outage")
+                return FailedQuery([])
+            return _Query([])
+
+    context, loaded = namespace["retrieve_context"](LogsUnavailableDB(), "rendszer analitika")
+    assert "ANALITIKA NEM KÉSZÜLT" in context
+    assert "naplóalapú analitika (adatforrás-hiba)" in loaded
+    assert len(reports) == 2
+    assert all(item[1]["operation"] == "read_rows:logs" for item in reports)
