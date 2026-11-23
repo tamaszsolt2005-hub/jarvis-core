@@ -182,8 +182,14 @@ st.markdown(
     div.stButton > button,div[data-testid="stFormSubmitButton"] > button { min-height:2.9rem; border-radius:12px !important; font-weight:700 !important; border:1px solid #2474bb !important; }
     .jarvis-eyebrow { color:#8fcfff; font-size:.76rem; font-weight:800; letter-spacing:.15em; margin-bottom:.4rem; }
 
-    @media(max-width:900px) {
+    @media(max-width:1100px) {
         .block-container { padding-left:20px !important; padding-right:20px !important; }
+        [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; align-items:stretch !important; }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            flex:1 1 180px !important; min-width:180px !important;
+        }
+        .jarvis-kpi { height:132px; padding:14px; }
+        .jarvis-kpi-value { font-size:1.7rem; }
     }
     @media(max-width:760px) {
         [data-testid="stSidebar"] { min-width:min(274px,84vw) !important; width:min(274px,84vw) !important; }
