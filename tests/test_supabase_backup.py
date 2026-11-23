@@ -315,7 +315,7 @@ def test_create_backup_requires_both_external_programs(monkeypatch, tmp_path):
     monkeypatch.setenv("BACKUP_AGE_RECIPIENT", "age1mockrecipient")
     monkeypatch.setenv("JARVIS_BACKUP_SOURCE_PROJECT_REF", backup.PRODUCTION_PROJECT_REF)
     monkeypatch.setattr(backup.shutil, "which", lambda name: None if name == "age" else "/usr/bin/pg_dump")
-    with pytest.raises(backup.BackupError, match="pg_dump és az age"):
+    with pytest.raises(backup.BackupError, match="pg_dump, pg_restore és age"):
         backup.create_backup(tmp_path / "private")
 
 
@@ -459,3 +459,20 @@ def test_backup_uses_one_pg_dump_snapshot_for_schema_and_data(monkeypatch, tmp_p
     assert commands[0][commands[0].index("--file") + 1].endswith("database.dump")
     assert commands[1][-1] == commands[0][commands[0].index("--file") + 1]
     assert commands[2][-1] == commands[0][commands[0].index("--file") + 1]
+
+
+
+def test_run_checked_sanitizes_database_urls_even_without_explicit_env(monkeypatch):
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:never-leak@db.kiutreccucbegskxowek.supabase.co/postgres")
+    monkeypatch.setenv("JARVIS_RESTORE_DB_URL", "postgresql://postgres:also-never-leak@db.abcdefghijklmnopqrst.supabase.co/postgres")
+    captured = {}
+
+    def fake_run(_args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(_args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(backup.subprocess, "run", fake_run)
+    backup.run_checked(["age", "--version"])
+
+    assert "SUPABASE_DB_URL" not in captured["env"]
+    assert "JARVIS_RESTORE_DB_URL" not in captured["env"]
