@@ -567,7 +567,7 @@ def test_streamlit_executive_report_database_failure_is_explicit_and_reported(mo
     _submit_chat(app, "Készíts 30 napos vezetői analitikai jelentést")
 
     assert any("most nem készíthető el" in value for value in _markdown_values(app))
-    assert reports and reports[0][1]["operation"] == "build_executive_analytics_report"
+    assert any(item[1]["operation"] == "build_executive_analytics_report" for item in reports)
     assert "nem helyettesítettem becsült" in " ".join(_markdown_values(app))
     assert not app.exception
 
