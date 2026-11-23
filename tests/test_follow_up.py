@@ -26,7 +26,8 @@ def _lead(**overrides):
 
 def test_follow_up_requires_explicit_timestamped_consent_and_due_unreplied_lead():
     now = datetime.now(timezone.utc)
-    assert follow_up._eligible_for_follow_up(_lead(), now)
+    valid = _lead(consent_confirmed_at=(now - timedelta(seconds=1)).isoformat())
+    assert follow_up._eligible_for_follow_up(valid, now)
     assert not follow_up._eligible_for_follow_up(_lead(consent_basis="legitimate_interest"), now)
     assert not follow_up._eligible_for_follow_up(_lead(approved_to_contact=False), now)
     assert not follow_up._eligible_for_follow_up(_lead(opted_out=True), now)
