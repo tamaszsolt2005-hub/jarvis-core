@@ -282,7 +282,7 @@ def test_proactive_signals_require_open_tasks_and_explicit_non_opted_out_consent
     )
 
     assert signals["overdue_task_count"] == 1
-    assert signals["overdue_tasks"][0]["id"] if "id" in signals["overdue_tasks"][0] else True
+    assert signals["overdue_tasks"][0]["title"] == "Lejárt feladat"
     assert signals["overdue_approved_followup_count"] == 1
     assert signals["overdue_approved_followups"][0]["company_name"] == "Engedélyezett Kft."
     assert "nem automatikus műveletek" in signals["interpretation"]
