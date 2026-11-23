@@ -1,7 +1,7 @@
 # JARVIS – aktuális projektállapot
 
-**Utolsó ellenőrzött dokumentációs állapot:** 2026-11-20  
-**Repository:** `tamaszsolt2005-hub/jarvis-core` · **Branch:** `main`  
+**Utolsó ellenőrzött dokumentációs állapot:** 2026-11-23  
+**Repository:** `tamaszsolt2005-hub/jarvis-core` · **Branch:** `feat/proactive-monitor-and-runtime-diagnostics`  
 **Supabase-projekt:** Jarvis · `kiutreccucbegskxowek` · EU West
 
 ## Hogyan olvasd ezt a dokumentumot?
@@ -20,10 +20,10 @@ Egy korábbi teszt vagy környezeti változó megléte nem bizonyítja a jelenle
 - A korábban csak Python-modulként létező `proactive_monitor.py` most külön `proactive_monitor_job.py` belépési pontot és napi GitHub Actions workflow-t kapott.
 - Az ütemezés 08:20 UTC: a globális leadkutatás (08:00 UTC) után és a vezetői briefing (08:30 UTC) előtt fut.
 - A workflow csak a meglévő Supabase projekt konfigurált titkaival indul; hiányzó titkoknál biztonságosan kihagyja a futást.
-- A riport 14 napos artifactként érhető el. A monitor kizárólag a `jarvis_proactive_state` technikai pillanatképét frissíti; leadet, feladatot és e-mailt nem módosít.
+- A riport 14 napos artifactként érhető el. Sikeres futáskor a monitor a `jarvis_proactive_state` technikai pillanatképét upserteli; hiba esetén a központi hibajelentő a `logs` táblába is megpróbálhat warning eseményt írni. Leadet, feladatot, beállítást és e-mail-tervezetet nem módosít.
 - A rendszerdiagnosztika most az `email_drafts`, `audit_chain_state` táblát és a strukturált `logs.operation_id` auditmezőt is ellenőrzi, így az ismert migrációs hiányokat láthatóvá teszi.
 
-**Ellenőrzési határ:** a kódhoz mockolt tesztek készültek, de a teljes pytest/CI futás eredménye még nincs igazolva. A GitHub Actions titkok megléte és az ütemezés definíciója nem bizonyítja, hogy a napi workflow élesben sikeresen lefutott.
+**Automatikus ellenőrzés:** a `06d6e46c27a48f71b98af85cee7e0320373e5e08` kódcommit GitHub Actions JARVIS CI-futása (45214021598) 2026-11-23-án sikeres lett: `compileall`, CloudFormation-validáció, Playwright böngészők telepítése, unit/AppTest/browser tesztlépés és artifact-feltöltések mind sikeresek. A következő dokumentációs commit CI-futása külön ellenőrzendő. A tesztek mockoltak; éles Supabase-integráció és ütemezett futás nincs igazolva.
 
 **Továbbra is blokkolt:** a teljes RBAC bekötés, a hiányzó öt történeti migráció eredeti SQL-forrása, az éles RLS-policy-k, az audit migráció production alkalmazása, a mentés-visszaállítás bizonyítása és a valós Supabase/Auth integrációs tesztek. Ezeket nem lehet biztonságosan helyettesíteni találgatott SQL-lel vagy új Supabase-tesztprojekt létrehozásával.
 
@@ -106,6 +106,7 @@ A workflow-fájlokban definiált UTC ütemezések:
 | Workflow | Ütemezés | Feladat |
 |---|---:|---|
 | `.github/workflows/global-lead-research.yml` | naponta 08:00 UTC | globális céges leadkutatás |
+| `.github/workflows/proactive-monitor.yml` | naponta 08:20 UTC | proaktív lead- és feladatváltozás-figyelés, technikai snapshot |
 | `.github/workflows/daily-briefing.yml` | naponta 08:30 UTC | vezetői briefing és artifact |
 | `.github/workflows/email-automation.yml` | naponta 09:15 UTC | inbox-ellenőrzés, majd feltételes háttérküldés |
 | `.github/workflows/ci.yml` | push, pull request, kézi indítás | compileall és pytest |
@@ -114,12 +115,12 @@ A `jarvis.yml` és `jarvis-cron.yml` régi, letiltott no-op workflow-k; nem szab
 
 ## Nyitott ellenőrzések és ismert eltérések
 
-1. Futtasd le a jelenlegi teljes tesztcsomagot Codespaces-ben, és rögzítsd az új, dátumozott eredményt.\n2. Ellenőrizd a `jarvis_errors.py`-hoz hozzáadott tesztek és a teljes CI futás eredményét.
+1. A GitHub Actions CI teljes tesztlépése a `06d6e46` commiton sikeres; a Codespaces-ben futtatott helyi teszt továbbra sincs igazolva. A dokumentációs commit utáni CI-futást is ellenőrizni kell.\n2. Ellenőrizd a `jarvis_errors.py`-hoz hozzáadott tesztek és a teljes CI futás eredményét.
 2. Ellenőrizd a Gemini- és dashboard-folyamatot valós, kontrollált környezetben.
 3. Ellenőrizd a legutóbbi GitHub Actions futásokat és artifactokat.
 4. Végezz kontrollált SMTP/IMAP végponttól végpontig tesztet, valódi címzettnek küldés előtt címzettkorlátozással.
 5. **Supabase `posts` tábla – ellenőrizve 2026-11-20:** a megfelelő Jarvis-projekt `public` sémájában nyolc tábla van. A `posts` tábla létezik, 0 rekorddal, RLS bekapcsolva; oszlopai: `id`, `content`, `scheduled_for`, `status`, `created_at`. A repository `supabase/schema.sql` és a kódkeresés nem tartalmaz `posts` definíciót vagy használatot. Ez jelenleg árva/legacy táblának látszik. Nem töröltük és nem módosítottuk; külön döntés és mentés nélkül maradjon érintetlen.
-6. **Proaktív monitor – ellenőrizve:** a `proactive_monitor.py` `run_proactive_monitor()` függvénye implementált: legfeljebb 2000 leadet és 1000 feladatot vizsgál, előző pillanatképpel hasonlítja össze őket, jelzi az új/módosult rekordokat, lejárt/mai/sürgős feladatokat, majd a `jarvis_proactive_state` táblába ment pillanatképet. A leadeket és feladatokat nem módosítja. Repository-keresésben és aktív workflow-kban nincs hívása, ezért nincs bekötve és nincs ütemezve. A dashboard `_proactive_signals()` függvénye külön, pillanatnyi állapotjelzés; nem ez a változásfigyelő. Állapot: implementált, de automatikus futás nem igazolt.
+6. **Proaktív monitor – bekötve, még nem üzemszerűen igazolt:** a `proactive_monitor_job.py` és a `.github/workflows/proactive-monitor.yml` napi 08:20 UTC futást definiál, a workflow 14 napos riport-artifactot tesz közzé. A `run_proactive_monitor()` legfeljebb 2000 leadet és 1000 feladatot vizsgál, majd sikeres futáskor a `jarvis_proactive_state` technikai pillanatképét frissíti; leadet és feladatot nem módosít. A workflow csak a PR merge-je után, a default branch-en aktiválódik; a PR jelenleg draft és nincs merge-elve, ezért ütemezett éles futás nem történt igazoltan. A dashboard `_proactive_signals()` ettől különálló, pillanatnyi állapotjelzés.
 7. **Elavult dashboard-megjegyzés – javítva:** a `dashboard.py` fejlécének docstringje korábban azt állította, hogy az alkalmazás soha nem küld e-mailt. A kód valójában támogat chatből e-mail-tervezetet, majd külön jóváhagyás és `EMAIL_DELIVERY_ENABLED` + `CHAT_EMAIL_ENABLED` kapcsolók mellett SMTP-küldési kísérletet. A docstringet ehhez igazítottuk. Ez nem bizonyítja a tényleges kézbesítést; az SMTP-integráció továbbra is külön ellenőrzendő.
 
 ## Dokumentációs szabály
