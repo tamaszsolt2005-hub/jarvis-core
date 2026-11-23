@@ -19,7 +19,8 @@ def test_audit_migration_uses_trusted_admin_claim_and_denies_mutations():
 
 def test_audit_hash_chain_serializes_inserts_and_uses_sha256():
     sql = (ROOT / "supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql").read_text()
-    assert "pg_advisory_xact_lock" in sql
+    assert "audit_chain_state" in sql
+    assert "for update" in sql.lower()
     assert "extensions.digest" in sql
     assert "'sha256'" in sql
     assert "previous_hash" in sql
