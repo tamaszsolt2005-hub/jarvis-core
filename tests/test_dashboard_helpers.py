@@ -454,7 +454,7 @@ def test_analytics_is_not_built_when_both_current_and_legacy_log_reads_fail(monk
 
 def test_website_profile_follows_public_redirect_and_closes_each_response(monkeypatch):
     profile, safe_http, closed, _reports = _website_namespace(monkeypatch)
-    profile.__globals__["_public_http_url"] = lambda value: value
+    profile.__globals__["_public_http_url"] = lambda value: value if "://" in value else "https://" + value
     redirect = _Response(status=302, headers={"Location": "/about"})
     final = _Response(chunks=[
         b"<html><title>About</title><body>" + b"Company services contact " * 20 + b"</body></html>"
