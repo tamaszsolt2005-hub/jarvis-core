@@ -298,3 +298,59 @@ def test_safe_rows_rejects_unexpected_response_shape_without_crashing(monkeypatc
 
     assert fn_namespace["_safe_rows"](OddDB(), "tasks", "id") == []
     assert isinstance(reports[0][0], TypeError)
+
+
+
+def test_safe_rows_status_distinguishes_empty_result_from_database_failure(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+    fn = namespace["_safe_rows"]
+
+    empty_status = {}
+    empty_db = type("EmptyDB", (), {
+        "table": lambda self, _name: _Query([])
+    })()
+    assert fn(empty_db, "leads", "*", status=empty_status) == []
+    assert empty_status == {"ok": True, "error": False, "error_type": None}
+
+    failed_status = {}
+    class FailedQuery(_Query):
+        def execute(self):
+            raise OSError("mock offline database")
+    failed_db = type("FailedDB", (), {
+        "table": lambda self, _name: FailedQuery([])
+    })()
+    assert fn(failed_db, "leads", "*", status=failed_status) == []
+    assert failed_status == {"ok": False, "error": True, "error_type": "OSError"}
+
+
+def test_retrieve_context_does_not_present_database_failure_as_empty_lead_list(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class FailedQuery(_Query):
+        def execute(self):
+            raise OSError("mock offline database")
+    class FailedDB:
+        def table(self, _name):
+            return FailedQuery([])
+
+    context, loaded = namespace["retrieve_context"](FailedDB(), "mutasd a leadeket")
+    assert "ADATFORRÁS NEM ELÉRHETŐ" in context
+    assert "nem tekinthető üres leadlistának" in context
+    assert "Vizsgált leadek" not in context
+    assert "leadek (adatforrás-hiba)" in loaded
+
+
+def test_retrieve_context_keeps_a_real_empty_lead_list_distinct(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class EmptyDB:
+        def table(self, _name):
+            return _Query([])
+
+    context, loaded = namespace["retrieve_context"](EmptyDB(), "mutasd a leadeket")
+    assert "Vizsgált leadek (legfeljebb 1500): 0" in context
+    assert "ADATFORRÁS NEM ELÉRHETŐ" not in context
+    assert "leadek" in loaded
