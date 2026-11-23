@@ -20,7 +20,7 @@ from jarvis_common import estimate_response_tokens, generate_text, get_secret, g
 from jarvis_errors import report_error, sanitize_log_text
 from audit_admin import (
     audit_rows_to_csv, fetch_audit_page, sign_in_audit_admin,
-    sign_out_audit_admin, verified_admin_client,
+    sign_out_audit_admin, verified_admin_client, verify_audit_integrity,
 )
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
@@ -363,6 +363,29 @@ def render_audit_admin_page() -> None:
         if st.button("Következő →", disabled=next_cursor is None, key="jarvis_audit_next"):
             cursor_stack.append(next_cursor)
             st.rerun()
+
+    if st.button("Hash-lánc integritásának ellenőrzése", key="jarvis_audit_integrity_check"):
+        try:
+            integrity = verify_audit_integrity(audit_client)
+            if integrity.get("ok") is True:
+                st.success(
+                    f"Az audit hash-lánc ellenőrzése sikeres. "
+                    f"Vizsgált bejegyzések: {integrity.get('total_entries', 0)}."
+                )
+            else:
+                st.error(
+                    "Az audit hash-lánc integritása nem igazolható. "
+                    f"Hibás hash: {integrity.get('invalid_hashes')}; "
+                    f"hiányzó előzmény: {integrity.get('missing_predecessors')}; "
+                    f"elágazás: {integrity.get('forks')}; "
+                    f"levált rekord: {integrity.get('disconnected_entries')}."
+                )
+        except Exception as exc:
+            report_error(
+                exc, module="dashboard", operation="audit_integrity_check",
+                severity="critical",
+            )
+            st.error("Az audit integritásának ellenőrzése nem futtatható le.")
 
     if rows:
         st.dataframe(rows, use_container_width=True, hide_index=True)
