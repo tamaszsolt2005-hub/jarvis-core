@@ -97,6 +97,25 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
     return None
 
 
+
+def _record_success_audit(db: Any, *, action: str, operation_id: str, result: dict[str, Any]) -> bool:
+    """Record completion; surface an audit outage without hiding the completed DB action."""
+    saved = audit_event(
+        db, module="task_actions", action=action, status="success",
+        operation_id=operation_id, approved=True, result=result,
+    )
+    if saved:
+        return True
+    report_error(
+        RuntimeError("A feladatművelet végrehajtása megtörtént, de a sikeres auditbejegyzés nem menthető."),
+        module="task_actions",
+        operation=f"audit_success:{action}",
+        severity="critical",
+        db=db,
+    )
+    return False
+
+
 def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
     """Execute a previously parsed action only after the chat approval gate."""
     kind = action.get("type")
@@ -116,7 +135,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         }
         result = db.table("tasks").insert(payload).execute()
         row = (result.data or [{}])[0]
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": row.get("id")})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": row.get("id")},
+        )
+        if not audit_saved:
+            return f"A feladat létrejött: **{action['title']}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat létrehozva: **{action['title']}** (azonosító: {row.get('id', 'a rendszer visszaigazolása szerint')})."
 
     task_id = action.get("id")
@@ -136,7 +160,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         if not result.data:
             audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt lezárás."
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": task_id},
+        )
+        if not audit_saved:
+            return f"A feladat lezárult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat lezárva: **{title}**."
     if kind == "update":
         payload = dict(action["updates"])
@@ -145,7 +174,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         if not result.data:
             audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt módosítás."
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id, "updated_fields": sorted(action["updates"])})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": task_id, "updated_fields": sorted(action["updates"])},
+        )
+        if not audit_saved:
+            return f"A feladat módosult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat módosítva: **{title}**."
     return "Ismeretlen feladatművelet; nem történt módosítás."
 
