@@ -330,3 +330,56 @@ def test_smtp_rejects_recipient_header_injection_before_connection(monkeypatch):
             "Subject",
             "Body",
         )
+
+
+@pytest.mark.parametrize(
+    ("recipient", "subject", "body"),
+    [
+        ("not-an-address", "Subject", "Body"),
+        ("one@example.test,two@example.test", "Subject", "Body"),
+        ("recipient@example.test", "", "Body"),
+        ("recipient@example.test", "Subject\\r\\nBcc: bad@example.test", "Body"),
+        ("recipient@example.test", "Subject", None),
+    ],
+)
+def test_smtp_rejects_invalid_headers_and_body_before_connection(monkeypatch, recipient, subject, body):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.test",
+        "EMAIL_PASSWORD": "mock-password",
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(
+        email_utils.smtplib, "SMTP",
+        lambda *_args, **_kwargs: pytest.fail("Invalid message must fail before SMTP"),
+    )
+
+    with pytest.raises(ValueError):
+        email_utils.send_email(recipient, subject, body)
+
+
+def test_smtp_rejects_invalid_sender_and_from_name_before_connection(monkeypatch):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "not-an-email",
+        "EMAIL_PASSWORD": "mock-password",
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(
+        email_utils.smtplib, "SMTP",
+        lambda *_args, **_kwargs: pytest.fail("Invalid sender must fail before SMTP"),
+    )
+
+    with pytest.raises(ValueError, match="EMAIL_USER"):
+        email_utils.send_email("recipient@example.test", "Subject", "Body")
+
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda name: {"EMAIL_USER": "sender@example.test", "EMAIL_PASSWORD": "mock-password"}[name],
+    )
+    monkeypatch.setattr(
+        email_utils, "get_secret",
+        lambda name, default=None: "JARVIS\\r\\nBcc: bad@example.test" if name == "EMAIL_FROM_NAME" else default,
+    )
+    with pytest.raises(ValueError, match="feladó név"):
+        email_utils.send_email("recipient@example.test", "Subject", "Body")
