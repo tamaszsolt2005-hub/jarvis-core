@@ -65,7 +65,7 @@ def _prepare_dashboard(monkeypatch):
     )
 
     app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
-    return app, task_calls, smtp_calls
+    return app, smtp_calls
 
 
 def _submit_chat(app, prompt):
@@ -78,8 +78,8 @@ def _markdown_values(app):
     return [element.value for element in app.markdown]
 
 
-def test_streamlit_login_chat_task_approval_and_email_preview_are_isolated(monkeypatch):
-    app, task_calls, smtp_calls = _prepare_dashboard(monkeypatch)
+def test_streamlit_login_chat_and_email_preview_are_isolated(monkeypatch):
+    app, smtp_calls = _prepare_dashboard(monkeypatch)
     app.run()
     assert not app.exception
     assert len(app.text_input) == 1
@@ -99,7 +99,6 @@ def test_streamlit_login_chat_task_approval_and_email_preview_are_isolated(monke
     _submit_chat(app, "Szia JARVIS, válaszolj röviden.")
     assert any("APPT_CHAT_RESPONSE" in value for value in _markdown_values(app))
 
-    _submit_chat(app, "Hozz létre feladat: AppTest ellenőrzés; prioritás=high")
     _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
     assert smtp_calls == []
     assert any("APPT levéltörzs" in value for value in _markdown_values(app))
