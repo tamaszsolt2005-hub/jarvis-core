@@ -27,6 +27,8 @@ Resources:
 
   BackupKmsKey:
     Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Description: JARVIS encrypted database backup objects in S3.
       EnableKeyRotation: true
@@ -49,6 +51,8 @@ Resources:
 
   BackupBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
