@@ -3,7 +3,8 @@
 
 alter table public.logs
   add column if not exists previous_hash text,
-  add column if not exists entry_hash text;
+  add column if not exists entry_hash text,
+  add column if not exists actor_user_id uuid;
 
 -- Audit rows are readable only by authenticated users whose trusted JWT
 -- app_metadata.role is admin. user_metadata is intentionally never consulted.
