@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 import pytest
 
 from jarvis_common import get_audit_events, get_audit_events_page
