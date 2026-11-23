@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           identity="$RUNNER_TEMP/jarvis-age-identity.txt"
-          printf '%s\\n' "$BACKUP_AGE_IDENTITY" > "$identity"
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$identity"
           chmod 600 "$identity"
           echo "AGE_IDENTITY_FILE=$identity" >> "$GITHUB_ENV"
 
