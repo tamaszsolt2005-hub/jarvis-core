@@ -127,3 +127,74 @@ def test_inbound_email_does_not_change_lead_when_pending_audit_fails(monkeypatch
 
     with pytest.raises(RuntimeError, match="pending audit"):
         email_inbox._run()
+
+
+
+def test_individual_lead_insert_stops_when_its_own_pending_audit_fails(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    import csv
+    import lead_gen
+
+    source = tmp_path / "one-lead.csv"
+    row = {
+        "company_name": "Példa Kft.",
+        "email": "contact@example.test",
+        "consent_basis": "consent",
+        "approved_to_contact": "yes",
+        "consent_confirmed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    with source.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+
+    class Result:
+        data = []
+
+    class Query:
+        def __init__(self, db):
+            self.db = db
+            self.payload = None
+
+        def select(self, *_args):
+            return self
+
+        def ilike(self, *_args):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def insert(self, payload):
+            self.payload = payload
+            return self
+
+        def execute(self):
+            if self.payload is not None:
+                self.db.inserted.append(self.payload)
+            return Result()
+
+    class DB:
+        def __init__(self):
+            self.inserted = []
+
+        def table(self, _name):
+            return Query(self)
+
+    db = DB()
+    audits = []
+
+    def audit(_db, **kwargs):
+        audits.append(kwargs)
+        return kwargs["action"] != "create_reviewed_lead"
+
+    monkeypatch.setattr(lead_gen, "get_supabase", lambda: db)
+    monkeypatch.setattr(lead_gen, "audit_event", audit)
+    monkeypatch.setattr(lead_gen, "report_error", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="pending audit"):
+        lead_gen.run(str(source))
+
+    assert db.inserted == []
+    assert [item["status"] for item in audits] == ["pending", "pending", "failed", "failed"]
+    assert audits[1]["operation_id"] == audits[2]["operation_id"]
