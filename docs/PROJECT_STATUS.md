@@ -14,6 +14,19 @@ Ez a fájl a változó projektállapot egyetlen irányadó helye. Különböztes
 
 Egy korábbi teszt vagy környezeti változó megléte nem bizonyítja a jelenlegi éles működést.
 
+## Proaktív monitor és diagnosztika – 2026-11-23
+
+**Most bekötve a repositoryban:**
+- A korábban csak Python-modulként létező `proactive_monitor.py` most külön `proactive_monitor_job.py` belépési pontot és napi GitHub Actions workflow-t kapott.
+- Az ütemezés 08:20 UTC: a globális leadkutatás (08:00 UTC) után és a vezetői briefing (08:30 UTC) előtt fut.
+- A workflow csak a meglévő Supabase projekt konfigurált titkaival indul; hiányzó titkoknál biztonságosan kihagyja a futást.
+- A riport 14 napos artifactként érhető el. A monitor kizárólag a `jarvis_proactive_state` technikai pillanatképét frissíti; leadet, feladatot és e-mailt nem módosít.
+- A rendszerdiagnosztika most az `email_drafts`, `audit_chain_state` táblát és a strukturált `logs.operation_id` auditmezőt is ellenőrzi, így az ismert migrációs hiányokat láthatóvá teszi.
+
+**Ellenőrzési határ:** a kódhoz mockolt tesztek készültek, de a teljes pytest/CI futás eredménye még nincs igazolva. A GitHub Actions titkok megléte és az ütemezés definíciója nem bizonyítja, hogy a napi workflow élesben sikeresen lefutott.
+
+**Továbbra is blokkolt:** a teljes RBAC bekötés, a hiányzó öt történeti migráció eredeti SQL-forrása, az éles RLS-policy-k, az audit migráció production alkalmazása, a mentés-visszaállítás bizonyítása és a valós Supabase/Auth integrációs tesztek. Ezeket nem lehet biztonságosan helyettesíteni találgatott SQL-lel vagy új Supabase-tesztprojekt létrehozásával.
+
 ## Implementált fő funkciók
 
 - Magyar nyelvű Streamlit chat, Gemini-integráció, beszélgetési előzmény és adaptív kimeneti tokenkeret.
