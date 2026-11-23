@@ -41,7 +41,7 @@ def test_diagnostics_reports_missing_configuration_without_connecting(monkeypatc
     monkeypatch.setattr(health_check, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     report = run_self_diagnostics()
-    assert "1/15" in report  # Only the hard-coded email safety lock can pass without secrets.
+    assert "1/18" in report  # Only the hard-coded email safety lock can pass without secrets.
     assert "SUPABASE_URL" in report
     assert "GEMINI_API_KEY" in report
     assert "E-mail-küldési biztonsági zár" in report
@@ -62,7 +62,7 @@ def test_diagnostics_checks_all_required_tables_and_gemini(monkeypatch):
     monkeypatch.setattr(health_check, "get_supabase", lambda: FakeDB())
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: FakeGemini())
     report = run_self_diagnostics()
-    assert "15/15" in report
+    assert "18/18" in report
     for table in REQUIRED_TABLES:
         assert f"Supabase tábla: {table}" in report
     assert "Gemini API próbakérés | OK" in report
@@ -121,6 +121,39 @@ def test_diagnostics_reports_supabase_initialization_failure_without_business_wr
     assert "Supabase oszlop: leads.website | FIGYELMET IGÉNYEL" in report
     assert reports[0][1]["operation"] == "initialize_supabase"
     assert reports[0][1]["severity"] == "warning"
+
+
+def test_diagnostics_flags_missing_structured_audit_migration(monkeypatch):
+    import health_check
+
+    values = {
+        "SUPABASE_URL": "url",
+        "SUPABASE_SERVICE_ROLE_KEY": "key",
+        "GEMINI_API_KEY": None,
+        "JARVIS_DASHBOARD_PASSWORD": "pw",
+    }
+
+    class Query(FakeQuery):
+        def __init__(self, table):
+            self.table = table
+
+        def select(self, columns):
+            if self.table == "logs" and columns == "operation_id":
+                raise RuntimeError("column logs.operation_id does not exist")
+            return self
+
+    class DB:
+        def table(self, name):
+            return Query(name)
+
+    monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
+    monkeypatch.setattr(health_check, "get_supabase", lambda: DB())
+
+    report = run_self_diagnostics()
+
+    assert "Supabase tábla: email_drafts | OK" in report
+    assert "Supabase tábla: audit_chain_state | OK" in report
+    assert "Supabase auditmezők: logs.operation_id | FIGYELMET IGÉNYEL" in report
 
 
 def test_diagnostics_reports_missing_optional_columns(monkeypatch):
