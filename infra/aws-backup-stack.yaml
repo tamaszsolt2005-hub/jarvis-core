@@ -148,13 +148,16 @@ Resources:
                   - s3:AbortMultipartUpload
                   - s3:ListMultipartUploadParts
                 Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*
-              - Sid: EncryptBackupObjects
+              - Sid: UseBackupKmsKeyThroughS3
                 Effect: Allow
                 Action:
                   - kms:GenerateDataKey
-                  - kms:Encrypt
-                  - kms:DescribeKey
+                  - kms:Decrypt
                 Resource: !GetAtt BackupKmsKey.Arn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub s3.${AWS::Region}.amazonaws.com
+                    kms:EncryptionContext:aws:s3:arn: !GetAtt BackupBucket.Arn
 
 Outputs:
   BackupBucketName:
