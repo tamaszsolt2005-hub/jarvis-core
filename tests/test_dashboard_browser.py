@@ -212,10 +212,10 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                             };
                         }"""
                     )
+                    page.screenshot(path=str(screenshot_dir / f"analytics-{label}.png"), full_page=True)
                     assert dimensions["chartCount"] == 4, (label, dimensions)
                     assert dimensions["mainScroll"] <= dimensions["mainClient"] + 2, (label, dimensions)
                     assert all(0 < chart_width <= dimensions["mainClient"] + 2 for chart_width in dimensions["chartWidths"]), (label, dimensions)
-                    page.screenshot(path=str(screenshot_dir / f"analytics-{label}.png"), full_page=True)
 
                 page.get_by_role("button", name="Chat").click()
                 page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=15000)
