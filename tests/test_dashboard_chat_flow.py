@@ -177,8 +177,8 @@ def test_normal_chat_uses_retrieved_context_and_bounded_recent_history():
         "max_chars=10000",
         "max_message_chars=3000",
         "answer = generate_text(",
-        "f" + '"BESZÉLGETÉSI ELŐZMÉNY:\\n{history}\\n\\n"',
-        "f" + '"FELHASZNÁLÓ KÉRDÉSE: {prompt}\\n\\nVÁLASZKERET:',
+        "f" + '"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"',
+        "f" + '"FELHASZNÁLÓ KÉRDÉSE: {prompt}\n\nVÁLASZKERET:',
     ])
 
 
