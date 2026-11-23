@@ -29,3 +29,10 @@ jobs:
           name: jarvis-dashboard-responsive-screenshots
           path: test-results/**/*.png
           if-no-files-found: ignore
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-coverage-report
+          path: coverage.xml
+          if-no-files-found: ignore
