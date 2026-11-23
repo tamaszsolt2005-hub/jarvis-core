@@ -76,8 +76,11 @@ def _approved_lead():
         "company_name": "Example Ltd",
         "status": "new",
         "consent_basis": "consent",
+        "consent_confirmed_at": datetime.now(timezone.utc).isoformat(),
         "approved_to_contact": True,
         "opted_out": False,
+        "reply_category": None,
+        "last_inbound_message_id": None,
     }
 
 
@@ -293,3 +296,38 @@ def test_follow_up_draft_skips_website_audit_and_adds_opt_out(monkeypatch):
     assert "Kedves Partner" in body
     assert "LEIRATKOZOM" in body
     assert "Example Ltd" in prompts[0]
+
+
+def test_sender_rejects_wrong_send_mode_before_database_access():
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("Wrong send mode must not access the database")
+
+    lead = _approved_lead()
+    lead["status"] = "sent"
+    assert email_sender._send_one(
+        ForbiddenDB(), lead, False, datetime.now(timezone.utc)
+    ) is False
+
+    lead["status"] = "new"
+    assert email_sender._send_one(
+        ForbiddenDB(), lead, True, datetime.now(timezone.utc)
+    ) is False
+
+
+def test_sender_rejects_replied_or_invalid_address_before_database_access():
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("Ineligible lead must not access the database")
+
+    lead = _approved_lead()
+    lead["reply_category"] = "reply"
+    assert email_sender._send_one(
+        ForbiddenDB(), lead, False, datetime.now(timezone.utc)
+    ) is False
+
+    lead = _approved_lead()
+    lead["email"] = "invalid-address"
+    assert email_sender._send_one(
+        ForbiddenDB(), lead, False, datetime.now(timezone.utc)
+    ) is False
