@@ -71,6 +71,7 @@ def _free_port() -> int:
 def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monkeypatch):
     playwright = pytest.importorskip("playwright.sync_api")
     from playwright.sync_api import sync_playwright
+    from plotly.offline import get_plotlyjs
 
     shim_dir = tmp_path / "python-shim"
     shim_dir.mkdir()
@@ -123,10 +124,20 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     service_workers="block",
                 )
                 page = context.new_page()
-                page.route(
-                    "**/*",
-                    lambda route: route.continue_() if route.request.url.startswith(base_url) else route.abort(),
-                )
+                local_plotly_js = get_plotlyjs()
+
+                def route_without_external_network(route):
+                    request_url = route.request.url
+                    if request_url.startswith(base_url):
+                        route.continue_()
+                    elif "plotly" in request_url.casefold() and ".js" in request_url.casefold():
+                        # Streamlit's chart bundle may request Plotly.js from a CDN.
+                        # Fulfil it from the already-installed local Python package.
+                        route.fulfill(status=200, content_type="application/javascript", body=local_plotly_js)
+                    else:
+                        route.abort()
+
+                page.route("**/*", route_without_external_network)
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60000)
                 page.screenshot(path=str(screenshot_dir / "login-desktop.png"), full_page=True)
                 page.get_by_label("Dashboard jelszó").fill("browser-test-password")
