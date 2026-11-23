@@ -2,13 +2,13 @@
 
 ## Verified baseline
 
-The following numbers are from the successful GitHub Actions run for PR #9, head
-`1c6f25c0240c4bb0a72059cf106e68de85fb34b2` (2026-11-23; Actions run `45100732685`):
+The final coverage run for PR #9 used head
+`c3dfddfd1ae7b049c61c6aa3b2636541c9b092ba` (2026-11-23; Actions run `45132352299`):
 
 - Application Python modules in the repository: 31
-- Test Python files: 53
-- Tests: 509 passed, 2 skipped, 0 failed
-- Statement coverage: 95.44%
+- Test Python files: 59
+- Tests: 594 passed, 2 skipped, 0 failed
+- Statement coverage: 97.70%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -22,14 +22,14 @@ below lists the remaining files reported by coverage.
 |---|---:|---|
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 93% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
+| `dashboard.py` | 97% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
 | `email_inbox.py` | 99% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
-| `email_sender.py` | 94% | Consent recheck, atomic state claims, pending audit, SMTP failure and follow-up limit paths |
+| `email_sender.py` | 98% | Consent recheck, atomic state claims, pending audit, SMTP failure and follow-up limit paths |
 | `follow_up.py` | 95% | Consent recheck, opt-out race, uncertain delivery, audit failure and recovery paths |
-| `global_lead_research.py` | 93% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
+| `global_lead_research.py` | 97% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
 | `global_lead_research_job.py` | 94% | Scheduled-job orchestration and error reporting |
 | `health_check.py` | 96% | Configuration, table/column probes, Gemini and safety-lock failures |
-| `inbox_monitor.py` | 93% | Inbox monitoring and error paths |
+| `inbox_monitor.py` | 98% | Inbox monitoring and error paths |
 | `intelligent_lead_scoring.py` | 97% | Lead scoring |
 | `jarvis_analytics.py` | 96% | Empty/populated analytics rendering and database failure |
 | `jarvis_common.py` | 94% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
@@ -40,10 +40,10 @@ below lists the remaining files reported by coverage.
 | `lead_scoring.py` | 88% | Lead score calculations |
 | `proactive_monitor.py` | 94% | Read-only monitoring |
 | `safe_http.py` | 99% | DNS-pinned HTTP transport, private/mixed DNS rejection, proxy and TLS hostname restrictions |
-| `scripts/supabase_backup.py` | 92% | Mocked backup/restore, archive checks and external-tool failures |
+| `scripts/supabase_backup.py` | 98% | Mocked backup/restore, archive checks and external-tool failures |
 | `stats.py` | 93% | Operational counts and sanitized log reporting |
 | `task_actions.py` | 99% | Strict payload validation, explicit approval, create/update/close, concurrency paths, and failed completion-audit reporting |
-| `web_auditor.py` | 92% | SSRF checks, redirects, transport and parser errors |
+| `web_auditor.py` | 96% | SSRF checks, redirects, transport and parser errors |
 
 Coverage is a statement-level signal, not proof that every business scenario,
 authorization boundary, external integration, or production configuration is
@@ -119,4 +119,22 @@ The expanded test suite adds explicit negative and recovery-path checks for:
 
 A defect found during this review was fixed in jarvis_errors.sanitize_log_text: CR/LF and other ASCII control characters are now replaced before log or audit persistence, preventing log-record injection. The regression is exercised through the shared logging helper tests.
 
-**Validation result:** GitHub Actions run 45100732685 passed on PR head 1c6f25c0240c4bb0a72059cf106e68de85fb34b2: 509 passed, 2 skipped, 0 failed; statement coverage 95.44%; compileall successful. CI uploads both responsive screenshots and coverage.xml as separate artifacts.
+## Final coverage pass (2026-11-23)
+
+The final test additions focused on the remaining meaningful failure, recovery, and authorization-adjacent paths:
+
+- `tests/test_final_coverage_edges.py`: dashboard safe-row handling, backup failures, analytics empty/invalid data, research-market fallback, and web/inbox error handling.
+- `tests/test_final_coverage_edges_shared.py`: response-token budgets, configuration fallbacks, model failures, audit depth limits, malformed consent timestamps, and invalid email leads.
+- `tests/test_final_coverage_edges_diagnostics.py`: business-learning matching, health-check safety lock, memory matching, lead scoring, status/statistics, task parsing, and HTTP response cleanup.
+- `tests/test_final_dashboard_context.py`: website-profile success/failure paths, lead ranking without exposing private contact fields, and truthful handling of failed data sources.
+- `tests/test_final_backup_success_edges.py`: successful backup command output, IPv6 host formatting, permission-hardening fallback, and CLI success paths.
+- `tests/test_final_last_remaining.py`: SMTP-accepted/audit-failed recovery, critical state-recovery failure, disabled sender gate, research grounding rejection, redirect failures, and restore DB/identity/tool validation.
+- `tests/test_dashboard_app.py`: explicit memory save/list/forget, failed executive analytics report, and outer chat failure handling.
+- `tests/test_inbox_monitor.py`: IMAP search/fetch failures, sender mismatch, and logout error reporting.
+- `tests/test_email_sender_coverage_edges.py`: consent recheck, atomic claim, audit failure, SMTP failure, and follow-up schedule handling.
+
+No production-code change was required in this final pass: the new tests did not reveal a new application defect. The earlier CR/LF log-injection fix in `jarvis_errors.sanitize_log_text` remains covered by its regression test.
+
+**Final validation:** GitHub Actions run [45132352299](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45132352299) passed on PR head `c3dfddfd1ae7b049c61c6aa3b2636541c9b092ba`: **594 passed, 2 skipped, 0 failed; 97.70% statement coverage; compileall successful**. Chromium, Firefox and WebKit browser tests passed. CI uploaded responsive screenshots and `coverage.xml` as separate artifacts.
+
+The remaining 72 uncovered statements are documented by the CI `term-missing` report. They include defensive/rare exception branches and script-entry guards; this result is not 100% coverage and is not a claim that every production integration or authorization scenario has been exercised. Live integrations were not enabled, no real SMTP delivery occurred, and no production Supabase records or schema were modified.
