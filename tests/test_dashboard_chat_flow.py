@@ -183,9 +183,9 @@ def test_normal_chat_uses_retrieved_context_and_bounded_recent_history():
         "history = format_conversation_history(",
         "max_chars=10000",
         "max_message_chars=3000",
+        "answer = generate_text(",
         "BESZÉLGETÉSI ELŐZMÉNY:",
         "FELHASZNÁLÓ KÉRDÉSE: {prompt}",
-        "answer = generate_text(",
     ])
 
 
