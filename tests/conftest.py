@@ -37,6 +37,16 @@ def block_unmocked_network(monkeypatch, request):
         original_connect = socket.socket.connect
         original_connect_ex = socket.socket.connect_ex
         original_create_connection = socket.create_connection
+        original_getaddrinfo = socket.getaddrinfo
+
+        def getaddrinfo_local(host, port, *args, **kwargs):
+            try:
+                allowed = ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                allowed = False
+            if not allowed:
+                return deny(host)
+            return original_getaddrinfo(host, port, *args, **kwargs)
 
         def connect_local(sock, address):
             if not loopback_only(address):
@@ -56,12 +66,14 @@ def block_unmocked_network(monkeypatch, request):
         monkeypatch.setattr(socket.socket, "connect", connect_local)
         monkeypatch.setattr(socket.socket, "connect_ex", connect_ex_local)
         monkeypatch.setattr(socket, "create_connection", create_connection_local)
+        monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo_local)
     else:
         monkeypatch.setattr(socket.socket, "connect", deny)
         monkeypatch.setattr(socket.socket, "connect_ex", deny)
         monkeypatch.setattr(socket, "create_connection", deny)
     monkeypatch.setattr(socket.socket, "sendto", deny)
-    monkeypatch.setattr(socket, "getaddrinfo", deny)
+    if not is_browser_test:
+        monkeypatch.setattr(socket, "getaddrinfo", deny)
     monkeypatch.setattr(socket, "gethostbyname", deny)
     monkeypatch.setattr(socket, "gethostbyname_ex", deny)
     monkeypatch.setattr(socket, "gethostbyaddr", deny)
