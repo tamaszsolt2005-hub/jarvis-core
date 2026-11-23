@@ -1,6 +1,7 @@
 """Isolated behavioral tests for dashboard helpers without importing/running Streamlit UI."""
 import ast
 import contextlib
+import bs4
 import socket
 import sys
 import types
@@ -196,7 +197,7 @@ def test_website_profile_reports_transport_and_parser_errors(monkeypatch):
     namespace = _load_helpers(monkeypatch, {"_website_profile", "_public_http_url"})
     namespace["_public_http_url"] = lambda _url: "https://example.com"
     namespace["report_error"] = lambda error, **kwargs: reports.append((error, kwargs))
-    namespace["BeautifulSoup"] = lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("mock parse"))
+    monkeypatch.setattr(bs4, "BeautifulSoup", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("mock parse")))
     result = namespace["_website_profile"]("example.com")
     assert "RuntimeError" in result["status"]
     assert reports[-1][1]["severity"] == "error"
