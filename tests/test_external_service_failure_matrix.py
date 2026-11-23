@@ -262,3 +262,71 @@ def test_imap_transport_outage_is_reported_and_propagated(monkeypatch):
     assert len(reports) == 1
     assert reports[0][1]["module"] == "email_inbox"
     assert reports[0][1]["operation"] == "process_inbox"
+
+
+def test_smtp_success_path_uses_starttls_and_sends_mock_message(monkeypatch):
+    calls = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls.append(("connect", host, port, timeout))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            calls.append(("close",))
+
+        def ehlo(self):
+            calls.append(("ehlo",))
+
+        def starttls(self):
+            calls.append(("starttls",))
+
+        def login(self, user, password):
+            calls.append(("login", user, password))
+
+        def send_message(self, message):
+            calls.append(("send", message["To"], message["Subject"], message.get_content()))
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda name: {"EMAIL_USER": "sender@example.test", "EMAIL_PASSWORD": "mock-password"}[name],
+    )
+    monkeypatch.setattr(
+        email_utils, "get_secret",
+        lambda name, default=None: {
+            "EMAIL_FROM_NAME": "JARVIS Test",
+            "SMTP_HOST": "smtp.example.test",
+            "SMTP_PORT": "587",
+        }.get(name, default),
+    )
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FakeSMTP)
+
+    result = email_utils.send_email("recipient@example.test", "Mock subject", "Mock body")
+
+    assert result == ""
+    assert ("connect", "smtp.example.test", 587, 30) in calls
+    assert calls.count(("ehlo",)) == 2
+    assert ("starttls",) in calls
+    assert ("login", "sender@example.test", "mock-password") in calls
+    assert ("send", "recipient@example.test", "Mock subject", "Mock body\n") in calls
+    assert calls[-1] == ("close",)
+
+
+def test_smtp_rejects_recipient_header_injection_before_connection(monkeypatch):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "required_secret", lambda _name: "mock-value")
+    monkeypatch.setattr(email_utils, "get_secret", lambda _name, default=None: default)
+    monkeypatch.setattr(
+        email_utils.smtplib, "SMTP",
+        lambda *_args, **_kwargs: pytest.fail("Invalid header must fail before SMTP"),
+    )
+
+    with pytest.raises(ValueError):
+        email_utils.send_email(
+            "recipient@example.test\r\nBcc: attacker@example.test",
+            "Subject",
+            "Body",
+        )
