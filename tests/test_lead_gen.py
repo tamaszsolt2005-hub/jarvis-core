@@ -110,7 +110,7 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
 
     db = DB()
     events, audits = [], []
-    monkeypatch.setattr(lead_gen, "get_supabase", lambda: db)
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: db)
     monkeypatch.setattr(
         lead_gen, "audit_event",
         lambda *args, **kwargs: audits.append(kwargs) or True,
@@ -173,7 +173,7 @@ def test_csv_run_reports_and_reraises_insert_failure(tmp_path, monkeypatch):
                     raise database_error
             return InsertQuery()
 
-    monkeypatch.setattr(lead_gen, "get_supabase", lambda: DB())
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(lead_gen, "audit_event", lambda *args, **kwargs: True)
     monkeypatch.setattr(
         lead_gen, "report_error",
