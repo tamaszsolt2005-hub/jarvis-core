@@ -82,3 +82,22 @@ memóriára még nem aktív, mert ezek a modulok jelenleg a szerveroldali
 service-role klienssel működnek. Tenant-izoláció sincs, mivel a jelenlegi
 adatmodell egyetlen üzleti munkaterületet feltételez. Ezeket a hiányokat nem
 lehet biztonságosan egyetlen audit policy-val megoldani.
+
+## RBAC Auth-alap – első kódfázis
+
+**Implementálva a `feat/supabase-auth-rbac-foundation` ágon:**
+- Új `jarvis_auth.py`: külön Supabase Auth-fiókos belépés, szerver által ellenőrzött `get_user()`, megerősített e-mail követelménye, és kizárólag a megbízható `app_metadata.role` olvasása.
+- A felhasználói adatbázis-kliens kizárólag `SUPABASE_PUBLISHABLE_KEY` vagy a régi `SUPABASE_ANON_KEY` kulcsot fogadja el; nem esik vissza `SUPABASE_SERVICE_ROLE_KEY` vagy a kétértelmű `SUPABASE_KEY` értékre.
+- Session-frissítéskor újra ellenőrzi a felhasználót, az azonosítót és a szerepkört; hiányzó/érvénytelen szerepkör és nem engedélyezett szerep esetén tilt.
+- Központi, fail-closed jogosultságmátrix az admin/operator/reader szerepkörökhöz.
+- Mockolt tesztek lefedik a kulcsválasztást, a megbízható metadata forrást, a hiányzó/hibás role-t, a megerősítetlen e-mailt, a session-ellenőrzést és a szerepkör-mátrixot.
+
+**Ez még nem aktív dashboard-RBAC.** A fő Streamlit belépés egyelőre nem lett lecserélve, az alkalmazás üzleti moduljai továbbra is használhatják a meglévő service-role klienst, és nem készültek / nem kerültek alkalmazásra táblánkénti RLS-policy-k. A régi közös jelszó eltávolítása most azonnal kizárhatná a felhasználót, mert a korábbi read-only felméréskor nem volt Supabase Auth-felhasználó.
+
+**Élesítés előtti blokkolók:**
+1. A meglévő Supabase Auth-fiókok és megerősített e-mail-címek ellenőrzése; admin szerepkör kiosztása kizárólag megbízható admin folyamatban.
+2. A hiányzó történeti migrációk forrásának helyreállítása és a tényleges production séma/migration history egyeztetése.
+3. Táblánkénti hozzáférési modell és RLS-policy-k megtervezése a tényleges üzleti műveletekhez, valamint a service-role háttérfolyamatok leválasztása.
+4. Valós Auth/JWT/RLS integrációs bizonyíték. Új tesztprojektet nem hozunk létre; amíg nincs engedélyezett izolált tesztkörnyezet, csak mockolt tesztek állíthatók sikeresnek.
+
+**Éles adatbázis, Auth-felhasználók, szerepkörök és production migrációk nem változtak.**
