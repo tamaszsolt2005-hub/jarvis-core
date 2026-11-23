@@ -19,7 +19,7 @@ import streamlit as st
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
 from jarvis_errors import report_error, sanitize_log_text
 from audit_admin import (
-    audit_rows_to_csv, fetch_audit_rows, sign_in_audit_admin,
+    audit_rows_to_csv, fetch_audit_page, sign_in_audit_admin,
     sign_out_audit_admin, verified_admin_client,
 )
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
@@ -308,6 +308,8 @@ def render_audit_admin_page() -> None:
                     severity="warning",
                 )
             st.session_state.pop(session_key, None)
+            st.session_state.pop("_jarvis_audit_export_pending", None)
+            st.session_state.pop("_jarvis_audit_cursor_stack", None)
             st.rerun()
 
     module_filter = st.text_input(
@@ -318,10 +320,27 @@ def render_audit_admin_page() -> None:
         ["Összes státusz", "pending", "success", "failed", "blocked", "unknown"],
         key="jarvis_audit_status_filter",
     )
+    operation_filter = st.text_input(
+        "Operation ID (opcionális)", key="jarvis_audit_operation_filter"
+    ).strip() or None
+
+    filter_state = (module_filter, status_filter, operation_filter)
+    if st.session_state.get("_jarvis_audit_filter_state") != filter_state:
+        st.session_state["_jarvis_audit_filter_state"] = filter_state
+        st.session_state["_jarvis_audit_cursor_stack"] = [None]
+    cursor_stack = st.session_state.setdefault("_jarvis_audit_cursor_stack", [None])
+
     try:
-        rows = fetch_audit_rows(
-            audit_client, module=module_filter, status=status_filter, limit=500
+        page = fetch_audit_page(
+            audit_client,
+            module=module_filter,
+            status=status_filter,
+            operation_id=operation_filter,
+            cursor=cursor_stack[-1],
+            page_size=100,
         )
+        rows = page["events"]
+        next_cursor = page["next_cursor"]
     except Exception as exc:
         report_error(
             exc, module="dashboard", operation="audit_admin_read",
@@ -333,18 +352,86 @@ def render_audit_admin_page() -> None:
         )
         return
 
-    st.caption(f"Legfeljebb 500 legfrissebb bejegyzés • megjelenítve: {len(rows)}")
+    nav_prev, nav_status, nav_next = st.columns([1, 2, 1])
+    with nav_prev:
+        if st.button("← Előző", disabled=len(cursor_stack) <= 1, key="jarvis_audit_prev"):
+            cursor_stack.pop()
+            st.rerun()
+    with nav_status:
+        st.caption(f"Auditoldal: {len(cursor_stack)} • {len(rows)} bejegyzés")
+    with nav_next:
+        if st.button("Következő →", disabled=next_cursor is None, key="jarvis_audit_next"):
+            cursor_stack.append(next_cursor)
+            st.rerun()
+
     if rows:
         st.dataframe(rows, use_container_width=True, hide_index=True)
-        st.download_button(
-            "Audit CSV export",
-            data=audit_rows_to_csv(rows),
-            file_name="jarvis-audit-export.csv",
-            mime="text/csv",
-            key="jarvis_audit_csv_export",
-        )
+        pending_key = "_jarvis_audit_export_pending"
+        if pending_key not in st.session_state:
+            if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
+                operation_id = str(uuid4())
+                try:
+                    audit_db = get_supabase()
+                    recorded = audit_event(
+                        audit_db,
+                        module="audit_admin",
+                        action="export_csv",
+                        status="pending",
+                        operation_id=operation_id,
+                        result={"row_count": len(rows), "page": len(cursor_stack)},
+                        approved=True,
+                        actor_user_id=refreshed_session.get("user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_pending",
+                        severity="critical",
+                    )
+                    recorded = False
+                if not recorded:
+                    st.error("Az export nem indítható el, mert a pending auditbejegyzés nem menthető.")
+                else:
+                    st.session_state[pending_key] = {
+                        "operation_id": operation_id,
+                        "rows": rows,
+                        "actor_user_id": refreshed_session.get("user_id"),
+                        "page": len(cursor_stack),
+                    }
+                    st.rerun()
+        else:
+            pending = st.session_state[pending_key]
+            downloaded = st.download_button(
+                "Audit CSV letöltése",
+                data=audit_rows_to_csv(pending["rows"]),
+                file_name="jarvis-audit-export.csv",
+                mime="text/csv",
+                key="jarvis_audit_csv_export",
+            )
+            if downloaded:
+                try:
+                    completed = audit_event(
+                        get_supabase(),
+                        module="audit_admin",
+                        action="export_csv",
+                        status="success",
+                        operation_id=pending["operation_id"],
+                        result={"row_count": len(pending["rows"]), "page": pending["page"]},
+                        approved=True,
+                        actor_user_id=pending.get("actor_user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_completion",
+                        severity="critical",
+                    )
+                    completed = False
+                if not completed:
+                    st.error("A letöltés megtörtént, de a completion auditbejegyzés nem menthető.")
+                st.session_state.pop(pending_key, None)
+                st.rerun()
     else:
         st.info("A szűrésnek megfelelő auditbejegyzés nem található.")
+
 
 
 def authenticated() -> bool:
