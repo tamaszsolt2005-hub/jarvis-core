@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 import requests
+import pandas as pd
 from bs4 import BeautifulSoup
 
 
@@ -25,7 +26,7 @@ def _load_helpers(monkeypatch, names):
         and node.name in names
     ]
     assert {node.name for node in selected} == set(names)
-    namespace = {"Any": Any, "BeautifulSoup": BeautifulSoup, "requests": requests}
+    namespace = {"Any": Any, "BeautifulSoup": BeautifulSoup, "requests": requests, "pd": pd}
     module = ast.Module(body=selected, type_ignores=[])
     exec(compile(module, str(ROOT / "dashboard.py"), "exec"), namespace)
     return namespace
@@ -202,3 +203,55 @@ def test_website_profile_reports_transport_and_parser_errors(monkeypatch):
     assert "RuntimeError" in result["status"]
     assert reports[-1][1]["severity"] == "error"
     assert response.closed and response in closed
+
+
+
+def test_proactive_signals_only_include_overdue_open_tasks_and_explicitly_approved_followups(monkeypatch):
+    fn = _load_helpers(monkeypatch, {"_proactive_signals"})["_proactive_signals"]
+    result = fn(
+        leads=[
+            {"id": "ok", "company_name": "Allowed", "next_follow_up_at": "2000-01-01T00:00:00Z",
+             "approved_to_contact": True, "opted_out": False, "status": "sent"},
+            {"id": "opted-out", "next_follow_up_at": "2000-01-01T00:00:00Z",
+             "approved_to_contact": True, "opted_out": True},
+            {"id": "not-approved", "next_follow_up_at": "2000-01-01T00:00:00Z",
+             "approved_to_contact": False, "opted_out": False},
+            {"id": "missing-approval", "next_follow_up_at": "2000-01-01T00:00:00Z",
+             "opted_out": False},
+            {"id": "invalid-date", "next_follow_up_at": "not-a-date",
+             "approved_to_contact": True, "opted_out": False},
+        ],
+        tasks=[
+            {"id": "late", "title": "Late", "due_at": "2000-01-01T00:00:00Z", "status": "open"},
+            {"id": "done", "title": "Done", "due_at": "2000-01-01T00:00:00Z", "status": "done"},
+            {"id": "invalid", "title": "Invalid", "due_at": "not-a-date", "status": "open"},
+        ],
+    )
+    assert result["overdue_task_count"] == 1
+    assert result["overdue_tasks"][0]["title"] == "Late"
+    assert result["overdue_approved_followup_count"] == 1
+    assert result["overdue_approved_followups"][0]["lead_id"] == "ok"
+    assert "nem automatikus műveletek" in result["interpretation"]
+
+
+def test_proactive_signals_caps_displayed_items_without_losing_total_counts(monkeypatch):
+    fn = _load_helpers(monkeypatch, {"_proactive_signals"})["_proactive_signals"]
+    tasks = [
+        {"title": f"Late {i}", "due_at": "2000-01-01T00:00:00Z", "status": "open"}
+        for i in range(35)
+    ]
+    result = fn([], tasks)
+    assert result["overdue_task_count"] == 35
+    assert len(result["overdue_tasks"]) == 30
+
+
+@pytest.mark.parametrize("question,expected", [
+    ("Keress új leadeket a magyar gyártóknál", True),
+    ("Készíts leadkutatást", True),
+    ("Ne keress új leadeket", False),
+    ("Milyen feladatok vannak?", False),
+    ("Azonosítsd a lehetséges beszállítókat", True),
+])
+def test_global_research_requires_explicit_prospecting_intent(monkeypatch, question, expected):
+    fn = _load_helpers(monkeypatch, {"_wants_global_research"})["_wants_global_research"]
+    assert fn(question) is expected
