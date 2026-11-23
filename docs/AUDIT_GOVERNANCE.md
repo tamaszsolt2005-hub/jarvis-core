@@ -72,7 +72,12 @@ Do not run `supabase db push` until the missing migration sources/history have
 been reconciled with a reviewed remote schema snapshot and an approved
 migration-repair workflow. The missing SQL must not be reconstructed by guess,
 and `supabase/schema.sql` is a schema snapshot, not a substitute for the
-missing migration history.
+missing migration history. It is not an exact copy of the inspected live schema:
+for example, live `settings` has an integer `id` primary key and a unique `key`,
+while the repository snapshot defines `key` as its primary key; live `posts` is
+not defined in that snapshot; and the snapshot contains structured audit fields
+that are not yet present in live `logs`. The live database also has lead-ID
+indexes on `tasks` and `email_drafts` that are not represented in the snapshot.
 
 The same read-only inspection found eight `public` tables. RLS is enabled on
 all eight, no table has an RLS policy, and the current table ACLs grant direct
