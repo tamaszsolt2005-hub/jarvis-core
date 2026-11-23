@@ -34,3 +34,11 @@ def test_audit_database_test_covers_reader_admin_and_append_only_contract():
     assert "UPDATE unexpectedly succeeded" in sql
     assert "DELETE unexpectedly succeeded" in sql
     assert "second event must link" in sql
+
+def test_audit_integrity_rpc_is_invoker_scoped_and_admin_read_protected():
+    sql = (ROOT / "supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql").read_text().lower()
+    assert "verify_logs_audit_chain" in sql
+    assert "security invoker" in sql
+    assert "grant execute on function public.verify_logs_audit_chain() to authenticated" in " ".join(sql.split())
+    assert "admins can read audit chain state" in sql
+    assert "disconnected_entries" in sql
