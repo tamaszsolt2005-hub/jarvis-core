@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`014597edfe1086bdc561374734400f58811ccb0e` (2026-11-23; Actions run `45092570580`):
+`0c816b32b8064f8e903963f6bc695a20754c5ba0` (2026-11-23; Actions run `45092709670`):
 
 - Application Python modules in the repository: 31
 - Test Python files: 47
 - Tests: 421 passed, 2 skipped, 0 failed
-- Statement coverage: 89.88%
+- Statement coverage: 90.17%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -23,7 +23,7 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 77% | Streamlit AppTest covers login, normal chat, email preview and disabled-send behavior; AST contracts cover approval sequencing. Remaining UI branches and analytics presentation still need direct interaction tests |
+| `dashboard.py` | 78% | Streamlit AppTest covers login, normal chat, email preview, disabled-switch blocking and mocked SMTP after explicit approval; AST contracts cover task approval sequencing. Remaining UI branches and analytics presentation still need direct interaction tests |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 88% | Consent, state claims, pending audit, SMTP and failure paths |
 | `follow_up.py` | 87% | Consent recheck and uncertain-delivery no-retry state |
