@@ -260,3 +260,81 @@ def test_missing_task_is_not_mutated_and_is_audited_as_blocked():
     assert "nem található" in message
     assert audit_statuses == ["pending", "blocked"]
     assert db.updated is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Új feladat:",
+        "Új feladat: Cím; hiányzó-egyenlőség",
+        "Új feladat: Cím; ismeretlen=érték",
+        "Új feladat: Cím; prioritás=",
+        "Új feladat: " + "x" * 181,
+        "Új feladat: Cím; prioritás=invalid",
+        "Új feladat: Cím; határidő=2026-1-01",
+        "Új feladat: Cím; határidő=2026-02-30",
+        "Zárd le feladatot: 00000000-0000-0000-0000-000000000000",
+        "Módosítsd feladatot: 00000000-0000-0000-0000-000000000000;cím=Új",
+        f"Módosítsd feladatot: {TASK_ID}; hibás mező",
+        f"Módosítsd feladatot: {TASK_ID}; határidő=2026-02-30",
+        f"Módosítsd feladatot: {TASK_ID}; egyéb=érték",
+    ],
+)
+def test_task_command_parser_rejects_malformed_commands(command):
+    result = parse_task_command(command)
+    assert result is None or "error" in result
+
+
+def test_task_payload_validator_rejects_invalid_types_lengths_and_timezones():
+    import pytest
+    from task_actions import _validate_action
+
+    invalid_actions = [
+        [],
+        {"type": "create", "title": "x" * 181, "priority": "normal"},
+        {"type": "create", "title": "Title", "priority": "normal", "extra": "field"},
+        {"type": "create", "title": "Title", "priority": "normal", "due_at": 123},
+        {"type": "create", "title": "Title", "priority": "normal", "due_at": "invalid"},
+        {"type": "create", "title": "Title", "priority": "normal", "due_at": "2026-12-01T10:00:00"},
+        {"type": "close", "id": TASK_ID, "notes": "not allowed"},
+        {"type": "update", "id": TASK_ID, "updates": {}},
+        {"type": "update", "id": TASK_ID, "updates": {"title": "x" * 181}},
+        {"type": "update", "id": TASK_ID, "updates": {"due_at": 123}},
+        {"type": "update", "id": TASK_ID, "updates": {"due_at": "invalid"}},
+        {"type": "update", "id": TASK_ID, "updates": {"due_at": "2026-12-01T10:00:00"}},
+        {"type": "unknown"},
+    ]
+    for action in invalid_actions:
+        with pytest.raises(ValueError):
+            _validate_action(action)
+
+
+def test_task_close_concurrency_conflict_is_audited_and_not_reported_as_success():
+    import task_actions
+
+    class ConflictCloseQuery(Query):
+        def execute(self):
+            if self.payload is not None:
+                self.db.attempted_update = self.payload
+                return Result([])
+            return Result([{"id": TASK_ID, "title": "Teszt", "status": "open"}])
+
+    class ConflictCloseDB(FakeDB):
+        def table(self, _name):
+            return ConflictCloseQuery(self)
+
+    db = ConflictCloseDB()
+    audit_statuses = []
+    original = task_actions.audit_event
+    task_actions.audit_event = lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True
+    try:
+        message = execute_task_action(
+            db, {"type": "close", "id": TASK_ID}, approved=True
+        )
+    finally:
+        task_actions.audit_event = original
+
+    assert "időközben megváltozott" in message
+    assert audit_statuses == ["pending", "blocked"]
+    assert db.updated is None
+    assert db.attempted_update is not None
