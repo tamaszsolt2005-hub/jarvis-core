@@ -136,7 +136,9 @@ verify resulting ACLs by catalog query.
    must reflect the application's actual authorization model.
 6. **Test against PostgreSQL 17 in CI.** Test both a clean bootstrap path and a
    production-shaped legacy schema fixture, including existing rows, grants,
-   RLS behavior, and audit append/hash-chain behavior.
+   RLS behavior, and audit append/hash-chain behavior. The CI audit fixture now
+   seeds a pre-migration legacy log row and asserts that both additive
+   migrations preserve it without assigning it a fabricated hash-chain entry.
 7. **Review and approve the exact SQL.** Open a PR with the snapshot summary,
    migration diff, rollback/forward-recovery notes, and test results.
 8. **Only after separate explicit production approval**, take/verify a fresh
