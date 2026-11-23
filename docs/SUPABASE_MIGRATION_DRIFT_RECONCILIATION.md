@@ -96,16 +96,42 @@ production changes have occurred.
 
 Only after explicit operator approval, use a read-only schema extraction path
 against the existing project. Review the current Supabase CLI documentation
-and `supabase db pull --help` immediately before selecting a command.
+and the exact installed command help before selecting a command.
+
+For the currently documented Supabase CLI v3 workflow:
+
+```bash
+supabase --version
+supabase db dump --help
+supabase migration list --help
+supabase db dump --remote -f /tmp/jarvis-production-schema.sql
+```
+
+The CLI v3 `db dump` defaults to the local stack unless `--remote` is
+provided. Its default dump is schema-only (it excludes application row data
+and custom role definitions); it does not ask for hosted-mutation confirmation.
+It requires Docker/a running Docker daemon and a linked project. Verify the
+printed `Target:` line before accepting the artifact. Do not put connection
+strings or passwords in shell history, CI logs, or committed files.
+
+Do not use `db pull` as a substitute for this first evidence capture: it
+creates a migration file and can interact with migration history. Do not use
+`db push`, `migration repair`, or any hosted write command during this phase.
 
 - Capture schema definitions, constraints, indexes, triggers, functions,
-  policies, grants, ownership, and default privileges.
+  policies, grants, and ownership as represented by the dump.
+- Separately inventory role definitions and default privileges, because the
+  default dump excludes custom role definitions and managed Supabase schemas.
 - Exclude application row data and secrets.
 - Save the output locally or in a protected review artifact; do not apply it.
 - Compare it with `supabase/schema.sql` and the four existing repository
   migrations.
 - Confirm whether the five historical migration effects are present, absent,
   or only partially represented. Do not infer exact original SQL from names.
+
+The CLI v3 migration guide documents that database commands default to the
+local stack and require `--remote` for hosted targets. Re-check the guide and
+`--help` output at execution time because CLI behavior can change.
 
 **Exit condition:** a reviewed, schema-only production baseline with a
 per-object difference report.
