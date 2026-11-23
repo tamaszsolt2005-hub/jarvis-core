@@ -15,12 +15,23 @@ from jarvis_errors import report_error
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
+def _has_timestamped_consent(lead: dict) -> bool:
+    if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True:
+        return False
+    try:
+        confirmed_at = datetime.fromisoformat(
+            str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
+        )
+        return confirmed_at.tzinfo is not None and confirmed_at.utcoffset() is not None
+    except (TypeError, ValueError):
+        return False
+
+
 def _eligible_for_follow_up(lead: dict, now: datetime) -> bool:
     """Require explicit, timestamped consent and a due, unreplied, one-shot lead."""
     if (
         lead.get("status") != "sent"
-        or lead.get("consent_basis") != "consent"
-        or lead.get("approved_to_contact") is not True
+        or not _has_timestamped_consent(lead)
         or lead.get("opted_out") is not False
         or lead.get("reply_category")
         or lead.get("last_inbound_message_id")
@@ -98,8 +109,7 @@ def _run() -> None:
             if (
                 not fresh_rows
                 or fresh_rows[0].get("status") != "followup_sending"
-                or fresh_rows[0].get("consent_basis") != "consent"
-                or fresh_rows[0].get("approved_to_contact") is not True
+                or not _has_timestamped_consent(fresh_rows[0])
                 or fresh_rows[0].get("opted_out") is not False
                 or fresh_rows[0].get("reply_category")
                 or fresh_rows[0].get("last_inbound_message_id")
