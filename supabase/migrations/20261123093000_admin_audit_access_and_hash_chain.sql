@@ -64,7 +64,7 @@ language sql
 stable
 security invoker
 set search_path = pg_catalog, public, extensions
-as $
+as $$
   with recursive entries as (
     select
       l.previous_hash,
@@ -135,7 +135,7 @@ as $
     (total_entries - reachable_entries)::bigint as disconnected_entries,
     state_matches
   from checks;
-$;
+$$;
 
 revoke all on function public.verify_logs_audit_chain() from public, anon;
 grant execute on function public.verify_logs_audit_chain() to authenticated, service_role;
