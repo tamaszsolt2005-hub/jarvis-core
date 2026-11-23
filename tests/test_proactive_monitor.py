@@ -74,3 +74,30 @@ def test_monitor_reports_priority_and_deadline_changes_and_recommends_actions():
     assert "prioritás: high → urgent" in report
     assert "határidő: 2026-11-14T10:00:00Z → 2026-11-15T10:00:00Z" in report
     assert "Végezd el vagy delegáld" in report
+
+
+def test_monitor_date_parser_handles_missing_malformed_and_naive_values():
+    from proactive_monitor import _local_date
+
+    assert _local_date(None) is None
+    assert _local_date("not-a-date") is None
+    assert _local_date("2026-11-23T10:00:00").isoformat() == "2026-11-23"
+
+
+def test_monitor_wrapper_reports_and_reraises_snapshot_failure(monkeypatch):
+    import proactive_monitor
+    import pytest
+
+    reports = []
+    monkeypatch.setattr(
+        proactive_monitor, "_run_proactive_monitor",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ConnectionError("mock snapshot failure")),
+    )
+    monkeypatch.setattr(
+        proactive_monitor, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(ConnectionError, match="mock snapshot failure"):
+        proactive_monitor.run_proactive_monitor(object())
+    assert reports[0][1]["operation"] == "run_daily_snapshot"
+    assert reports[0][1]["severity"] == "warning"
