@@ -97,9 +97,8 @@ def test_task_action_rejects_unknown_action_without_db_access():
         def table(self, _name):
             raise AssertionError("unknown action must not access DB")
 
-    assert execute_task_action(DB(), {"type": "unknown"}, approved=True) == (
-        "Ismeretlen feladatművelet; nem történt módosítás."
-    )
+    with pytest.raises(ValueError, match="Ismeretlen feladatművelet"):
+        execute_task_action(DB(), {"type": "unknown"}, approved=True)
 
 
 def test_safe_http_closes_session_even_if_response_close_raises():
