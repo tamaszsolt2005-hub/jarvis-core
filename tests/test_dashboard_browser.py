@@ -160,6 +160,13 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                 chat_input.fill("Szia JARVIS, böngészős ellenőrzés.")
                 chat_input.press("Enter")
                 page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=30000)
+                page.screenshot(path=str(screenshot_dir / "chat-desktop.png"), full_page=True)
+                page.set_viewport_size({"width": 390, "height": 844})
+                page.wait_for_timeout(350)
+                assert page.locator('[data-testid="stChatInput"]').is_visible()
+                page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
+                page.set_viewport_size({"width": 1440, "height": 960})
+                page.wait_for_timeout(350)
 
                 page.get_by_role("button", name="Analitika").click()
                 page.get_by_text("Naplózott aktivitási trend").wait_for(timeout=30000)
@@ -219,9 +226,6 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     assert all(0 < chart_width <= dimensions["mainClient"] + 2 for chart_width in dimensions["chartWidths"]), (label, dimensions)
                     assert len(dimensions["kpiWidths"]) == 5 and min(dimensions["kpiWidths"]) >= 180, (label, dimensions)
 
-                page.get_by_role("button", name="Chat").click()
-                page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=15000)
-                page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
                 context.close()
                 browser.close()
         finally:
