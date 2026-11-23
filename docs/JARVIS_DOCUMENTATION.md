@@ -345,3 +345,30 @@ Tesztbiztonsági határok:
 - A proaktív monitor napi workflow kódban létezik, de a sikeres éles futás külön igazolandó.
 
 A production `posts` tábla legacy/árva objektumnak tűnik, de a repo-hivatkozás hiánya nem elegendő törléshez. Ugyanez minden ismeretlen DB-objektumra igaz.
+
+## 12. Fejlesztési sorrend
+
+1. Production schema-only snapshot és tételes eltérésmátrix beszerzése, adatbázis-módosítás nélkül.
+2. Az öt hiányzó migráció eredeti SQL-jének beszerzése vagy a hiány bizonyítékalapú dokumentálása; találgatás tilos.
+3. Titkosított backup és külön, jóváhagyott sandbox restore-próba.
+4. Audit SQL, RLS és hash-lánc ellenőrzése nem éles adatbázisban.
+5. Valós Auth/RBAC pozitív és negatív teszt anon/reader/operator/admin/service-role szerepekkel.
+6. Dashboard és üzleti modulok JWT/RLS alapú átállítása csak a modell bizonyítása után.
+7. Kontrollált Gemini-, SMTP-, IMAP- és ütemezett workflow-integrációs próbák.
+8. Production bevezetés csak külön engedéllyel, ellenőrzött backup/restore és pontos migrációs diff alapján.
+
+**Ez a dokumentum nem engedélyez** production DDL-t, adatfrissítést, GRANT/REVOKE-ot, policy-változtatást, migration ledger javítást, `supabase db push`-t, új Supabase projekt/branch létrehozását vagy AWS erőforrás telepítését.
+
+### Dokumentáció-karbantartás
+
+- Ez a fájl a részletes dokumentáció egyetlen forrása.
+- A `README.md` csak rövid projektbemutató és belépési pont.
+- Forráskód/SQL/workflow változása után az érintett fejezetet frissíteni kell.
+- Teszteredmény dátummal, commit/PR SHA-val és CI-linkkel szerepelhet.
+- Külső integráció csak tényleges futás és visszakereshető eredmény után jelölhető igazoltnak.
+- Eltérés esetén a kód, migráció és workflow az elsődleges forrás; a dokumentumot javítani kell.
+- Titok, jelszó, token, DB URL vagy személyes adat nem kerülhet bele.
+
+---
+
+**Állapot:** a dokumentum a 2026-11-23-i repository- és csak olvasási production-audit bizonyítékokra épül. Nem jelent production migrációs, backup-, Auth/RBAC- vagy külső integrációs jóváhagyást.
