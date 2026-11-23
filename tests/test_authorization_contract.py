@@ -168,5 +168,5 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
 
     task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
     assert "approved: bool = False" in task_source
-    assert "if not approved:" in task_source
+    assert "if approved is not True:" in task_source
     assert "raise PermissionError" in task_source
