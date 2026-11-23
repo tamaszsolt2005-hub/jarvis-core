@@ -102,3 +102,20 @@ as the `jarvis-dashboard-responsive-screenshots` workflow artifact, grouped by b
   matrix.
 - Do not treat these remaining items as completed until the access model is
   approved and tested.
+
+
+## Coverage-gap remediation added on 2026-11-23
+
+The next test expansion adds explicit negative and recovery-path checks for:
+
+- tests/test_dashboard_helpers.py: safe public redirects, missing redirect targets, redirect limits, DNS failures, malformed ports, and filtering malformed database rows.
+- tests/test_dashboard_app.py: email audit fail-closed behavior, SMTP exception auditing, final-audit warnings, explicit recipient validation, task close/update approval, missing task IDs, and approved market/research actions.
+- tests/test_email_sender_coverage_edges.py: consent recheck immediately before SMTP, lost atomic claims, pending-audit failure, SMTP failure recovery, and follow-up limits.
+- tests/test_follow_up.py: opt-out after claim, ambiguous post-SMTP completion, failed success-audit, recovery failure, disabled feature gate, and batch-level exception propagation.
+- tests/test_safe_http_coverage_edges.py: public/private IP validation, DNS failure and mixed answers, invalid URL rejection, pinned IP transport, proxy rejection, TLS hostname preservation, and session cleanup.
+- tests/test_global_lead_research_edges.py: malformed model output, grounding validation, deduplication, evidence downgrades, and the invariant that research never grants contact permission.
+- tests/test_jarvis_common_edge_coverage.py: audit result redaction/truncation, persistence failures, audit filtering, and settings helpers.
+
+A defect found during this review was fixed in jarvis_errors.sanitize_log_text: CR/LF and other ASCII control characters are now replaced before log or audit persistence, preventing log-record injection. The regression is exercised through the shared logging helper tests.
+
+**Validation status:** the expanded CI run is in progress. The final statement coverage and test count will be recorded only after the run for the latest PR head completes.
