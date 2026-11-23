@@ -125,7 +125,7 @@ def test_run_processes_new_replies_in_order_and_never_clears_opt_out(monkeypatch
         "IMAP_HOST": "imap.example.com",
         "IMAP_PORT": "993",
     }.get(name, default))
-    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: DB())
+    monkeypatch.setattr(inbox_monitor, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(inbox_monitor.imaplib, "IMAP4_SSL", lambda *_args: Mail())
     monkeypatch.setattr(
         inbox_monitor, "classify_reply",
@@ -169,7 +169,7 @@ def test_inbox_monitor_skips_when_credentials_are_missing(monkeypatch, capsys):
     import inbox_monitor
 
     monkeypatch.setattr(inbox_monitor, "get_secret", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
+    monkeypatch.setattr(inbox_monitor, "get_service_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     assert inbox_monitor._run() is None
     assert "hiányzik" in capsys.readouterr().out
 
@@ -254,7 +254,7 @@ def test_inbox_monitor_skips_failed_search_fetch_and_unmatched_sender_and_report
         "IMAP_HOST": "imap.example.test",
         "IMAP_PORT": "993",
     }.get(name, default))
-    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: DB())
+    monkeypatch.setattr(inbox_monitor, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(inbox_monitor.imaplib, "IMAP4_SSL", lambda *_args: mail)
     monkeypatch.setattr(inbox_monitor, "report_error", lambda error, **kwargs: reports.append(kwargs))
 

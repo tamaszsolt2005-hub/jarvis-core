@@ -10,7 +10,7 @@ def test_global_research_job_passes_safe_scope_and_prints_structured_result(monk
     captured = {}
     audits = []
 
-    monkeypatch.setattr(job, "get_supabase", lambda: db)
+    monkeypatch.setattr(job, "get_service_supabase", lambda: db)
     monkeypatch.setattr(job, "get_research_market", lambda actual_db: "Hungary" if actual_db is db else None)
     monkeypatch.setattr(job, "audit_event", lambda actual_db, **kwargs: audits.append(kwargs) or True)
 
@@ -45,7 +45,7 @@ def test_global_research_job_reports_startup_failure_and_reraises(monkeypatch):
     failure = RuntimeError("mock Supabase startup failure")
     reports = []
     monkeypatch.setattr(
-        job, "get_supabase",
+        job, "get_service_supabase",
         lambda: (_ for _ in ()).throw(failure),
     )
     monkeypatch.setattr(
@@ -69,7 +69,7 @@ def test_global_research_job_reports_research_failure_with_database_context(monk
     db = object()
     reports = []
     audits = []
-    monkeypatch.setattr(job, "get_supabase", lambda: db)
+    monkeypatch.setattr(job, "get_service_supabase", lambda: db)
     monkeypatch.setattr(job, "get_research_market", lambda _db: "Hungary")
     monkeypatch.setattr(job, "audit_event", lambda actual_db, **kwargs: audits.append(kwargs) or True)
     monkeypatch.setattr(
@@ -95,7 +95,7 @@ def test_global_research_job_reports_research_failure_with_database_context(monk
 def test_global_research_job_does_not_start_research_when_pending_audit_fails(monkeypatch):
     db = object()
     audits = []
-    monkeypatch.setattr(job, "get_supabase", lambda: db)
+    monkeypatch.setattr(job, "get_service_supabase", lambda: db)
     monkeypatch.setattr(job, "audit_event", lambda actual_db, **kwargs: audits.append(kwargs) or False)
     monkeypatch.setattr(
         job, "research_global_companies",

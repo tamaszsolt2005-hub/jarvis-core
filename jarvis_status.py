@@ -1,12 +1,12 @@
 """Print operational lead counts without exposing personal data."""
-from jarvis_common import get_supabase
+from jarvis_common import get_service_supabase
 from jarvis_errors import report_error
 
 
 def run() -> None:
     db = None
     try:
-        db = get_supabase()
+        db = get_service_supabase()
         rows = db.table("leads").select("status").limit(5000).execute().data or []
     except Exception as exc:
         report_error(

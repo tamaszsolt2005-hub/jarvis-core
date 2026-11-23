@@ -6,7 +6,7 @@ import follow_up
 def test_first_contact_job_is_disabled_by_default(monkeypatch, capsys):
     monkeypatch.setattr(email_sender, "env_bool", lambda name, default=False: default)
     monkeypatch.setattr(
-        email_sender, "get_supabase",
+        email_sender, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("Supabase must not be accessed")),
     )
 
@@ -18,7 +18,7 @@ def test_first_contact_job_is_disabled_by_default(monkeypatch, capsys):
 def test_follow_up_job_is_disabled_by_default(monkeypatch, capsys):
     monkeypatch.setattr(follow_up, "env_bool", lambda name, default=False: default)
     monkeypatch.setattr(
-        follow_up, "get_supabase",
+        follow_up, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("Supabase must not be accessed")),
     )
 
@@ -62,11 +62,11 @@ def test_email_jobs_remain_disabled_even_if_environment_flag_is_true(monkeypatch
     monkeypatch.setattr(email_sender, "env_bool", lambda name, default=False: True)
     monkeypatch.setattr(follow_up, "env_bool", lambda name, default=False: True)
     monkeypatch.setattr(
-        email_sender, "get_supabase",
+        email_sender, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("SMTP job must not access Supabase")),
     )
     monkeypatch.setattr(
-        follow_up, "get_supabase",
+        follow_up, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("SMTP job must not access Supabase")),
     )
     email_sender.run()

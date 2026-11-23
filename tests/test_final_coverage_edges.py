@@ -400,7 +400,7 @@ def test_inbox_monitor_missing_credentials_is_safe_noop(monkeypatch, capsys):
 
     monkeypatch.setattr(inbox_monitor, "get_secret", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        inbox_monitor, "get_supabase",
+        inbox_monitor, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("database must not be opened")),
     )
     inbox_monitor._run()

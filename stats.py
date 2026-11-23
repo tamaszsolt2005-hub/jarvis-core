@@ -1,5 +1,5 @@
 """Print operational lead counts without connecting to Supabase at import time."""
-from jarvis_common import get_supabase
+from jarvis_common import get_service_supabase
 from jarvis_errors import report_error, sanitize_log_text
 
 
@@ -8,7 +8,7 @@ def print_jarvis_status() -> None:
     print("📊 JARVIS rendszerstatisztika és elemzés lekérése…")
     supabase = None
     try:
-        supabase = get_supabase()
+        supabase = get_service_supabase()
         leads = supabase.table("leads").select("status").limit(5000).execute().data or []
         logs = (
             supabase.table("logs")

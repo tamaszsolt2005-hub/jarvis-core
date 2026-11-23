@@ -2,7 +2,7 @@ def test_stats_module_imports_without_connecting(monkeypatch, capsys):
     import stats
 
     monkeypatch.setattr(
-        stats, "get_supabase",
+        stats, "get_service_supabase",
         lambda: (_ for _ in ()).throw(RuntimeError("offline")),
     )
     stats.print_jarvis_status()
@@ -29,7 +29,7 @@ def test_jarvis_status_run_reports_lead_status_counts(monkeypatch, capsys):
         def table(self, _name):
             return Query()
 
-    monkeypatch.setattr(jarvis_status, "get_supabase", lambda: DB())
+    monkeypatch.setattr(jarvis_status, "get_service_supabase", lambda: DB())
     jarvis_status.run()
     output = capsys.readouterr().out
     assert "new: 2" in output
@@ -70,7 +70,7 @@ def test_stats_prints_lead_counts_and_sanitized_recent_logs(monkeypatch, capsys)
         def table(self, name):
             return Query(name)
 
-    monkeypatch.setattr(stats, "get_supabase", lambda: DB())
+    monkeypatch.setattr(stats, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(stats, "sanitize_log_text", lambda value: value.replace("hidden-value", "[REDACTED]"))
 
     stats.print_jarvis_status()
@@ -103,7 +103,7 @@ def test_stats_reports_database_query_failure_without_leaking_exception(monkeypa
         def table(self, _name):
             return Query()
 
-    monkeypatch.setattr(stats, "get_supabase", lambda: DB())
+    monkeypatch.setattr(stats, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(
         stats, "report_error",
         lambda error, **kwargs: reports.append((error, kwargs)),

@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timezone
 import uuid
 
-from jarvis_common import audit_event, get_supabase, log_event
+from jarvis_common import audit_event, get_service_supabase, log_event
 from jarvis_errors import report_error
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -62,7 +62,7 @@ def run(path="data/leads.csv"):
     lead_operation_id = None
     lead_write_attempted = False
     try:
-        db = get_supabase()
+        db = get_service_supabase()
         imported = skipped = 0
         operation_id = str(uuid.uuid4())
         if not audit_event(
