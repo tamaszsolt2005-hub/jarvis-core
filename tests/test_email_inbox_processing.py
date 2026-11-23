@@ -166,16 +166,16 @@ def test_inbox_opt_out_is_sticky_and_stops_follow_up(monkeypatch):
     assert db.checkpoint["last_uid"] == 10
 
 
-def test_inbox_does_not_advance_checkpoint_when_audit_write_fails(monkeypatch):
+def test_inbox_does_not_change_lead_or_checkpoint_when_pending_audit_fails(monkeypatch):
     db = _DB(_lead())
     message = _message("contact@example.test", "Re: ajánlat", "Köszönöm.", "<reply-3>")
     _configure(monkeypatch, db, message, audit=False)
 
-    with pytest.raises(RuntimeError, match="auditnapló"):
+    with pytest.raises(RuntimeError, match="pending audit"):
         email_inbox._run()
 
-    # Lead state is already updated; retry is idempotent via last_inbound_message_id.
-    assert db.leads[0]["last_inbound_message_id"] == "<reply-3>"
+    assert db.leads[0]["last_inbound_message_id"] is None
+    assert db.leads[0]["status"] == "sent"
     assert db.checkpoint is None
 
 
