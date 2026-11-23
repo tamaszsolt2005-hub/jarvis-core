@@ -38,6 +38,7 @@ class SelectQuery:
         self.filters = []
         self.selection = None
         self.sorting = None
+        self.sortings = []
         self.limit_value = None
         self.not_ = FilterNamespace(self)
 
@@ -47,6 +48,7 @@ class SelectQuery:
 
     def order(self, field, desc=False):
         self.sorting = (field, desc)
+        self.sortings.append((field, desc))
         return self
 
     def limit(self, value):
@@ -149,7 +151,7 @@ def test_get_audit_events_filters_and_returns_newest_first():
     )
     assert result == rows
     query = db.last_query
-    assert query.sorting == ("created_at", True)
+    assert query.sortings == [("created_at", True), ("id", True)]
     assert query.limit_value == 1000
     assert ("not_is", "action", "null") in query.filters
     assert ("eq", "module", "chat_email") in query.filters
