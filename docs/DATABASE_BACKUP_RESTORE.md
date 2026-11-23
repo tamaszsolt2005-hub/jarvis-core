@@ -71,7 +71,7 @@ A workflow rögzített `ubuntu-24.04` runneren fut, és a PGDG tárolóból tele
 Az infrastruktúra CloudFormation sablonja: [`infra/aws-backup-stack.yaml`](../infra/aws-backup-stack.yaml). A sablon a következőket hozza létre:
 - privát S3 bucket teljes public-access blokkolással és Bucket Owner Enforced tulajdonosi móddal;
 - bucket policy, amely HTTPS-t és a megadott customer-managed KMS kulcsot követeli meg a backup prefixre feltöltött objektumoknál;
-- S3 versioning és 30 napos lifecycle a `jarvis/database/` prefix alatt;
+- S3 versioning; a `jarvis/database/` prefix aktuális objektumverziói 30 nap után lejárnak, a nem aktuális verziók pedig a nem aktuálissá válásuktól számított 30 nap után törlődnek;
 - stack törlése vagy erőforrás-csere esetén megtartott S3 bucket és KMS kulcs (`DeletionPolicy: Retain`, `UpdateReplacePolicy: Retain`);
 - saját, automatikus kulcsrotációval ellátott KMS kulcs és alias;
 - GitHub OIDC provider (vagy megadható már létező provider ARN);
@@ -115,7 +115,7 @@ A GitHub repository titkait a rendelkezésre álló GitHub-kapcsolat nem tudja �
 6. Ellenőrizd, hogy a feltöltött objektum SSE-KMS titkosítást használ, és a várt KMS kulcs ARN-jével készült.
 7. A visszafejtő age privát kulcsot offline, a GitHubtól és az S3 buckettől elkülönítve őrizd.
 
-A javasolt kezdeti megőrzés 30 nap. Ezt a CloudFormation lifecycle szabály konfigurálja, de csak a stack sikeres telepítése után aktív. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
+A CloudFormation lifecycle szabálya az aktuális objektumverziót 30 nap után lejáratja, majd a nem aktuális verziókat a nem aktuálissá válásuktól számított 30 nap után törli. Emiatt egy verziózott mentés korábbi verziója az első feltöltéstől számítva akár körülbelül 60 napig is megmaradhat; ez nem azonos a 30 napos aktuális verziómegőrzéssel. A szabály csak a stack sikeres telepítése után aktív. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
 
 ## 5. Visszaállítás – kizárólag elkülönített, üres célprojektbe
 
