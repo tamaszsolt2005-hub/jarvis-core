@@ -338,7 +338,7 @@ def test_smtp_rejects_recipient_header_injection_before_connection(monkeypatch):
         ("not-an-address", "Subject", "Body"),
         ("one@example.test,two@example.test", "Subject", "Body"),
         ("recipient@example.test", "", "Body"),
-        ("recipient@example.test", "Subject\\r\\nBcc: bad@example.test", "Body"),
+        ("recipient@example.test", "Subject\r\nBcc: bad@example.test", "Body"),
         ("recipient@example.test", "Subject", None),
     ],
 )
@@ -379,7 +379,7 @@ def test_smtp_rejects_invalid_sender_and_from_name_before_connection(monkeypatch
     )
     monkeypatch.setattr(
         email_utils, "get_secret",
-        lambda name, default=None: "JARVIS\\r\\nBcc: bad@example.test" if name == "EMAIL_FROM_NAME" else default,
+        lambda name, default=None: "JARVIS\r\nBcc: bad@example.test" if name == "EMAIL_FROM_NAME" else default,
     )
     with pytest.raises(ValueError, match="feladó név"):
         email_utils.send_email("recipient@example.test", "Subject", "Body")
