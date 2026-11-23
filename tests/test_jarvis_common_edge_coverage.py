@@ -112,7 +112,7 @@ def test_audit_event_truncates_oversized_result_and_reports_write_failure(monkey
     db = _DB()
     assert jarvis_common.audit_event(
         db, module="test", action="large", status="success",
-        result={"payload": "x" * 3000},
+        result={"payloads": ["x" * 500 for _ in range(6)]},
     )
     assert db.writes[-1][1]["result"] == {"truncated": True}
 
