@@ -16,7 +16,7 @@ from jarvis_common import get_secret
 AUDIT_COLUMNS = (
     "id,created_at,module,action,status,result,error,approved,"
     "recipient,subject,delivery_id,level,message,operation_id,"
-    "previous_hash,entry_hash"
+    "previous_hash,entry_hash,actor_user_id"
 )
 
 
