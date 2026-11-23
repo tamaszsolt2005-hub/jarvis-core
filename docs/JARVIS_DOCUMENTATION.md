@@ -69,11 +69,11 @@ A kód jelenléte önmagában nem bizonyít külső integrációt vagy productio
 | IMAP válasz-/leiratkozás-figyelés | Kódban implementált | Valós IMAP-folyamat végponttól végpontig nem igazolt. |
 | Proaktív lead-/feladatfigyelés | Napi workflow-val bekötve | Snapshotot ír; éles sikeres futása nem igazolt. |
 | Rendszerdiagnosztika | Implementált | Táblákat, konfigurációt és auditmezőket ellenőriz. |
-| Központi hibajelentés | Implementált, legacy sémára fallbackkel | Ha a strukturált `logs.error` oszlop hiányzik, a sanitized hibaesemény a legacy `module/level/message/created_at` oszlopokkal is menthető; az ismeretlen DB-hibák nem kapnak vak újrapróbálást. |
-| Strukturált audit + admin auditoldal | Kódban implementált | A production logs-séma és policy-k hiánya miatt éles használat blokkolt. |
+| Központi hibajelentés | Implementált és regressziós teszttel ellenőrzött | Hiányzó `logs.error` oszlopnál a hibaesemény a legacy `module/level/message/created_at` oszlopokkal is menthető. A production írási útvonal teljes működését külön éles ellenőrzés igazolja. |
+| Strukturált audit + admin auditoldal | Kódban és migrációban előkészített | A production `logs` táblából hiányzik minden strukturált auditmező, az auditlánc-tábla, a trigger és a policy; az éles audit továbbra is blokkolt a migráció jóváhagyott alkalmazásáig. |
 | Teljes admin/operator/reader RBAC | Nem aktív | Részleges Auth-alapok PR #13-ban, de nem merge-elt / nem aktivált. |
-| Titkosított DB backup | Kódban és workflow-ban előkészítve | AWS/S3 konfiguráció és valós futás nem igazolt. |
-| Sandbox restore-próba | Nem történt | Nincs jóváhagyott külön tesztprojekt; ilyet nem hoztunk létre. |
+| Titkosított DB backup | Kód és automatikus round-trip CI-teszt | A CI valós PostgreSQL 17 + age mentés/visszaállítási kört tesztel. Az éles S3 mentés a GitHub/AWS konfiguráció hiányában még nem igazolt. |
+| Lokális restore-próba | CI-ben automatizált | Elkülönített, ideiglenes PostgreSQL 17 adatbázisba valódi visszaállítás történik; Supabase tesztprojektet továbbra sem hozunk létre. |
 
 ### Működési alapelvek
 
@@ -254,13 +254,13 @@ A modul maszkolja a gyakori jelszó-, kulcs-, token-, Bearer- és URL-hitelesít
 
 A `scripts/supabase_backup.py` a teljes `public` sémáról és adatairól PostgreSQL logical dumpot készít, UTC timestampet, UUID-t és SHA-256 manifestet használ, majd `age` recipient kulccsal titkosítható. A DB-jelszó nem kerülhet parancssori URL-be. A tényleges production dump a repo snapshoton kívüli `posts` táblát is megőrzi.
 
-A napi 02:15 UTC workflow csak konfiguráció esetén fut. Rövid életű GitHub OIDC AWS role, privát S3 bucket és SSE-KMS feltöltés szükséges. Az `infra/aws-backup-stack.yaml` előkészített, de a stack telepítése nem igazolt.
+A napi 02:15 UTC workflow rövid életű GitHub OIDC AWS role-t, privát S3 bucketet és SSE-KMS feltöltést használ. A szükséges konfiguráció hiányában a workflow most hibával leáll, nem jelzi sikeresnek a kihagyott mentést. Feltöltés után ellenőrzi a KMS-metaadatokat, visszatölti az objektumot, majd az age dekódolást és a manifest SHA-256 hash-eit is ellenőrzi. Az `infra/aws-backup-stack.yaml` előkészített, de a stack telepítése nem igazolt.
 
-**Szükséges Actions secret-ek:** `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN`.
+**Szükséges Actions secret-ek:** `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN`, `BACKUP_AGE_IDENTITY` (az age privát kulcs teljes tartalma, kizárólag GitHub Secretként).
 
 **Szükséges Actions változók:** `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`, `BACKUP_S3_KMS_KEY_ARN`.
 
-A valós mentés, feltöltés és restore-próba nincs igazolva. A restore kizárólag külön, üres, jóváhagyott nem éles Supabase-projektbe engedhető; a kód ellenőrzi a production projekt tiltását, a célprojekt allowlistet, DB URL/projektazonosságot, age dekódolást, hash-t és üres public sémát, majd tranzakcióban állít vissza. A felhasználói döntés szerint nem hozunk létre új tesztprojektet, így sandbox restore nem történt.
+Az éles mentés és S3-feltöltés csak a GitHub Actions secret-ek/változók és az AWS stack telepítése után igazolható. A `verify` parancs a letöltött objektumot dekódolja, ellenőrzi az archívum fájlkészletét és SHA-256 hash-eit. A CI külön, ideiglenes PostgreSQL 17 adatbázisban valódi titkosított backup/restore round-tripet futtat. A nem éles Supabase restore továbbra is csak külön, üres, allowlistelt projektbe engedhető; új Supabase tesztprojektet nem hozunk létre.
 
 A public dump nem tartalmazza a Supabase által kezelt `auth`, `storage`, `realtime` sémák teljes tartalmát, Storage bináris objektumokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. Auth/Storage használat előtt külön platform- és objektummentési terv és restore-próba szükséges.
 
@@ -296,14 +296,14 @@ Fő konfigurációs kulcsok – csak neveket dokumentálunk, értékeket soha:
 | `EMAIL_USER`, `EMAIL_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST`, `IMAP_PORT` | E-mail és inbox |
 | `EMAIL_DELIVERY_ENABLED`, `CHAT_EMAIL_ENABLED`, `AUTO_SEND_ENABLED`, `EMAIL_INBOX_MONITOR_ENABLED` | E-mail biztonsági kapcsolók |
 | `SEND_MAX_PER_RUN`, `MAX_FOLLOW_UPS`, `FOLLOW_UP_DAYS`, `SEND_DELAY_SECONDS` | E-mail korlátok |
-| `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN` | Backup workflow secret |
+| `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN`, `BACKUP_AGE_IDENTITY` | Backup workflow secret |
 | `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`, `BACKUP_S3_KMS_KEY_ARN` | Backup workflow változók |
 
 Az e-mail-kapcsolók alapértelmezésben kikapcsoltak. Chat-küldéshez `EMAIL_DELIVERY_ENABLED=true` és `CHAT_EMAIL_ENABLED=true`; háttérküldéshez ezen felül `AUTO_SEND_ENABLED=true`, `EMAIL_INBOX_MONITOR_ENABLED=true` és érvényes lead-hozzájárulás kell. A Codespaces és a GitHub Actions secret-tára külön van.
 
 ## 10. Tesztelés és bizonyítékok
 
-A minőségbiztosítási rétegek: `compileall`; mockolt pytest/AppTest/Playwright; külön kontrollált live integráció; valós dashboard- és Actions-futások megfigyelése. A mockolt teszt nem bizonyít éles séma/RLS/SMTP-kézbesítés/API-elérhetőséget.
+A minőségbiztosítási rétegek: `compileall`; mockolt pytest/AppTest/Playwright; külön PostgreSQL 17 + age integrációs backup/restore round-trip CI-job; külön kontrollált live integráció; valós dashboard- és Actions-futások megfigyelése. A lokális PostgreSQL integráció bizonyítja a backup/restore kód tényleges működését, de nem bizonyítja az éles Supabase-hozzáférést vagy az S3-feltöltést.
 
 Dátumhoz kötött bizonyítékok:
 
@@ -317,7 +317,7 @@ Tesztbiztonsági határok:
 - Read-only live integrációhoz `tests/test_live_integrations.py`, `live_integration` marker és `JARVIS_LIVE_INTEGRATION_TESTS=1` szükséges.
 - SMTP/IMAP unit tesztek mockoltak; valós levelet nem küldenek.
 - Supabase unit tesztek fake klienst használnak; production DB-t nem módosítanak.
-- A `supabase/tests/audit_access_and_integrity.test.sql` pgTAP teszt külön adatbázist és a két auditmigrációt igényli; a Python CI nem futtatja.
+- A `supabase/tests/audit_access_and_integrity.test.sql` pgTAP teszt külön Supabase-kompatibilis adatbázist és a két auditmigrációt igényli; a Python CI nem futtatja.
 
 ## 11. Ismert hibák és blokkolók
 
@@ -340,7 +340,7 @@ Tesztbiztonsági határok:
 
 ### Üzemeltetés / külső kapcsolatok
 
-- A backup stack, Actions beállítások, valódi backup, S3-feltöltés és sandbox restore nem igazolt.
+- Az AWS backup stack telepítése, a GitHub backup secret-ek/változók megléte, az éles Supabase dump és az S3-feltöltés még nem igazolt; hiányzó konfigurációval a workflow most hibás állapotot jelez.
 - A Gemini/SMTP/IMAP külső integrációk és az e-mail-kézbesítés sikeres üzemi működése nincs bizonyítva mockolt tesztekkel.
 - A proaktív monitor napi workflow kódban létezik, de a sikeres éles futás külön igazolandó.
 
