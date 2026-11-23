@@ -48,7 +48,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
         if not fields["title"] or len(fields["title"]) > 180:
             return {"error": "A feladat címe 1–180 karakter lehet."}
         priority = fields.get("priority", "normal").casefold()
-        if priority not in _PRIORITIES:
+        if not isinstance(priority, str) or priority not in _PRIORITIES:
             return {"error": "A prioritás csak normal, high vagy urgent lehet."}
         due_date = fields.get("due_date")
         if due_date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due_date):
@@ -157,6 +157,8 @@ def _validate_action(action: Any) -> None:
         raise ValueError("Érvénytelen feladatművelet.")
 
     kind = action.get("type")
+    if not isinstance(kind, str):
+        raise ValueError("Ismeretlen feladatművelet.")
     if kind == "create":
         if set(action) - {"type", "title", "priority", "due_at", "notes"}:
             raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
@@ -200,7 +202,10 @@ def _validate_action(action: Any) -> None:
             or len(updates["title"]) > 180
         ):
             raise ValueError("A feladat címe 1–180 karakter lehet.")
-        if "priority" in updates and updates["priority"] not in _PRIORITIES:
+        if "priority" in updates and (
+            not isinstance(updates["priority"], str)
+            or updates["priority"] not in _PRIORITIES
+        ):
             raise ValueError("Érvénytelen feladatprioritás.")
         if "due_at" in updates:
             due_at = updates["due_at"]
