@@ -45,5 +45,5 @@ def test_audit_integrity_rpc_is_invoker_scoped_and_admin_read_protected():
     assert "grant execute on function public.verify_logs_audit_chain() to authenticated" in " ".join(sql.split())
     assert "admins can read audit chain state" in sql
     assert "disconnected_entries" in sql
-    assert "set search_path = pg_catalog, public, extensions\nas $" in sql
+    assert "set search_path = pg_catalog, public, extensions\nas $$" in sql
     assert "coalesce(state_hash = repeat('0', 64), false)" in sql
