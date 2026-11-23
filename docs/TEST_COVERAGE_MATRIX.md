@@ -56,11 +56,11 @@ real email.
 
 ## Dashboard UI test commands
 
-Install the browser-test dependencies and Chromium:
+Install the browser-test dependencies and all three Playwright browser engines:
 
 ```bash
 python -m pip install -r requirements-test.txt
-python -m playwright install chromium
+python -m playwright install chromium firefox webkit
 ```
 
 Run the focused UI tests:
@@ -69,13 +69,13 @@ Run the focused UI tests:
 python -m pytest -q tests/test_dashboard_app.py tests/test_dashboard_browser.py
 ```
 
-The Chromium test launches a local Streamlit process with a test-only read-only
+Each Chromium, Firefox and WebKit run launches a local Streamlit process with a test-only read-only
 database shim and mocked AI output. Browser requests are restricted to the local
 server; Plotly.js is served from the locally installed Python package. It checks
 chat and analytics rendering, the analytics period selector, hidden chat input
 on the analytics page, no horizontal overflow, and readable KPI widths at
 1440×960, 1024×768, 768×1024, 390×844, and 320×720. CI uploads the screenshots
-as the `jarvis-dashboard-responsive-screenshots` workflow artifact.
+as the `jarvis-dashboard-responsive-screenshots` workflow artifact, grouped by browser engine.
 
 ## Safety boundaries
 
