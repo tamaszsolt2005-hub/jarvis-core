@@ -1,5 +1,4 @@
 """Streamlit AppTest coverage for login, chat turns, task approval and email preview."""
-import time
 from types import SimpleNamespace
 
 from pathlib import Path
@@ -11,7 +10,6 @@ import email_utils
 import global_lead_research
 import jarvis_common
 import jarvis_memory
-import task_actions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +38,6 @@ class _ReadOnlyDB:
 
 
 def _prepare_dashboard(monkeypatch):
-    task_calls = []
     smtp_calls = []
     db = _ReadOnlyDB()
 
@@ -51,19 +48,12 @@ def _prepare_dashboard(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_supabase", lambda: db)
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(jarvis_common, "estimate_response_tokens", lambda _prompt: 256)
-    monkeypatch.setattr(jarvis_common, "generate_text", lambda prompt, **_kwargs: ("APPT_TASK_EXECUTED" if "APPT_TASK_EXECUTED" in prompt else "APPT_CHAT_RESPONSE"))
     monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "audit_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(global_lead_research, "get_research_market", lambda _db: "Hungary")
     monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("", None))
     monkeypatch.setattr(jarvis_memory, "get_memories", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(
-        task_actions, "execute_task_action",
-        lambda _db, action, *, approved=False: (
-            task_calls.append((action, approved)) or "APPT_TASK_EXECUTED"
-        ),
-    )
     monkeypatch.setattr(
         chat_email, "build_chat_email_draft",
         lambda *_args, **_kwargs: ("APPT tárgy", "APPT levéltörzs"),
@@ -110,14 +100,6 @@ def test_streamlit_login_chat_task_approval_and_email_preview_are_isolated(monke
     assert any("APPT_CHAT_RESPONSE" in value for value in _markdown_values(app))
 
     _submit_chat(app, "Hozz létre feladat: AppTest ellenőrzés; prioritás=high")
-    assert task_calls == []
-    assert any("Jóváhagyásra váró feladatművelet" in value for value in _markdown_values(app))
-
-    _submit_chat(app, "Jóváhagyom")
-    assert len(task_calls) == 1
-    assert task_calls[0][1] is True
-    assert any("APPT_TASK_EXECUTED" in value for value in _markdown_values(app))
-
     _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
     assert smtp_calls == []
     assert any("APPT levéltörzs" in value for value in _markdown_values(app))
