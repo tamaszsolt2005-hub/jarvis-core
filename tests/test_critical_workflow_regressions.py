@@ -38,6 +38,9 @@ class SenderQuery:
         self.filters[key] = value
         return self
 
+    def limit(self, _limit):
+        return self
+
     def execute(self):
         if self.operation == "select":
             return Result([{
@@ -271,7 +274,7 @@ def test_sender_rechecks_opt_out_immediately_before_smtp(monkeypatch):
 
 def test_follow_up_draft_skips_website_audit_and_adds_opt_out(monkeypatch):
     prompts = []
-    monkeypatch.setattr(email_sender, "generate_text", lambda prompt: prompts.append(prompt) or "Tárgy: Követés\\nKedves Partner!")
+    monkeypatch.setattr(email_sender, "generate_text", lambda prompt: prompts.append(prompt) or "Tárgy: Követés\nKedves Partner!")
     monkeypatch.setattr(
         email_sender, "audit_company_website",
         lambda *_args: pytest.fail("Follow-up draft must not audit the website"),
