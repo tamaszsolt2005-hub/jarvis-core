@@ -150,3 +150,74 @@ def test_settings_helpers_handle_missing_and_persist_values():
     assert jarvis_common.get_setting(db, "missing", default="light") == "light"
     jarvis_common.set_setting(db, "theme", "light")
     assert db.writes[-1] == ("settings", {"key": "theme", "value": "light"})
+
+
+def test_supabase_client_uses_service_role_then_anon_fallback(monkeypatch):
+    captured = []
+    monkeypatch.setattr(jarvis_common, "required_secret", lambda name: {
+        "SUPABASE_URL": "https://example.supabase.test"
+    }[name])
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda name: "service-role" if name == "SUPABASE_SERVICE_ROLE_KEY" else None)
+    monkeypatch.setattr(jarvis_common, "create_client", lambda url, key: captured.append((url, key)) or "client")
+    assert jarvis_common.get_supabase() == "client"
+    assert captured == [("https://example.supabase.test", "service-role")]
+
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: None)
+    monkeypatch.setattr(
+        jarvis_common, "required_secret",
+        lambda name: {"SUPABASE_URL": "https://example.supabase.test", "SUPABASE_KEY": "anon-key"}[name],
+    )
+    assert jarvis_common.get_supabase() == "client"
+    assert captured[-1] == ("https://example.supabase.test", "anon-key")
+
+
+def test_gemini_client_and_legacy_model_names_use_supported_configuration(monkeypatch):
+    captured = []
+    monkeypatch.setattr(jarvis_common, "required_secret", lambda name: "gemini-test-key")
+    monkeypatch.setattr(jarvis_common.genai, "Client", lambda **kwargs: captured.append(kwargs) or "gemini-client")
+    assert jarvis_common.get_gemini_client() == "gemini-client"
+    assert captured == [{"api_key": "gemini-test-key"}]
+
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda *_args: "gemini-2.5-pro")
+    assert jarvis_common.get_model_name() == "gemini-3.8-flash"
+
+
+def test_generate_text_swallows_status_callback_failure_and_uses_second_fallback(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.5-flash")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *_args, **_kwargs: 1)
+    class Overloaded(Exception):
+        code = 503
+        status = "UNAVAILABLE"
+    client = FakeClient([
+        Overloaded("503 primary"), Overloaded("503 first fallback"), "recovered on second fallback",
+    ])
+    assert jarvis_common.generate_text(
+        "hello", client, on_status=lambda _message: (_ for _ in ()).throw(RuntimeError("UI callback failed")),
+        max_output_tokens=64,
+    ) == "recovered on second fallback"
+    assert client.models.model_calls == [
+        "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"
+    ]
+    assert all(config.max_output_tokens == 128 for config in client.models.configs)
+
+
+def test_generate_text_reraises_last_overload_when_all_fallbacks_fail(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "gemini-3.5-flash")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *_args, **_kwargs: 1)
+    class Overloaded(Exception):
+        code = 503
+        status = "UNAVAILABLE"
+    errors = [Overloaded("503 primary"), Overloaded("503 first fallback"), Overloaded("503 last fallback")]
+    client = FakeClient(errors)
+    with pytest.raises(Overloaded, match="last fallback"):
+        jarvis_common.generate_text("hello", client)
+    assert client.models.calls == 3
+
+
+def test_conversation_history_stops_when_newest_turn_fills_exact_character_budget():
+    line = "assistant: newest"
+    result = jarvis_common.format_conversation_history(
+        [("user", "older"), ("assistant", "newest")],
+        max_chars=len(line), max_message_chars=100,
+    )
+    assert result == line
