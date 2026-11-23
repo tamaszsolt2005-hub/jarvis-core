@@ -55,17 +55,37 @@ database verification.
 
 The repository branch does not apply either migration to the live project.
 
-A read-only comparison also found migration-history drift: the live project
-reports versions `20261119191911`, `20261119192040`, `20261119192145`,
-`20261119192412`, and `20261119192559`, while the repository migration
-directory does not contain matching files for those versions. Do not run
-`supabase db push` until the missing migration sources/history have been
-reconciled with `supabase migration list` and an approved `db pull` /
-migration-repair workflow. The missing SQL must not be reconstructed by guess.
-The live project's last read-only inspection showed the legacy `logs`
-columns only and did not show the structured-audit migration in migration
-history. Production therefore does not yet have the schema required by this
-viewer or hash chain.
+A read-only comparison on 2026-11-23 found migration-history drift. The
+live project reports these applied migration versions, but none of the matching
+source files exists on either `main` or `feat/complete-central-audit`, and
+Git history contains no matching path history:
+
+| Version | Recorded migration name |
+|---|---|
+| `20261119191911` | `create_jarvis_memory_and_fk_indexes` |
+| `20261119192040` | `complete_jarvis_runtime_schema` |
+| `20261119192145` | `enable_rls_on_legacy_posts` |
+| `20261119192412` | `revoke_anon_authenticated_public_table_and_sequence_privileges` |
+| `20261119192559` | `secure_postgres_default_privileges_public_schema` |
+
+Do not run `supabase db push` until the missing migration sources/history have
+been reconciled with a reviewed remote schema snapshot and an approved
+migration-repair workflow. The missing SQL must not be reconstructed by guess,
+and `supabase/schema.sql` is a schema snapshot, not a substitute for the
+missing migration history.
+
+The same read-only inspection found eight `public` tables. RLS is enabled on
+all eight, no table has an RLS policy, and the current table ACLs grant direct
+table privileges only to `postgres` and `service_role`; all eight tables
+are owned by `postgres`. The `logs` table still has only its legacy columns,
+so the structured audit and hash-chain migrations have not been applied to
+production. The current business application therefore continues to depend on
+server-side `service_role` access; this is not a per-user business RBAC model.
+
+The default-privilege catalog also contains a broader `supabase_admin`
+default ACL for `anon` and `authenticated`. The inspected application tables
+are `postgres`-owned and do not inherit those grants, but future object
+creation must use a controlled owner and be reviewed separately.
 
 ## Controls still not complete
 
