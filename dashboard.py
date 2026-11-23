@@ -247,7 +247,7 @@ def authenticated() -> bool:
         password = st.text_input("Dashboard jelszó", type="password", placeholder="Írd be a jelszavad")
         submitted = st.form_submit_button("Belépés", type="primary", width="stretch")
     if submitted:
-        if hmac.compare_digest(password, expected):
+        if hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8")):
             st.session_state["authenticated"] = True
             st.session_state["_jarvis_authenticated_at"] = now
             st.rerun()
