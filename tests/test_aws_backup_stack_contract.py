@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_backup_role_is_scoped_to_backup_prefix_and_does_not_decrypt():
+def test_backup_role_has_scoped_s3_kms_multipart_permissions():
     template = (ROOT / "infra/aws-backup-stack.yaml").read_text(encoding="utf-8")
     assert "Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*" in template
     assert "s3:PutObject" in template
