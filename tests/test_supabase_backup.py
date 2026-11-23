@@ -194,7 +194,7 @@ def test_create_backup_uses_mocked_tools_and_writes_encrypted_output(monkeypatch
             output.write_bytes(b"mock custom-format snapshot")
         elif args[0] == "pg_restore":
             output = Path(args[args.index("--file") + 1])
-            output.write_text("CREATE TABLE public.sample(id integer);" if "--schema-only" in args else "COPY public.sample (id) FROM stdin;\\n1\\n\\\\.\\n")
+            output.write_text("CREATE TABLE public.sample(id integer);" if "--schema-only" in args else "COPY public.sample (id) FROM stdin;\n1\n\\.\n")
         elif args[0] == "age":
             output = Path(args[args.index("--output") + 1])
             output.write_bytes(b"mock encrypted backup")
