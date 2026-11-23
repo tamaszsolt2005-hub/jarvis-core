@@ -167,3 +167,108 @@ def test_pending_audit_failure_prevents_smtp_and_restores_status(monkeypatch):
 
     assert sent == []
     assert db.rows[0]["status"] == "sent"
+
+
+def test_follow_up_feature_gate_skips_database_access(monkeypatch, capsys):
+    monkeypatch.setattr(follow_up, "EMAIL_DELIVERY_ENABLED", False)
+    monkeypatch.setattr(
+        follow_up, "get_supabase",
+        lambda: pytest.fail("disabled follow-up must not initialize the database"),
+    )
+    follow_up._run()
+    assert "nem kerül kiküldésre" in capsys.readouterr().out
+
+
+def test_follow_up_rechecks_opt_out_after_claim_and_blocks_delivery(monkeypatch):
+    class RevokingQuery(_Query):
+        def execute(self):
+            result = super().execute()
+            if self.operation == "update" and self.values == {"status": "followup_sending"}:
+                self.db.rows[0]["opted_out"] = True
+            return result
+
+    class RevokingDB(_DB):
+        def table(self, _name):
+            return RevokingQuery(self)
+
+    db = RevokingDB([_lead()])
+    sent = []
+    _configure_run(monkeypatch, db, send=lambda *args: sent.append(args) or "smtp-id")
+    follow_up._run()
+    assert sent == []
+    assert db.rows[0]["status"] == "followup_blocked"
+    assert db.rows[0]["next_follow_up_at"] is None
+
+
+def test_follow_up_unknown_delivery_when_post_smtp_state_update_returns_no_row(monkeypatch):
+    class LostCompletionQuery(_Query):
+        def execute(self):
+            if self.operation == "update" and self.values and self.values.get("status") == "followed_up":
+                return _Result([])
+            return super().execute()
+
+    class LostCompletionDB(_DB):
+        def table(self, _name):
+            return LostCompletionQuery(self)
+
+    db = LostCompletionDB([_lead()])
+    audits, reports = [], []
+    _configure_run(
+        monkeypatch, db,
+        audit=lambda *args, **kwargs: audits.append(kwargs) or True,
+    )
+    monkeypatch.setattr(follow_up, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
+    follow_up._run()
+
+    assert db.rows[0]["status"] == "followup_unknown"
+    assert [item["status"] for item in audits] == ["pending", "unknown"]
+    assert reports[0][1]["operation"] == "send_follow_up"
+
+
+def test_follow_up_success_audit_failure_keeps_completed_delivery_non_sendable(monkeypatch):
+    db = _DB([_lead()])
+    statuses = []
+    _configure_run(
+        monkeypatch, db,
+        audit=lambda *args, **kwargs: statuses.append(kwargs["status"]) and False
+        if kwargs["status"] == "success" else statuses.append(kwargs["status"]) or True,
+    )
+    follow_up._run()
+    assert db.rows[0]["status"] == "followed_up"
+    assert statuses == ["pending", "success", "unknown"]
+
+
+def test_follow_up_recovery_failure_is_reported_critical(monkeypatch):
+    class RecoveryFailureQuery(_Query):
+        def execute(self):
+            if self.operation == "update" and self.values == {"status": "sent"}:
+                raise OSError("mock recovery failure")
+            return super().execute()
+
+    class RecoveryFailureDB(_DB):
+        def table(self, _name):
+            return RecoveryFailureQuery(self)
+
+    db = RecoveryFailureDB([_lead()])
+    reports = []
+    _configure_run(
+        monkeypatch, db,
+        audit=lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(follow_up, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
+    follow_up._run()
+    assert any(item[1]["operation"] == "restore_lead_after_follow_up_failure"
+               and item[1]["severity"] == "critical" for item in reports)
+
+
+def test_follow_up_run_reports_and_reraises_batch_level_failure(monkeypatch):
+    reports = []
+    monkeypatch.setattr(
+        follow_up, "_run",
+        lambda: (_ for _ in ()).throw(ConnectionError("mock batch outage")),
+    )
+    monkeypatch.setattr(follow_up, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
+    with pytest.raises(ConnectionError, match="mock batch outage"):
+        follow_up.run()
+    assert reports[0][1]["operation"] == "run_follow_up_batch"
+    assert reports[0][1]["severity"] == "critical"
