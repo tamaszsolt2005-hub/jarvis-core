@@ -145,8 +145,8 @@ def test_email_sender_smtp_failure_is_reported_and_not_marked_as_sent(monkeypatc
         return True
     def fail_send(*_args):
         raise OSError("mock SMTP failure")
-    monkeypatch.setattr(email_sender, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
     _configure(monkeypatch, db, send=fail_send, audit=audit)
+    monkeypatch.setattr(email_sender, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
 
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
     assert db.rows[0]["status"] == "send_error"
