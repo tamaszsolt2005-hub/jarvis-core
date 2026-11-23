@@ -65,3 +65,20 @@ A végleges táblánkénti SQL-policy-kat a tényleges táblák, függvények, v
 A repositoryban futó mockolt pytest/AppTest tesztek az alkalmazás logikáját és a policy-szerződéseket ellenőrizhetik, de nem bizonyítják a PostgreSQL RLS tényleges működését. Az adatbázis-szintű bizonyítékhoz elkülönített Supabase tesztprojekt, külön tesztfelhasználók és valós JWT-vel végzett integrációs tesztek szükségesek.
 
 **Jelenlegi állapot:** a projekt továbbra is közös jelszavas, service-role kulcsot használó architektúrával rendelkezik. Az RBAC célmodell dokumentálva van, de még nincs élesítve; a production schema és adatok nem változtak.
+
+
+## Aktuális megvalósítási állapot – audit-admin rész
+
+A külön auditoldal már Supabase Auth belépést és szerveroldali
+`get_user()` tokenellenőrzést követel. A szerepkört kizárólag a hitelesített
+felhasználó `app_metadata.role` claimjéből olvassa; a közös dashboard-jelszó
+nem jogosít auditolvasásra. A `logs` táblára készített migráció
+`authenticated` SELECT grantet és admin-only RLS policy-t ad, valamint
+megtiltja a kliensoldali írást/módosítást/törlést.
+
+Ez **csak az audit olvasási felületét védi**. A teljes admin/operator/reader
+mátrix a leadekre, feladatokra, e-mail-tervezetekre, beállításokra és
+memóriára még nem aktív, mert ezek a modulok jelenleg a szerveroldali
+service-role klienssel működnek. Tenant-izoláció sincs, mivel a jelenlegi
+adatmodell egyetlen üzleti munkaterületet feltételez. Ezeket a hiányokat nem
+lehet biztonságosan egyetlen audit policy-val megoldani.
