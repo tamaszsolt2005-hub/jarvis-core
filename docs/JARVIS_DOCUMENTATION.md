@@ -130,3 +130,100 @@ A weboldalak, e-mailek és visszakeresett memóriák tartalma nem megbízható u
 | `infra/aws-backup-stack.yaml` | Előkészített AWS S3/KMS/OIDC infrastruktúra |
 
 További régebbi vagy külön célú fájlok: `follow_up.py`, `inbox_monitor.py`, `reply_analyzer.py`, `inbox_analyzer.py`, `jarvis_status.py`, `stats.py`. Ezek pontos használatát kód- és teszthivatkozások alapján kell eldönteni. A dokumentációs összevonás Python-fájlokat nem töröl.
+
+## 4. Adatmodell és production Supabase
+
+### Repository-séma
+
+A `supabase/schema.sql` hét alkalmazástáblát definiál: `leads`, `tasks`, `email_drafts`, `logs`, `settings`, `jarvis_memory`, `jarvis_proactive_state`.
+
+### Production audit – 2026-11-23
+
+A meglévő Jarvis Supabase-projekt ellenőrzéskor `ACTIVE_HEALTHY` állapotú volt, `eu-west-1` régióban, PostgreSQL `17.11.0.019` verzióval. A `public` sémában nyolc tábla volt: `leads`, `tasks`, `email_drafts`, `logs`, `settings`, `jarvis_memory`, `jarvis_proactive_state`, `posts`.
+
+A `posts` élő legacy tábla, nem szerepel a repo snapshotban, és a vizsgált kód nem hivatkozott rá. Ettől még nem szabad automatikusan átvenni vagy törölni; előbb függőségi ellenőrzés kell.
+
+Lényeges eltérések:
+
+- Mind a nyolc production public táblán RLS engedélyezett, de az auditkor egyiken sem volt RLS policy.
+- Közvetlen táblajogosultság a `postgres` és `service_role` szerepköröknél volt.
+- A production `logs` legacy oszlopai: `id`, `module`, `message`, `created_at`, `level`. Hiányoznak a kódban elvárt strukturált mezők, köztük `action`, `error`, `operation_id`.
+- A production `settings` integer `id` primary key-t és unique `key` mezőt használ; a repo snapshot ettől eltér.
+- A production `tasks` és `email_drafts` táblákban lead-ID indexek voltak, amelyek a repo snapshotban nincsenek.
+
+**A `supabase/schema.sql` nem pontos production-séma-export, és nem helyettesíti az eredeti migrációs előzményeket.** A production audit csak olvasási műveleteket végzett; adatot vagy sémát nem módosított.
+
+### Öt hiányzó remote migrációforrás
+
+A remote migration ledger az alábbi verziókat rögzítette, de az eredeti SQL nem található meg a repositoryban/Git-előzményekben:
+
+| Verzió | Remote név |
+|---|---|
+| `20261119191911` | `create_jarvis_memory_and_fk_indexes` |
+| `20261119192040` | `complete_jarvis_runtime_schema` |
+| `20261119192145` | `enable_rls_on_legacy_posts` |
+| `20261119192412` | `revoke_anon_authenticated_public_table_and_sequence_privileges` |
+| `20261119192559` | `secure_postgres_default_privileges_public_schema` |
+
+A migrációnevek nem igazolják az SQL tényleges tartalmát; nem szabad kitalálni vagy névből visszaépíteni az eredeti SQL-t.
+
+**Biztonsági kapu:** a drift rendezéséig tilos a `supabase db push`, migration repair, a ledger átírása, találgatott DDL, SQL Editor-módosítás, production GRANT/REVOKE vagy RLS policy-telepítés. Előbb hiteles schema-only dump, eltérésmátrix, bizonyítékon alapuló új migráció, külön jóváhagyott nem éles teszt és restore terv kell. Production bevezetéshez külön jóváhagyás szükséges.
+
+## 5. Automatizmusok
+
+A workflow-k UTC-idő szerint:
+
+| Idő | Workflow | Funkció | Ellenőrzési állapot |
+|---:|---|---|---|
+| 02:15 | `database-backup.yml` | Titkosított Supabase public DB backup, S3 upload | AWS/S3 konfiguráció és sikeres backup nem igazolt |
+| 08:00 | `global-lead-research.yml` | Legfeljebb 15 új globális cég kutatása | 2026-11-23-án logs auditmező-hiány miatt sikertelen |
+| 08:20 | `proactive-monitor.yml` | Lead- és feladatváltozások pillanatképe | Kód és workflow megvan; éles siker nem igazolt |
+| 08:30 | `daily-briefing.yml` | Napi vezetői összefoglaló | 14 napos artifact; valós adatkapcsolat külön igazolandó |
+| 09:15 | `email-automation.yml` | Inbox-válasz/leiratkozás és feltételes küldés | Éles SMTP/IMAP és kézbesítés nem igazolt |
+| Push/PR/kézi | `ci.yml` | Statikus, unit, AppTest, Playwright tesztek | Csak az adott commit CI-eredményét igazolja |
+
+A `jarvis.yml` és `jarvis-cron.yml` letiltott no-op legacy workflow; nem aktív automatizmus.
+
+### Proaktív monitor
+
+A `proactive_monitor.py` legfeljebb 2000 leadet és 1000 feladatot vizsgál, az előző sikeres snapshothoz viszonyítja az új/módosult rekordokat és státusz-, prioritás-, határidőváltozásokat. Az első futás alapállapotot ment; a következő futások a `jarvis_proactive_state` tábla `daily_proactive_snapshot` kulcsú rekordját upsertelik. Nem módosít leadet/feladatot/e-mailt, és nem küld levelet. Mintavételi korlátja miatt nem teljes adatbázis-audit. A workflow artifact 14 napig marad meg.
+
+A dashboard `_proactive_signals()` állapotjelzése ettől különálló, pillanatnyi jelzés.
+
+### Production leadkutatási hiba – 2026-11-23
+
+A [45252422431 workflow-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) sikertelen volt. A kötelező secret-ellenőrzés sikerült, de a kutatás előtt a `pending` auditot nem lehetett elmenteni: a Supabase séma-cache nem találta a `logs.action` oszlopot; a hibajelentésnél a `logs.error` mező hiánya is előjött.
+
+A job fail-closed módon, a `research_global_companies()` előtt leállt; a leadkutatás nem indult el. Ez production sémadrift, nem hiányzó GitHub secret. Migrációs egyeztetés nélkül nem javítható biztonságosan.
+
+## 6. Biztonság és jogosultságok
+
+### Dashboard és adatbázis-kliens
+
+A Streamlit dashboard közös `JARVIS_DASHBOARD_PASSWORD` jelszóval védett; a tesztek szerint a session maximum 8 órás. Ez nem egyedi identitás és nem teljes RBAC.
+
+A `jarvis_common.get_supabase()` szerveroldali kliens `SUPABASE_SERVICE_ROLE_KEY`-t, ennek hiányában legacy `SUPABASE_KEY`-t használ. A service-role megkerüli az RLS-t, ezért titkos szerveroldali környezetben kell tartani; nem kerülhet browserbe, kliensoldali kódba vagy naplóba.
+
+### Cél RBAC-modell – jelenleg nem aktív
+
+| Művelet | admin | operator | reader |
+|---|---:|---:|---:|
+| Lead/feladat/tervezet olvasás | Igen | Igen | Igen |
+| Lead/feladat módosítás | Igen | Igen | Nem |
+| Jóváhagyott e-mail | Igen | Külön megerősítéssel | Nem |
+| Analitika olvasás | Igen | Igen | Igen |
+| Rendszerbeállítás/felhasználókezelés | Igen | Nem | Nem |
+| Admin audit olvasása | Igen | Nem | Nem |
+| Memória módosítása | Igen | Explicit utasítással | Nem |
+
+A bevezetéshez egyedi Supabase Auth-identitás, trusted `app_metadata.role`, user-JWT alapú adatbázis-kliens, táblánkénti RLS policy és anon/reader/operator/admin negatív teszt szükséges. A user által módosítható `user_metadata` nem lehet jogosultság alapja; hiányzó vagy hibás szerepkörnél fail-closed hozzáférés kell.
+
+A PR #13 (`feat/supabase-auth-rbac-foundation`) a vizsgált állapotban draft és nem merge-elt. Tartalmaz Auth-segédet és szerepkör-ellenőrzést, de a fő dashboard login nincs átállítva, az üzleti modulok service-role klienst használnak, production Auth/RLS/migráció nem történt. A [45251071690 PR CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45251071690) sikeres volt, de ez nem bizonyít production RBAC-aktiválást. [PR #13](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13).
+
+### Audit-admin és tartalmi/network biztonság
+
+Az `audit_admin.py` külön Supabase Auth admin útvonalat használ; csak `SUPABASE_PUBLISHABLE_KEY` vagy legacy `SUPABASE_ANON_KEY` publikus kulcsot fogad el. Auth user ellenőrzés és trusted `app_metadata.role = "admin"` szükséges. Ez nem a teljes üzleti RBAC, production logs-séma és policy hiányában az audit UI éles használata blokkolt.
+
+A `safe_http.py` és `web_auditor.py` DNS/IP-validálással és redirect-ellenőrzéssel csökkenti az SSRF-kockázatot. Külső weboldal, e-mail vagy memória tartalma nem megbízható utasítás. Soha ne kerüljön logba nyers jelszó, token, API-kulcs, hitelesített URL, e-mail-törzs vagy teljes lead-payload. A technikai hozzájárulás-ellenőrzés nem helyettesíti a célország és kommunikációs cél jogi vizsgálatát.
+
+Nincs tenant-szintű adatszegregáció; a jelenlegi adatmodell egy üzleti munkaterületet feltételez. Az `approved=True` belső alkalmazáskorlát, nem hitelesítési token.
