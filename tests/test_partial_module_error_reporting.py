@@ -5,7 +5,7 @@ import pytest
 def test_stats_reports_failure_without_printing_exception_secret(monkeypatch, capsys):
     import stats
     reports = []
-    monkeypatch.setattr(stats, "get_supabase", lambda: (_ for _ in ()).throw(RuntimeError("password=hidden-stats-secret")))
+    monkeypatch.setattr(stats, "get_service_supabase", lambda: (_ for _ in ()).throw(RuntimeError("password=hidden-stats-secret")))
     monkeypatch.setattr(stats, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
     stats.print_jarvis_status()
     assert len(reports) == 1
