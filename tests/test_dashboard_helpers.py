@@ -175,6 +175,8 @@ def test_website_profile_closes_response_on_http_and_non_html_errors(monkeypatch
 
 def test_website_profile_blocks_unsafe_redirect_and_closes_redirect_response(monkeypatch):
     profile, safe_http, closed, _reports = _website_namespace(monkeypatch)
+    original_validator = profile.__globals__["_public_http_url"]
+    profile.__globals__["_public_http_url"] = lambda value: None if "127.0.0.1" in value else original_validator(value)
     response = _Response(status=302, headers={"Location": "http://127.0.0.1"})
     safe_http.safe_get = lambda *_a, **_k: response
     result = profile("example.com")
