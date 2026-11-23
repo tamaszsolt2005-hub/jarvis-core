@@ -25,8 +25,8 @@ def send_email(recipient: str, subject: str, body: str) -> str:
     if (
         not isinstance(subject, str)
         or not subject.strip()
-        or "\\r" in subject
-        or "\\n" in subject
+        or "\r" in subject
+        or "\n" in subject
         or len(subject) > 200
     ):
         raise ValueError("Érvénytelen e-mail tárgy.")
@@ -38,7 +38,7 @@ def send_email(recipient: str, subject: str, body: str) -> str:
     if not _EMAIL_ADDRESS_RE.fullmatch(sender):
         raise ValueError("Az EMAIL_USER nem érvényes e-mail-cím.")
     from_name = get_secret("EMAIL_FROM_NAME", "JARVIS") or "JARVIS"
-    if "\\r" in from_name or "\\n" in from_name:
+    if "\r" in from_name or "\n" in from_name:
         raise ValueError("Érvénytelen feladó név.")
     host = get_secret("SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com"
     port = int(get_secret("SMTP_PORT", "587") or "587")
