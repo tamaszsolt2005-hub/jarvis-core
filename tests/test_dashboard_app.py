@@ -39,6 +39,7 @@ class _ReadOnlyDB:
 
 def _prepare_dashboard(monkeypatch):
     smtp_calls = []
+    email_switch = {"enabled": False}
     db = _ReadOnlyDB()
 
     monkeypatch.setattr(
@@ -51,7 +52,7 @@ def _prepare_dashboard(monkeypatch):
     monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "APPT_CHAT_RESPONSE")
     monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "audit_event", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: email_switch["enabled"])
     monkeypatch.setattr(global_lead_research, "get_research_market", lambda _db: "Hungary")
     monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("", None))
     monkeypatch.setattr(jarvis_memory, "get_memories", lambda *_args, **_kwargs: [])
@@ -59,14 +60,14 @@ def _prepare_dashboard(monkeypatch):
         chat_email, "build_chat_email_draft",
         lambda *_args, **_kwargs: ("APPT tárgy", "APPT levéltörzs"),
     )
-    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", False)
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
         email_utils, "send_email",
-        lambda *args, **kwargs: smtp_calls.append((args, kwargs)),
+        lambda *args, **kwargs: (smtp_calls.append((args, kwargs)) or "mock-smtp-id"),
     )
 
     app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
-    return app, smtp_calls
+    return app, smtp_calls, email_switch
 
 
 def _submit_chat(app, prompt):
@@ -80,7 +81,7 @@ def _markdown_values(app):
 
 
 def test_streamlit_login_chat_and_email_preview_are_isolated(monkeypatch):
-    app, smtp_calls = _prepare_dashboard(monkeypatch)
+    app, smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
     app.run()
     assert not app.exception
     assert len(app.text_input) == 1
@@ -108,3 +109,11 @@ def test_streamlit_login_chat_and_email_preview_are_isolated(monkeypatch):
     _submit_chat(app, "Jóváhagyom")
     assert smtp_calls == []
     assert any("CHAT_EMAIL_ENABLED" in value for value in _markdown_values(app))
+
+    _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
+    assert smtp_calls == []
+    email_switch["enabled"] = True
+    _submit_chat(app, "Jóváhagyom")
+    assert len(smtp_calls) == 1
+    assert smtp_calls[0][0] == ("teszt@example.com", "APPT tárgy", "APPT levéltörzs")
+    assert any("SMTP-szerver átvette" in value for value in _markdown_values(app))
