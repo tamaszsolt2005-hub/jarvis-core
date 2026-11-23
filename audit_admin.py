@@ -10,7 +10,7 @@ from typing import Any
 
 from supabase import Client, create_client
 
-from jarvis_common import get_secret
+from jarvis_common import get_secret, get_audit_events_page
 
 
 AUDIT_COLUMNS = (
@@ -143,6 +143,26 @@ def fetch_audit_rows(
     if not isinstance(rows, list):
         raise TypeError("Az auditlekérdezés nem lista eredményt adott.")
     return [row for row in rows if isinstance(row, dict)]
+
+
+def fetch_audit_page(
+    client: Client,
+    *,
+    module: str | None = None,
+    status: str | None = None,
+    operation_id: str | None = None,
+    cursor: dict[str, str] | None = None,
+    page_size: int = 100,
+) -> dict[str, Any]:
+    """Fetch a bounded cursor page through the verified admin JWT client."""
+    return get_audit_events_page(
+        client,
+        page_size=max(1, min(int(page_size), 100)),
+        module=module,
+        status=status,
+        operation_id=operation_id,
+        cursor=cursor,
+    )
 
 
 def audit_rows_to_csv(rows: list[dict[str, Any]]) -> bytes:
