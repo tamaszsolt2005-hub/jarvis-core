@@ -10,15 +10,36 @@ from jarvis_common import env_bool, get_secret, required_secret
 
 # Must be explicitly enabled in the server-side environment/secrets.
 EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
-_EMAIL_ADDRESS_RE = re.compile(r"^[^\\s@,;<>]+@[^\\s@,;<>]+\\.[^\\s@,;<>]+$")
+_EMAIL_ADDRESS_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
 
 
 def send_email(recipient: str, subject: str, body: str) -> str:
     if not EMAIL_DELIVERY_ENABLED:
         raise RuntimeError("E-mail-küldés letiltva (kódszinten le van tiltva) biztonsági okból.")
+    if (
+        not isinstance(recipient, str)
+        or recipient.strip() != recipient
+        or not _EMAIL_ADDRESS_RE.fullmatch(recipient)
+    ):
+        raise ValueError("Érvénytelen vagy nem egyetlen címzettet tartalmazó e-mail-cím.")
+    if (
+        not isinstance(subject, str)
+        or not subject.strip()
+        or "\\r" in subject
+        or "\\n" in subject
+        or len(subject) > 200
+    ):
+        raise ValueError("Érvénytelen e-mail tárgy.")
+    if not isinstance(body, str) or len(body) > 50000:
+        raise ValueError("Érvénytelen e-mail törzs.")
+
     sender = required_secret("EMAIL_USER")
     password = required_secret("EMAIL_PASSWORD")
+    if not _EMAIL_ADDRESS_RE.fullmatch(sender):
+        raise ValueError("Az EMAIL_USER nem érvényes e-mail-cím.")
     from_name = get_secret("EMAIL_FROM_NAME", "JARVIS") or "JARVIS"
+    if "\\r" in from_name or "\\n" in from_name:
+        raise ValueError("Érvénytelen feladó név.")
     host = get_secret("SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com"
     port = int(get_secret("SMTP_PORT", "587") or "587")
     if not 1 <= port <= 65535:
