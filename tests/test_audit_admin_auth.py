@@ -116,3 +116,22 @@ def test_audit_csv_has_headers_and_no_unrequested_payload():
     assert "operation_id" in decoded
     assert "unexpected_secret" not in decoded
     assert "must-not-export" not in decoded
+
+
+def test_integrity_verifier_uses_authenticated_rpc():
+    class RpcClient:
+        def rpc(self, name):
+            assert name == "verify_logs_audit_chain"
+            return SimpleNamespace(execute=lambda: SimpleNamespace(data=[{
+                "ok": True,
+                "total_entries": 3,
+                "invalid_hashes": 0,
+                "missing_predecessors": 0,
+                "forks": 0,
+                "disconnected_entries": 0,
+                "state_matches": True,
+            }]))
+
+    result = audit_admin.verify_audit_integrity(RpcClient())
+    assert result["ok"] is True
+    assert result["total_entries"] == 3
