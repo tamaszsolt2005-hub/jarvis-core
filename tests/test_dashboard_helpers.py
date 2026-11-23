@@ -449,3 +449,71 @@ def test_analytics_is_not_built_when_both_current_and_legacy_log_reads_fail(monk
     assert "naplóalapú analitika (adatforrás-hiba)" in loaded
     assert len(reports) == 2
     assert all(item[1]["operation"] == "read_rows:logs" for item in reports)
+
+
+
+def test_website_profile_follows_public_redirect_and_closes_each_response(monkeypatch):
+    profile, safe_http, closed, _reports = _website_namespace(monkeypatch)
+    profile.__globals__["_public_http_url"] = lambda value: value
+    redirect = _Response(status=302, headers={"Location": "/about"})
+    final = _Response(chunks=[
+        b"<html><title>About</title><body>" + b"Company services contact " * 20 + b"</body></html>"
+    ])
+    responses = iter([redirect, final])
+    requested = []
+    def fake_get(url, **_kwargs):
+        requested.append(url)
+        return next(responses)
+    safe_http.safe_get = fake_get
+
+    result = profile("example.com")
+
+    assert requested == ["https://example.com", "https://example.com/about"]
+    assert result["status"] == "sikeresen beolvasva"
+    assert result["url"] == "https://example.com/about"
+    assert redirect.closed and final.closed
+    assert closed == [redirect, final]
+
+
+def test_website_profile_handles_redirect_without_location_and_redirect_limit(monkeypatch):
+    profile, safe_http, closed, _reports = _website_namespace(monkeypatch)
+    missing = _Response(status=302, headers={})
+    safe_http.safe_get = lambda *_args, **_kwargs: missing
+    result = profile("example.com")
+    assert "hiányzó átirányítási cím" in result["status"]
+    assert missing.closed
+
+    redirects = [_Response(status=302, headers={"Location": "/next"}) for _ in range(4)]
+    iterator = iter(redirects)
+    safe_http.safe_get = lambda *_args, **_kwargs: next(iterator)
+    result = profile("example.com")
+    assert "túl sok átirányítás" in result["status"]
+    assert all(response.closed for response in redirects)
+    assert len(closed) == 5
+
+
+def test_public_http_url_fails_closed_on_dns_error_and_malformed_port(monkeypatch):
+    fn = _load_helpers(monkeypatch, {"_public_http_url"})["_public_http_url"]
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mock DNS outage")),
+    )
+    assert fn("https://unresolvable.example") is None
+    assert fn("https://example.com:99999") is None
+
+
+def test_safe_rows_filters_non_dictionary_rows_without_losing_valid_rows(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class MixedQuery(_Query):
+        def execute(self):
+            return types.SimpleNamespace(data=[{"id": "valid"}, None, "bad-row", {"id": "also-valid"}])
+
+    class MixedDB:
+        def table(self, _name):
+            return MixedQuery([])
+
+    assert namespace["_safe_rows"](MixedDB(), "leads", "*") == [
+        {"id": "valid"}, {"id": "also-valid"}
+    ]
