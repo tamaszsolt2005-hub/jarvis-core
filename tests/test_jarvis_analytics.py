@@ -166,3 +166,187 @@ def test_chat_activity_labels_support_correlated_event_messages():
 
     assert _activity_label({"module": "chat", "message": "chat_request|request_id=" + "a" * 32, "level": "info"}) == "Beszélgetési kérés"
     assert _activity_label({"module": "chat", "message": "chat_response|request_id=" + "a" * 32, "level": "info"}) == "AI-válasz elkészült"
+
+
+def _fake_streamlit():
+    import jarvis_analytics
+
+    class Context:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class FakeStreamlit:
+        session_state = {}
+
+        def markdown(self, *_args, **_kwargs):
+            pass
+
+        def columns(self, spec, **_kwargs):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [Context() for _ in range(count)]
+
+        def container(self, **_kwargs):
+            return Context()
+
+        def radio(self, *_args, **_kwargs):
+            return "30 nap"
+
+        def plotly_chart(self, *_args, **_kwargs):
+            pass
+
+        def error(self, *_args, **_kwargs):
+            pass
+
+        def caption(self, *_args, **_kwargs):
+            pass
+
+        def warning(self, *_args, **_kwargs):
+            pass
+
+    return FakeStreamlit()
+
+
+def test_render_analytics_renders_empty_state_without_database_mutations(monkeypatch):
+    import jarvis_analytics as analytics
+
+    class Result:
+        data = []
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def gte(self, *_args):
+            return self
+
+        def lte(self, *_args):
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            return Result()
+
+    class DB:
+        def table(self, name):
+            assert name == "logs"
+            return Query()
+
+    monkeypatch.setattr(analytics, "st", _fake_streamlit())
+    analytics.render_analytics(DB())
+
+
+def test_render_analytics_builds_charts_from_real_event_shapes(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import jarvis_analytics as analytics
+
+    now = datetime.now(timezone.utc)
+    records = [
+        {
+            "module": "chat", "level": "info",
+            "message": "chat_request|request_id=abc",
+            "created_at": (now - timedelta(minutes=3)).isoformat(),
+        },
+        {
+            "module": "chat", "level": "info",
+            "message": "chat_response|request_id=abc",
+            "created_at": (now - timedelta(minutes=2)).isoformat(),
+        },
+        {
+            "module": "email_sender", "level": "error",
+            "message": "private failure detail",
+            "created_at": (now - timedelta(minutes=1)).isoformat(),
+        },
+        {
+            "module": "follow_up", "level": "warning",
+            "message": "private warning detail",
+            "created_at": now.isoformat(),
+        },
+    ]
+
+    class Result:
+        data = records
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def gte(self, *_args):
+            return self
+
+        def lte(self, *_args):
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            return Result()
+
+    class DB:
+        def table(self, name):
+            assert name == "logs"
+            return Query()
+
+    fake_st = _fake_streamlit()
+    charts = []
+    fake_st.plotly_chart = lambda figure, **kwargs: charts.append(figure)
+    monkeypatch.setattr(analytics, "st", fake_st)
+
+    analytics.render_analytics(DB())
+
+    assert len(charts) == 4
+    assert all(getattr(chart, "data", None) for chart in charts)
+
+
+def test_render_analytics_reports_database_read_failure(monkeypatch):
+    import jarvis_analytics as analytics
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def gte(self, *_args):
+            return self
+
+        def lte(self, *_args):
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            raise RuntimeError("mock analytics read failure")
+
+    class DB:
+        def table(self, _name):
+            return Query()
+
+    reports = []
+    fake_st = _fake_streamlit()
+    errors = []
+    fake_st.error = lambda message: errors.append(message)
+    monkeypatch.setattr(analytics, "st", fake_st)
+    monkeypatch.setattr(
+        analytics, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    analytics.render_analytics(DB())
+
+    assert errors == ["Az analitikai naplók most nem tölthetők be."]
+    assert reports[0][1]["module"] == "jarvis_analytics"
+    assert reports[0][1]["operation"] == "load_analytics_logs"
