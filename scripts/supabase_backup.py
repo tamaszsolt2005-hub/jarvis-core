@@ -250,8 +250,18 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
         tar.extractall(destination, members=members)
 
     manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format_version") != 1 or manifest.get("source_project_ref") != PRODUCTION_PROJECT_REF:
-        raise BackupError("Ismeretlen formátum vagy nem JARVIS-forrásból származó mentés.")
+    source_ref = manifest.get("source_project_ref")
+    local_test_archive = (
+        source_ref == "local-test"
+        and (
+            os.environ.get("JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
+            or os.environ.get("JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
+        )
+    )
+    if manifest.get("format_version") != 1 or (
+        source_ref != PRODUCTION_PROJECT_REF and not local_test_archive
+    ):
+        raise BackupError("Ismeretlen formátum vagy nem engedélyezett JARVIS-forrásból származó mentés.")
     for name in ("schema.sql", "data.sql"):
         expected = manifest.get("files", {}).get(name, {}).get("sha256")
         if not expected or sha256_file(destination / name) != expected:
@@ -334,7 +344,7 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         decrypted = work / "backup.tar.gz"
         run_checked(["age", "--decrypt", "--identity", identity, "--output", str(decrypted), str(archive_path)])
         manifest = _safe_extract(decrypted, work)
-        if manifest["source_project_ref"] == target_ref:
+        if manifest["source_project_ref"] == target_ref and not local_test:
             raise BackupError("A forrás és cél projekt nem lehet azonos.")
         # Refuse any non-empty public schema: restore is only allowed into a fresh,
         # isolated project. This prevents overwriting existing data.
