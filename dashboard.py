@@ -520,46 +520,49 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     # A website audit request necessarily needs lead rows, even if the user
     # does not explicitly say "lead" or "company" in the question.
     if wants_ranking:
-            wants_leads = True
-    
-        # A generic business question receives a compact overview, not an empty context.
-        if not any((wants_leads, wants_tasks, wants_drafts, wants_logs, wants_analytics)):
-            wants_leads = wants_tasks = True
-    
-        lead_rows: list[dict] = []
-        if wants_leads:
-            # Existing Supabase projects may have an older leads schema. Read the
-            # actual row shape, then pass only explicitly approved, non-personal fields
-            # into the model context. This avoids failing on optional columns such as
-            # website that may not exist in an older database.
-            lead_read_status: dict[str, Any] = {}
-            raw_rows = _safe_rows(db, "leads", "*", 1500, status=lead_read_status)
-            if lead_read_status.get("error"):
-                sections.append(
-                    "ADATFORRÁS NEM ELÉRHETŐ: a lead-adatbázis lekérdezése nem sikerült. "
-                    "Ez nem tekinthető üres leadlistának; a leadekre vonatkozó következtetések most nem készíthetők el."
-                )
-                loaded.append("leadek (adatforrás-hiba)")
-            else:
-                allowed_lead_fields = {
-                    "id", "company_name", "website", "source", "status", "approved_to_contact",
-                    "opted_out", "reply_category", "created_at", "next_follow_up_at",
-                    "follow_up_count",
-                }
-                lead_rows = []
-                for row in raw_rows:
-                    safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
-                    # Only expose notes created by our own company-only research module.
-                    # Human-entered CRM notes remain excluded from every model prompt.
-                    source = str(row.get("source") or "")
-                    research_note = str(row.get("notes") or "")
-                    if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
-                        safe_row["research_intelligence"] = research_note[:3500]
-                    lead_rows.append(safe_row)
-                frame = pd.DataFrame(lead_rows)
-                counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
-                # Deliberately exclude personal email addresses and free-text notes from model context.
-                if wants_ranking:
+        wants_leads = True
+
+    # A generic business question receives a compact overview, not an empty context.
+    if not any((wants_leads, wants_tasks, wants_drafts, wants_logs, wants_analytics)):
+        wants_leads = wants_tasks = True
+
+    lead_data_available = not wants_leads
+    task_data_available = not wants_tasks
+    lead_rows: list[dict] = []
+    if wants_leads:
+        # Existing Supabase projects may have an older leads schema. Read the
+        # actual row shape, then pass only explicitly approved, non-personal fields
+        # into the model context. This avoids failing on optional columns such as
+        # website that may not exist in an older database.
+        lead_read_status: dict[str, Any] = {}
+        raw_rows = _safe_rows(db, "leads", "*", 1500, status=lead_read_status)
+        if lead_read_status.get("error"):
+            sections.append(
+                "ADATFORRÁS NEM ELÉRHETŐ: a lead-adatbázis lekérdezése nem sikerült. "
+                "Ez nem tekinthető üres leadlistának; a leadekre vonatkozó következtetések most nem készíthetők el."
+            )
+            loaded.append("leadek (adatforrás-hiba)")
+        else:
+            lead_data_available = True
+            allowed_lead_fields = {
+                "id", "company_name", "website", "source", "status", "approved_to_contact",
+                "opted_out", "reply_category", "created_at", "next_follow_up_at",
+                "follow_up_count",
+            }
+            lead_rows = []
+            for row in raw_rows:
+                safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
+                # Only expose notes created by our own company-only research module.
+                # Human-entered CRM notes remain excluded from every model prompt.
+                source = str(row.get("source") or "")
+                research_note = str(row.get("notes") or "")
+                if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
+                    safe_row["research_intelligence"] = research_note[:3500]
+                lead_rows.append(safe_row)
+            frame = pd.DataFrame(lead_rows)
+            counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
+            # Deliberately exclude personal email addresses and free-text notes from model context.
+            if wants_ranking:
                 ranked = []
                 # Inspect at most 30 lead websites per explicit ranking request.
                 for lead in lead_rows:
@@ -627,13 +630,21 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             )
             loaded.append("feladatok (adatforrás-hiba)")
         else:
+            task_data_available = True
             sections.append("FELADATOK:\n" + pd.DataFrame(task_rows).head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
             loaded.append("feladatok")
 
     if wants_opportunities or wants_warnings:
-        signals = _proactive_signals(lead_rows if wants_leads else [], task_rows)
-        sections.append("PROAKTÍV ÜZLETI JELZÉSEK (csak meglévő rekordokból, adatbázis-módosítás nélkül):\n" + pd.Series(signals).to_json(force_ascii=False))
-        loaded.append("határidő- és utánkövetési jelzések")
+        if lead_data_available and task_data_available:
+            signals = _proactive_signals(lead_rows if wants_leads else [], task_rows)
+            sections.append("PROAKTÍV ÜZLETI JELZÉSEK (csak meglévő rekordokból, adatbázis-módosítás nélkül):\n" + pd.Series(signals).to_json(force_ascii=False))
+            loaded.append("határidő- és utánkövetési jelzések")
+        else:
+            sections.append(
+                "PROAKTÍV JELZÉSEK NEM KÉSZÜLTEK: legalább egy szükséges adatforrás nem érhető el; "
+                "a hiányzó adatokból nem következtetünk nulla feladatra vagy utánkövetésre."
+            )
+            loaded.append("proaktív jelzések (adatforrás-hiba)")
 
     if wants_drafts:
         draft_status: dict[str, Any] = {}
@@ -671,8 +682,12 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             loaded.append("naplók")
 
     if wants_analytics:
-        sections.append(build_chat_analytics_context(log_rows))
-        loaded.append("naplóalapú analitika")
+        if log_status.get("error"):
+            sections.append("ANALITIKA NEM KÉSZÜLT: a rendszernapló adatforrása nem érhető el.")
+            loaded.append("naplóalapú analitika (adatforrás-hiba)")
+        else:
+            sections.append(build_chat_analytics_context(log_rows))
+            loaded.append("naplóalapú analitika")
 
     return "\n\n".join(sections) or "A kérdéshez nem találtam releváns adatforrást.", loaded
 
