@@ -1,4 +1,4 @@
-"""Streamlit AppTest coverage for login, chat turns, task approval and email preview."""
+"""Streamlit AppTest coverage for login, normal chat, email preview and mocked SMTP approval."""
 from types import SimpleNamespace
 
 from pathlib import Path
