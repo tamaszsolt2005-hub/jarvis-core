@@ -21,7 +21,7 @@ def test_health_check_reports_email_safety_lock_import_failure(monkeypatch):
 
     monkeypatch.setattr(health_check, "get_secret", lambda _name: None)
     monkeypatch.setattr(
-        health_check, "get_supabase",
+        health_check, "get_service_supabase",
         lambda: (_ for _ in ()).throw(RuntimeError("no configured DB")),
     )
     reports = []
@@ -75,7 +75,7 @@ def test_stats_empty_logs_print_truthful_empty_state(monkeypatch, capsys):
         def table(self, name):
             return Query(name)
 
-    monkeypatch.setattr(stats, "get_supabase", lambda: DB())
+    monkeypatch.setattr(stats, "get_service_supabase", lambda: DB())
     stats.print_jarvis_status()
     assert "Nincsenek még logbejegyzések." in capsys.readouterr().out
 
@@ -139,6 +139,6 @@ def test_jarvis_status_empty_result_has_no_fabricated_counts(monkeypatch, capsys
         def table(self, _name):
             return Query()
 
-    monkeypatch.setattr(jarvis_status, "get_supabase", lambda: DB())
+    monkeypatch.setattr(jarvis_status, "get_service_supabase", lambda: DB())
     jarvis_status.run()
     assert capsys.readouterr().out == "JARVIS STATUS\n"
