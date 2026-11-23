@@ -315,3 +315,94 @@ def test_global_research_trigger_requires_explicit_intent_and_honors_negation():
     assert not _wants_global_research("Ne keress új leadeket")
     assert not _wants_global_research("Ne kutass most")
     assert not _wants_global_research("Milyen lehetőségek vannak a piacon?")
+
+
+def test_retrieve_context_loads_strategy_learning_analytics_and_proactive_signals(monkeypatch):
+    monkeypatch.setitem(
+        _NAMESPACE, "rank_researched_leads",
+        lambda _rows, limit=20: [{
+            "company_name": "Minta Kft.", "priority_score": 80,
+            "business_fit_score": 75, "research_confidence": "high", "evidence_count": 2,
+        }],
+    )
+    monkeypatch.setitem(_NAMESPACE, "build_market_intelligence", lambda _rows: {"pattern": "manufacturing"})
+    monkeypatch.setitem(_NAMESPACE, "get_memories", lambda *_args, **_kwargs: [])
+    monkeypatch.setitem(_NAMESPACE, "build_business_learning", lambda *_args: {"lesson": "review sources"})
+    monkeypatch.setitem(_NAMESPACE, "build_chat_analytics_context", lambda _rows: "ANALYTICS_CONTEXT")
+    monkeypatch.setitem(
+        _NAMESPACE, "_website_profile",
+        lambda url: {"status": "sikeresen beolvasva", "score": 88, "url": url},
+    )
+    db = FakeDB({
+        "leads": [{
+            "id": "lead-1", "company_name": "Minta Kft.", "website": "https://example.com",
+            "status": "research", "approved_to_contact": False, "opted_out": False,
+            "source": "gemini_google_search_grounding:example.com",
+            "notes": "Leadkutatás; nyilvános vállalati adat",
+        }],
+        "tasks": [{
+            "id": "task-1", "title": "Ajánlat ellenőrzése", "status": "open",
+            "priority": "high", "due_at": "2020-01-01T00:00:00Z",
+        }],
+        "logs": [{
+            "module": "chat", "level": "info", "message": "request",
+            "created_at": "2026-11-22T10:00:00Z",
+        }],
+    })
+
+    context, sources = retrieve_context(db, "Átfogó stratégiai analitika lead és feladat áttekintés")
+
+    assert "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA" in context
+    assert "ÜZLETI TANULÓMEMÓRIA" in context
+    assert "WEBOLDAL-ALAPÚ LEADPONTOZÁS" in context
+    assert "ANALYTICS_CONTEXT" in context
+    assert "határidő- és utánkövetési jelzések" in sources
+    assert "naplóalapú analitika" in sources
+    assert "bizonyíték-alapú leadprioritás" in sources
+
+
+def test_retrieve_context_draft_and_legacy_log_fallback_exclude_email_body():
+    class LegacyLogsQuery(FakeQuery):
+        def execute(self):
+            if "operation_id" in self.columns:
+                return FakeResponse([])
+            return FakeResponse([{
+                "module": "mailer", "level": "warning",
+                "message": "legacy log row", "created_at": "2026-11-22T10:00:00Z",
+            }])
+
+    class LegacyLogsDB(FakeDB):
+        def table(self, name):
+            if name == "logs":
+                self.calls.append(("table", name))
+                return LegacyLogsQuery([], self.calls)
+            return super().table(name)
+
+    db = LegacyLogsDB({
+        "leads": [{"id": "lead-1", "company_name": "Minta Kft.", "status": "new"}],
+        "email_drafts": [{
+            "id": "draft-1", "subject": "Biztonságos tárgy",
+            "status": "draft", "body": "Személyes levéltörzs",
+        }],
+    })
+
+    context, sources = retrieve_context(db, "Mutasd az e-mail piszkozatokat és naplókat")
+
+    assert "Biztonságos tárgy" in context
+    assert "Személyes levéltörzs" not in context
+    assert "legacy log row" in context
+    assert "e-mail-piszkozatok" in sources
+    assert "naplók" in sources
+
+
+def test_retrieve_context_generic_business_question_loads_bounded_leads_and_tasks():
+    db = FakeDB({
+        "leads": [{"id": "lead-1", "company_name": "Minta Kft.", "status": "new"}],
+        "tasks": [{"id": "task-1", "title": "Első feladat", "status": "open"}],
+    })
+
+    context, sources = retrieve_context(db, "Szia JARVIS")
+
+    assert "Minta Kft." in context
+    assert "Első feladat" in context
+    assert sources == ["leadek", "feladatok"]
