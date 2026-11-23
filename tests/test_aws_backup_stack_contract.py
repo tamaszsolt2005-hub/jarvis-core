@@ -10,8 +10,10 @@ def test_backup_role_is_scoped_to_backup_prefix_and_does_not_decrypt():
     assert "s3:PutObject" in template
     assert "s3:GetObject" in template  # Required by the workflow's head-object verification.
     assert "kms:GenerateDataKey" in template
-    assert "kms:Encrypt" in template
-    assert "kms:Decrypt" not in template
+    assert "kms:Decrypt" in template
+    assert "kms:ViaService: !Sub s3.${AWS::Region}.amazonaws.com" in template
+    assert "kms:EncryptionContext:aws:s3:arn: !GetAtt BackupBucket.Arn" in template
+    assert "kms:Encrypt" not in template
 
 
 def test_backup_bucket_enforces_private_versioned_kms_storage():
