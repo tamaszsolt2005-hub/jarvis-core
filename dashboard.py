@@ -288,6 +288,8 @@ def render_audit_admin_page() -> None:
         st.session_state[session_key] = refreshed_session
     except Exception as exc:
         st.session_state.pop(session_key, None)
+        st.session_state.pop("_jarvis_audit_export_pending", None)
+        st.session_state.pop("_jarvis_audit_cursor_stack", None)
         report_error(
             exc, module="dashboard", operation="audit_admin_session_validation",
             severity="warning",
