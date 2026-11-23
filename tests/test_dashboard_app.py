@@ -447,3 +447,85 @@ def test_streamlit_market_change_and_global_research_run_only_after_approval(mon
     assert len(research_calls) == 1
     assert research_calls[0][1]["market_country"] == "Germany"
     assert not app.exception
+
+
+
+def test_streamlit_explicit_memory_save_command_isolated_and_categorized(monkeypatch):
+    memory_calls = []
+    monkeypatch.setattr(
+        jarvis_memory, "memory_command",
+        lambda _prompt: ("save:decision", "A német piac legyen a második célpiac"),
+    )
+    monkeypatch.setattr(
+        jarvis_memory, "save_memory",
+        lambda db, content, category="business_preference": (
+            memory_calls.append((db, content, category)) or True
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Jegyezd meg a döntést: a német piac legyen a második célpiac")
+
+    assert len(memory_calls) == 1
+    assert memory_calls[0][1:] == (
+        "A német piac legyen a második célpiac", "decision"
+    )
+    assert any("hosszú távú memóriába" in value for value in _markdown_values(app))
+    assert not app.exception
+
+
+def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypatch):
+    calls = []
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("list", ""))
+    monkeypatch.setattr(
+        jarvis_memory, "get_memories",
+        lambda *_args, **_kwargs: [
+            {"category": "decision", "content": "A német piac második."}
+        ],
+    )
+    _submit_chat(app, "Mutasd a memóriádat")
+    assert any("A német piac második." in value for value in _markdown_values(app))
+
+    monkeypatch.setattr(
+        jarvis_memory, "memory_command",
+        lambda _prompt: ("forget", "régi döntés"),
+    )
+    monkeypatch.setattr(
+        jarvis_memory, "forget_memories",
+        lambda db, query: (calls.append((db, query)) or 2),
+    )
+    _submit_chat(app, "Felejtsd el a régi döntést")
+    assert len(calls) == 1
+    assert calls[0][1] == "régi döntés"
+    assert any("2 memóriaelemet inaktiváltam" in value for value in _markdown_values(app))
+    assert not app.exception
+
+
+def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypatch):
+    memory_calls = []
+    monkeypatch.setattr(
+        jarvis_memory, "memory_command",
+        lambda _prompt: ("save", "token=private"),
+    )
+    monkeypatch.setattr(
+        jarvis_memory, "save_memory",
+        lambda *_args, **_kwargs: (memory_calls.append("attempted") or False),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Jegyezd meg a titkot")
+
+    assert memory_calls == ["attempted"]
+    assert any("túl hosszú lehet" in value for value in _markdown_values(app))
+    assert not app.exception
