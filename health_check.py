@@ -19,6 +19,8 @@ REQUIRED_TABLES = (
     "logs",
     "jarvis_memory",
     "jarvis_proactive_state",
+    "email_drafts",
+    "audit_chain_state",
 )
 
 
@@ -82,6 +84,16 @@ def run_self_diagnostics() -> str:
             checks.append(_check("Supabase oszlop: logs.level", False, f"Hiányzó vagy nem lekérdezhető oszlop ({type(exc).__name__}); ellenőrizd a logs migrációt."))
     else:
         checks.append(_check("Supabase oszlop: logs.level", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
+
+    if db is not None:
+        try:
+            db.table("logs").select("operation_id").limit(1).execute()
+            checks.append(_check("Supabase auditmezők: logs.operation_id", True, "A strukturált auditmező lekérdezhető."))
+        except Exception as exc:
+            _report_diagnostic_error(exc, "probe_logs_audit_fields")
+            checks.append(_check("Supabase auditmezők: logs.operation_id", False, f"A strukturált auditmigráció hiányzik vagy nem érhető el ({type(exc).__name__})."))
+    else:
+        checks.append(_check("Supabase auditmezők: logs.operation_id", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
 
     if gemini_key:
         try:
