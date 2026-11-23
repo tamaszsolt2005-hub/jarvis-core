@@ -167,7 +167,7 @@ def _validate_action(action: Any) -> None:
         notes = action.get("notes", "")
         if not isinstance(title, str) or not title.strip() or len(title) > 180:
             raise ValueError("A feladat címe 1–180 karakter lehet.")
-        if priority not in _PRIORITIES:
+        if not isinstance(priority, str) or priority not in _PRIORITIES:
             raise ValueError("Érvénytelen feladatprioritás.")
         if not isinstance(notes, str) or len(notes) > 1000:
             raise ValueError("A feladat leírása legfeljebb 1000 karakter lehet.")
