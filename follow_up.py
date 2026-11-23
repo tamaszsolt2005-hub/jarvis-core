@@ -15,14 +15,18 @@ from jarvis_errors import report_error
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
-def _has_timestamped_consent(lead: dict) -> bool:
+def _has_timestamped_consent(lead: dict, now: datetime | None = None) -> bool:
     if lead.get("consent_basis") != "consent" or lead.get("approved_to_contact") is not True:
         return False
     try:
         confirmed_at = datetime.fromisoformat(
             str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
         )
-        return confirmed_at.tzinfo is not None and confirmed_at.utcoffset() is not None
+        return (
+            confirmed_at.tzinfo is not None
+            and confirmed_at.utcoffset() is not None
+            and (now is None or confirmed_at <= now)
+        )
     except (TypeError, ValueError):
         return False
 
@@ -31,7 +35,7 @@ def _eligible_for_follow_up(lead: dict, now: datetime) -> bool:
     """Require explicit, timestamped consent and a due, unreplied, one-shot lead."""
     if (
         lead.get("status") != "sent"
-        or not _has_timestamped_consent(lead)
+        or not _has_timestamped_consent(lead, now)
         or lead.get("opted_out") is not False
         or lead.get("reply_category")
         or lead.get("last_inbound_message_id")
@@ -39,17 +43,12 @@ def _eligible_for_follow_up(lead: dict, now: datetime) -> bool:
     ):
         return False
     try:
-        consent_at = datetime.fromisoformat(
-            str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
-        )
         due_at = datetime.fromisoformat(
             str(lead.get("next_follow_up_at")).replace("Z", "+00:00")
         )
         count = int(lead.get("follow_up_count") or 0)
         return (
-            consent_at.tzinfo is not None
-            and consent_at.utcoffset() is not None
-            and due_at.tzinfo is not None
+            due_at.tzinfo is not None
             and due_at.utcoffset() is not None
             and 0 <= count < 1
             and due_at <= now
@@ -109,7 +108,7 @@ def _run() -> None:
             if (
                 not fresh_rows
                 or fresh_rows[0].get("status") != "followup_sending"
-                or not _has_timestamped_consent(fresh_rows[0])
+                or not _has_timestamped_consent(fresh_rows[0], now)
                 or fresh_rows[0].get("opted_out") is not False
                 or fresh_rows[0].get("reply_category")
                 or fresh_rows[0].get("last_inbound_message_id")
