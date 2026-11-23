@@ -274,3 +274,165 @@ def test_streamlit_executive_analytics_report_chat_branch_uses_log_facts(monkeyp
     assert any("Összes naplózott esemény a 30 napos ablakban: **3**" in value for value in values)
     assert any("Hibaszintű esemény (error/critical/fatal): **1**" in value for value in values)
     assert not app.exception
+
+
+def test_streamlit_chat_email_pending_audit_failure_never_calls_smtp(monkeypatch):
+    audit_statuses = []
+    app, smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(
+        jarvis_common, "audit_event",
+        lambda *_args, **kwargs: audit_statuses.append(kwargs["status"]) or False,
+    )
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
+    email_switch["enabled"] = True
+    _submit_chat(app, "Jóváhagyom")
+
+    assert smtp_calls == []
+    assert audit_statuses == ["pending"]
+    assert any("auditnapló nem írható" in item.value for item in app.error)
+
+
+def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
+    audit_statuses = []
+    app, _smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
+
+    def audit(*_args, **kwargs):
+        audit_statuses.append(kwargs["status"])
+        return True
+    def fail_smtp(*_args, **_kwargs):
+        raise OSError("mock SMTP failure")
+    monkeypatch.setattr(jarvis_common, "audit_event", audit)
+    monkeypatch.setattr(email_utils, "send_email", fail_smtp)
+
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
+    email_switch["enabled"] = True
+    _submit_chat(app, "Jóváhagyom")
+
+    assert audit_statuses == ["pending", "failed"]
+    assert any("JARVIS művelet" in item.value for item in app.error)
+    assert any("OSError" in item.value for item in app.warning)
+
+
+def test_streamlit_chat_email_final_audit_failure_warns_against_duplicate_send(monkeypatch):
+    audit_statuses = []
+    app, smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
+
+    def audit(*_args, **kwargs):
+        audit_statuses.append(kwargs["status"])
+        return kwargs["status"] == "pending"
+    monkeypatch.setattr(jarvis_common, "audit_event", audit)
+
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    _submit_chat(app, "Küldj emailt a teszt@example.com címre a szolgáltatásunkról")
+    email_switch["enabled"] = True
+    _submit_chat(app, "Jóváhagyom")
+
+    assert len(smtp_calls) == 1
+    assert audit_statuses == ["pending", "success"]
+    assert any("ne ismételd meg ellenőrzés nélkül" in value for value in _markdown_values(app))
+
+
+def test_streamlit_chat_email_requires_an_explicit_single_recipient(monkeypatch):
+    app, smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Küldj emailt Péternek")
+
+    assert smtp_calls == []
+    assert "_jarvis_pending_action" not in app.session_state
+    assert any("pontos e-mail-címét" in value for value in _markdown_values(app))
+
+
+def test_streamlit_task_close_and_update_require_preview_then_approval(monkeypatch):
+    from task_actions import execute_task_action
+
+    task_calls = []
+    monkeypatch.setattr(
+        task_actions, "execute_task_action",
+        lambda db, action, *, approved=False: (
+            task_calls.append((action, approved)) or "APPT_TASK_ACTION_EXECUTED"
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.session_state["_jarvis_db"].rows = [
+        {"id": "123e4567-e89b-42d3-a456-426614174000", "title": "Existing task", "status": "open"}
+    ]
+
+    _submit_chat(app, "Zárd le a feladatot: 123e4567-e89b-42d3-a456-426614174000")
+    assert task_calls == []
+    assert app.session_state["_jarvis_pending_action"]["task_action"]["type"] == "close"
+    _submit_chat(app, "Jóváhagyom")
+    assert task_calls[-1][0]["type"] == "close"
+    assert task_calls[-1][1] is True
+
+    _submit_chat(app, "Módosítsd a feladatot: 123e4567-e89b-42d3-a456-426614174000; prioritás=urgent; cím=Frissített")
+    assert task_calls[-1][0]["type"] == "close"
+    assert app.session_state["_jarvis_pending_action"]["task_action"]["type"] == "update"
+    _submit_chat(app, "Jóváhagyom")
+    assert task_calls[-1][0]["type"] == "update"
+    assert task_calls[-1][0]["updates"] == {"priority": "urgent", "title": "Frissített"}
+    assert task_calls[-1][1] is True
+
+
+def test_streamlit_task_close_missing_id_does_not_stage_mutation(monkeypatch):
+    task_calls = []
+    monkeypatch.setattr(
+        task_actions, "execute_task_action",
+        lambda *args, **kwargs: task_calls.append((args, kwargs)),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Zárd le a feladatot: 123e4567-e89b-42d3-a456-426614174000")
+
+    assert task_calls == []
+    assert "_jarvis_pending_action" not in app.session_state
+    assert any("nem található" in value for value in _markdown_values(app))
+
+
+def test_streamlit_market_change_and_global_research_run_only_after_approval(monkeypatch):
+    import global_lead_research
+
+    markets, research_calls = [], []
+    monkeypatch.setattr(global_lead_research, "set_research_market", lambda _db, country: markets.append(country) or country)
+    monkeypatch.setattr(
+        global_lead_research, "research_global_companies",
+        lambda _db, prompt, **kwargs: (
+            research_calls.append((prompt, kwargs)) or {
+                "saved_count": 0, "skipped_count": 0, "companies": [],
+                "email_sending": "disabled", "contact_permission": "not_granted",
+            }
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Válts a német piacra")
+    assert markets == []
+    _submit_chat(app, "Jóváhagyom")
+    assert markets == ["Germany"]
+
+    _submit_chat(app, "Keress új leadeket a német gyártó cégek között")
+    assert research_calls == []
+    _submit_chat(app, "Jóváhagyom")
+    assert len(research_calls) == 1
+    assert research_calls[0][1]["market_country"] == "Germany"
+    assert not app.exception
