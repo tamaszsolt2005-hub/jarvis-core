@@ -354,3 +354,24 @@ def test_retrieve_context_keeps_a_real_empty_lead_list_distinct(monkeypatch):
     assert "Vizsgált leadek (legfeljebb 1500): 0" in context
     assert "ADATFORRÁS NEM ELÉRHETŐ" not in context
     assert "leadek" in loaded
+
+
+
+def test_retrieve_context_suppresses_proactive_zero_counts_when_task_source_fails(monkeypatch):
+    namespace = _load_helpers(monkeypatch, {"retrieve_context", "_safe_rows"})
+    namespace["report_error"] = lambda *_args, **_kwargs: None
+
+    class TaskFailureDB:
+        def table(self, name):
+            if name == "tasks":
+                class FailedTaskQuery(_Query):
+                    def execute(self):
+                        raise OSError("mock task database outage")
+                return FailedTaskQuery([])
+            return _Query([])
+
+    context, loaded = namespace["retrieve_context"](TaskFailureDB(), "mutasd a lejárt feladatokat")
+    assert "ADATFORRÁS NEM ELÉRHETŐ" in context
+    assert "PROAKTÍV JELZÉSEK NEM KÉSZÜLTEK" in context
+    assert "overdue_task_count" not in context
+    assert "feladatok (adatforrás-hiba)" in loaded
