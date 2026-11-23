@@ -151,12 +151,79 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
 
 
 
+def _validate_action(action: Any) -> None:
+    """Validate the complete task payload before any audit or database access."""
+    if not isinstance(action, dict):
+        raise ValueError("Érvénytelen feladatművelet.")
+
+    kind = action.get("type")
+    if kind == "create":
+        if set(action) - {"type", "title", "priority", "due_at", "notes"}:
+            raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
+        title = action.get("title")
+        priority = action.get("priority")
+        notes = action.get("notes", "")
+        if not isinstance(title, str) or not title.strip() or len(title) > 180:
+            raise ValueError("A feladat címe 1–180 karakter lehet.")
+        if priority not in _PRIORITIES:
+            raise ValueError("Érvénytelen feladatprioritás.")
+        if not isinstance(notes, str) or len(notes) > 1000:
+            raise ValueError("A feladat leírása legfeljebb 1000 karakter lehet.")
+        due_at = action.get("due_at")
+        if due_at is not None:
+            if not isinstance(due_at, str):
+                raise ValueError("Érvénytelen feladat-határidő.")
+            try:
+                parsed_due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("Érvénytelen feladat-határidő.") from exc
+            if parsed_due.tzinfo is None or parsed_due.utcoffset() is None:
+                raise ValueError("A feladat-határidőnek időzónát kell tartalmaznia.")
+        return
+
+    if kind in {"close", "update"}:
+        if set(action) - ({"type", "id"} if kind == "close" else {"type", "id", "updates"}):
+            raise ValueError("A feladatművelet nem támogatott mezőt tartalmaz.")
+        task_id = action.get("id")
+        if not isinstance(task_id, str) or not _UUID.fullmatch(task_id):
+            raise ValueError("Érvénytelen feladatazonosító.")
+        if kind == "close":
+            return
+        updates = action.get("updates")
+        if not isinstance(updates, dict) or not updates:
+            raise ValueError("Nem adtál meg módosítandó mezőt.")
+        if set(updates) - {"title", "priority", "due_at"}:
+            raise ValueError("A feladatmódosítás nem engedélyezett mezőt tartalmaz.")
+        if "title" in updates and (
+            not isinstance(updates["title"], str)
+            or not updates["title"].strip()
+            or len(updates["title"]) > 180
+        ):
+            raise ValueError("A feladat címe 1–180 karakter lehet.")
+        if "priority" in updates and updates["priority"] not in _PRIORITIES:
+            raise ValueError("Érvénytelen feladatprioritás.")
+        if "due_at" in updates:
+            due_at = updates["due_at"]
+            if not isinstance(due_at, str):
+                raise ValueError("Érvénytelen feladat-határidő.")
+            try:
+                parsed_due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("Érvénytelen feladat-határidő.") from exc
+            if parsed_due.tzinfo is None or parsed_due.utcoffset() is None:
+                raise ValueError("A feladat-határidőnek időzónát kell tartalmaznia.")
+        return
+
+    raise ValueError("Ismeretlen feladatművelet.")
+
+
 def execute_task_action(
     db: Any, action: dict[str, Any], *, approved: bool = False
 ) -> str:
     """Execute a task only when the caller confirms the dashboard approval gate."""
-    if not approved:
+    if approved is not True:
         raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
+    _validate_action(action)
     try:
         return _execute_task_action(db, action)
     except Exception as exc:
