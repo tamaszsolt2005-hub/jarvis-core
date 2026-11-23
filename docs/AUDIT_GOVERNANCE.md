@@ -18,8 +18,10 @@ database verification.
   render and reads records with that user's JWT, so the database RLS policy is
   the authorization boundary. The shared dashboard password alone cannot
   grant audit access.
-- Audit read access is bounded to 500 records, newest first, and can be
-  exported as CSV.
+- Audit read access uses stable cursor pagination (100 records per page),
+  filters by module/status/operation ID, and can be exported as CSV. Export
+  requires a persisted pending audit event and records a completion event
+  with the verified admin user UUID.
 - The migration grants authenticated users SELECT only, applies an
   admin-only `app_metadata.role` RLS policy, and revokes direct mutation
   privileges from `anon` and `authenticated`.
@@ -27,6 +29,9 @@ database verification.
 - New audit rows receive a SHA-256 hash linked to the previous hashed row.
   A private singleton chain-head row is locked during each insert, serializing
   writers even when multiple events share one transaction timestamp.
+- A SECURITY INVOKER database function verifies row hashes, predecessor links,
+  forks, disconnected entries, and the current chain head. Admins can run it
+  manually from the audit page.
 - Existing legacy rows are not rewritten. Their `previous_hash` and
   `entry_hash` remain null; the chain begins with the first insert after the
   migration is applied.
@@ -67,9 +72,9 @@ viewer or hash chain.
 | WORM/object-lock archive | Not implemented. Requires a separately provisioned storage provider, retention lock, and independent credentials. |
 | Hash-chain external anchoring | Not implemented. The in-database chain is tamper-evident for ordinary application access, not immutable against a database owner or privileged operator. |
 | Alert delivery | Not implemented as an end-to-end alert route. Audit failures are reported by application error handling, but no independently verified paging/notification destination is configured. |
-| Scheduled integrity verification | Not implemented as a production schedule. The SQL regression test verifies the chain in a disposable test transaction. |
-| Export audit trail | CSV export is available to admins, but exporting itself is not yet written as a separate audit event. |
-| Complete search and pagination UI | Not implemented. The viewer shows up to 500 newest records; the backend cursor API exists but the UI does not yet navigate cursors. |
+| Scheduled integrity verification | Manual admin-triggered verification is implemented. A production schedule and independent alert route are not configured. |
+| Export audit trail | Implemented for CSV export: pending and success events use the same operation ID and record the verified admin UUID. |
+| Complete search and pagination UI | Cursor navigation and module/status/operation-ID filters are implemented; free-text and date-range search remain unavailable. |
 | Production Auth/RLS test | Not run. Requires an isolated Supabase development branch/project and provisioned test users. |
 
 ## Security boundary
