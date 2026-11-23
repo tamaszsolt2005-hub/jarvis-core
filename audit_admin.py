@@ -42,6 +42,11 @@ def _user_from_verified_response(response: Any) -> Any:
     user = getattr(response, "user", None)
     if user is None:
         raise PermissionError("A Supabase Auth nem adott vissza ellenőrzött felhasználót.")
+    if not (
+        getattr(user, "email_confirmed_at", None)
+        or getattr(user, "confirmed_at", None)
+    ):
+        raise PermissionError("Az audit-admin fiók e-mail-címét előbb meg kell erősíteni.")
     metadata = getattr(user, "app_metadata", None) or {}
     if not isinstance(metadata, dict) or metadata.get("role") != "admin":
         raise PermissionError("Az auditnapló megtekintéséhez admin szerepkör szükséges.")
