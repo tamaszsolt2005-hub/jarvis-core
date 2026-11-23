@@ -185,5 +185,14 @@ def audit_rows_to_csv(rows: list[dict[str, Any]]) -> bytes:
     fields = list(AUDIT_COLUMNS.split(","))
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
-    writer.writerows(rows)
+
+    def safe_cell(value: Any) -> Any:
+        if isinstance(value, str):
+            probe = value.lstrip(" \\t\\r\\n")
+            if probe.startswith(("=", "+", "-", "@")):
+                return "'" + value
+        return value
+
+    for row in rows:
+        writer.writerow({key: safe_cell(value) for key, value in row.items()})
     return output.getvalue().encode("utf-8-sig")
