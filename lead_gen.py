@@ -58,6 +58,7 @@ def _validated_import_row(row):
 
 def run(path="data/leads.csv"):
     db = None
+    side_effect_started = False
     try:
         db = get_supabase()
         imported = skipped = 0
@@ -81,6 +82,7 @@ def run(path="data/leads.csv"):
                 if exists:
                     skipped += 1
                     continue
+                side_effect_started = True
                 db.table("leads").insert(record).execute()
                 imported += 1
         if not audit_event(
@@ -100,7 +102,7 @@ def run(path="data/leads.csv"):
                 db,
                 module="lead_gen",
                 action="import_reviewed_csv",
-                status="failed",
+                status="unknown" if side_effect_started else "failed",
                 operation_id=operation_id,
                 error=exc,
                 result={"imported": imported, "skipped": skipped},
