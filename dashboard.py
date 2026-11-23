@@ -255,15 +255,30 @@ def authenticated() -> bool:
     return False
 
 
-def _safe_rows(db: Any, table: str, columns: str, limit: int = 500) -> list[dict]:
-    """Read-only, bounded Supabase query; isolate optional data-source failures."""
+def _safe_rows(
+    db: Any, table: str, columns: str, limit: int = 500,
+    status: dict[str, Any] | None = None,
+) -> list[dict]:
+    """Read bounded rows and report availability separately from an empty table.
+
+    The optional status mapping preserves the historical list return contract
+    while allowing callers to distinguish a genuine empty result from a failed
+    database read.
+    """
+    if status is not None:
+        status.update({"ok": False, "error": False, "error_type": None})
     try:
         result = db.table(table).select(columns).limit(limit).execute()
         rows = result.data or []
         if not isinstance(rows, list):
             raise TypeError(f"Unexpected row collection for table {table!r}.")
-        return [row for row in rows if isinstance(row, dict)]
+        clean_rows = [row for row in rows if isinstance(row, dict)]
+        if status is not None:
+            status.update({"ok": True, "error": False, "error_type": None})
+        return clean_rows
     except Exception as exc:
+        if status is not None:
+            status.update({"ok": False, "error": True, "error_type": type(exc).__name__})
         # A missing optional column or unavailable table must not take down the
         # whole chat/analytics flow. Keep the failure visible in the central log.
         try:
@@ -517,26 +532,34 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         # actual row shape, then pass only explicitly approved, non-personal fields
         # into the model context. This avoids failing on optional columns such as
         # website that may not exist in an older database.
-        raw_rows = _safe_rows(db, "leads", "*", 1500)
-        allowed_lead_fields = {
-            "id", "company_name", "website", "source", "status", "approved_to_contact",
-            "opted_out", "reply_category", "created_at", "next_follow_up_at",
-            "follow_up_count",
-        }
-        lead_rows = []
-        for row in raw_rows:
-            safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
-            # Only expose notes created by our own company-only research module.
-            # Human-entered CRM notes remain excluded from every model prompt.
-            source = str(row.get("source") or "")
-            research_note = str(row.get("notes") or "")
-            if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
-                safe_row["research_intelligence"] = research_note[:3500]
-            lead_rows.append(safe_row)
-        frame = pd.DataFrame(lead_rows)
-        counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
-        # Deliberately exclude personal email addresses and free-text notes from model context.
-        if wants_ranking:
+        lead_read_status: dict[str, Any] = {}
+        raw_rows = _safe_rows(db, "leads", "*", 1500, status=lead_read_status)
+        if lead_read_status.get("error"):
+            sections.append(
+                "ADATFORRÁS NEM ELÉRHETŐ: a lead-adatbázis lekérdezése nem sikerült. "
+                "Ez nem tekinthető üres leadlistának; a leadekre vonatkozó következtetések most nem készíthetők el."
+            )
+            loaded.append("leadek (adatforrás-hiba)")
+        else:
+            allowed_lead_fields = {
+                "id", "company_name", "website", "source", "status", "approved_to_contact",
+                "opted_out", "reply_category", "created_at", "next_follow_up_at",
+                "follow_up_count",
+            }
+            lead_rows = []
+            for row in raw_rows:
+                safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
+                # Only expose notes created by our own company-only research module.
+                # Human-entered CRM notes remain excluded from every model prompt.
+                source = str(row.get("source") or "")
+                research_note = str(row.get("notes") or "")
+                if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
+                    safe_row["research_intelligence"] = research_note[:3500]
+                lead_rows.append(safe_row)
+            frame = pd.DataFrame(lead_rows)
+            counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
+            # Deliberately exclude personal email addresses and free-text notes from model context.
+            if wants_ranking:
             ranked = []
             # Inspect at most 30 lead websites per explicit ranking request.
             for lead in lead_rows:
@@ -560,41 +583,52 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                 + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben. "
                 + "Ez a pontszám nem azonos a leadkutatásban tárolt üzleti illeszkedési becsléssel."
             )
-            loaded.append("lead-weboldalak és rangsorolás")
-        sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
-                        + f"Vizsgált leadek (legfeljebb 1500): {len(lead_rows)}; státusz szerinti megoszlás: {counts}.\n"
-                        + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
-        loaded.append("leadek")
+                loaded.append("lead-weboldalak és rangsorolás")
+            sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
+                            + f"Vizsgált leadek (legfeljebb 1500): {len(lead_rows)}; státusz szerinti megoszlás: {counts}.\n"
+                            + frame.head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
+            loaded.append("leadek")
 
-        if wants_opportunities:
-            priority_rows = rank_researched_leads(lead_rows, limit=20)
-            sections.append(
-                "BIZONYÍTÉKALAPÚ LEADPRIORITÁS (0–100; kutatási triázs, nem vásárlási szándék):\n"
-                + pd.DataFrame(priority_rows).to_json(orient="records", force_ascii=False)
-                + "\nA rangsor az üzleti illeszkedést, a kutatási bizonyosságot és a nyilvános bizonyítékok számát súlyozza. "
-                + "Nem méri a fizetőképességet vagy a kapcsolatfelvételi engedélyt."
-            )
-            loaded.append("bizonyíték-alapú leadprioritás")
+            if wants_opportunities:
+                priority_rows = rank_researched_leads(lead_rows, limit=20)
+                sections.append(
+                    "BIZONYÍTÉKALAPÚ LEADPRIORITÁS (0–100; kutatási triázs, nem vásárlási szándék):\n"
+                    + pd.DataFrame(priority_rows).to_json(orient="records", force_ascii=False)
+                    + "\nA rangsor az üzleti illeszkedést, a kutatási bizonyosságot és a nyilvános bizonyítékok számát súlyozza. "
+                    + "Nem méri a fizetőképességet vagy a kapcsolatfelvételi engedélyt."
+                )
+                loaded.append("bizonyíték-alapú leadprioritás")
 
-        if wants_strategy:
-            strategy = build_market_intelligence(lead_rows)
-            sections.append(
-                "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA (leíró, nem reprezentatív minta):\n"
-                + pd.Series(strategy).to_json(force_ascii=False)
-            )
-            loaded.append("korábbi kutatások piaci mintázatai")
-            learning = build_business_learning(get_memories(db, "", limit=100), lead_rows)
-            sections.append(
-                "ÜZLETI TANULÓMEMÓRIA (kutatási minták + kizárólag explicit döntések/eredmények/tanulságok):\n"
-                + pd.Series(learning).to_json(force_ascii=False)
-            )
-            loaded.append("üzleti tanulómemória")
+            if wants_strategy:
+                strategy = build_market_intelligence(lead_rows)
+                sections.append(
+                    "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA (leíró, nem reprezentatív minta):\n"
+                    + pd.Series(strategy).to_json(force_ascii=False)
+                )
+                loaded.append("korábbi kutatások piaci mintázatai")
+                learning = build_business_learning(get_memories(db, "", limit=100), lead_rows)
+                sections.append(
+                    "ÜZLETI TANULÓMEMÓRIA (kutatási minták + kizárólag explicit döntések/eredmények/tanulságok):\n"
+                    + pd.Series(learning).to_json(force_ascii=False)
+                )
+                loaded.append("üzleti tanulómemória")
 
     task_rows: list[dict] = []
     if wants_tasks:
-        task_rows = _safe_rows(db, "tasks", "id,title,notes,priority,status,due_at,completed_at,created_at,lead_id", 500)
-        sections.append("FELADATOK:\n" + pd.DataFrame(task_rows).head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
-        loaded.append("feladatok")
+        task_read_status: dict[str, Any] = {}
+        task_rows = _safe_rows(
+            db, "tasks", "id,title,notes,priority,status,due_at,completed_at,created_at,lead_id",
+            500, status=task_read_status,
+        )
+        if task_read_status.get("error"):
+            sections.append(
+                "ADATFORRÁS NEM ELÉRHETŐ: a feladat-adatbázis lekérdezése nem sikerült. "
+                "Ez nem tekinthető üres feladatlistának; a határidőkre és feladatokra vonatkozó következtetések nem megbízhatók."
+            )
+            loaded.append("feladatok (adatforrás-hiba)")
+        else:
+            sections.append("FELADATOK:\\n" + pd.DataFrame(task_rows).head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
+            loaded.append("feladatok")
 
     if wants_opportunities or wants_warnings:
         signals = _proactive_signals(lead_rows if wants_leads else [], task_rows)
@@ -602,22 +636,39 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
         loaded.append("határidő- és utánkövetési jelzések")
 
     if wants_drafts:
-        draft_rows = _safe_rows(db, "email_drafts", "id,subject,status,created_at,lead_id", 200)
-        # Draft bodies are not sent to the model unless the user later explicitly asks for review.
-        sections.append("E-MAIL PISZKOZAT METAADATOK (levéltörzs nélkül):\n"
-                        + pd.DataFrame(draft_rows).to_json(orient="records", force_ascii=False, date_format="iso"))
-        loaded.append("e-mail-piszkozatok")
+        draft_status: dict[str, Any] = {}
+        draft_rows = _safe_rows(db, "email_drafts", "id,subject,status,created_at,lead_id", 200, status=draft_status)
+        if draft_status.get("error"):
+            sections.append("ADATFORRÁS NEM ELÉRHETŐ: az e-mail-piszkozatok metaadatainak olvasása nem sikerült.")
+            loaded.append("e-mail-piszkozatok (adatforrás-hiba)")
+        else:
+            # Draft bodies are not sent to the model unless the user later explicitly asks for review.
+            sections.append("E-MAIL PISZKOZAT METAADATOK (levéltörzs nélkül):\n"
+                            + pd.DataFrame(draft_rows).to_json(orient="records", force_ascii=False, date_format="iso"))
+            loaded.append("e-mail-piszkozatok")
 
     log_rows: list[dict] = []
     if wants_logs:
         log_limit = 5000 if wants_analytics else 100
-        log_rows = _safe_rows(db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,delivery_id", log_limit)
-        if not log_rows:
+        log_status: dict[str, Any] = {}
+        log_rows = _safe_rows(
+            db, "logs", "module,level,message,created_at,operation_id,action,status,result,error,approved,delivery_id",
+            log_limit, status=log_status,
+        )
+        if log_status.get("error"):
             # Backward-compatible fallback for installations not yet migrated.
-            log_rows = _safe_rows(db, "logs", "module,level,message,created_at", log_limit)
-        if not wants_analytics:
-            sections.append("RENDSZERNAPLÓ:\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
-        loaded.append("naplók")
+            fallback_status: dict[str, Any] = {}
+            log_rows = _safe_rows(
+                db, "logs", "module,level,message,created_at", log_limit, status=fallback_status,
+            )
+            log_status = fallback_status
+        if log_status.get("error"):
+            sections.append("ADATFORRÁS NEM ELÉRHETŐ: a rendszernapló olvasása nem sikerült; az analitika hiányos lehet.")
+            loaded.append("naplók (adatforrás-hiba)")
+        else:
+            if not wants_analytics:
+                sections.append("RENDSZERNAPLÓ:\\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
+            loaded.append("naplók")
 
     if wants_analytics:
         sections.append(build_chat_analytics_context(log_rows))
