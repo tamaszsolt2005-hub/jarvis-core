@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`a3a2f8adc0c6807d5241015e855ee01229fb00c5` (2026-11-23):
+`c8ce66b012376907d8206a7c1eb2dcfb42330dc5` (2026-11-23):
 
 - Application Python modules in the repository: 31
 - Test Python files: 45
-- Tests: 341 passed, 2 skipped, 0 failed
-- Statement coverage: 83.18%
+- Tests: 347 passed, 2 skipped, 0 failed
+- Statement coverage: 83.25%
 - Required minimum: 75%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
