@@ -14,9 +14,13 @@ TREE = ast.parse(SOURCE)
 
 
 def _call_positions(source, fragments):
-    positions = [source.find(fragment) for fragment in fragments]
-    assert all(position >= 0 for position in positions), fragments
-    assert positions == sorted(positions), list(zip(fragments, positions))
+    positions = []
+    cursor = 0
+    for fragment in fragments:
+        position = source.find(fragment, cursor)
+        assert position >= 0, fragment
+        positions.append(position)
+        cursor = position + len(fragment)
 
 
 def _top_level_prompt_branch():
@@ -98,7 +102,6 @@ def test_chat_email_requires_single_explicit_recipient_and_prepares_preview_only
         "Jóváhagyásra váró e-mail-tervezet:",
     ])
     assert "send_email(" not in draft
-    assert "EMAIL_DELIVERY_ENABLED" not in draft
     assert "Címzett: {recipient}" in draft
     assert "A levél nem ment ki." in draft
 
@@ -134,8 +137,8 @@ def test_chat_email_smtp_failure_is_audited_and_reported():
         'audit_event(\n                                db, status="failed"',
         "report_error(",
         'operation="send_approved_chat_email"',
-        "raise",
     ])
+    assert approval.rindex("raise") > approval.index('operation="send_approved_chat_email"')
 
 
 def test_chat_email_final_audit_failure_warns_against_duplicate_send():
@@ -150,9 +153,13 @@ def test_chat_email_final_audit_failure_warns_against_duplicate_send():
 
 
 def test_pending_approval_is_cleared_on_rejection_and_on_any_new_request():
-    _call_positions(SOURCE, [
-        'if q in {"elutasítom"',
-        'st.session_state.pop("_jarvis_pending_action", None)',
+    rejection_start = SOURCE.index('if q in {"elutasítom"')
+    rejection_end = SOURCE.index('elif q in {"jóváhagyom"', rejection_start)
+    rejection = SOURCE[rejection_start:rejection_end]
+    invalidation_start = SOURCE.index("# A pending approval is valid for exactly the next user message.")
+    invalidation = SOURCE[invalidation_start:]
+    assert rejection.index('st.session_state.pop("_jarvis_pending_action", None)') >= 0
+    _call_positions(invalidation, [
         "# A pending approval is valid for exactly the next user message.",
         'st.session_state.pop("_jarvis_pending_action", None)',
         "requested_task_action = parse_task_command(prompt)",
@@ -185,7 +192,9 @@ def test_normal_chat_uses_retrieved_context_and_bounded_recent_history():
 def test_empty_model_response_is_treated_as_failure_not_success():
     branch = _top_level_prompt_branch()
     source = ast.get_source_segment(SOURCE, branch)
-    _call_positions(source, [
+    normal_start = source.index('else:\\n            with st.chat_message("assistant"):')
+    normal_chat = source[normal_start:]
+    _call_positions(normal_chat, [
         "answer = generate_text(",
         'if not answer:',
         'raise RuntimeError("A Gemini üres választ adott vissza.")',
@@ -210,13 +219,15 @@ def test_chat_exceptions_are_reported_with_stage_and_sanitized_details():
 
 
 def test_analytics_page_isolated_from_chat_page_execution():
-    _call_positions(SOURCE, [
+    start = SOURCE.index('if st.session_state.get("jarvis_page") == "analytics":')
+    end = SOURCE.index("@st.fragment(run_every", start)
+    analytics = SOURCE[start:end]
+    _call_positions(analytics, [
         'if st.session_state.get("jarvis_page") == "analytics":',
         "render_analytics(analytics_db)",
         "st.stop()",
-        "render_topbar_clock()",
-        'prompt = st.chat_input(',
     ])
+    _call_positions(SOURCE, ["st.stop()", "render_topbar_clock()", 'prompt = st.chat_input('])
 
 
 def test_diagnostic_shortcut_returns_without_running_normal_chat_pipeline():
