@@ -109,7 +109,7 @@ def _run() -> int:
             message = message_from_bytes(fetched[0][1])
             sender = parseaddr(message.get("From", ""))[1].casefold()
             lead = by_email.get(sender)
-            if not lead or lead.get("opted_out") is True:
+            if not lead:
                 continue
             message_id = _decode(message.get("Message-ID"))[:250] or f"imap-uid-{uid.decode(errors='ignore')}"
             # A deterministic ID lets a retry reconcile a prior DB update whose
@@ -128,6 +128,8 @@ def _run() -> int:
                     result={"reconciled_retry": True},
                 ):
                     raise RuntimeError("A bejövő e-mail korábbi feldolgozásának auditja nem állítható helyre.")
+                continue
+            if lead.get("opted_out") is True:
                 continue
             subject = _decode(message.get("Subject"))
             body = _body(message)
