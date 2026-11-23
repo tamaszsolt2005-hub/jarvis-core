@@ -1,6 +1,6 @@
 # Supabase klienshozzáférési leltár
 
-**Vizsgált ref:** `feat/supabase-auth-rbac-foundation` – `f8977ecb25bde27702d732afe0d50b6bdb3f4e9f`  
+**Vizsgált ref:** `feat/supabase-auth-rbac-foundation` – `7a7edd2d4ccbd7725ca15a157123f4bce490e278`  
 **Állapot:** csak kód- és híváshely-leltár; sem production DB, sem Auth-felhasználó, sem migráció nem módosult.
 
 ## Összefoglaló
@@ -11,7 +11,7 @@ A vizsgált Python-forrásokban 17 közvetlen `get_supabase()` hívás találhat
 
 | Modul | Közvetlen hívás | Folyamat / hozzáférési osztály | Megjegyzés |
 |---|---:|---|---|
-| `dashboard.py` | 5 | Interaktív dashboard – átmeneti legacy | Audit események, analitika és chat műveletek; jelenleg service-role klienssel. |
+| `dashboard.py` | 6 | Interaktív dashboard – átmeneti legacy | Audit események, analitika és chat műveletek; jelenleg service-role klienssel. |
 | `health_check.py` | 1 | Vegyes diagnosztika – átmeneti legacy | Dashboardból is elérhető diagnosztika, ezért nem sorolható tisztán háttérfolyamatnak. |
 | `daily_briefing.py` | 1 | CLI/háttérfeladat | A `main()` belépési pontban épít napi jelentést. |
 | `email_inbox.py` | 1 | Háttérfolyamat | IMAP inbox feldolgozás és adatbázis-műveletek. |
@@ -26,9 +26,9 @@ A vizsgált Python-forrásokban 17 közvetlen `get_supabase()` hívás találhat
 
 ## Célzott klienshatárok
 
-1. **Felhasználói kliens:** kizárólag a bejelentkezett személy Supabase Auth JWT-jével, publikus/publishable kulccsal; a DB-oldali RLS-policy-k érvényesülnek. Ezt a dashboard jelenleg még nem használhatja üzleti műveletekre, mert nincs teljes Auth-bevezetés és táblánkénti RLS.
-2. **Háttérfolyamat-kliens:** explicit nevű service-role kliens, csak nem felhasználói, szerveroldali jobok számára. A service-role kulcs nem kerülhet Streamlit sessionbe, UI callbackbe vagy böngészőbe.
-3. **Átmeneti dashboard kliens:** a régi közös jelszavas dashboard jelenleg privilegizált klienssel működik. Ezt külön, átmeneti és kifejezetten nem-RBAC klienshatárként kell megnevezni; a név szerinti elkülönítés önmagában nem teszi biztonságossá. Csak akkor váltható user JWT-re, ha a felhasználók, a szerepkörök, a szükséges GRANT-ok és az RLS-policy-k készen állnak.
+1. **Felhasználói kliens (`get_user_supabase(session, allowed_roles=...)`):** kizárólag a bejelentkezett személy Supabase Auth JWT-jével, publikus/publishable kulccsal; a DB-oldali RLS-policy-k érvényesülnek. Ezt a dashboard jelenleg még nem használhatja üzleti műveletekre, mert nincs teljes Auth-bevezetés és táblánkénti RLS.
+2. **Háttérfolyamat-kliens (`get_service_supabase()`):** explicit nevű service-role kliens, csak nem felhasználói, szerveroldali jobok számára. A service-role kulcs nem kerülhet Streamlit sessionbe, UI callbackbe vagy böngészőbe.
+3. **Átmeneti dashboard kliens (`get_legacy_dashboard_supabase()`):** a régi közös jelszavas dashboard jelenleg privilegizált klienssel működik. Ezt külön, átmeneti és kifejezetten nem-RBAC klienshatárként kell megnevezni; a név szerinti elkülönítés önmagában nem teszi biztonságossá. Csak akkor váltható user JWT-re, ha a felhasználók, a szerepkörök, a szükséges GRANT-ok és az RLS-policy-k készen állnak.
 4. **Diagnosztika:** a `health_check.py` egyszerre dashboardról hívható és CLI/üzemeltetési ellenőrzés; a felhasználói UI útvonalat és a háttér/üzemeltetési útvonalat később szét kell választani.
 
 ## Biztonságos átállási sorrend
@@ -41,6 +41,14 @@ A vizsgált Python-forrásokban 17 közvetlen `get_supabase()` hívás találhat
 - Production migration history és tényleges séma drift rendezése az eredeti SQL-források helyreállítása után.
 - Táblánkénti RLS és GRANT tervezés, majd csak engedélyezett, verziókezelt migrációval történő alkalmazás.
 - Valós Auth/JWT/RLS integrációs teszt csak létező, engedélyezett izolált környezetben. Új Supabase tesztprojekt vagy branch nem készül.
+
+## Kódoldali szétválasztás
+
+- `get_service_supabase()` explicit service-role kliens a háttér- és operációs modulokhoz.
+- `get_legacy_dashboard_supabase()` explicit átmeneti service-role kliens a régi dashboard számára.
+- `get_user_supabase(session, allowed_roles=...)` a `jarvis_auth.verified_user_client()`-en keresztül publikus kulcsot és ellenőrzött/megújított JWT-t használ; a frissített sessiont is visszaadja.
+- `get_supabase()` deprecated kompatibilitási alias; új kódban nem használandó.
+- A `health_check.py` read-only operációs diagnosztika, explicit service-role klienssel.
 
 ## Korlátok
 
