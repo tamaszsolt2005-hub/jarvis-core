@@ -83,8 +83,9 @@ def report_error(
     """Report a sanitized error locally and, when supplied, to the existing logs table.
 
     Supabase persistence is best-effort and never changes the caller's control flow.
-    The logs table's existing error and created_at columns are populated explicitly;
-    operation remains in message because no dedicated operation column exists.
+    The structured error column is populated when available; on a confirmed
+    missing-column error, the event is retried using legacy logs columns.
+    Operation remains in message because no dedicated operation column exists.
     """
     level = str(severity or "error").lower().strip()
     if level not in _ALLOWED_LEVELS:
@@ -107,6 +108,32 @@ def report_error(
                 "created_at": timestamp,
             }).execute()
         except Exception as log_exc:
+            # Older production schemas have only module/level/message/created_at.
+            # Retry only for a positively identified missing-column/schema-cache
+            # error; never hide connectivity, permission, or unknown DB failures.
+            error_text = str(log_exc).lower()
+            missing_error_column = (
+                ("error" in error_text and "column" in error_text)
+                or ("error" in error_text and "schema cache" in error_text)
+                or ("pgrst204" in error_text and "error" in error_text)
+                or ("42703" in error_text and "error" in error_text)
+            )
+            if missing_error_column:
+                try:
+                    db.table("logs").insert({
+                        "module": safe_module,
+                        "level": level,
+                        "message": message,
+                        "created_at": timestamp,
+                    }).execute()
+                    LOGGER.warning(
+                        "[jarvis_errors] Structured error column unavailable; "
+                        "persisted sanitized event using legacy logs columns."
+                    )
+                    return message
+                except Exception as fallback_exc:
+                    log_exc = fallback_exc
+
             # Do not recursively report a failure of the logging backend.
             fallback = sanitize_log_text(f"{type(log_exc).__name__}: {log_exc}", max_length=500)
             LOGGER.error("[jarvis_errors] Supabase error logging failed: %s", fallback)

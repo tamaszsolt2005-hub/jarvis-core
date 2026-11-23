@@ -69,7 +69,7 @@ A kód jelenléte önmagában nem bizonyít külső integrációt vagy productio
 | IMAP válasz-/leiratkozás-figyelés | Kódban implementált | Valós IMAP-folyamat végponttól végpontig nem igazolt. |
 | Proaktív lead-/feladatfigyelés | Napi workflow-val bekötve | Snapshotot ír; éles sikeres futása nem igazolt. |
 | Rendszerdiagnosztika | Implementált | Táblákat, konfigurációt és auditmezőket ellenőriz. |
-| Központi hibajelentés | Implementált | Minden külső kivételág éles működése nem igazolt. |
+| Központi hibajelentés | Implementált, legacy sémára fallbackkel | Ha a strukturált `logs.error` oszlop hiányzik, a sanitized hibaesemény a legacy `module/level/message/created_at` oszlopokkal is menthető; az ismeretlen DB-hibák nem kapnak vak újrapróbálást. |
 | Strukturált audit + admin auditoldal | Kódban implementált | A production logs-séma és policy-k hiánya miatt éles használat blokkolt. |
 | Teljes admin/operator/reader RBAC | Nem aktív | Részleges Auth-alapok PR #13-ban, de nem merge-elt / nem aktivált. |
 | Titkosított DB backup | Kódban és workflow-ban előkészítve | AWS/S3 konfiguráció és valós futás nem igazolt. |
@@ -192,7 +192,7 @@ A dashboard `_proactive_signals()` állapotjelzése ettől különálló, pillan
 
 ### Production leadkutatási hiba – 2026-11-23
 
-A [45252422431 workflow-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) sikertelen volt. A kötelező secret-ellenőrzés sikerült, de a kutatás előtt a `pending` auditot nem lehetett elmenteni: a Supabase séma-cache nem találta a `logs.action` oszlopot; a hibajelentésnél a `logs.error` mező hiánya is előjött.
+A [45252422431 workflow-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) sikertelen volt. A kötelező secret-ellenőrzés sikerült, de a kutatás előtt a `pending` strukturált auditot nem lehetett elmenteni, mert a Supabase séma-cache nem találta a `logs.action` oszlopot. A központi hibajelentés most már felismeri a hiányzó `logs.error` oszlopot, és a régi `module/level/message/created_at` mezőkkel próbál biztonságos fallback mentést; ez nem oldja fel a `pending` audit hiányát, ezért a leadkutatás továbbra is fail-closed módon leáll, amíg a sémadriftet jóváhagyott módon nem rendezzük.
 
 A job fail-closed módon, a `research_global_companies()` előtt leállt; a leadkutatás nem indult el. Ez production sémadrift, nem hiányzó GitHub secret. Migrációs egyeztetés nélkül nem javítható biztonságosan.
 
@@ -309,7 +309,7 @@ Dátumhoz kötött bizonyítékok:
 
 - **2026-11-23 – történeti coverage baseline:** a [45132352299 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45132352299) PR #9 headjén 594 sikeres, 2 kihagyott, 0 hibás tesztet és 97,70% statement coverage-et mutatott. Ez nem a jelenlegi main tesztszáma.
 - **2026-11-23 – PR #13 CI:** a [45251071690 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45251071690) sikeres volt compileall, CloudFormation, Playwright telepítés, unit/AppTest/browser tesztek és artifact-lépések tekintetében. Ez draft PR head; nem igazolja az Auth/RLS production integrációt.
-- **2026-11-23 – production leadkutatás:** a [45252422431 workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) a hiányzó `logs.action` és `logs.error` mezők miatt sikertelen volt; a `pending` audit hibája megállította a kutatás indítását.
+- **2026-11-23 – production leadkutatás:** a [45252422431 workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) a hiányzó `logs.action` mező miatt sikertelen volt; a `pending` audit hibája megállította a kutatás indítását. A központi hibajelentés külön fallbacket kapott a legacy logs-sémához, de ez nem helyettesíti a strukturált auditmigrációt.
 
 Tesztbiztonsági határok:
 

@@ -139,3 +139,48 @@ def test_only_credential_named_streamlit_values_are_registered():
     safe = sanitize_log_text("model=visible-model-name key=private-config-token")
     assert "visible-model-name" in safe
     assert "private-config-token" not in safe
+
+def test_report_error_falls_back_to_legacy_logs_columns_when_error_column_is_missing():
+    class LegacySchemaQuery:
+        def __init__(self, rows, payload):
+            self.rows = rows
+            self.payload = payload
+
+        def execute(self):
+            if "error" in self.payload:
+                raise RuntimeError("PGRST204: Could not find the 'error' column of 'logs' in the schema cache")
+            self.rows.append(self.payload)
+            return self
+
+    class LegacySchemaDB:
+        def __init__(self):
+            self.rows = []
+
+        def table(self, _name):
+            class Table:
+                def __init__(self, rows):
+                    self.rows = rows
+
+                def insert(self, payload):
+                    return LegacySchemaQuery(self.rows, payload)
+
+            return Table(self.rows)
+
+    db = LegacySchemaDB()
+    message = report_error(
+        RuntimeError("lead research failed"),
+        module="global_lead_research_job",
+        operation="daily_global_research",
+        severity="critical",
+        db=db,
+    )
+
+    assert len(db.rows) == 1
+    row = db.rows[0]
+    assert set(row) == {"module", "level", "message", "created_at"}
+    assert row["module"] == "global_lead_research_job"
+    assert row["level"] == "critical"
+    assert "operation=daily_global_research" in row["message"]
+    assert "RuntimeError: lead research failed" in row["message"]
+    assert row["message"] == message
+
