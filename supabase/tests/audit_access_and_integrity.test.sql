@@ -42,6 +42,10 @@ begin
     raise exception 'second event must link to the previous entry hash';
   end if;
 
+  if not (select ok from public.verify_logs_audit_chain()) then
+    raise exception 'integrity verifier rejected the newly created valid chain';
+  end if;
+
   begin
     update public.logs set message = 'tampered' where id = first_row.id;
     raise exception 'UPDATE unexpectedly succeeded';
@@ -70,6 +74,9 @@ begin
   if (select count(*) from public.logs where module = 'audit_security_test') <> 0 then
     raise exception 'reader role must not read audit events';
   end if;
+  if (select ok from public.verify_logs_audit_chain()) is not false then
+    raise exception 'reader role must not receive a successful integrity result';
+  end if;
 end;
 $$;
 
@@ -83,6 +90,9 @@ do $$
 begin
   if (select count(*) from public.logs where module = 'audit_security_test') <> 2 then
     raise exception 'admin role must read the synthetic audit events';
+  end if;
+  if (select ok from public.verify_logs_audit_chain()) is not true then
+    raise exception 'admin role must verify the valid audit chain';
   end if;
 end;
 $$;
