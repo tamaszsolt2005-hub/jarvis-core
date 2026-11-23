@@ -255,3 +255,46 @@ def test_proactive_signals_caps_displayed_items_without_losing_total_counts(monk
 def test_global_research_requires_explicit_prospecting_intent(monkeypatch, question, expected):
     fn = _load_helpers(monkeypatch, {"_wants_global_research"})["_wants_global_research"]
     assert fn(question) is expected
+
+
+
+def test_safe_rows_isolates_database_read_failure_and_reports_warning(monkeypatch):
+    fn_namespace = _load_helpers(monkeypatch, {"_safe_rows"})
+    reports = []
+    fn_namespace["report_error"] = lambda error, **kwargs: reports.append((error, kwargs))
+    fn = fn_namespace["_safe_rows"]
+
+    class BrokenQuery:
+        def select(self, _columns):
+            return self
+        def limit(self, _limit):
+            return self
+        def execute(self):
+            raise RuntimeError("mock database read failure")
+
+    class BrokenDB:
+        def table(self, _name):
+            return BrokenQuery()
+
+    assert fn(BrokenDB(), "logs", "module,level") == []
+    assert len(reports) == 1
+    assert isinstance(reports[0][0], RuntimeError)
+    assert reports[0][1]["operation"] == "read_rows:logs"
+    assert reports[0][1]["severity"] == "warning"
+
+
+def test_safe_rows_rejects_unexpected_response_shape_without_crashing(monkeypatch):
+    fn_namespace = _load_helpers(monkeypatch, {"_safe_rows"})
+    reports = []
+    fn_namespace["report_error"] = lambda error, **kwargs: reports.append((error, kwargs))
+
+    class OddQuery(_Query):
+        def execute(self):
+            return types.SimpleNamespace(data={"not": "a row list"})
+
+    class OddDB:
+        def table(self, _name):
+            return OddQuery([])
+
+    assert fn_namespace["_safe_rows"](OddDB(), "tasks", "id") == []
+    assert isinstance(reports[0][0], TypeError)
