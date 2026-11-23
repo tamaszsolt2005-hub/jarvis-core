@@ -89,6 +89,32 @@ branch during the inventory. Do not recreate files under these exact historical
 names and present guessed SQL as the originals. Do not mark versions applied
 or reverted merely to make the CLI output look clean.
 
+### Read-only postcondition mapping (2026-11-24 refresh)
+
+A second read-only inventory confirmed the following current state. These are
+**observed postconditions**, not proof that the named historical SQL was the
+code that created them:
+
+| Remote version name | Observable current-state evidence | What remains unproven |
+|---|---|---|
+| `create_jarvis_memory_and_fk_indexes` | `jarvis_memory` exists with its content-length check and active/created index; lead foreign keys and supporting `tasks_lead_id_idx` / `email_drafts_lead_id_idx` exist. | Exact original DDL, object creation order, and whether every intended index is present. |
+| `complete_jarvis_runtime_schema` | `tasks`, `email_drafts`, and `jarvis_proactive_state` exist with their current columns, constraints, and indexes. | Exact original schema definition and whether it included additional statements not visible from current objects. |
+| `enable_rls_on_legacy_posts` | `public.posts` exists and RLS is enabled; it currently has no policies. | Exact original statement and whether any additional protections were included. |
+| `revoke_anon_authenticated_public_table_and_sequence_privileges` | Current direct table grants on the eight inventoried public tables are limited to `postgres` and `service_role`. | Historical grant/revoke statements and the complete privilege state for every object outside this table inventory. |
+| `secure_postgres_default_privileges_public_schema` | Current `postgres` owner defaults are restricted to `postgres` and `service_role`; current public tables and `settings_id_seq` are owned by `postgres`. | Exact historical SQL and whether it addressed other owners or object classes. |
+
+The refreshed table inventory also confirms the production-specific shape that
+must be preserved: `settings` has integer `id` primary key plus unique
+`key`; `posts` is a separate legacy table; `logs` still has only
+`id, module, message, created_at, level`; and the existing lead/log/settings
+rows remain present. The inventory returned the existing FK, check, unique,
+and supporting indexes for the runtime tables. No DDL or DML was run.
+
+This mapping narrows the reconciliation work but does not justify fabricating
+the five source migrations or changing the remote migration ledger. The
+forward-only migration proposal must be based on verified missing *current
+state*, not on assumptions about the historical migration names.
+
 ## Additional security finding: owner-specific default privileges
 
 The production catalog query returned these defaults for objects created by
