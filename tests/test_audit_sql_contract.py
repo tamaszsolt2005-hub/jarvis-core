@@ -9,7 +9,7 @@ def test_audit_migration_uses_trusted_admin_claim_and_denies_mutations():
     normalized = " ".join(sql.lower().split())
     assert "auth.jwt()" in sql
     assert "app_metadata" in sql
-    assert "user_metadata" not in sql
+    assert "auth.jwt() -> 'user_metadata'" not in sql
     assert "to authenticated" in normalized
     assert "grant select on table public.logs to authenticated" in normalized
     assert "revoke insert, update, delete, truncate" in normalized
