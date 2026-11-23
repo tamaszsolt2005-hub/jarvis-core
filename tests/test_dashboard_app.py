@@ -293,7 +293,7 @@ def test_streamlit_chat_email_pending_audit_failure_never_calls_smtp(monkeypatch
 
     assert smtp_calls == []
     assert audit_statuses == ["pending"]
-    assert any("auditnapló nem írható" in item.value for item in app.error)
+    assert any("auditnapló nem írható" in item.value for item in app.warning)
 
 
 def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
@@ -410,7 +410,12 @@ def test_streamlit_market_change_and_global_research_run_only_after_approval(mon
     import global_lead_research
 
     markets, research_calls = [], []
-    monkeypatch.setattr(global_lead_research, "set_research_market", lambda _db, country: markets.append(country) or country)
+    market_state = {"value": "Hungary"}
+    monkeypatch.setattr(global_lead_research, "get_research_market", lambda _db: market_state["value"])
+    monkeypatch.setattr(
+        global_lead_research, "set_research_market",
+        lambda _db, country: (markets.append(country), market_state.update(value=country), country)[-1],
+    )
     monkeypatch.setattr(
         global_lead_research, "research_global_companies",
         lambda _db, prompt, **kwargs: (
