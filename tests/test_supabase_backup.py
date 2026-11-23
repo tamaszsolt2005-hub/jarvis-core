@@ -509,7 +509,6 @@ def test_local_test_database_allowlist_accepts_only_loopback_urls():
 
 def test_local_test_project_ref_requires_explicit_flag_and_loopback(monkeypatch):
     local_url = "postgresql://postgres:pw@127.0.0.1:5432/postgres"
-    assert backup._validated_project_ref(local_url, allow_local_test=False) if False else True
     with pytest.raises(backup.BackupError):
         backup._validated_project_ref(local_url, allow_local_test=False)
     assert backup._validated_project_ref(local_url, allow_local_test=True) == "local-test"
