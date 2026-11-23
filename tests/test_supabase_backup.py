@@ -418,12 +418,16 @@ def test_restore_rejects_unparseable_empty_schema_count(monkeypatch, tmp_path):
 def test_database_url_secrets_are_not_inherited_by_child_processes(tmp_path, monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:top-secret@db.kiutreccucbegskxowek.supabase.co/postgres")
     monkeypatch.setenv("JARVIS_RESTORE_DB_URL", "postgresql://postgres:other-secret@db.abcdefghijklmnopqrst.supabase.co/postgres")
+    monkeypatch.setenv("GEMINI_API_KEY", "must-not-leak")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "must-not-leak-either")
     _safe_url, env = backup._connection_env_and_url(
         "postgresql://postgres:encoded%3Asecret@db.kiutreccucbegskxowek.supabase.co:5432/postgres",
         tmp_path,
     )
     assert "SUPABASE_DB_URL" not in env
     assert "JARVIS_RESTORE_DB_URL" not in env
+    assert "GEMINI_API_KEY" not in env
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in env
     assert env["PGPASSWORD"] == "encoded:secret"
 
 
@@ -476,3 +480,21 @@ def test_run_checked_sanitizes_database_urls_even_without_explicit_env(monkeypat
 
     assert "SUPABASE_DB_URL" not in captured["env"]
     assert "JARVIS_RESTORE_DB_URL" not in captured["env"]
+
+
+
+def test_run_checked_does_not_pass_unrelated_application_secrets(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "never-leak")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "never-leak-either")
+    captured = {}
+
+    def fake_run(_args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(_args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(backup.subprocess, "run", fake_run)
+    backup.run_checked(["age", "--version"])
+
+    assert "GEMINI_API_KEY" not in captured["env"]
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in captured["env"]
+    assert "PATH" in captured["env"]
