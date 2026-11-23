@@ -93,3 +93,9 @@ adatbázis módosítása külön jóváhagyást igényel.
 ## Irányítás és éles bevezetés
 
 A felhasználó-azonosítás, RBAC, RLS-ellenőrzés, megőrzési döntés, változtathatatlan archiválás, integritás-ellenőrzés, riasztások és audit-export bevezetési feltételeit a [AUDIT_GOVERNANCE.md](AUDIT_GOVERNANCE.md) rögzíti. Ezek közül a külső infrastruktúrát vagy üzleti döntést igénylő kontrollokat ez a PR nem állítja késznek.
+
+
+
+## Adminisztratív audit-hozzáférés és integritás
+
+Az admin-only Supabase Auth auditnézet, a JWT-alapú RLS policy, az append-only adatbázis-triggerek és a SHA-256 hash-lánc részleteit a [AUDIT_GOVERNANCE.md](AUDIT_GOVERNANCE.md) dokumentálja. A hash-lánc nem WORM; a teljes üzleti RBAC és tenant-izoláció továbbra sincs bevezetve.
