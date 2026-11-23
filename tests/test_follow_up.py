@@ -111,12 +111,19 @@ def _configure_run(monkeypatch, db, *, send=None, draft=None, audit=None):
 
 def test_follow_up_success_claims_once_and_records_completion(monkeypatch):
     db = _DB([_lead()])
-    sent = []
-    _configure_run(monkeypatch, db, send=lambda *args: sent.append(args) or "smtp-id")
+    sent, audits = [], []
+    _configure_run(
+        monkeypatch, db,
+        send=lambda *args: sent.append(args) or "smtp-id",
+        audit=lambda *args, **kwargs: audits.append(kwargs) or True,
+    )
 
     follow_up._run()
 
     assert len(sent) == 1
+    assert [item["status"] for item in audits] == ["pending", "success"]
+    assert audits[0]["operation_id"] == audits[1]["operation_id"]
+    assert audits[0]["operation_id"]
     assert db.rows[0]["status"] == "followed_up"
     assert db.rows[0]["follow_up_count"] == 1
     assert db.rows[0]["next_follow_up_at"] is None
