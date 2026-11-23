@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from urllib.parse import urlparse
 
 import pytest
 
@@ -126,9 +127,20 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                 page = context.new_page()
                 local_plotly_js = get_plotlyjs()
 
+                failed_requests = []
+                page.on("requestfailed", lambda request: failed_requests.append(
+                    (request.url, request.failure)
+                ))
+
                 def route_without_external_network(route):
                     request_url = route.request.url
-                    if request_url.startswith(base_url):
+                    parsed_url = urlparse(request_url)
+                    is_local_server = (
+                        parsed_url.scheme in {"http", "https"}
+                        and parsed_url.hostname in {"127.0.0.1", "localhost", "::1"}
+                        and parsed_url.port == port
+                    )
+                    if is_local_server:
                         route.continue_()
                     elif "plotly" in request_url.casefold() and ".js" in request_url.casefold():
                         # Streamlit's chart bundle may request Plotly.js from a CDN.
@@ -151,10 +163,16 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
 
                 page.get_by_role("button", name="Analitika").click()
                 page.get_by_text("Naplózott aktivitási trend").wait_for(timeout=30000)
-                page.wait_for_function(
-                    "document.querySelectorAll('[data-testid=stPlotlyChart]').length === 4",
-                    timeout=20000,
-                )
+                try:
+                    page.wait_for_function(
+                        "document.querySelectorAll('[data-testid=stPlotlyChart]').length === 4",
+                        timeout=20000,
+                    )
+                except Exception as exc:
+                    raise AssertionError(
+                        f"Plotly did not render; failed requests={failed_requests}; "
+                        f"server log={server_log.read_text(encoding='utf-8')[-4000:]}"
+                    ) from exc
                 page.screenshot(path=str(screenshot_dir / "analytics-debug.png"), full_page=True)
                 assert not page.locator('[data-testid="stChatInput"]').is_visible()
                 chart_count = page.locator('[data-testid="stPlotlyChart"]').count()
