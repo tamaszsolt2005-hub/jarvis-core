@@ -98,6 +98,26 @@ def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
          "approved_to_contact": True, "opted_out": False, "reply_category": None,
          "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Jövőbeli hozzájárulású Kft.", "status": "sent", "email": "future@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-24T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Már utánkövetett Kft.", "status": "sent", "email": "done@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 1,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Új lead", "status": "new", "email": "new@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Hibás e-mail", "status": "sent", "email": "bad-address",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
     ])
     report = build_daily_briefing(db, today=date(2026, 11, 15))
     assert "Lejárt, jóváhagyott utánkövetések: 1" in report
@@ -106,6 +126,10 @@ def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     assert "Leiratkozott Kft." not in report
     assert "Válaszolt Kft." not in report
     assert "Hozzájárulás nélküli Kft." not in report
+    assert "Jövőbeli hozzájárulású Kft." not in report
+    assert "Már utánkövetett Kft." not in report
+    assert "Új lead" not in report
+    assert "Hibás e-mail" not in report
 
 
 def test_deadlines_are_compared_using_budapest_local_date():
