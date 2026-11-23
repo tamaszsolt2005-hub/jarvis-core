@@ -121,7 +121,7 @@ def _run() -> int:
                 if not audit_event(
                     db,
                     module="email_inbox",
-                    action="inbound_message_processed",
+                    action="inbound_opt_out" if lead.get("opted_out") is True else "inbound_reply",
                     status="success",
                     operation_id=operation_id,
                     delivery_id=message_id,
