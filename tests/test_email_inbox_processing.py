@@ -177,3 +177,81 @@ def test_inbox_does_not_advance_checkpoint_when_audit_write_fails(monkeypatch):
     # Lead state is already updated; retry is idempotent via last_inbound_message_id.
     assert db.leads[0]["last_inbound_message_id"] == "<reply-3>"
     assert db.checkpoint is None
+
+
+def test_inbox_decode_and_body_handle_encoded_headers_and_empty_payloads():
+    from email.header import Header
+    from email.message import EmailMessage
+
+    encoded = Header("Árvíztűrő tükörfúrógép", "utf-8").encode()
+    assert email_inbox._decode(None) == ""
+    assert email_inbox._decode(encoded) == "Árvíztűrő tükörfúrógép"
+
+    message = EmailMessage()
+    message.set_content("Válasz szöveg")
+    message.add_attachment(b"binary", maintype="application", subtype="octet-stream", filename="x.bin")
+    assert "Válasz szöveg" in email_inbox._body(message)
+
+
+def test_inbox_uid_checkpoint_invalid_last_uid_fails_back_to_full_bounded_window():
+    assert email_inbox._uids_to_process(
+        [b"1", b"2", b"3"], {"uidvalidity": "77", "last_uid": "invalid"}, "77"
+    ) == [b"1", b"2", b"3"]
+
+
+def test_inbox_checkpoint_loader_rejects_non_dictionary_value():
+    db = _DB(_lead())
+    db.checkpoint = ["not", "a", "mapping"]
+    assert email_inbox._load_checkpoint(db) == {}
+
+
+def test_inbox_disabled_and_invalid_port_fail_before_database_access(monkeypatch, capsys):
+    monkeypatch.setattr(email_inbox, "env_bool", lambda *_args: False)
+    monkeypatch.setattr(email_inbox, "get_supabase", lambda: pytest.fail("disabled inbox must not connect"))
+    assert email_inbox._run() == 0
+    assert "kihagyva" in capsys.readouterr().out
+
+    monkeypatch.setattr(email_inbox, "env_bool", lambda *_args: True)
+    monkeypatch.setattr(email_inbox, "get_secret", lambda name, default=None: "70000" if name == "IMAP_PORT" else default)
+    with pytest.raises(ValueError, match="IMAP_PORT"):
+        email_inbox._run()
+
+
+def test_inbox_search_or_fetch_failure_never_advances_uid_checkpoint(monkeypatch):
+    db = _DB(_lead())
+    message = _message("contact@example.test", "Re: ajánlat", "Köszönöm.", "<reply-fail>")
+    _configure(monkeypatch, db, message)
+
+    class SearchFailure(_Mailbox):
+        def uid(self, command, uid, *_args):
+            if command == "search":
+                return "NO", []
+            return super().uid(command, uid, *_args)
+    monkeypatch.setattr(email_inbox.imaplib, "IMAP4_SSL", lambda *_args: SearchFailure({b"10": message}))
+    with pytest.raises(RuntimeError, match="keresése sikertelen"):
+        email_inbox._run()
+    assert db.checkpoint is None
+
+    class FetchFailure(_Mailbox):
+        def uid(self, command, uid, *_args):
+            if command == "fetch":
+                return "NO", []
+            return super().uid(command, uid, *_args)
+    monkeypatch.setattr(email_inbox.imaplib, "IMAP4_SSL", lambda *_args: FetchFailure({b"10": message}))
+    with pytest.raises(RuntimeError, match="UID checkpoint"):
+        email_inbox._run()
+    assert db.checkpoint is None
+
+
+@pytest.mark.parametrize("lead_changes", [
+    {"email": "other@example.test"},
+    {"last_inbound_message_id": "<reply-duplicate>"},
+    {"opted_out": True},
+])
+def test_inbox_skips_unknown_duplicate_or_already_opted_out_sender_and_saves_checkpoint(monkeypatch, lead_changes):
+    db = _DB({**_lead(), **lead_changes})
+    message = _message("contact@example.test", "Re: ajánlat", "Köszönöm.", "<reply-duplicate>")
+    _configure(monkeypatch, db, message)
+
+    assert email_inbox._run() == 0
+    assert db.checkpoint == {"uidvalidity": "77", "last_uid": 10}
