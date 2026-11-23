@@ -32,6 +32,8 @@ jobs:
       - name: Check external backup configuration
         id: config
         shell: bash
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
         run: |
           missing=()
           [[ -n "$SUPABASE_DB_URL" ]] || missing+=("SUPABASE_DB_URL secret")
@@ -41,12 +43,27 @@ jobs:
           [[ -n "$BACKUP_S3_KMS_KEY_ARN" ]] || missing+=("BACKUP_S3_KMS_KEY_ARN variable")
           [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
           [[ -n "$AWS_BACKUP_ROLE_ARN" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
+          [[ -n "$BACKUP_AGE_IDENTITY" ]] || missing+=("BACKUP_AGE_IDENTITY secret")
           if (( ${#missing[@]} )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Backup skipped; missing external configuration: ${missing[*]}"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "## Backup NOT performed" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Missing required configuration: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Backup cannot run; required secrets/variables are missing: ${missing[*]}"
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare age decryption identity
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          set -euo pipefail
+          identity="$RUNNER_TEMP/jarvis-age-identity.txt"
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$identity"
+          chmod 600 "$identity"
+          echo "AGE_IDENTITY_FILE=$identity" >> "$GITHUB_ENV"
 
       - name: Install PostgreSQL 17 client, age and AWS CLI
         if: steps.config.outputs.ready == 'true'
@@ -113,11 +130,14 @@ jobs:
               raise SystemExit(f"Invalid object size: {size!r}")
           print(f"S3 object verified: size={size} bytes; SSE-KMS key matches.")
           '
-
-      - name: Report skipped configuration
-        if: steps.config.outputs.ready != 'true'
-        run: echo "A mentés nincs konfigurálva; külső szolgáltatás hiányában nem futott." >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/jarvis-backup-verify"
+          downloaded="$RUNNER_TEMP/jarvis-backup-verify/$(basename "$BACKUP_S3_KEY")"
+          aws s3 cp "s3://$BACKUP_S3_BUCKET/$BACKUP_S3_KEY" "$downloaded" --only-show-errors
+          python3 scripts/supabase_backup.py verify --archive "$downloaded"
+          echo "## Backup verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- S3 upload and SSE-KMS metadata verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Downloaded object decrypted successfully and its manifest hashes matched." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove local backup files
         if: always()
-        run: rm -rf .private-backups
+        run: rm -rf .private-backups "$RUNNER_TEMP/jarvis-backup-verify" "$RUNNER_TEMP/jarvis-age-identity.txt"

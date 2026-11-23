@@ -18,7 +18,13 @@ def block_unmocked_network(monkeypatch, request):
     if is_approved_live_test:
         return
 
+    is_backup_restore_test = (
+        request.node.get_closest_marker("backup_restore_integration") is not None
+        and Path(str(request.fspath)).name == "test_backup_restore_integration.py"
+        and os.getenv("JARVIS_BACKUP_INTEGRATION_TEST") == "1"
+    )
     is_browser_test = request.node.get_closest_marker("browser_e2e") is not None
+    is_loopback_network_test = is_browser_test or is_backup_restore_test
 
     def deny(*_args, **_kwargs):
         raise AssertionError(
@@ -33,7 +39,7 @@ def block_unmocked_network(monkeypatch, request):
         except ValueError:
             return False
 
-    if is_browser_test:
+    if is_loopback_network_test:
         original_connect = socket.socket.connect
         original_connect_ex = socket.socket.connect_ex
         original_create_connection = socket.create_connection
@@ -72,7 +78,7 @@ def block_unmocked_network(monkeypatch, request):
         monkeypatch.setattr(socket.socket, "connect_ex", deny)
         monkeypatch.setattr(socket, "create_connection", deny)
     monkeypatch.setattr(socket.socket, "sendto", deny)
-    if not is_browser_test:
+    if not is_loopback_network_test:
         monkeypatch.setattr(socket, "getaddrinfo", deny)
     monkeypatch.setattr(socket, "gethostbyname", deny)
     monkeypatch.setattr(socket, "gethostbyname_ex", deny)

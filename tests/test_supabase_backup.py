@@ -498,3 +498,24 @@ def test_run_checked_does_not_pass_unrelated_application_secrets(monkeypatch):
     assert "GEMINI_API_KEY" not in captured["env"]
     assert "SUPABASE_SERVICE_ROLE_KEY" not in captured["env"]
     assert "PATH" in captured["env"]
+
+def test_local_test_database_allowlist_accepts_only_loopback_urls():
+    assert backup._is_loopback_db_url("postgresql://postgres:pw@127.0.0.1:5432/postgres")
+    assert backup._is_loopback_db_url("postgresql://postgres:pw@localhost:5432/postgres")
+    assert not backup._is_loopback_db_url(
+        "postgresql://postgres:pw@db.kiutreccucbegskxowek.supabase.co:5432/postgres"
+    )
+
+
+def test_local_test_project_ref_requires_explicit_flag_and_loopback(monkeypatch):
+    local_url = "postgresql://postgres:pw@127.0.0.1:5432/postgres"
+    with pytest.raises(backup.BackupError):
+        backup._validated_project_ref(local_url, allow_local_test=False)
+    assert backup._validated_project_ref(local_url, allow_local_test=True) == "local-test"
+
+
+def test_verify_backup_requires_private_identity_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGE_IDENTITY_FILE", raising=False)
+    with pytest.raises(backup.BackupError, match="AGE_IDENTITY_FILE"):
+        backup.verify_backup(tmp_path / "not-a-backup")
+

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -58,6 +59,24 @@ def project_ref_from_db_url(db_url: str) -> str:
     if pooler and "pooler.supabase.com" in host:
         return pooler.group(1)
     raise BackupError("A DB URL-ből nem állapítható meg biztonságosan a Supabase projektazonosító.")
+
+def _is_loopback_db_url(db_url: str) -> bool:
+    """Return true only for an explicitly local database host."""
+    host = (urlsplit(db_url).hostname or "").strip("[]").lower()
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _validated_project_ref(db_url: str, *, allow_local_test: bool) -> str:
+    """Permit a synthetic project ref only for explicitly enabled loopback tests."""
+    if allow_local_test and _is_loopback_db_url(db_url):
+        return "local-test"
+    return project_ref_from_db_url(db_url)
+
 
 
 
@@ -135,9 +154,14 @@ def create_backup(output_dir: Path) -> Path:
     source_ref = os.environ.get("JARVIS_BACKUP_SOURCE_PROJECT_REF", "")
     if not db_url or not recipient or not source_ref:
         raise BackupError("Hiányzó konfiguráció: SUPABASE_DB_URL, BACKUP_AGE_RECIPIENT vagy JARVIS_BACKUP_SOURCE_PROJECT_REF.")
-    actual_ref = project_ref_from_db_url(db_url)
-    if source_ref != PRODUCTION_PROJECT_REF or actual_ref != PRODUCTION_PROJECT_REF:
-        raise BackupError("A mentés csak az előre rögzített JARVIS éles projektből indulhat; a forrásazonosító nem egyezik.")
+    local_test = (
+        os.environ.get("JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
+        and _is_loopback_db_url(db_url)
+    )
+    actual_ref = _validated_project_ref(db_url, allow_local_test=local_test)
+    expected_ref = "local-test" if local_test else PRODUCTION_PROJECT_REF
+    if source_ref != expected_ref or actual_ref != expected_ref:
+        raise BackupError("A mentés forrásazonosítója nem egyezik az engedélyezett JARVIS-forrással.")
     if not all(shutil.which(program) for program in ("pg_dump", "pg_restore", "age")):
         raise BackupError("A mentéshez a pg_dump, pg_restore és age program szükséges.")
 
@@ -214,7 +238,7 @@ def create_backup(output_dir: Path) -> Path:
     return final_path
 
 
-def _safe_extract(archive: Path, destination: Path) -> dict:
+def _safe_extract(archive: Path, destination: Path, *, allow_local_test: bool = False) -> dict:
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
         names = {m.name for m in members}
@@ -226,8 +250,12 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
         tar.extractall(destination, members=members)
 
     manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format_version") != 1 or manifest.get("source_project_ref") != PRODUCTION_PROJECT_REF:
-        raise BackupError("Ismeretlen formátum vagy nem JARVIS-forrásból származó mentés.")
+    source_ref = manifest.get("source_project_ref")
+    local_test_archive = source_ref == "local-test" and allow_local_test
+    if manifest.get("format_version") != 1 or (
+        source_ref != PRODUCTION_PROJECT_REF and not local_test_archive
+    ):
+        raise BackupError("Ismeretlen formátum vagy nem engedélyezett JARVIS-forrásból származó mentés.")
     for name in ("schema.sql", "data.sql"):
         expected = manifest.get("files", {}).get(name, {}).get("sha256")
         if not expected or sha256_file(destination / name) != expected:
@@ -249,6 +277,31 @@ def _restore_sql_text(schema_sql: str, data_sql: str) -> str:
     )
     return schema_sql + chr(10) + data_sql
 
+def verify_backup(archive_path: Path) -> dict:
+    """Decrypt a backup and verify its exact archive contents and SHA-256 manifest."""
+    identity = os.environ.get("AGE_IDENTITY_FILE", "")
+    if not identity:
+        raise BackupError("A mentés ellenőrzéséhez AGE_IDENTITY_FILE szükséges.")
+    identity_path = Path(identity)
+    if not identity_path.is_file():
+        raise BackupError("Az AGE_IDENTITY_FILE nem található.")
+    if os.name == "posix" and identity_path.stat().st_mode & 0o077:
+        raise BackupError("Az age privát kulcs fájl jogosultsága túl nyitott; állítsd 0600-ra.")
+    if not archive_path.is_file() or not shutil.which("age"):
+        raise BackupError("A mentési fájl vagy az age program nem található.")
+    with tempfile.TemporaryDirectory(prefix="jarvis-db-verify-") as tmp:
+        work = Path(tmp)
+        decrypted = work / "backup.tar.gz"
+        extracted = work / "extracted"
+        extracted.mkdir()
+        run_checked([
+            "age", "--decrypt", "--identity", str(identity_path),
+            "--output", str(decrypted), str(archive_path),
+        ])
+        allow_local_test = os.environ.get("JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true" and _is_loopback_db_url(os.environ.get("SUPABASE_DB_URL", ""))
+        return _safe_extract(decrypted, extracted, allow_local_test=allow_local_test)
+
+
 def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False) -> None:
     if not confirmed:
         raise BackupError("A visszaállításhoz explicit --confirm-restore megerősítés szükséges.")
@@ -259,9 +312,17 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         raise BackupError("Hiányzó konfiguráció: JARVIS_RESTORE_DB_URL, JARVIS_RESTORE_ALLOWED_PROJECT_REF vagy AGE_IDENTITY_FILE.")
     if target_ref == PRODUCTION_PROJECT_REF:
         raise BackupError("TILTVA: visszaállítás az éles JARVIS-adatbázisra nem engedélyezett.")
-    if target_ref != allowed_ref:
+    local_test = (
+        os.environ.get("JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
+        and _is_loopback_db_url(db_url)
+    )
+    actual_ref = _validated_project_ref(db_url, allow_local_test=local_test)
+    if local_test:
+        if target_ref != "local-test" or allowed_ref != "local-test":
+            raise BackupError("A lokális restore csak a local-test azonosítóval engedélyezett.")
+    elif target_ref != allowed_ref:
         raise BackupError("A célprojekt nem egyezik a külön engedélyezett tesztprojekt-azonosítóval.")
-    if project_ref_from_db_url(db_url) != target_ref:
+    if actual_ref != target_ref:
         raise BackupError("A cél DB URL és a megadott célprojekt-azonosító nem egyezik.")
     identity_path = Path(identity)
     if not identity_path.is_file():
@@ -277,8 +338,11 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         work = Path(tmp)
         decrypted = work / "backup.tar.gz"
         run_checked(["age", "--decrypt", "--identity", identity, "--output", str(decrypted), str(archive_path)])
-        manifest = _safe_extract(decrypted, work)
-        if manifest["source_project_ref"] == target_ref:
+        manifest = (
+            _safe_extract(decrypted, work, allow_local_test=True)
+            if local_test else _safe_extract(decrypted, work)
+        )
+        if manifest["source_project_ref"] == target_ref and not local_test:
             raise BackupError("A forrás és cél projekt nem lehet azonos.")
         # Refuse any non-empty public schema: restore is only allowed into a fresh,
         # isolated project. This prevents overwriting existing data.
@@ -319,6 +383,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     backup_parser = sub.add_parser("backup", help="Encrypted logical backup of JARVIS public schema")
     backup_parser.add_argument("--output-dir", type=Path, default=Path(".private-backups"))
+    verify_parser = sub.add_parser("verify", help="Decrypt and verify a backup archive and its SHA-256 manifest")
+    verify_parser.add_argument("--archive", type=Path, required=True)
     restore_parser = sub.add_parser("restore", help="Restore only into a fresh, explicitly allowed non-production project")
     restore_parser.add_argument("--archive", type=Path, required=True)
     restore_parser.add_argument("--target-project-ref", required=True)
@@ -329,20 +395,23 @@ def main() -> int:
         if args.command == "backup":
             result = create_backup(args.output_dir)
             print(f"Titkosított mentés elkészült: {result.name}")
+        elif args.command == "verify":
+            manifest = verify_backup(args.archive)
+            print(f"Mentés ellenőrizve: {manifest['backup_id']}")
         else:
             restore_backup(args.archive, args.target_project_ref, args.confirm_restore)
             print("A visszaállítás befejeződött az elkülönített célprojektben.")
     except (BackupError, OSError, tarfile.TarError, json.JSONDecodeError) as exc:
         report_error(
             exc, module="supabase_backup",
-            operation="create_backup" if args.command == "backup" else "restore_backup",
+            operation={"backup": "create_backup", "verify": "verify_backup", "restore": "restore_backup"}[args.command],
             severity="error",
         )
         parser.exit(2, f"HIBA: {sanitize_log_text(exc, max_length=1000)}\n")
     except Exception as exc:
         report_error(
             exc, module="supabase_backup",
-            operation="create_backup" if args.command == "backup" else "restore_backup",
+            operation={"backup": "create_backup", "verify": "verify_backup", "restore": "restore_backup"}[args.command],
             severity="critical",
         )
         parser.exit(2, "HIBA: váratlan hiba történt; a részleteket a helyi hibajelentés rögzítette.\n")
