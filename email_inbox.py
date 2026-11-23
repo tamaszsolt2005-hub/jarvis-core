@@ -9,7 +9,7 @@ from email import message_from_bytes
 from email.header import decode_header
 from email.utils import parseaddr
 
-from jarvis_common import env_bool, get_secret, get_supabase, log_event, required_secret, audit_event
+from jarvis_common import env_bool, get_secret, get_service_supabase, log_event, required_secret, audit_event
 
 OPTOUT_TERMS = (
     "leiratkozom", "leiratkozás", "leiratkozas", "unsubscribe", "remove me", "stop emailing",
@@ -83,7 +83,7 @@ def _run() -> int:
         raise ValueError("IMAP_PORT must be between 1 and 65535.")
     username = required_secret("EMAIL_USER")
     password = required_secret("EMAIL_PASSWORD")
-    db = get_supabase()
+    db = get_service_supabase()
     processed = 0
 
     with imaplib.IMAP4_SSL(host, port) as mailbox:

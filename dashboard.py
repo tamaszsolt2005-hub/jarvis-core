@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
+from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_model_name, log_event, env_bool, audit_event
 from jarvis_errors import report_error, sanitize_log_text
 from audit_admin import (
     audit_rows_to_csv, fetch_audit_page, sign_in_audit_admin,
@@ -306,7 +306,7 @@ def render_audit_admin_page() -> None:
             if pending_export:
                 try:
                     audit_event(
-                        get_supabase(),
+                        get_legacy_dashboard_supabase(),
                         module="audit_admin",
                         action="export_csv",
                         status="blocked",
@@ -414,7 +414,7 @@ def render_audit_admin_page() -> None:
             if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
                 operation_id = str(uuid4())
                 try:
-                    audit_db = get_supabase()
+                    audit_db = get_legacy_dashboard_supabase()
                     recorded = audit_event(
                         audit_db,
                         module="audit_admin",
@@ -453,7 +453,7 @@ def render_audit_admin_page() -> None:
             if downloaded:
                 try:
                     completed = audit_event(
-                        get_supabase(),
+                        get_legacy_dashboard_supabase(),
                         module="audit_admin",
                         action="export_csv",
                         status="success",
@@ -471,7 +471,7 @@ def render_audit_admin_page() -> None:
                 if not completed:
                     try:
                         audit_event(
-                            get_supabase(),
+                            get_legacy_dashboard_supabase(),
                             module="audit_admin",
                             action="export_csv",
                             status="unknown",
@@ -1040,7 +1040,7 @@ if st.session_state.get("jarvis_page") == "analytics":
     try:
         analytics_db = st.session_state.get("_jarvis_db")
         if analytics_db is None:
-            analytics_db = get_supabase()
+            analytics_db = get_legacy_dashboard_supabase()
             st.session_state["_jarvis_db"] = analytics_db
         render_analytics(analytics_db)
     except Exception as exc:
@@ -1117,7 +1117,7 @@ if prompt:
     try:
         db = st.session_state.get("_jarvis_db")
         if db is None:
-            db = get_supabase()
+            db = get_legacy_dashboard_supabase()
             st.session_state["_jarvis_db"] = db
 
         # Record event types only; never store the user's prompt or model response.

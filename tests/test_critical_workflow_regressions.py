@@ -381,7 +381,7 @@ def test_sender_pipeline_selects_only_eligible_leads_and_respects_run_limit(monk
     monkeypatch.setattr(email_sender, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(email_sender, "env_bool", lambda _name, _default=False: True)
     monkeypatch.setattr(email_sender, "env_int", lambda name, default, *_args: 2 if name == "SEND_MAX_PER_RUN" else default)
-    monkeypatch.setattr(email_sender, "get_supabase", lambda: DB())
+    monkeypatch.setattr(email_sender, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(email_sender, "score_lead", lambda _lead: 1)
     monkeypatch.setattr(
         email_sender, "_send_one",

@@ -5,7 +5,7 @@ import json
 import uuid
 
 from global_lead_research import get_research_market, research_global_companies
-from jarvis_common import audit_event, get_supabase
+from jarvis_common import audit_event, get_service_supabase
 from jarvis_errors import report_error
 
 
@@ -14,7 +14,7 @@ def main() -> None:
     operation_id = str(uuid.uuid4())
     research_started = False
     try:
-        db = get_supabase()
+        db = get_service_supabase()
         if not audit_event(
             db,
             module="global_lead_research_job",

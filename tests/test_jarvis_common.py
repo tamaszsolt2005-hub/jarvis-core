@@ -214,3 +214,28 @@ def test_generate_text_clamps_output_token_budget(monkeypatch):
     client = FakeClient(["válasz"])
     jarvis_common.generate_text("hello", client, max_output_tokens=50000)
     assert client.models.configs[0].max_output_tokens == 8192
+
+
+def test_legacy_dashboard_factory_delegates_only_to_service_factory(monkeypatch):
+    sentinel = object()
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: sentinel)
+    assert jarvis_common.get_legacy_dashboard_supabase() is sentinel
+    assert jarvis_common.get_supabase() is sentinel
+
+
+def test_user_factory_delegates_to_verified_jwt_client(monkeypatch):
+    import jarvis_auth
+
+    sentinel_client = object()
+    refreshed = {"access_token": "new", "refresh_token": "new-refresh"}
+    monkeypatch.setattr(
+        jarvis_auth,
+        "verified_user_client",
+        lambda session, allowed_roles=None: (sentinel_client, refreshed),
+    )
+    client, current_session = jarvis_common.get_user_supabase(
+        {"access_token": "old", "refresh_token": "old-refresh", "user_id": "u1"},
+        allowed_roles={"operator"},
+    )
+    assert client is sentinel_client
+    assert current_session is refreshed

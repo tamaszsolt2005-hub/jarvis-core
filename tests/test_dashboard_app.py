@@ -60,7 +60,7 @@ def _prepare_dashboard(monkeypatch):
         jarvis_common, "get_secret",
         lambda key, default=None: "app-test-password" if key == "JARVIS_DASHBOARD_PASSWORD" else default,
     )
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: db)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(jarvis_common, "estimate_response_tokens", lambda _prompt: 256)
     monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "APPT_CHAT_RESPONSE")
@@ -165,7 +165,7 @@ def test_streamlit_analytics_period_selector_renders_populated_charts(monkeypatc
     ]
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     db = _ReadOnlyDB(records)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: db)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -188,7 +188,7 @@ def test_streamlit_analytics_database_failure_is_isolated_from_chat(monkeypatch)
             raise RuntimeError("mock analytics database outage")
 
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: BrokenDB())
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: BrokenDB())
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -264,7 +264,7 @@ def test_streamlit_executive_analytics_report_chat_branch_uses_log_facts(monkeyp
         {"module": "email_sender", "level": "error", "message": "mock_failure", "created_at": datetime.now(timezone.utc).isoformat()},
     ]
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: _ReadOnlyDB(records))
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: _ReadOnlyDB(records))
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
@@ -555,7 +555,7 @@ def test_streamlit_executive_report_database_failure_is_explicit_and_reported(mo
 
     reports = []
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: BrokenDB())
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: BrokenDB())
     monkeypatch.setattr(
         jarvis_errors, "report_error",
         lambda error, **kwargs: reports.append((error, kwargs)),

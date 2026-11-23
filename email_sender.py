@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
-from jarvis_common import env_bool, env_int, generate_text, get_secret, get_supabase, log_event, audit_event
+from jarvis_common import env_bool, env_int, generate_text, get_secret, get_service_supabase, log_event, audit_event
 from jarvis_errors import report_error
 from lead_scoring import score_lead
 from web_auditor import audit_company_website
@@ -205,7 +205,7 @@ def _run() -> None:
     ):
         print("Biztonsági mód: az SMTP-küldés, az automatikus küldés és a bejövő levélfigyelés mind szükséges; az e-mail nem kerül kiküldésre.")
         return
-    db = get_supabase()
+    db = get_service_supabase()
     now = datetime.now(timezone.utc)
     rows = db.table("leads").select("*").limit(1000).execute().data or []
     eligible = [

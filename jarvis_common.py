@@ -74,11 +74,36 @@ def env_int(name: str, default: int, minimum: int = 0, maximum: int = 100000) ->
     return max(minimum, min(maximum, value))
 
 
-def get_supabase() -> Client:
-    """Use the server-side service role key; never expose it in client-side code."""
+def get_service_supabase() -> Client:
+    """Create the privileged server-side client for trusted background/ops code only."""
     url = required_secret("SUPABASE_URL")
     key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or required_secret("SUPABASE_KEY")
     return create_client(url, key)
+
+
+def get_legacy_dashboard_supabase() -> Client:
+    """Temporary privileged client for the legacy shared-password dashboard."""
+    return get_service_supabase()
+
+
+def get_user_supabase(
+    session: dict[str, str],
+    *,
+    allowed_roles: set[str] | frozenset[str] | None = None,
+) -> tuple[Client, dict[str, str]]:
+    """Return a public-key client authenticated with a verified user JWT.
+
+    The returned session contains refreshed tokens and must be persisted by the
+    caller. This path never falls back to service-role credentials.
+    """
+    from jarvis_auth import verified_user_client
+
+    return verified_user_client(session, allowed_roles=allowed_roles)
+
+
+def get_supabase() -> Client:
+    """Deprecated compatibility alias; use an explicitly scoped client factory."""
+    return get_service_supabase()
 
 
 def get_gemini_client() -> genai.Client:

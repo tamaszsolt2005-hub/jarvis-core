@@ -9,7 +9,7 @@ def test_jarvis_status_reports_database_read_failure(monkeypatch, capsys):
     import jarvis_status
 
     reports = []
-    monkeypatch.setattr(jarvis_status, "get_supabase", lambda: SimpleNamespace(
+    monkeypatch.setattr(jarvis_status, "get_service_supabase", lambda: SimpleNamespace(
         table=lambda _name: SimpleNamespace(
             select=lambda *_args: SimpleNamespace(
                 limit=lambda *_args: SimpleNamespace(
@@ -35,7 +35,7 @@ def test_global_research_job_reports_and_reraises_startup_failure(monkeypatch):
 
     original = RuntimeError("database unavailable")
     reports = []
-    monkeypatch.setattr(global_lead_research_job, "get_supabase", lambda: (_ for _ in ()).throw(original))
+    monkeypatch.setattr(global_lead_research_job, "get_service_supabase", lambda: (_ for _ in ()).throw(original))
     monkeypatch.setattr(
         global_lead_research_job,
         "report_error",

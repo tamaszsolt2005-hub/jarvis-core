@@ -63,7 +63,7 @@ def test_disabled_inbox_monitor_does_not_read_secrets_or_connect(monkeypatch, ca
         lambda *_args, **_kwargs: pytest.fail("Disabled inbox must not connect to IMAP"),
     )
     monkeypatch.setattr(
-        email_inbox, "get_supabase",
+        email_inbox, "get_service_supabase",
         lambda: pytest.fail("Disabled inbox must not access Supabase"),
     )
 
@@ -133,7 +133,7 @@ def test_invalid_imap_port_fails_before_network_or_database_access(monkeypatch, 
         lambda *_args, **_kwargs: pytest.fail("Invalid IMAP port must fail before connecting"),
     )
     monkeypatch.setattr(
-        email_inbox, "get_supabase",
+        email_inbox, "get_service_supabase",
         lambda: pytest.fail("Invalid IMAP port must fail before database access"),
     )
 
@@ -218,7 +218,7 @@ def test_missing_imap_credentials_fail_before_connecting_or_database_access(monk
         lambda *_args, **_kwargs: pytest.fail("IMAP must not connect without credentials"),
     )
     monkeypatch.setattr(
-        email_inbox, "get_supabase",
+        email_inbox, "get_service_supabase",
         lambda: pytest.fail("Supabase must not be initialized without IMAP credentials"),
     )
 
@@ -246,7 +246,7 @@ def test_imap_transport_outage_is_reported_and_propagated(monkeypatch):
     monkeypatch.setattr(email_inbox, "env_bool", lambda _name, default=False: True)
     monkeypatch.setattr(email_inbox, "get_secret", lambda _name, default=None: default)
     monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "mock-credential")
-    monkeypatch.setattr(email_inbox, "get_supabase", lambda: object())
+    monkeypatch.setattr(email_inbox, "get_service_supabase", lambda: object())
     monkeypatch.setattr(
         email_inbox.imaplib, "IMAP4_SSL",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mock IMAP unavailable")),

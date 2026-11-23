@@ -236,7 +236,7 @@ def test_daily_briefing_main_writes_report_and_appends_monitor(monkeypatch, tmp_
     import daily_briefing
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: FakeDB())
     monkeypatch.setattr(daily_briefing, "build_daily_briefing", lambda _db: "# Daily report")
     monkeypatch.setattr(proactive_monitor, "run_proactive_monitor", lambda _db: "## Monitor\n- No changes")
 
@@ -253,7 +253,7 @@ def test_daily_briefing_main_keeps_report_when_monitor_fails(monkeypatch, tmp_pa
     import daily_briefing
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: FakeDB())
     monkeypatch.setattr(daily_briefing, "build_daily_briefing", lambda _db: "# Daily report")
     monkeypatch.setattr(
         proactive_monitor, "run_proactive_monitor",
@@ -276,7 +276,7 @@ def test_daily_briefing_main_reports_and_reraises_build_failure(monkeypatch, tmp
     failure = RuntimeError("mock report build failure")
     reports = []
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: FakeDB())
     monkeypatch.setattr(
         daily_briefing, "build_daily_briefing",
         lambda _db: (_ for _ in ()).throw(failure),

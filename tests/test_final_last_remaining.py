@@ -67,7 +67,7 @@ def test_email_sender_disabled_gate_does_not_initialize_database(monkeypatch, ca
     monkeypatch.setattr(email_sender, "EMAIL_DELIVERY_ENABLED", False)
     monkeypatch.setattr(email_sender, "env_bool", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        email_sender, "get_supabase",
+        email_sender, "get_service_supabase",
         lambda: (_ for _ in ()).throw(AssertionError("disabled sender must not connect")),
     )
     email_sender._run()

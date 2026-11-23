@@ -9,7 +9,7 @@ import imaplib
 from email.header import decode_header
 from email.utils import parseaddr
 
-from jarvis_common import get_secret, get_supabase, log_event
+from jarvis_common import get_secret, get_service_supabase, log_event
 from jarvis_errors import report_error
 from reply_analyzer import classify_reply
 
@@ -57,7 +57,7 @@ def _run():
         print("Inbox monitor kihagyva: hiányzik az EMAIL_USER vagy EMAIL_PASSWORD.")
         return
 
-    db = get_supabase()
+    db = get_service_supabase()
     leads = db.table("leads").select("*").in_("status", ["sent", "followed_up"]).limit(300).execute().data or []
     mail = imaplib.IMAP4_SSL(get_secret("IMAP_HOST", "imap.gmail.com"), int(get_secret("IMAP_PORT", "993")))
     try:

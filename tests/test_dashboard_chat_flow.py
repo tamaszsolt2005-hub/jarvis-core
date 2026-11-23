@@ -70,7 +70,7 @@ def test_chat_request_reuses_session_database_and_records_request_without_prompt
     branch_source = ast.get_source_segment(SOURCE, branch)
     _call_positions(branch_source, [
         'db = st.session_state.get("_jarvis_db")',
-        "db = get_supabase()",
+        "db = get_legacy_dashboard_supabase()",
         'log_event(db, "chat", f"chat_request|request_id={request_id}")',
         "retrieve_context(db, prompt)",
     ])
