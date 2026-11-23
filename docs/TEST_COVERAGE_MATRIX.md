@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`c8ce66b012376907d8206a7c1eb2dcfb42330dc5` (2026-11-23):
+`d6a09440025dcb46809951c311efe952e7df1107` (2026-11-23; Actions run `45090703290`):
 
 - Application Python modules in the repository: 31
 - Test Python files: 45
-- Tests: 347 passed, 2 skipped, 0 failed
-- Statement coverage: 83.25%
+- Tests: 394 passed, 2 skipped, 0 failed
+- Statement coverage: 84.90%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -23,7 +23,7 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 45% | Authentication/retrieval/security helpers tested; Streamlit presentation and chat UI remain the largest gap |
+| `dashboard.py` | 51% | Authentication/retrieval/security helpers tested; Streamlit presentation and chat UI remain the largest gap |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 88% | Consent, state claims, pending audit, SMTP and failure paths |
 | `follow_up.py` | 87% | Consent recheck and uncertain-delivery no-retry state |
@@ -45,7 +45,7 @@ below lists the remaining files reported by coverage.
 | `safe_http.py` | 88% | DNS-pinned HTTP transport and redirect restrictions |
 | `scripts/supabase_backup.py` | 92% | Mocked backup/restore, archive checks and external-tool failures |
 | `stats.py` | 93% | Operational counts and sanitized log reporting |
-| `task_actions.py` | 79% | Strict payload validation, explicit approval, create/update/close and concurrency paths |
+| `task_actions.py` | 99% | Strict payload validation, explicit approval, create/update/close and concurrency paths |
 | `web_auditor.py` | 92% | SSRF checks, redirects, transport and parser errors |
 
 Coverage is a statement-level signal, not proof that every business scenario,
