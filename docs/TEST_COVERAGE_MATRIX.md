@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`1b96511bd825a921a3172f1be130cb77aff6a4e3` (2026-11-23; Actions run `45099679623`):
+`1c6f25c0240c4bb0a72059cf106e68de85fb34b2` (2026-11-23; Actions run `45100732685`):
 
 - Application Python modules in the repository: 31
 - Test Python files: 53
-- Tests: 481 passed, 2 skipped, 0 failed
-- Statement coverage: 94.29%
+- Tests: 509 passed, 2 skipped, 0 failed
+- Statement coverage: 95.44%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -21,7 +21,6 @@ below lists the remaining files reported by coverage.
 | Module | Coverage | Notes |
 |---|---:|---|
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
-| `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
 | `dashboard.py` | 93% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
@@ -30,7 +29,6 @@ below lists the remaining files reported by coverage.
 | `global_lead_research.py` | 93% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
 | `global_lead_research_job.py` | 94% | Scheduled-job orchestration and error reporting |
 | `health_check.py` | 96% | Configuration, table/column probes, Gemini and safety-lock failures |
-| `inbox_analyzer.py` | 80% | Inbound classification |
 | `inbox_monitor.py` | 88% | Inbox monitoring and error paths |
 | `intelligent_lead_scoring.py` | 97% | Lead scoring |
 | `jarvis_analytics.py` | 96% | Empty/populated analytics rendering and database failure |
@@ -41,7 +39,6 @@ below lists the remaining files reported by coverage.
 | `lead_gen.py` | 98% | Reviewed CSV validation, duplicate detection and error handling |
 | `lead_scoring.py` | 88% | Lead score calculations |
 | `proactive_monitor.py` | 94% | Read-only monitoring |
-| `reply_analyzer.py` | 93% | Reply classification |
 | `safe_http.py` | 99% | DNS-pinned HTTP transport, private/mixed DNS rejection, proxy and TLS hostname restrictions |
 | `scripts/supabase_backup.py` | 92% | Mocked backup/restore, archive checks and external-tool failures |
 | `stats.py` | 93% | Operational counts and sanitized log reporting |
@@ -106,7 +103,7 @@ as the `jarvis-dashboard-responsive-screenshots` workflow artifact, grouped by b
 
 ## Coverage-gap remediation added on 2026-11-23
 
-The next test expansion adds explicit negative and recovery-path checks for:
+The expanded test suite adds explicit negative and recovery-path checks for:
 
 - tests/test_dashboard_helpers.py: safe public redirects, missing redirect targets, redirect limits, DNS failures, malformed ports, and filtering malformed database rows.
 - tests/test_dashboard_app.py: email audit fail-closed behavior, SMTP exception auditing, final-audit warnings, explicit recipient validation, task close/update approval, missing task IDs, and approved market/research actions.
@@ -114,8 +111,11 @@ The next test expansion adds explicit negative and recovery-path checks for:
 - tests/test_follow_up.py: opt-out after claim, ambiguous post-SMTP completion, failed success-audit, recovery failure, disabled feature gate, and batch-level exception propagation.
 - tests/test_safe_http_coverage_edges.py: public/private IP validation, DNS failure and mixed answers, invalid URL rejection, pinned IP transport, proxy rejection, TLS hostname preservation, and session cleanup.
 - tests/test_global_lead_research_edges.py: malformed model output, grounding validation, deduplication, evidence downgrades, and the invariant that research never grants contact permission.
-- tests/test_jarvis_common_edge_coverage.py: audit result redaction/truncation, persistence failures, audit filtering, and settings helpers.
+- tests/test_jarvis_common_edge_coverage.py: audit result redaction/truncation, persistence failures, audit filtering, settings helpers, Supabase/Gemini client selection, and model fallback errors.
+- tests/test_email_workflow.py and tests/test_inbox_analyzer.py: chat-email malformed/empty draft handling and inbound classifier provider failure/empty response.
+- tests/test_business_learning.py: malformed research evidence, score clamping, and conservative decision matching.
+- tests/test_lead_scoring.py, tests/test_proactive_monitor.py and tests/test_reply_analyzer.py: malformed URLs, date parsing, snapshot error propagation, and model-classification fallbacks.
 
 A defect found during this review was fixed in jarvis_errors.sanitize_log_text: CR/LF and other ASCII control characters are now replaced before log or audit persistence, preventing log-record injection. The regression is exercised through the shared logging helper tests.
 
-**Validation result:** GitHub Actions run 45099679623 passed on PR head 1b96511bd825a921a3172f1be130cb77aff6a4e3: 481 passed, 2 skipped, 0 failed; statement coverage 94.29%; compileall successful. CI uploads both responsive screenshots and coverage.xml as separate artifacts.
+**Validation result:** GitHub Actions run 45100732685 passed on PR head 1c6f25c0240c4bb0a72059cf106e68de85fb34b2: 509 passed, 2 skipped, 0 failed; statement coverage 95.44%; compileall successful. CI uploads both responsive screenshots and coverage.xml as separate artifacts.
