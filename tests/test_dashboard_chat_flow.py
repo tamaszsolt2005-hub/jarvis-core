@@ -183,16 +183,16 @@ def test_normal_chat_uses_retrieved_context_and_bounded_recent_history():
         "history = format_conversation_history(",
         "max_chars=10000",
         "max_message_chars=3000",
+        "BESZÉLGETÉSI ELŐZMÉNY:",
+        "FELHASZNÁLÓ KÉRDÉSE: {prompt}",
         "answer = generate_text(",
-        "f" + '"BESZÉLGETÉSI ELŐZMÉNY:\n{history}\n\n"',
-        "f" + '"FELHASZNÁLÓ KÉRDÉSE: {prompt}\n\nVÁLASZKERET:',
     ])
 
 
 def test_empty_model_response_is_treated_as_failure_not_success():
     branch = _top_level_prompt_branch()
     source = ast.get_source_segment(SOURCE, branch)
-    normal_start = source.index('else:\\n            with st.chat_message("assistant"):')
+    normal_start = source.index('else:\n            with st.chat_message("assistant"):')
     normal_chat = source[normal_start:]
     _call_positions(normal_chat, [
         "answer = generate_text(",
