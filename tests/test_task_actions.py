@@ -180,3 +180,82 @@ def test_truthy_non_boolean_approval_does_not_authorize_task_mutation():
             {"type": "create", "title": "Test", "priority": "normal"},
             approved="yes",
         )
+
+
+def test_execute_update_task_changes_only_validated_fields():
+    db = FakeDB()
+    message = execute_task_action(
+        db,
+        {
+            "type": "update",
+            "id": TASK_ID,
+            "updates": {"title": "Frissített cím", "priority": "high"},
+        },
+        approved=True,
+    )
+    assert "Feladat módosítva" in message
+    assert db.updated["title"] == "Frissített cím"
+    assert db.updated["priority"] == "high"
+    assert "updated_at" in db.updated
+
+
+def test_task_update_conflict_does_not_report_success_or_mutate():
+    import task_actions
+
+    class ConflictQuery(Query):
+        def execute(self):
+            if self.payload is not None:
+                self.db.updated = self.payload
+                return Result([])
+            return Result([{"id": TASK_ID, "title": "Teszt", "status": "open"}])
+
+    class ConflictDB(FakeDB):
+        def table(self, _name):
+            return ConflictQuery(self)
+
+    db = ConflictDB()
+    audit_statuses = []
+    original = task_actions.audit_event
+    task_actions.audit_event = lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True
+    try:
+        message = execute_task_action(
+            db,
+            {"type": "update", "id": TASK_ID, "updates": {"title": "Race"}},
+            approved=True,
+        )
+    finally:
+        task_actions.audit_event = original
+
+    assert "időközben megváltozott" in message
+    assert audit_statuses == ["pending", "blocked"]
+    assert db.updated is not None
+
+
+def test_missing_task_is_not_mutated_and_is_audited_as_blocked():
+    import task_actions
+
+    class MissingQuery(Query):
+        def execute(self):
+            if self.payload is not None:
+                self.db.updated = self.payload
+                return Result([])
+            return Result([])
+
+    class MissingDB(FakeDB):
+        def table(self, _name):
+            return MissingQuery(self)
+
+    db = MissingDB()
+    audit_statuses = []
+    original = task_actions.audit_event
+    task_actions.audit_event = lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True
+    try:
+        message = execute_task_action(
+            db, {"type": "close", "id": TASK_ID}, approved=True
+        )
+    finally:
+        task_actions.audit_event = original
+
+    assert "nem található" in message
+    assert audit_statuses == ["pending", "blocked"]
+    assert db.updated is None
