@@ -73,7 +73,7 @@ Az infrastruktúra CloudFormation sablonja: [`infra/aws-backup-stack.yaml`](../i
 - GitHub OIDC provider (vagy megadható már létező provider ARN);
 - IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, és csak a backup prefixre enged feltöltést, a megadott KMS kulccsal.
 
-AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubRepository` alapértéke `tamaszsolt2005-hub/jarvis-core`, a `GitHubBranch` értéke `main`. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
+AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubOidcSubject` alapértéke a repository ellenőrzött, immutable OIDC subjectje a `main` ágra (`repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main`). Más repository vagy branch esetén ezt a teljes subjectet kell a GitHub által kiadott OIDC claimhez igazítva felülírni. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
 
 A stack létrehozása után mentsd ki az Outputs értékeit:
 - `BackupBucketName`
