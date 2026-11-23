@@ -46,7 +46,7 @@ A végleges táblánkénti SQL-policy-kat a tényleges táblák, függvények, v
 2. Szerepkör-adminisztráció kizárólag megbízható admin felületen / szerveroldali folyamatban.
 3. A dashboard és a modulok DB-hozzáférésének átalakítása felhasználói JWT-re, ahol felhasználói művelet történik.
 4. Táblánkénti RLS-policy-k és minimális GRANT-ok kialakítása.
-5. Izolált Supabase tesztprojektben anon, reader, operator, admin és service-role negatív/pozitív tesztelése.
+5. Valós Auth/JWT/RLS teszt csak már létező, kifejezetten engedélyezett izolált környezetben végezhető; új Supabase tesztprojekt létrehozása nem része ennek a munkának.
 6. Migráció után régi közös jelszó belépésének eltávolítása, majd teljes böngészős regresszió.
 
 ## Kötelező negatív tesztek
@@ -62,7 +62,7 @@ A végleges táblánkénti SQL-policy-kat a tényleges táblák, függvények, v
 
 ## Tesztelési határ
 
-A repositoryban futó mockolt pytest/AppTest tesztek az alkalmazás logikáját és a policy-szerződéseket ellenőrizhetik, de nem bizonyítják a PostgreSQL RLS tényleges működését. Az adatbázis-szintű bizonyítékhoz elkülönített Supabase tesztprojekt, külön tesztfelhasználók és valós JWT-vel végzett integrációs tesztek szükségesek.
+A repositoryban futó mockolt pytest/AppTest tesztek az alkalmazás logikáját és a policy-szerződéseket ellenőrizhetik, a CI PostgreSQL 17 + pgTAP tesztjei pedig a migrációk és SQL-policy-k adatbázis-szintű viselkedését ellenőrzik. Ezek egyike sem bizonyítja a Supabase Auth szolgáltatás valós JWT-integrációját. Valós Auth/JWT/RLS teszt kizárólag már létező, engedélyezett izolált környezetben végezhető; új Supabase projektet nem hozunk létre. A production adatbázis nem használható tesztkörnyezetként.
 
 **Jelenlegi állapot:** a projekt továbbra is közös jelszavas, service-role kulcsot használó architektúrával rendelkezik. Az RBAC célmodell dokumentálva van, de még nincs élesítve; a production schema és adatok nem változtak.
 
