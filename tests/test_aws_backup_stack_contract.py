@@ -30,6 +30,8 @@ def test_backup_bucket_enforces_private_versioned_kms_storage():
     assert "s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt BackupKmsKey.Arn" in template
     assert "ExpirationInDays: 30" in template
     assert "NoncurrentDays: 30" in template
+    assert template.count("DeletionPolicy: Retain") == 2
+    assert template.count("UpdateReplacePolicy: Retain") == 2
 
 
 def test_github_oidc_trust_is_restricted_to_exact_subject_and_audience():
