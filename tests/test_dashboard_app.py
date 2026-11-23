@@ -10,6 +10,8 @@ import email_utils
 import global_lead_research
 import jarvis_common
 import jarvis_memory
+import task_actions
+import health_check
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -197,3 +199,77 @@ def test_streamlit_analytics_database_failure_is_isolated_from_chat(monkeypatch)
     app.button(key="jarvis_nav_chat").click().run()
     assert not app.exception
     assert app.session_state["jarvis_page"] == "chat"
+
+
+
+def test_streamlit_task_approval_executes_only_after_explicit_confirmation(monkeypatch):
+    task_calls = []
+    monkeypatch.setattr(
+        task_actions, "execute_task_action",
+        lambda _db, action, *, approved=False: (
+            task_calls.append((action, approved)) or "APPT_TASK_EXECUTED"
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Hozz létre feladat: AppTest ellenőrzés; határidő=2026-12-01; prioritás=high")
+    assert task_calls == []
+    assert app.session_state["_jarvis_pending_action"]["task_action"]["type"] == "create"
+
+    _submit_chat(app, "Jóváhagyom")
+    assert len(task_calls) == 1
+    assert task_calls[0][1] is True
+    assert "_jarvis_pending_action" not in app.session_state
+
+
+def test_streamlit_task_rejection_clears_pending_action_without_execution(monkeypatch):
+    task_calls = []
+    monkeypatch.setattr(
+        task_actions, "execute_task_action",
+        lambda *args, **kwargs: task_calls.append((args, kwargs)),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Hozz létre feladat: Elutasítandó AppTest; prioritás=normal")
+    assert "_jarvis_pending_action" in app.session_state
+    _submit_chat(app, "Elutasítom")
+    assert task_calls == []
+    assert "_jarvis_pending_action" not in app.session_state
+
+
+def test_streamlit_system_diagnostics_chat_command_renders_report(monkeypatch):
+    monkeypatch.setattr(health_check, "run_self_diagnostics", lambda: "APPT_DIAGNOSTICS_OK")
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "rendszerdiagnosztika")
+    assert any("APPT_DIAGNOSTICS_OK" in value for value in _markdown_values(app))
+    assert not app.exception
+
+
+def test_streamlit_executive_analytics_report_chat_branch_uses_log_facts(monkeypatch):
+    from datetime import datetime, timezone
+
+    records = [
+        {"module": "chat", "level": "info", "message": "chat_request", "created_at": datetime.now(timezone.utc).isoformat()},
+        {"module": "email_sender", "level": "error", "message": "mock_failure", "created_at": datetime.now(timezone.utc).isoformat()},
+    ]
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: _ReadOnlyDB(records))
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    _submit_chat(app, "Készíts 30 napos vezetői analitikai jelentést")
+    values = _markdown_values(app)
+    assert any("Összes naplózott esemény a 30 napos ablakban: **2**" in value for value in values)
+    assert any("Hibaszintű esemény (error/critical/fatal): **1**" in value for value in values)
+    assert not app.exception
