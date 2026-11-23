@@ -44,3 +44,68 @@ jobs:
           name: jarvis-coverage-report
           path: coverage.xml
           if-no-files-found: ignore
+
+  backup-restore-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JARVIS_BACKUP_SOURCE_PROJECT_REF: local-test
+      JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB: "true"
+      JARVIS_RESTORE_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/restore
+      JARVIS_RESTORE_ALLOWED_PROJECT_REF: local-test
+      JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB: "true"
+      JARVIS_BACKUP_INTEGRATION_TEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PostgreSQL 17 client and age
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location \\
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \\
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" \\
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-17 age
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          pg_dump --version | grep -Eq ' 17\\.'
+          pg_restore --version | grep -Eq ' 17\\.'
+          psql --version | grep -Eq ' 17\\.'
+      - name: Create isolated restore database and age identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          createdb --host 127.0.0.1 --username postgres restore
+          PGPASSWORD=postgres psql "postgresql://postgres@127.0.0.1:5432/restore" \\
+            --set ON_ERROR_STOP=1 --command "CREATE ROLE anon; CREATE ROLE authenticated;"
+          age-keygen --output "$RUNNER_TEMP/jarvis-age-identity.txt" 2> "$RUNNER_TEMP/age-keygen.log"
+          chmod 600 "$RUNNER_TEMP/jarvis-age-identity.txt"
+          recipient="$(age-keygen --y "$RUNNER_TEMP/jarvis-age-identity.txt")"
+          echo "BACKUP_AGE_RECIPIENT=$recipient" >> "$GITHUB_ENV"
+          echo "AGE_IDENTITY_FILE=$RUNNER_TEMP/jarvis-age-identity.txt" >> "$GITHUB_ENV"
+      - name: Run real encrypted backup and restore roundtrip
+        run: python -m pytest -q tests/test_backup_restore_integration.py
+      - name: Remove test age identity
+        if: always()
+        run: rm -f "$RUNNER_TEMP/jarvis-age-identity.txt" "$RUNNER_TEMP/age-keygen.log"
