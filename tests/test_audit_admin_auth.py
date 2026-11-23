@@ -23,6 +23,7 @@ class FakeAuth:
             user=SimpleNamespace(
                 id="user-123",
                 email="admin@example.test",
+                email_confirmed_at="2026-11-01T00:00:00Z",
                 app_metadata={"role": self.role},
             )
         )
@@ -135,3 +136,19 @@ def test_integrity_verifier_uses_authenticated_rpc():
     result = audit_admin.verify_audit_integrity(RpcClient())
     assert result["ok"] is True
     assert result["total_entries"] == 3
+
+
+def test_sign_in_rejects_unverified_email(monkeypatch):
+    client = FakeClient()
+    original = client.auth.get_user
+
+    def unverified(*args):
+        response = original(*args)
+        response.user.email_confirmed_at = None
+        return response
+
+    client.auth.get_user = unverified
+    monkeypatch.setattr(audit_admin, "_client", lambda: client)
+    with pytest.raises(PermissionError, match="e-mail-címét"):
+        audit_admin.sign_in_audit_admin("admin@example.test", "secret")
+    assert client.auth.signed_out is True
