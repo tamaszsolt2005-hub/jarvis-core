@@ -40,6 +40,7 @@ on conflict (singleton) do nothing;
 alter table public.audit_chain_state enable row level security;
 revoke all on table public.audit_chain_state from anon, authenticated;
 grant select, insert, update on table public.audit_chain_state to service_role;
+grant execute on function extensions.digest(bytea, text) to authenticated, service_role;
 
 grant select on table public.audit_chain_state to authenticated;
 drop policy if exists "Admins can read audit chain state" on public.audit_chain_state;
