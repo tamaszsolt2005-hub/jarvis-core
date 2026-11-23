@@ -2,15 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: JARVIS encrypted database backup bucket and GitHub Actions OIDC upload role.
 
 Parameters:
-  GitHubRepository:
-    Type: String
-    Default: tamaszsolt2005-hub/jarvis-core
-    Description: Exact owner/repository allowed to assume the backup role.
-    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-  GitHubBranch:
-    Type: String
-    Default: main
-    AllowedPattern: "^[A-Za-z0-9_.-]+$"
   GitHubOidcSubject:
     Type: String
     Default: repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main
