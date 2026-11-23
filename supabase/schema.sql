@@ -157,6 +157,19 @@ create policy "Admins can read audit logs"
 revoke insert, update, delete, truncate, references, trigger
   on table public.logs from anon, authenticated;
 
+create table if not exists public.audit_chain_state (
+  singleton boolean primary key default true check (singleton),
+  last_hash text not null default repeat('0', 64)
+    check (length(last_hash) = 64),
+  updated_at timestamptz not null default now()
+);
+insert into public.audit_chain_state (singleton, last_hash)
+values (true, repeat('0', 64))
+on conflict (singleton) do nothing;
+alter table public.audit_chain_state enable row level security;
+revoke all on table public.audit_chain_state from anon, authenticated;
+grant select, insert, update on table public.audit_chain_state to service_role;
+
 create or replace function public.set_logs_audit_hash_chain()
 returns trigger
 language plpgsql
@@ -166,18 +179,22 @@ declare
   prior_hash text;
   canonical_row text;
 begin
-  perform pg_advisory_xact_lock(741928361);
-  select entry_hash into prior_hash
-    from public.logs
-   where entry_hash is not null
-   order by created_at desc, id desc
-   limit 1;
+  insert into public.audit_chain_state (singleton, last_hash)
+  values (true, repeat('0', 64))
+  on conflict (singleton) do nothing;
+  select last_hash into prior_hash
+    from public.audit_chain_state
+   where singleton = true
+   for update;
   new.previous_hash := coalesce(prior_hash, repeat('0', 64));
   canonical_row := (to_jsonb(new) - 'previous_hash' - 'entry_hash')::text;
   new.entry_hash := encode(
     extensions.digest(convert_to(new.previous_hash || ':' || canonical_row, 'UTF8'), 'sha256'),
     'hex'
   );
+  update public.audit_chain_state
+     set last_hash = new.entry_hash, updated_at = clock_timestamp()
+   where singleton = true;
   return new;
 end;
 $$;
