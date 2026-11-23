@@ -109,9 +109,12 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
             return Query(self)
 
     db = DB()
-    events = []
+    events, audits = [], []
     monkeypatch.setattr(lead_gen, "get_supabase", lambda: db)
-    monkeypatch.setattr(lead_gen, "audit_event", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        lead_gen, "audit_event",
+        lambda *args, **kwargs: audits.append(kwargs) or True,
+    )
     monkeypatch.setattr(lead_gen, "log_event", lambda *args: events.append(args))
 
     lead_gen.run(str(source))
@@ -120,6 +123,13 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
     assert db.inserted[0]["email"] == "new@example.com"
     assert db.inserted[0]["status"] == "new"
     assert events and "1 új lead, 2 kihagyva" in events[0][2]
+    assert [item["action"] for item in audits] == [
+        "import_reviewed_csv", "create_reviewed_lead",
+        "create_reviewed_lead", "import_reviewed_csv",
+    ]
+    assert [item["status"] for item in audits] == ["pending", "pending", "success", "success"]
+    assert audits[1]["operation_id"] == audits[2]["operation_id"]
+    assert audits[0]["operation_id"] == audits[3]["operation_id"]
     assert "Import kész: 1 új, 2 kihagyott rekord." in capsys.readouterr().out
 
 
