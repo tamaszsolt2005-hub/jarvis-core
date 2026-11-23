@@ -3,12 +3,12 @@
 ## Verified baseline
 
 The following numbers are from the successful GitHub Actions run for PR #9, head
-`6d0b56d31279c909bfa57ef2819914646565291e` (2026-11-23; Actions run `45095248644`):
+`1b96511bd825a921a3172f1be130cb77aff6a4e3` (2026-11-23; Actions run `45099679623`):
 
 - Application Python modules in the repository: 31
-- Test Python files: 48
-- Tests: 429 passed, 2 skipped, 0 failed
-- Statement coverage: 91.77%
+- Test Python files: 53
+- Tests: 481 passed, 2 skipped, 0 failed
+- Statement coverage: 94.29%
 - Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
@@ -23,18 +23,18 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `chat_email.py` | 88% | Explicit-recipient chat email parsing |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
-| `dashboard.py` | 87% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task approval/rejection, diagnostics and executive report. Chromium E2E covers responsive chat and analytics at five viewports |
+| `dashboard.py` | 93% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
 | `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
-| `email_sender.py` | 88% | Consent, state claims, pending audit, SMTP and failure paths |
-| `follow_up.py` | 87% | Consent recheck and uncertain-delivery no-retry state |
-| `global_lead_research.py` | 87% | Research parsing, validation, and persistence |
+| `email_sender.py` | 94% | Consent recheck, atomic state claims, pending audit, SMTP failure and follow-up limit paths |
+| `follow_up.py` | 95% | Consent recheck, opt-out race, uncertain delivery, audit failure and recovery paths |
+| `global_lead_research.py` | 93% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
 | `global_lead_research_job.py` | 94% | Scheduled-job orchestration and error reporting |
 | `health_check.py` | 96% | Configuration, table/column probes, Gemini and safety-lock failures |
 | `inbox_analyzer.py` | 80% | Inbound classification |
 | `inbox_monitor.py` | 88% | Inbox monitoring and error paths |
 | `intelligent_lead_scoring.py` | 97% | Lead scoring |
 | `jarvis_analytics.py` | 96% | Empty/populated analytics rendering and database failure |
-| `jarvis_common.py` | 87% | Shared configuration, DB and audit helpers |
+| `jarvis_common.py` | 92% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
 | `jarvis_errors.py` | 96% | Centralized error reporting and sanitization |
 | `jarvis_memory.py` | 97% | Explicit save/list/forget, bounded retrieval and sensitive-data rejection |
 | `jarvis_status.py` | 95% | Status helpers |
@@ -42,7 +42,7 @@ below lists the remaining files reported by coverage.
 | `lead_scoring.py` | 88% | Lead score calculations |
 | `proactive_monitor.py` | 94% | Read-only monitoring |
 | `reply_analyzer.py` | 93% | Reply classification |
-| `safe_http.py` | 88% | DNS-pinned HTTP transport and redirect restrictions |
+| `safe_http.py` | 99% | DNS-pinned HTTP transport, private/mixed DNS rejection, proxy and TLS hostname restrictions |
 | `scripts/supabase_backup.py` | 92% | Mocked backup/restore, archive checks and external-tool failures |
 | `stats.py` | 93% | Operational counts and sanitized log reporting |
 | `task_actions.py` | 99% | Strict payload validation, explicit approval, create/update/close, concurrency paths, and failed completion-audit reporting |
@@ -118,4 +118,4 @@ The next test expansion adds explicit negative and recovery-path checks for:
 
 A defect found during this review was fixed in jarvis_errors.sanitize_log_text: CR/LF and other ASCII control characters are now replaced before log or audit persistence, preventing log-record injection. The regression is exercised through the shared logging helper tests.
 
-**Validation status:** the expanded CI run is in progress. The final statement coverage and test count will be recorded only after the run for the latest PR head completes.
+**Validation result:** GitHub Actions run 45099679623 passed on PR head 1b96511bd825a921a3172f1be130cb77aff6a4e3: 481 passed, 2 skipped, 0 failed; statement coverage 94.29%; compileall successful. CI uploads both responsive screenshots and coverage.xml as separate artifacts.
