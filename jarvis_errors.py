@@ -65,6 +65,10 @@ def sanitize_log_text(value: Any, *, max_length: int = 4000) -> str:
     )
     for secret in sorted(env_secrets, key=len, reverse=True):
         text = text.replace(secret, "[REDACTED]")
+
+    # Prevent CR/LF and other control characters from forging additional log
+    # records or corrupting structured audit fields.
+    text = re.sub(r"[\x00-\x1f\x7f]", " ", text)
     return text[:max(0, int(max_length))]
 
 

@@ -65,3 +65,24 @@ def test_repeated_outcome_patterns_require_multiple_explicit_records():
     assert pattern["record_count"] == 2
     assert pattern["positive"] == 1
     assert pattern["negative"] == 1
+
+
+def test_learning_ignores_unverified_research_and_clamps_valid_scores():
+    result = build_business_learning([], [
+        {"notes": "Leadkutatás; iparág: Gyártás; AI üzleti illeszkedési becslés: 120/100"},
+        {"notes": "Leadkutatás; iparág: Hiányos; nincs pontszám"},
+        {"notes": "kézi jegyzet; AI üzleti illeszkedési becslés: 90/100"},
+    ])
+    assert result["research_record_count"] == 1
+    assert result["observed_industries"][0]["name"] == "Gyártás"
+    assert result["observed_industries"][0]["average_fit_score"] == 100
+    assert result["observed_research_methods"][0]["name"].startswith("Google Search grounding")
+
+
+def test_learning_links_conservatively_similar_explicit_decisions():
+    result = build_business_learning([
+        {"category": "decision", "content": "Német piac tesztelése"},
+        {"category": "outcome", "content": "döntés=Német piac tesztelése 2026; eredmény=sikeres"},
+        {"category": "outcome", "content": "döntés=Teljesen más kampány; eredmény=nem volt sikeres"},
+    ], [])
+    assert result["decision_outcome_links"][0]["linked_outcome_count"] == 1

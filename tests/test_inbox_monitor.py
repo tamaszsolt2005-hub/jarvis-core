@@ -141,3 +141,126 @@ def test_run_processes_new_replies_in_order_and_never_clears_opt_out(monkeypatch
     assert updates[1]["status"] == "opted_out"
     assert updates[1]["reply_category"] == "opt_out"
     assert updates[1]["last_inbound_message_id"] == "<three>"
+
+
+def test_inbox_helpers_handle_missing_headers_empty_payload_and_duplicate_markers():
+    from email.message import EmailMessage
+    from email.header import Header
+
+    assert _decode(None) == ""
+    encoded = Header("Árvíztűrő tükörfúrógép", "utf-8").encode()
+    assert _decode(encoded) == "Árvíztűrő tükörfúrógép"
+    assert _pending_messages(None, None) == []
+
+    empty = EmailMessage()
+    empty.set_type("multipart/mixed")
+    assert _body(empty) == ""
+
+    messages = [
+        (b"1", _message("<marker>")),
+        (b"2", _message("<middle>")),
+        (b"3", _message("<marker>")),
+        (b"4", _message("<newest>")),
+    ]
+    assert [msg["Message-ID"] for _, msg in _pending_messages(messages, "<marker>")] == ["<newest>"]
+
+
+def test_inbox_monitor_skips_when_credentials_are_missing(monkeypatch, capsys):
+    import inbox_monitor
+
+    monkeypatch.setattr(inbox_monitor, "get_secret", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
+    assert inbox_monitor._run() is None
+    assert "hiányzik" in capsys.readouterr().out
+
+
+def test_inbox_monitor_run_reports_and_reraises_worker_failure(monkeypatch):
+    import pytest
+    import inbox_monitor
+
+    failure = ConnectionError("mock IMAP outage")
+    reports = []
+    monkeypatch.setattr(
+        inbox_monitor, "_run",
+        lambda: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(
+        inbox_monitor, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(ConnectionError, match="mock IMAP outage"):
+        inbox_monitor.run()
+    assert reports[0][0] is failure
+    assert reports[0][1]["operation"] == "process_inbox_monitor"
+    assert reports[0][1]["severity"] == "error"
+
+
+
+def test_inbox_monitor_skips_failed_search_fetch_and_unmatched_sender_and_reports_logout(monkeypatch):
+    import inbox_monitor
+
+    leads = [
+        {"id": "search-fail", "email": "one@example.test", "company_name": "One", "opted_out": False},
+        {"id": "fetch-fail", "email": "two@example.test", "company_name": "Two", "opted_out": False},
+        {"id": "wrong-sender", "email": "three@example.test", "company_name": "Three", "opted_out": False},
+    ]
+    reports = []
+
+    class Query:
+        def select(self, *_args):
+            return self
+        def in_(self, *_args):
+            return self
+        def limit(self, *_args):
+            return self
+        def update(self, _payload):
+            raise AssertionError("no inbound message should be processed")
+        def execute(self):
+            return type("Result", (), {"data": leads})()
+
+    class DB:
+        def table(self, _name):
+            return Query()
+
+    class Mail:
+        def __init__(self):
+            self.search_count = 0
+            self.fetch_count = 0
+        def login(self, *_args):
+            return "OK"
+        def select(self, *_args):
+            return "OK"
+        def search(self, *_args):
+            self.search_count += 1
+            if self.search_count == 1:
+                return "NO", []
+            return "OK", [b"1"]
+        def fetch(self, *_args):
+            self.fetch_count += 1
+            if self.fetch_count == 1:
+                return "NO", []
+            msg = EmailMessage()
+            msg["Message-ID"] = "<wrong-sender>"
+            msg["From"] = "intruder@example.test"
+            msg.set_content("hello")
+            return "OK", [(b"RFC822", msg.as_bytes())]
+        def logout(self):
+            raise OSError("mock logout failure")
+
+    mail = Mail()
+    monkeypatch.setattr(inbox_monitor, "get_secret", lambda name, default=None: {
+        "EMAIL_USER": "sender@example.test",
+        "EMAIL_PASSWORD": "mock-password",
+        "IMAP_HOST": "imap.example.test",
+        "IMAP_PORT": "993",
+    }.get(name, default))
+    monkeypatch.setattr(inbox_monitor, "get_supabase", lambda: DB())
+    monkeypatch.setattr(inbox_monitor.imaplib, "IMAP4_SSL", lambda *_args: mail)
+    monkeypatch.setattr(inbox_monitor, "report_error", lambda error, **kwargs: reports.append(kwargs))
+
+    inbox_monitor._run()
+
+    assert mail.search_count == 3
+    assert mail.fetch_count == 2
+    assert reports[0]["operation"] == "close_imap_connection"
+    assert reports[0]["severity"] == "warning"

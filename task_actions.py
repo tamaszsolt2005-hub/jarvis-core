@@ -48,7 +48,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
         if not fields["title"] or len(fields["title"]) > 180:
             return {"error": "A feladat címe 1–180 karakter lehet."}
         priority = fields.get("priority", "normal").casefold()
-        if priority not in _PRIORITIES:
+        if not isinstance(priority, str) or priority not in _PRIORITIES:
             return {"error": "A prioritás csak normal, high vagy urgent lehet."}
         due_date = fields.get("due_date")
         if due_date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due_date):
@@ -97,6 +97,25 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
     return None
 
 
+
+def _record_success_audit(db: Any, *, action: str, operation_id: str, result: dict[str, Any]) -> bool:
+    """Record completion; surface an audit outage without hiding the completed DB action."""
+    saved = audit_event(
+        db, module="task_actions", action=action, status="success",
+        operation_id=operation_id, approved=True, result=result,
+    )
+    if saved:
+        return True
+    report_error(
+        RuntimeError("A feladatművelet végrehajtása megtörtént, de a sikeres auditbejegyzés nem menthető."),
+        module="task_actions",
+        operation=f"audit_success:{action}",
+        severity="critical",
+        db=db,
+    )
+    return False
+
+
 def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
     """Execute a previously parsed action only after the chat approval gate."""
     kind = action.get("type")
@@ -116,7 +135,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         }
         result = db.table("tasks").insert(payload).execute()
         row = (result.data or [{}])[0]
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": row.get("id")})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": row.get("id")},
+        )
+        if not audit_saved:
+            return f"A feladat létrejött: **{action['title']}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat létrehozva: **{action['title']}** (azonosító: {row.get('id', 'a rendszer visszaigazolása szerint')})."
 
     task_id = action.get("id")
@@ -136,7 +160,12 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         if not result.data:
             audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt lezárás."
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": task_id},
+        )
+        if not audit_saved:
+            return f"A feladat lezárult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat lezárva: **{title}**."
     if kind == "update":
         payload = dict(action["updates"])
@@ -145,14 +174,95 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
         if not result.data:
             audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
             return "A feladat állapota időközben megváltozott; nem történt módosítás."
-        audit_event(db, module="task_actions", action=audit_action, status="success", operation_id=operation_id, approved=True, result={"task_id": task_id, "updated_fields": sorted(action["updates"])})
+        audit_saved = _record_success_audit(
+            db, action=audit_action, operation_id=operation_id,
+            result={"task_id": task_id, "updated_fields": sorted(action["updates"])},
+        )
+        if not audit_saved:
+            return f"A feladat módosult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
         return f"Feladat módosítva: **{title}**."
     return "Ismeretlen feladatművelet; nem történt módosítás."
 
 
 
-def execute_task_action(db: Any, action: dict[str, Any]) -> str:
-    """Centrally report task-action failures without bypassing audit or approval gates."""
+def _validate_action(action: Any) -> None:
+    """Validate the complete task payload before any audit or database access."""
+    if not isinstance(action, dict):
+        raise ValueError("Érvénytelen feladatművelet.")
+
+    kind = action.get("type")
+    if not isinstance(kind, str):
+        raise ValueError("Ismeretlen feladatművelet.")
+    if kind == "create":
+        if set(action) - {"type", "title", "priority", "due_at", "notes"}:
+            raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
+        title = action.get("title")
+        priority = action.get("priority")
+        notes = action.get("notes", "")
+        if not isinstance(title, str) or not title.strip() or len(title) > 180:
+            raise ValueError("A feladat címe 1–180 karakter lehet.")
+        if not isinstance(priority, str) or priority not in _PRIORITIES:
+            raise ValueError("Érvénytelen feladatprioritás.")
+        if not isinstance(notes, str) or len(notes) > 1000:
+            raise ValueError("A feladat leírása legfeljebb 1000 karakter lehet.")
+        due_at = action.get("due_at")
+        if due_at is not None:
+            if not isinstance(due_at, str):
+                raise ValueError("Érvénytelen feladat-határidő.")
+            try:
+                parsed_due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("Érvénytelen feladat-határidő.") from exc
+            if parsed_due.tzinfo is None or parsed_due.utcoffset() is None:
+                raise ValueError("A feladat-határidőnek időzónát kell tartalmaznia.")
+        return
+
+    if kind in {"close", "update"}:
+        if set(action) - ({"type", "id"} if kind == "close" else {"type", "id", "updates"}):
+            raise ValueError("A feladatművelet nem támogatott mezőt tartalmaz.")
+        task_id = action.get("id")
+        if not isinstance(task_id, str) or not _UUID.fullmatch(task_id):
+            raise ValueError("Érvénytelen feladatazonosító.")
+        if kind == "close":
+            return
+        updates = action.get("updates")
+        if not isinstance(updates, dict) or not updates:
+            raise ValueError("Nem adtál meg módosítandó mezőt.")
+        if set(updates) - {"title", "priority", "due_at"}:
+            raise ValueError("A feladatmódosítás nem engedélyezett mezőt tartalmaz.")
+        if "title" in updates and (
+            not isinstance(updates["title"], str)
+            or not updates["title"].strip()
+            or len(updates["title"]) > 180
+        ):
+            raise ValueError("A feladat címe 1–180 karakter lehet.")
+        if "priority" in updates and (
+            not isinstance(updates["priority"], str)
+            or updates["priority"] not in _PRIORITIES
+        ):
+            raise ValueError("Érvénytelen feladatprioritás.")
+        if "due_at" in updates:
+            due_at = updates["due_at"]
+            if not isinstance(due_at, str):
+                raise ValueError("Érvénytelen feladat-határidő.")
+            try:
+                parsed_due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("Érvénytelen feladat-határidő.") from exc
+            if parsed_due.tzinfo is None or parsed_due.utcoffset() is None:
+                raise ValueError("A feladat-határidőnek időzónát kell tartalmaznia.")
+        return
+
+    raise ValueError("Ismeretlen feladatművelet.")
+
+
+def execute_task_action(
+    db: Any, action: dict[str, Any], *, approved: bool = False
+) -> str:
+    """Execute a task only when the caller confirms the dashboard approval gate."""
+    if approved is not True:
+        raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
+    _validate_action(action)
     try:
         return _execute_task_action(db, action)
     except Exception as exc:

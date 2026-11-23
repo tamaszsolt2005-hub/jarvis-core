@@ -73,11 +73,50 @@ def test_daily_briefing_prioritizes_urgent_overdue_tasks():
 def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     db = FakeDB()
     db.rows["leads"].extend([
-        {"company_name": "Engedélyezett Kft.", "approved_to_contact": True, "opted_out": False,
+        {"company_name": "Engedélyezett Kft.", "status": "sent", "email": "ok@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-14T09:00:00Z"},
-        {"company_name": "Nem engedélyezett Kft.", "approved_to_contact": False, "opted_out": False,
+        {"company_name": "Nem engedélyezett Kft.", "status": "sent", "email": "no@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": False, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-13T09:00:00Z"},
-        {"company_name": "Leiratkozott Kft.", "approved_to_contact": True, "opted_out": True,
+        {"company_name": "Leiratkozott Kft.", "status": "sent", "email": "out@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": True, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Válaszolt Kft.", "status": "sent", "email": "reply@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": "reply",
+         "last_inbound_message_id": "<reply>", "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Hozzájárulás nélküli Kft.", "status": "sent", "email": "none@example.test",
+         "consent_basis": None, "consent_confirmed_at": None,
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Jövőbeli hozzájárulású Kft.", "status": "sent", "email": "future@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-24T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Már utánkövetett Kft.", "status": "sent", "email": "done@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 1,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Új lead", "status": "new", "email": "new@example.test",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
+         "next_follow_up_at": "2026-11-12T09:00:00Z"},
+        {"company_name": "Hibás e-mail", "status": "sent", "email": "bad-address",
+         "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+         "approved_to_contact": True, "opted_out": False, "reply_category": None,
+         "last_inbound_message_id": None, "follow_up_count": 0,
          "next_follow_up_at": "2026-11-12T09:00:00Z"},
     ])
     report = build_daily_briefing(db, today=date(2026, 11, 15))
@@ -85,6 +124,12 @@ def test_daily_briefing_only_flags_overdue_followups_with_explicit_approval():
     assert "Engedélyezett Kft." in report
     assert "Nem engedélyezett Kft." not in report
     assert "Leiratkozott Kft." not in report
+    assert "Válaszolt Kft." not in report
+    assert "Hozzájárulás nélküli Kft." not in report
+    assert "Jövőbeli hozzájárulású Kft." not in report
+    assert "Már utánkövetett Kft." not in report
+    assert "Új lead" not in report
+    assert "Hibás e-mail" not in report
 
 
 def test_deadlines_are_compared_using_budapest_local_date():
@@ -141,3 +186,110 @@ def test_daily_briefing_falls_back_when_legacy_schema_lacks_website_column():
     assert "JARVIS – napi vezetői jelentés" in report
     assert "Adatbázis-séma figyelmeztetés" in report
     assert "website" in report
+
+
+def test_local_date_handles_missing_invalid_naive_and_utc_values():
+    from daily_briefing import _local_date
+
+    assert _local_date(None) is None
+    assert _local_date("not-a-date") is None
+    assert _local_date("2026-11-15T01:00:00") == date(2026, 11, 15)
+    assert _local_date("2026-11-14T23:30:00Z") == date(2026, 11, 15)
+
+
+def test_daily_briefing_empty_data_uses_truthful_empty_states():
+    class EmptyDB:
+        def table(self, _name):
+            class EmptyQuery(Query):
+                def execute(self):
+                    return Result([])
+            return EmptyQuery(self, _name)
+
+    report = build_daily_briefing(EmptyDB(), today=date(2026, 11, 15))
+
+    assert "Vizsgált cégek (legfeljebb 1500): 0" in report
+    assert "Még nincs elegendő strukturált kutatási adat" in report
+    assert "Nincs sürgős vagy magas prioritású" in report
+    assert "Nincs rögzített lejárt" in report
+    assert "Nincs mára határidőzött" in report
+    assert "Ma még nem került új cég" in report
+    assert "Nincs sürgős, határidős feladat" in report
+
+
+def test_daily_briefing_propagates_non_schema_database_errors():
+    class BrokenQuery(Query):
+        def execute(self):
+            raise RuntimeError("mock database outage")
+
+    class BrokenDB:
+        def table(self, name):
+            return BrokenQuery(self, name)
+
+    import pytest
+    with pytest.raises(RuntimeError, match="mock database outage"):
+        build_daily_briefing(BrokenDB(), today=date(2026, 11, 15))
+
+
+def test_daily_briefing_main_writes_report_and_appends_monitor(monkeypatch, tmp_path, capsys):
+    import jarvis_common
+    import proactive_monitor
+    import daily_briefing
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(daily_briefing, "build_daily_briefing", lambda _db: "# Daily report")
+    monkeypatch.setattr(proactive_monitor, "run_proactive_monitor", lambda _db: "## Monitor\n- No changes")
+
+    daily_briefing.main()
+
+    output = (tmp_path / "daily_briefing.md").read_text(encoding="utf-8")
+    assert output == "# Daily report\n## Monitor\n- No changes"
+    assert output in capsys.readouterr().out
+
+
+def test_daily_briefing_main_keeps_report_when_monitor_fails(monkeypatch, tmp_path):
+    import jarvis_common
+    import proactive_monitor
+    import daily_briefing
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(daily_briefing, "build_daily_briefing", lambda _db: "# Daily report")
+    monkeypatch.setattr(
+        proactive_monitor, "run_proactive_monitor",
+        lambda _db: (_ for _ in ()).throw(RuntimeError("mock monitor failure")),
+    )
+
+    daily_briefing.main()
+
+    output = (tmp_path / "daily_briefing.md").read_text(encoding="utf-8")
+    assert "# Daily report" in output
+    assert "Proaktív változásfigyelés" in output
+    assert "RuntimeError" in output
+
+
+def test_daily_briefing_main_reports_and_reraises_build_failure(monkeypatch, tmp_path):
+    import jarvis_common
+    import daily_briefing
+    import pytest
+
+    failure = RuntimeError("mock report build failure")
+    reports = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(jarvis_common, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(
+        daily_briefing, "build_daily_briefing",
+        lambda _db: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(
+        daily_briefing, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        daily_briefing.main()
+
+    assert caught.value is failure
+    assert reports[0][1]["module"] == "daily_briefing"
+    assert reports[0][1]["operation"] == "build_report"
+    assert not (tmp_path / "daily_briefing.md").exists()

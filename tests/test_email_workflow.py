@@ -46,6 +46,8 @@ def test_background_requires_timestamped_explicit_consent():
     assert not _valid_consent({**valid, "approved_to_contact": False})
     assert not _valid_consent({**valid, "opted_out": True})
     assert not _valid_consent({**valid, "consent_basis": "legitimate_interest"})
+    assert not _valid_consent({**valid, "consent_confirmed_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()})
+    assert not _valid_consent({**valid, "opted_out": None})
 
 
 def test_follow_up_is_only_due_for_eligible_unreplied_lead(monkeypatch):
@@ -62,6 +64,9 @@ def test_follow_up_is_only_due_for_eligible_unreplied_lead(monkeypatch):
     assert not _due_follow_up({**base, "last_inbound_message_id": "<reply@example.com>"}, now)
     assert not _due_follow_up({**base, "follow_up_count": 2}, now)
     assert not _due_follow_up({**base, "status": "replied"}, now)
+    assert not _due_follow_up({**base, "reply_category": "reply"}, now)
+    assert not _due_follow_up({**base, "follow_up_count": -1}, now)
+    assert not _due_follow_up({**base, "opted_out": None}, now)
     assert not _due_follow_up({**base, "next_follow_up_at": (now + timedelta(days=1)).isoformat()}, now)
 
 
@@ -80,3 +85,18 @@ def test_inbox_uid_checkpoint_processes_initial_window_then_only_new_messages():
     assert later == [b"251", b"252"]
     reset = _uids_to_process(uids, {"uidvalidity": "76", "last_uid": 250}, "77")
     assert reset == uids[-200:]
+
+
+def test_chat_email_draft_without_subject_uses_safe_fallback_and_remaining_body():
+    subject, body = build_chat_email_draft(
+        "Küldj emailt", lambda *_args, **_kwargs: "Kedves Partner!\nRövid bemutatkozás\nEgyeztessünk időpontot."
+    )
+    assert subject == "Kedves Partner! Rövid bemutatkozás"
+    assert body == "Egyeztessünk időpontot."
+
+
+def test_chat_email_draft_rejects_missing_body():
+    import pytest
+
+    with pytest.raises(ValueError, match="tervezet üres"):
+        build_chat_email_draft("Küldj emailt", lambda *_args, **_kwargs: "Tárgy: Üres levél\n")

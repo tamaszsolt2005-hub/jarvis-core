@@ -127,3 +127,113 @@ def test_memory_retrieval_prefers_relevant_category_without_dropping_matching_me
     result = get_memories(CategoryDB(), "Mi működött a gyártási piacon?", limit=20)
     assert result[0]["category"] in {"outcome", "lesson"}
     assert {row["id"] for row in result} == {"1", "2", "3"}
+
+
+def test_save_memory_writes_only_explicit_safe_business_memory():
+    from jarvis_memory import save_memory
+
+    class InsertQuery:
+        def __init__(self, db):
+            self.db = db
+        def insert(self, payload):
+            self.db.payload = payload
+            return self
+        def execute(self):
+            return MemoryResult([self.db.payload])
+
+    class DB:
+        payload = None
+        def table(self, _name):
+            return InsertQuery(self)
+
+    db = DB()
+    assert save_memory(db, "A második célpiac Németország", category="decision") is True
+    assert db.payload == {
+        "category": "decision",
+        "content": "A második célpiac Németország",
+        "source": "explicit_user_instruction",
+        "active": True,
+    }
+
+
+def test_save_memory_rejects_sensitive_or_oversized_content_before_database_access():
+    from jarvis_memory import save_memory
+
+    class ForbiddenDB:
+        def table(self, _name):
+            raise AssertionError("Rejected memory must not access the database")
+
+    db = ForbiddenDB()
+    assert save_memory(db, "secret token=abc123") is False
+    assert save_memory(db, "x" * 701) is False
+
+
+def test_save_memory_normalizes_unknown_category():
+    from jarvis_memory import save_memory
+
+    class DB:
+        payload = None
+        def table(self, _name):
+            db = self
+            class Query:
+                def insert(self, payload):
+                    db.payload = payload
+                    return self
+                def execute(self):
+                    return MemoryResult([db.payload])
+            return Query()
+
+    db = DB()
+    assert save_memory(db, "A célpiac Németország", category="unknown") is True
+    assert db.payload["category"] == "business_preference"
+
+
+def test_get_memories_clamps_limit_and_returns_recent_rows_for_empty_query():
+    from jarvis_memory import get_memories
+
+    class DB:
+        def table(self, _name):
+            class Query:
+                requested_limit = None
+                def select(self, _columns): return self
+                def eq(self, *_args): return self
+                def order(self, *_args, **_kwargs): return self
+                def limit(self, value):
+                    self.requested_limit = value
+                    return self
+                def execute(self):
+                    self.db_limit = self.requested_limit
+                    return MemoryResult([
+                        {"id": str(i), "category": "lesson", "content": f"memory {i}"}
+                        for i in range(30)
+                    ])
+            return Query()
+
+    result = get_memories(DB(), "", limit=500)
+    assert len(result) == 20
+
+
+def test_forget_all_deactivates_only_active_memories():
+    from jarvis_memory import forget_memories
+
+    db = MemoryDB()
+    db.rows.append({
+        "id": "3", "category": "lesson", "content": "Old memory",
+        "active": False, "created_at": "2025-01-01",
+    })
+    assert forget_memories(db, "") == 2
+    assert all(row["active"] is False for row in db.rows)
+
+
+def test_forget_without_meaningful_tokens_is_a_no_op():
+    from jarvis_memory import forget_memories
+
+    db = MemoryDB()
+    assert forget_memories(db, "az és a") == 0
+    assert all(row["active"] for row in db.rows)
+
+
+def test_memory_command_handles_empty_and_unrecognized_requests():
+    assert memory_command("Jegyezd meg") == ("none", "")
+    assert memory_command("Felejtsd el") == ("forget", "")
+    assert memory_command("Beszéljünk a piacról") == ("none", "")

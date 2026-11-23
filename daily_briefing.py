@@ -1,7 +1,8 @@
 """Read-only daily executive briefing from existing JARVIS records."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,7 @@ from intelligent_lead_scoring import rank_researched_leads
 from jarvis_errors import report_error
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def _local_date(value: Any) -> date | None:
@@ -29,7 +31,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
     website_column_missing = False
     try:
         leads = db.table("leads").select(
-            "id,company_name,website,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
+            "id,company_name,website,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at,created_at,notes,source"
         ).order("created_at", desc=True).limit(1500).execute().data or []
     except Exception as exc:
         error_text = str(exc).casefold()
@@ -43,7 +45,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         # is simply unavailable until the migration has been applied.
         website_column_missing = True
         leads = db.table("leads").select(
-            "id,company_name,status,approved_to_contact,opted_out,next_follow_up_at,created_at,notes,source"
+            "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at,created_at,notes,source"
         ).order("created_at", desc=True).limit(1500).execute().data or []
     tasks = db.table("tasks").select(
         "id,title,status,priority,due_at,completed_at,lead_id"
@@ -76,15 +78,37 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due_date == today:
             due_today.append(item)
 
-    overdue_followups = [
-        {"company_name": str(lead.get("company_name") or "Ismeretlen cég"),
-         "due": (_local_date(lead.get("next_follow_up_at")) or date.min).isoformat()}
-        for lead in leads
-        if lead.get("approved_to_contact") is True
-        and not bool(lead.get("opted_out", False))
-        and _local_date(lead.get("next_follow_up_at")) is not None
-        and _local_date(lead.get("next_follow_up_at")) < today
-    ]
+    now_utc = datetime.now(timezone.utc)
+    overdue_followups = []
+    for lead in leads:
+        due_date = _local_date(lead.get("next_follow_up_at"))
+        try:
+            consent_at = datetime.fromisoformat(
+                str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
+            )
+            follow_up_count = int(lead.get("follow_up_count") or 0)
+        except (TypeError, ValueError):
+            continue
+        if (
+            lead.get("status") in {"sent", "follow_up_sent"}
+            and lead.get("consent_basis") == "consent"
+            and lead.get("approved_to_contact") is True
+            and lead.get("opted_out") is False
+            and not lead.get("reply_category")
+            and not lead.get("last_inbound_message_id")
+            and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
+            and consent_at.tzinfo is not None
+            and consent_at.utcoffset() is not None
+            and consent_at <= now_utc
+            and 0 <= follow_up_count < 1
+            and due_date is not None
+            and due_date < today
+        ):
+            overdue_followups.append({
+                "company_name": str(lead.get("company_name") or "Ismeretlen cég"),
+                "due": due_date.isoformat(),
+            })
+
 
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
     priority_tasks.sort(key=lambda x: (0 if str(x.get("priority")).casefold() == "urgent" else 1,

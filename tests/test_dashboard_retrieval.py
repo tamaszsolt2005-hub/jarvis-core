@@ -24,6 +24,8 @@ def _load_function(name):
 
 
 _safe_rows = _load_function("_safe_rows")
+_proactive_signals = _load_function("_proactive_signals")
+_wants_global_research = _load_function("_wants_global_research")
 retrieve_context = _load_function("retrieve_context")
 
 
@@ -257,3 +259,195 @@ def test_ranking_scans_entire_bounded_lead_sample_until_30_sites(monkeypatch):
 
     context, _ = retrieve_context(db, "Rangsorold a weboldalakat")
     assert "Cég 519" in context
+
+
+def test_proactive_signals_require_open_tasks_and_explicit_non_opted_out_consent():
+    from datetime import datetime, timedelta, timezone
+
+    overdue = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    signals = _proactive_signals(
+        [
+            {"id": "approved", "company_name": "Engedélyezett Kft.", "approved_to_contact": True,
+             "opted_out": False, "next_follow_up_at": overdue},
+            {"id": "no-consent", "company_name": "Tiltott Kft.", "approved_to_contact": False,
+             "opted_out": False, "next_follow_up_at": overdue},
+            {"id": "opted-out", "company_name": "Leiratkozott Kft.", "approved_to_contact": True,
+             "opted_out": True, "next_follow_up_at": overdue},
+        ],
+        [
+            {"id": "open", "title": "Lejárt feladat", "status": "open", "due_at": overdue},
+            {"id": "done", "title": "Kész feladat", "status": "completed", "due_at": overdue},
+            {"id": "invalid", "title": "Dátum nélküli", "status": "open", "due_at": "invalid"},
+        ],
+    )
+
+    assert signals["overdue_task_count"] == 1
+    assert signals["overdue_tasks"][0]["title"] == "Lejárt feladat"
+    assert signals["overdue_approved_followup_count"] == 1
+    assert signals["overdue_approved_followups"][0]["company_name"] == "Engedélyezett Kft."
+    assert "nem automatikus műveletek" in signals["interpretation"]
+
+
+def test_proactive_signals_bound_large_result_sets():
+    from datetime import datetime, timedelta, timezone
+
+    overdue = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    tasks = [
+        {"title": f"Task {i}", "status": "open", "due_at": overdue}
+        for i in range(40)
+    ]
+    leads = [
+        {"id": str(i), "company_name": f"Lead {i}", "approved_to_contact": True,
+         "opted_out": False, "next_follow_up_at": overdue}
+        for i in range(40)
+    ]
+    signals = _proactive_signals(leads, tasks)
+    assert signals["overdue_task_count"] == 40
+    assert len(signals["overdue_tasks"]) == 30
+    assert signals["overdue_approved_followup_count"] == 40
+    assert len(signals["overdue_approved_followups"]) == 30
+
+
+def test_global_research_trigger_requires_explicit_intent_and_honors_negation():
+    assert _wants_global_research("Kérlek, végezz leadkutatást Németországban")
+    assert _wants_global_research("Keress gyártókat Lengyelországban")
+    assert _wants_global_research("Azonosíts potenciális ügyfeleket")
+    assert not _wants_global_research("Ne keress új leadeket")
+    assert not _wants_global_research("Ne kutass most")
+    assert not _wants_global_research("Milyen lehetőségek vannak a piacon?")
+
+
+def test_retrieve_context_loads_strategy_learning_analytics_and_proactive_signals(monkeypatch):
+    monkeypatch.setitem(
+        _NAMESPACE, "rank_researched_leads",
+        lambda _rows, limit=20: [{
+            "company_name": "Minta Kft.", "priority_score": 80,
+            "business_fit_score": 75, "research_confidence": "high", "evidence_count": 2,
+        }],
+    )
+    monkeypatch.setitem(_NAMESPACE, "build_market_intelligence", lambda _rows: {"pattern": "manufacturing"})
+    monkeypatch.setitem(_NAMESPACE, "get_memories", lambda *_args, **_kwargs: [])
+    monkeypatch.setitem(_NAMESPACE, "build_business_learning", lambda *_args: {"lesson": "review sources"})
+    monkeypatch.setitem(_NAMESPACE, "build_chat_analytics_context", lambda _rows: "ANALYTICS_CONTEXT")
+    monkeypatch.setitem(
+        _NAMESPACE, "_website_profile",
+        lambda url: {"status": "sikeresen beolvasva", "score": 88, "url": url},
+    )
+    db = FakeDB({
+        "leads": [{
+            "id": "lead-1", "company_name": "Minta Kft.", "website": "https://example.com",
+            "status": "research", "approved_to_contact": False, "opted_out": False,
+            "source": "gemini_google_search_grounding:example.com",
+            "notes": "Leadkutatás; nyilvános vállalati adat",
+        }],
+        "tasks": [{
+            "id": "task-1", "title": "Ajánlat ellenőrzése", "status": "open",
+            "priority": "high", "due_at": "2020-01-01T00:00:00Z",
+        }],
+        "logs": [{
+            "module": "chat", "level": "info", "message": "request",
+            "created_at": "2026-11-22T10:00:00Z",
+        }],
+    })
+
+    context, sources = retrieve_context(db, "Átfogó stratégiai analitika lead és feladat áttekintés")
+
+    assert "KORÁBBI LEADKUTATÁS ALAPJÁN KÉSZÜLT PIACI INTELLIGENCIA" in context
+    assert "ÜZLETI TANULÓMEMÓRIA" in context
+    assert "WEBOLDAL-ALAPÚ LEADPONTOZÁS" in context
+    assert "ANALYTICS_CONTEXT" in context
+    assert "határidő- és utánkövetési jelzések" in sources
+    assert "naplóalapú analitika" in sources
+    assert "bizonyíték-alapú leadprioritás" in sources
+
+
+def test_retrieve_context_draft_and_legacy_log_fallback_exclude_email_body():
+    class LegacyLogsQuery(FakeQuery):
+        def execute(self):
+            if "operation_id" in self.columns:
+                return FakeResponse([])
+            return FakeResponse([{
+                "module": "mailer", "level": "warning",
+                "message": "legacy log row", "created_at": "2026-11-22T10:00:00Z",
+            }])
+
+    class LegacyLogsDB(FakeDB):
+        def table(self, name):
+            if name == "logs":
+                self.calls.append(("table", name))
+                return LegacyLogsQuery([], self.calls)
+            return super().table(name)
+
+    db = LegacyLogsDB({
+        "leads": [{"id": "lead-1", "company_name": "Minta Kft.", "status": "new"}],
+        "email_drafts": [{
+            "id": "draft-1", "subject": "Biztonságos tárgy",
+            "status": "draft", "body": "Személyes levéltörzs",
+        }],
+    })
+
+    context, sources = retrieve_context(db, "Mutasd az e-mail piszkozatokat és naplókat")
+
+    assert "Biztonságos tárgy" in context
+    assert "Személyes levéltörzs" not in context
+    assert "legacy log row" in context
+    assert "e-mail-piszkozatok" in sources
+    assert "naplók" in sources
+
+
+def test_retrieve_context_generic_business_question_loads_bounded_leads_and_tasks():
+    db = FakeDB({
+        "leads": [{"id": "lead-1", "company_name": "Minta Kft.", "status": "new"}],
+        "tasks": [{"id": "task-1", "title": "Első feladat", "status": "open"}],
+    })
+
+    context, sources = retrieve_context(db, "Szia JARVIS")
+
+    assert "Minta Kft." in context
+    assert "Első feladat" in context
+    assert sources == ["leadek", "feladatok"]
+
+
+def test_dashboard_website_profile_rejects_private_redirect_target(monkeypatch):
+    import socket
+    import safe_http
+
+    _load_function("_public_http_url")
+    website_profile = _load_function("_website_profile")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+
+    class Redirect:
+        status_code = 302
+        headers = {"Location": "http://127.0.0.1/admin"}
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    response = Redirect()
+    monkeypatch.setattr(safe_http, "safe_get", lambda *_args, **_kwargs: response)
+
+    result = website_profile("https://example.com")
+
+    assert result["status"] == "nem biztonságos átirányítási cél"
+    assert response.closed
+
+
+def test_dashboard_public_url_rejects_dns_resolving_to_private_address(monkeypatch):
+    import socket
+
+    public_http_url = _load_function("_public_http_url")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.10", 443))
+        ],
+    )
+    assert public_http_url("https://internal.example") is None
+    assert public_http_url("https://example.com:8443") is None
+    assert public_http_url("https://user:password@example.com") is None
