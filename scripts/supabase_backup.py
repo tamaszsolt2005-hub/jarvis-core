@@ -79,10 +79,15 @@ def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str
 
 
 def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
+    # Every external process gets a sanitized environment, including age and
+    # pg_restore calls that do not need a database connection.
+    child_env = dict(os.environ if env is None else env)
+    child_env.pop("SUPABASE_DB_URL", None)
+    child_env.pop("JARVIS_RESTORE_DB_URL", None)
     try:
         result = subprocess.run(
             args, check=True, text=True, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, env=env,
+            stderr=subprocess.PIPE, env=child_env,
         )
         return result.stdout.strip()
     except FileNotFoundError as exc:
