@@ -31,8 +31,9 @@ def test_audit_database_test_covers_reader_admin_and_append_only_contract():
     sql = (ROOT / "supabase/tests/audit_access_and_integrity.test.sql").read_text()
     assert '"role":"reader"' in sql
     assert '"role":"admin"' in sql
-    assert "UPDATE unexpectedly succeeded" in sql
-    assert "DELETE unexpectedly succeeded" in sql
+    assert "UPDATE is rejected" in sql
+    assert "DELETE is rejected" in sql
+    assert "select plan(15)" in sql
     assert "second event must link" in sql
 
 def test_audit_integrity_rpc_is_invoker_scoped_and_admin_read_protected():
