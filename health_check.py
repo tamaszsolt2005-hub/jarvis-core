@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from jarvis_common import get_secret, get_supabase, get_gemini_client, get_model_name
+from jarvis_common import get_secret, get_service_supabase, get_gemini_client, get_model_name
 from jarvis_errors import report_error
 
 
@@ -45,7 +45,7 @@ def run_self_diagnostics() -> str:
     db = None
     if supabase_url and supabase_key:
         try:
-            db = get_supabase()
+            db = get_service_supabase()
             checks.append(_check("Supabase kapcsolat", True, "A kliens létrehozása sikerült."))
         except Exception as exc:
             _report_diagnostic_error(exc, "initialize_supabase")
