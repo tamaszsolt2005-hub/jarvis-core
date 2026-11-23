@@ -331,3 +331,64 @@ def test_sender_rejects_replied_or_invalid_address_before_database_access():
     assert email_sender._send_one(
         ForbiddenDB(), lead, False, datetime.now(timezone.utc)
     ) is False
+
+
+def test_sender_pipeline_selects_only_eligible_leads_and_respects_run_limit(monkeypatch):
+    now = datetime.now(timezone.utc)
+    valid_new = {
+        **_approved_lead(),
+        "id": "new-lead",
+        "status": "new",
+    }
+    valid_follow_up = {
+        **_approved_lead(),
+        "id": "follow-up-lead",
+        "status": "sent",
+        "next_follow_up_at": (now.replace(year=now.year - 1)).isoformat(),
+        "follow_up_count": 0,
+        "last_inbound_message_id": None,
+    }
+    invalid_consent = {
+        **_approved_lead(),
+        "id": "no-consent",
+        "approved_to_contact": False,
+    }
+    invalid_email = {
+        **_approved_lead(),
+        "id": "bad-email",
+        "email": "not-an-email",
+    }
+
+    class Result:
+        data = [valid_follow_up, invalid_consent, invalid_email, valid_new]
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def limit(self, _limit):
+            return self
+
+        def execute(self):
+            return Result()
+
+    class DB:
+        def table(self, name):
+            assert name == "leads"
+            return Query()
+
+    sent = []
+    monkeypatch.setattr(email_sender, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_sender, "env_bool", lambda _name, _default=False: True)
+    monkeypatch.setattr(email_sender, "env_int", lambda name, default, *_args: 2 if name == "SEND_MAX_PER_RUN" else default)
+    monkeypatch.setattr(email_sender, "get_supabase", lambda: DB())
+    monkeypatch.setattr(email_sender, "score_lead", lambda _lead: 1)
+    monkeypatch.setattr(
+        email_sender, "_send_one",
+        lambda _db, lead, follow_up, _now: sent.append((lead["id"], follow_up)) or True,
+    )
+    monkeypatch.setattr(email_sender.time, "sleep", lambda *_args: None)
+
+    email_sender._run()
+
+    assert sent == [("new-lead", False), ("follow-up-lead", True)]
