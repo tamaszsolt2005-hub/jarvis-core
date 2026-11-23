@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import imaplib
+import uuid
 
 from jarvis_errors import report_error
 from email import message_from_bytes
@@ -111,7 +112,22 @@ def _run() -> int:
             if not lead or lead.get("opted_out") is True:
                 continue
             message_id = _decode(message.get("Message-ID"))[:250] or f"imap-uid-{uid.decode(errors='ignore')}"
+            # A deterministic ID lets a retry reconcile a prior DB update whose
+            # completion audit could not be persisted.
+            operation_id = str(uuid.uuid5(
+                uuid.NAMESPACE_URL, f"jarvis:email_inbox:{uidvalidity}:{uid.decode(errors='ignore')}"
+            ))
             if message_id == lead.get("last_inbound_message_id"):
+                if not audit_event(
+                    db,
+                    module="email_inbox",
+                    action="inbound_message_processed",
+                    status="success",
+                    operation_id=operation_id,
+                    delivery_id=message_id,
+                    result={"reconciled_retry": True},
+                ):
+                    raise RuntimeError("A bejövő e-mail korábbi feldolgozásának auditja nem állítható helyre.")
                 continue
             subject = _decode(message.get("Subject"))
             body = _body(message)
@@ -123,20 +139,24 @@ def _run() -> int:
                 "opted_out": bool(opted_out),
                 "reply_category": "opt_out" if opted_out else "reply",
             }
-            db.table("leads").update(values).eq("id", lead["id"]).execute()
-            audit_ok = audit_event(
-                db,
-                module="email_inbox",
-                action="inbound_opt_out" if opted_out else "inbound_reply",
-                status="success",
-                delivery_id=message_id,
-                result={"lead_id": lead["id"], "follow_up_stopped": True},
-                level="warning" if opted_out else "info",
-            )
-            if not audit_ok:
+            action = "inbound_opt_out" if opted_out else "inbound_reply"
+            audit_fields = {
+                "module": "email_inbox",
+                "action": action,
+                "operation_id": operation_id,
+                "delivery_id": message_id,
+                "result": {"follow_up_stopped": True},
+                "level": "warning" if opted_out else "info",
+            }
+            if not audit_event(db, status="pending", **audit_fields):
                 raise RuntimeError(
-                    "A bejövő e-mail állapotát frissítettem, de az auditnapló nem írható; "
-                    "az IMAP UID checkpoint nem lép tovább."
+                    "A bejövő e-mail feldolgozása leállt: a pending auditbejegyzés nem menthető."
+                )
+            db.table("leads").update(values).eq("id", lead["id"]).execute()
+            if not audit_event(db, status="success", **audit_fields):
+                raise RuntimeError(
+                    "A bejövő e-mail állapotát frissítettem, de a záró audit nem írható; "
+                    "az UID checkpoint nem lép tovább, az ismételt futás helyreállítja az auditot."
                 )
             lead["last_inbound_message_id"] = message_id
             lead["opted_out"] = bool(opted_out)
