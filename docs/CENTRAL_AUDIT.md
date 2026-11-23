@@ -56,8 +56,16 @@ jelölt vagy kihagyott jelölt külön auditrekordot kap.
 
 A `get_audit_events()` a meglévő táblából kér le strukturált eseményeket,
 legújabbtól legrégebbiig rendezve. Szűrhető modul, művelet, státusz és
-`operation_id` szerint; a lekérdezési limit legfeljebb 1000. Kurzoros
-lapozás és kész adminisztrációs audit UI jelenleg nincs.
+`operation_id` szerint; a lekérdezési limit legfeljebb 1000. A stabil
+`created_at + id` összetett kulcson alapuló lapozást a
+`get_audit_events_page()` biztosítja (legfeljebb 500 rekord/oldal), az
+azonos időbélyegű események kihagyása nélkül. A kurzor időbélyegét és UUID-ját
+a lekérdezés előtt validálja.
+
+Kész, szerepkör szerint védett adminisztrációs audit UI jelenleg nincs. A
+dashboard még közös jelszót használ, ezért auditadatot megjelenítő új UI-t
+nem szabad minden közös jelszóval rendelkező felhasználó számára megnyitni;
+az admin-only felület az Auth/RBAC migrációval együtt vezethető be.
 
 ## Adatbázis-kompatibilitás és telepítés
 
@@ -77,5 +85,8 @@ adatbázis módosítása külön jóváhagyást igényel.
   végleges, szerepkörspecifikus policy-kat. A service-role kulcs megkerüli az RLS-t.
 - Nincs igazolt immutable/WORM tárolás, aláírt auditlánc vagy megőrzési/retenciós
   szabály.
-- A `get_audit_events()` limitált lekérdezést ad, kurzoros lapozás nélkül.
+- Admin-only audit UI még nincs; bevezetése az Auth/RBAC migrációtól függ.
+- Nincs igazolt immutable/WORM tárolás, aláírt auditlánc vagy megőrzési/retenciós
+  szabály. Ezekhez külön, jóváhagyott tárolási és megőrzési követelmény, valamint
+  külső infrastruktúra szükséges.
 - A batch audit nem helyettesíti a soronkénti üzleti rekordtörténetet.
