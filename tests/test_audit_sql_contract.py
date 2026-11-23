@@ -34,7 +34,7 @@ def test_audit_database_test_covers_reader_admin_and_append_only_contract():
     assert '"role":"admin"' in sql
     assert "update is rejected" in normalized
     assert "delete is rejected" in normalized
-    assert "select plan(15)" in normalized
+    assert "select plan(17)" in normalized
     assert "second event links to the first event" in normalized
 
 

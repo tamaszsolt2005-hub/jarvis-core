@@ -133,6 +133,11 @@ jobs:
             created_at timestamptz NOT NULL DEFAULT now(),
             level text NOT NULL DEFAULT 'info'
           );
+          -- Simulate a legacy production row written before structured audit
+          -- columns and hash-chain triggers were introduced.
+          INSERT INTO public.logs (id, module, message, level)
+          VALUES ('80000000-0000-0000-0000-000000000001',
+                  'legacy_fixture', 'preserve this pre-migration event', 'info');
           SQL
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file "$RUNNER_TEMP/audit-test-setup.sql"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
@@ -143,7 +148,7 @@ jobs:
             echo "pgTAP reported failed audit assertions."
             exit 1
           fi
-          grep -q '1..15' <<< "$output"
+          grep -q '1..17' <<< "$output"
       - name: Run real encrypted backup and restore roundtrip
         run: python -m pytest -q tests/test_backup_restore_integration.py
       - name: Remove test age identity

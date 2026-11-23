@@ -1,6 +1,6 @@
 -- Run with: supabase test db (isolated development database only).
 begin;
-select plan(15);
+select plan(17);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.logs'::regclass),
@@ -19,6 +19,18 @@ select ok(
   and not has_table_privilege('authenticated', 'public.logs', 'UPDATE')
   and not has_table_privilege('authenticated', 'public.logs', 'DELETE'),
   'authenticated cannot directly mutate audit rows'
+);
+
+select is(
+  (select count(*) from public.logs where id = '80000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'legacy log row survives both additive audit migrations'
+);
+select ok(
+  (select previous_hash is null and entry_hash is null
+     from public.logs
+    where id = '80000000-0000-0000-0000-000000000001'),
+  'legacy log row remains explicitly outside the new hash chain'
 );
 
 select lives_ok(
