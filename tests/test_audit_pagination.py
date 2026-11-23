@@ -91,6 +91,11 @@ def test_audit_page_returns_bounded_rows_and_stable_next_cursor():
     assert page["next_cursor"] == {"created_at": rows[1]["created_at"], "id": rows[1]["id"]}
     query = db.queries[0]
     assert query.limit_value == 3
+    selected = next(item[1] for item in query.operations if item[0] == "select")
+    assert "actor_user_id" in selected
+    assert "previous_hash" in selected
+    assert "entry_hash" in selected
+    assert "message" in selected
     assert ("order", "created_at", True) in query.operations
     assert ("order", "id", True) in query.operations
     assert query.filters == [("module", "email_sender"), ("status", "success")]
