@@ -170,3 +170,53 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
     assert "approved: bool = False" in task_source
     assert "if approved is not True:" in task_source
     assert "raise PermissionError" in task_source
+
+
+
+def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
+    task_call = next(
+        node for node in ast.walk(DASHBOARD_TREE)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "execute_task_action"
+    )
+    consume_call = next(
+        node for node in ast.walk(DASHBOARD_TREE)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "pop"
+        and len(node.args) >= 1
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "_jarvis_pending_action"
+        and node.lineno < task_call.lineno
+    )
+    assert consume_call.lineno < task_call.lineno
+    assert "approved=True" in ast.get_source_segment(DASHBOARD_SOURCE, task_call)
+
+
+def test_new_chat_request_invalidates_previous_pending_approval():
+    invalidation = next(
+        node for node in ast.walk(DASHBOARD_TREE)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "pop"
+        and len(node.args) >= 1
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "_jarvis_pending_action"
+        and "Any new request invalidates it" in ast.get_source_segment(
+            DASHBOARD_SOURCE,
+            next(
+                parent for parent in ast.walk(DASHBOARD_TREE)
+                if isinstance(parent, ast.If)
+                and any(
+                    isinstance(child, ast.Expr)
+                    and isinstance(child.value, ast.Call)
+                    and isinstance(child.value.func, ast.Attribute)
+                    and child.value.func.attr == "pop"
+                    for child in parent.body
+                )
+                and parent.lineno < node.lineno
+            ),
+        )
+    )
+    assert invalidation is not None
