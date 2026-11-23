@@ -183,3 +183,104 @@ def test_database_read_failure_does_not_break_independent_lead_and_task_logic(mo
     }
     assert lead_gen._validated_import_row(valid_row)["email"] == "contact@example.test"
     assert task_actions.parse_task_command("Új feladat: Regressziós ellenőrzés")["type"] == "create"
+
+
+def test_sender_success_records_pending_and_success_audit_after_smtp_acceptance(monkeypatch):
+    db = SenderDB()
+    sent = []
+    audit_statuses = []
+
+    monkeypatch.setattr(email_sender, "_draft", lambda *_args, **_kwargs: ("Subject", "Body"))
+    monkeypatch.setattr(
+        email_sender, "audit_event",
+        lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True,
+    )
+    monkeypatch.setattr(email_sender, "send_email", lambda *args: sent.append(args) or "smtp-id")
+    monkeypatch.setattr(email_sender, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(email_sender, "report_error", lambda *_args, **_kwargs: pytest.fail("unexpected error"))
+
+    result = email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc))
+
+    assert result is True
+    assert sent == [("person@example.test", "Subject", "Body")]
+    assert audit_statuses == ["pending", "success"]
+    assert any(update and update.get("status") == "sending" for update in db.updates)
+    assert any(update and update.get("status") == "sent" for update in db.updates)
+
+
+def test_sender_smtp_exception_marks_lead_as_error_and_never_reports_success(monkeypatch):
+    db = SenderDB()
+    reports = []
+    audit_statuses = []
+
+    monkeypatch.setattr(email_sender, "_draft", lambda *_args, **_kwargs: ("Subject", "Body"))
+    monkeypatch.setattr(
+        email_sender, "audit_event",
+        lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True,
+    )
+    monkeypatch.setattr(
+        email_sender, "send_email",
+        lambda *_args: (_ for _ in ()).throw(OSError("mock SMTP failure")),
+    )
+    monkeypatch.setattr(
+        email_sender, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    result = email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc))
+
+    assert result is False
+    assert audit_statuses == ["pending", "failed"]
+    assert any(update and update.get("status") == "send_error" for update in db.updates)
+    assert len(reports) == 1
+    assert reports[0][1]["module"] == "email_sender"
+
+
+def test_sender_rechecks_opt_out_immediately_before_smtp(monkeypatch):
+    class RevokedQuery(SenderQuery):
+        def execute(self):
+            if self.operation == "select":
+                return Result([{
+                    "id": "lead-1",
+                    "status": "sending",
+                    "consent_basis": "consent",
+                    "approved_to_contact": True,
+                    "opted_out": True,
+                    "last_inbound_message_id": None,
+                }])
+            self.db.updates.append(self.payload)
+            return Result([{"id": "lead-1"}] if self.payload.get("status") == "sending" else [])
+
+    class RevokedDB(SenderDB):
+        def table(self, name):
+            assert name == "leads"
+            return RevokedQuery(self)
+
+    db = RevokedDB()
+    monkeypatch.setattr(email_sender, "_draft", lambda *_args, **_kwargs: ("Subject", "Body"))
+    monkeypatch.setattr(email_sender, "audit_event", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(email_sender, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        email_sender, "send_email",
+        lambda *_args: pytest.fail("SMTP must not run after consent is revoked"),
+    )
+
+    assert email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc)) is False
+    assert any(update and update.get("status") == "send_blocked" for update in db.updates)
+
+
+def test_follow_up_draft_skips_website_audit_and_adds_opt_out(monkeypatch):
+    prompts = []
+    monkeypatch.setattr(email_sender, "generate_text", lambda prompt: prompts.append(prompt) or "Tárgy: Követés\\nKedves Partner!")
+    monkeypatch.setattr(
+        email_sender, "audit_company_website",
+        lambda *_args: pytest.fail("Follow-up draft must not audit the website"),
+    )
+    monkeypatch.setattr(email_sender, "get_secret", lambda *_args: "mock offer")
+
+    subject, body = email_sender._draft(_approved_lead(), follow_up=True)
+
+    assert subject == "Követés"
+    assert "Kedves Partner" in body
+    assert "LEIRATKOZOM" in body
+    assert "Example Ltd" in prompts[0]
