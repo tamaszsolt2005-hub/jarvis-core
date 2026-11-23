@@ -520,69 +520,69 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
     # A website audit request necessarily needs lead rows, even if the user
     # does not explicitly say "lead" or "company" in the question.
     if wants_ranking:
-        wants_leads = True
-
-    # A generic business question receives a compact overview, not an empty context.
-    if not any((wants_leads, wants_tasks, wants_drafts, wants_logs, wants_analytics)):
-        wants_leads = wants_tasks = True
-
-    lead_rows: list[dict] = []
-    if wants_leads:
-        # Existing Supabase projects may have an older leads schema. Read the
-        # actual row shape, then pass only explicitly approved, non-personal fields
-        # into the model context. This avoids failing on optional columns such as
-        # website that may not exist in an older database.
-        lead_read_status: dict[str, Any] = {}
-        raw_rows = _safe_rows(db, "leads", "*", 1500, status=lead_read_status)
-        if lead_read_status.get("error"):
-            sections.append(
-                "ADATFORRÁS NEM ELÉRHETŐ: a lead-adatbázis lekérdezése nem sikerült. "
-                "Ez nem tekinthető üres leadlistának; a leadekre vonatkozó következtetések most nem készíthetők el."
-            )
-            loaded.append("leadek (adatforrás-hiba)")
-        else:
-            allowed_lead_fields = {
-                "id", "company_name", "website", "source", "status", "approved_to_contact",
-                "opted_out", "reply_category", "created_at", "next_follow_up_at",
-                "follow_up_count",
-            }
-            lead_rows = []
-            for row in raw_rows:
-                safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
-                # Only expose notes created by our own company-only research module.
-                # Human-entered CRM notes remain excluded from every model prompt.
-                source = str(row.get("source") or "")
-                research_note = str(row.get("notes") or "")
-                if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
-                    safe_row["research_intelligence"] = research_note[:3500]
-                lead_rows.append(safe_row)
-            frame = pd.DataFrame(lead_rows)
-            counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
-            # Deliberately exclude personal email addresses and free-text notes from model context.
-            if wants_ranking:
-            ranked = []
-            # Inspect at most 30 lead websites per explicit ranking request.
-            for lead in lead_rows:
-                website = lead.get("website")
-                if not website:
-                    continue
-                profile = _website_profile(website)
-                ranked.append({
-                    "company_name": lead.get("company_name"),
-                    "lead_id": lead.get("id"),
-                    "lead_status": lead.get("status"),
-                    "website_profile": profile,
-                })
-                if len(ranked) >= 30:
-                    break
-            ranked.sort(key=lambda item: item["website_profile"].get("score", 0), reverse=True)
-            sections.append(
-                "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; kizárólag a weboldal teljességét és üzleti információtartalmát méri):\n"
-                + pd.DataFrame(ranked).to_json(orient="records", force_ascii=False)
-                + "\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
-                + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben. "
-                + "Ez a pontszám nem azonos a leadkutatásban tárolt üzleti illeszkedési becsléssel."
-            )
+            wants_leads = True
+    
+        # A generic business question receives a compact overview, not an empty context.
+        if not any((wants_leads, wants_tasks, wants_drafts, wants_logs, wants_analytics)):
+            wants_leads = wants_tasks = True
+    
+        lead_rows: list[dict] = []
+        if wants_leads:
+            # Existing Supabase projects may have an older leads schema. Read the
+            # actual row shape, then pass only explicitly approved, non-personal fields
+            # into the model context. This avoids failing on optional columns such as
+            # website that may not exist in an older database.
+            lead_read_status: dict[str, Any] = {}
+            raw_rows = _safe_rows(db, "leads", "*", 1500, status=lead_read_status)
+            if lead_read_status.get("error"):
+                sections.append(
+                    "ADATFORRÁS NEM ELÉRHETŐ: a lead-adatbázis lekérdezése nem sikerült. "
+                    "Ez nem tekinthető üres leadlistának; a leadekre vonatkozó következtetések most nem készíthetők el."
+                )
+                loaded.append("leadek (adatforrás-hiba)")
+            else:
+                allowed_lead_fields = {
+                    "id", "company_name", "website", "source", "status", "approved_to_contact",
+                    "opted_out", "reply_category", "created_at", "next_follow_up_at",
+                    "follow_up_count",
+                }
+                lead_rows = []
+                for row in raw_rows:
+                    safe_row = {key: value for key, value in row.items() if key in allowed_lead_fields}
+                    # Only expose notes created by our own company-only research module.
+                    # Human-entered CRM notes remain excluded from every model prompt.
+                    source = str(row.get("source") or "")
+                    research_note = str(row.get("notes") or "")
+                    if source.startswith("gemini_google_search_grounding:") and research_note.startswith("Leadkutatás;"):
+                        safe_row["research_intelligence"] = research_note[:3500]
+                    lead_rows.append(safe_row)
+                frame = pd.DataFrame(lead_rows)
+                counts = frame["status"].fillna("unknown").value_counts().to_dict() if not frame.empty and "status" in frame else {}
+                # Deliberately exclude personal email addresses and free-text notes from model context.
+                if wants_ranking:
+                ranked = []
+                # Inspect at most 30 lead websites per explicit ranking request.
+                for lead in lead_rows:
+                    website = lead.get("website")
+                    if not website:
+                        continue
+                    profile = _website_profile(website)
+                    ranked.append({
+                        "company_name": lead.get("company_name"),
+                        "lead_id": lead.get("id"),
+                        "lead_status": lead.get("status"),
+                        "website_profile": profile,
+                    })
+                    if len(ranked) >= 30:
+                        break
+                ranked.sort(key=lambda item: item["website_profile"].get("score", 0), reverse=True)
+                sections.append(
+                    "WEBOLDAL-ALAPÚ LEADPONTOZÁS (0–100; kizárólag a weboldal teljességét és üzleti információtartalmát méri):\n"
+                    + pd.DataFrame(ranked).to_json(orient="records", force_ascii=False)
+                    + "\nA weboldallal nem rendelkező leadek nem kaptak weboldal-pontszámot. "
+                    + "Legfeljebb 30 weboldal vizsgálható meg egy kérésben. "
+                    + "Ez a pontszám nem azonos a leadkutatásban tárolt üzleti illeszkedési becsléssel."
+                )
                 loaded.append("lead-weboldalak és rangsorolás")
             sections.append("LEAD ADATOK (személyes e-mail-címek nélkül):\n"
                             + f"Vizsgált leadek (legfeljebb 1500): {len(lead_rows)}; státusz szerinti megoszlás: {counts}.\n"
@@ -627,7 +627,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             )
             loaded.append("feladatok (adatforrás-hiba)")
         else:
-            sections.append("FELADATOK:\\n" + pd.DataFrame(task_rows).head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
+            sections.append("FELADATOK:\n" + pd.DataFrame(task_rows).head(250).to_json(orient="records", force_ascii=False, date_format="iso"))
             loaded.append("feladatok")
 
     if wants_opportunities or wants_warnings:
@@ -667,7 +667,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
             loaded.append("naplók (adatforrás-hiba)")
         else:
             if not wants_analytics:
-                sections.append("RENDSZERNAPLÓ:\\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
+                sections.append("RENDSZERNAPLÓ:\n" + pd.DataFrame(log_rows).head(80).to_json(orient="records", force_ascii=False, date_format="iso"))
             loaded.append("naplók")
 
     if wants_analytics:
