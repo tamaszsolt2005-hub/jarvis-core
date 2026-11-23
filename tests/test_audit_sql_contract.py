@@ -29,12 +29,14 @@ def test_audit_hash_chain_serializes_inserts_and_uses_sha256():
 
 def test_audit_database_test_covers_reader_admin_and_append_only_contract():
     sql = (ROOT / "supabase/tests/audit_access_and_integrity.test.sql").read_text()
+    normalized = " ".join(sql.lower().split())
     assert '"role":"reader"' in sql
     assert '"role":"admin"' in sql
-    assert "UPDATE is rejected" in sql
-    assert "DELETE is rejected" in sql
-    assert "select plan(15)" in sql
-    assert "second event must link" in sql
+    assert "update is rejected" in normalized
+    assert "delete is rejected" in normalized
+    assert "select plan(15)" in normalized
+    assert "second event links to the first event" in normalized
+
 
 def test_audit_integrity_rpc_is_invoker_scoped_and_admin_read_protected():
     sql = (ROOT / "supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql").read_text().lower()
