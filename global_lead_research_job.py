@@ -44,7 +44,7 @@ def main() -> None:
             result={
                 "saved_count": int(result.get("saved_count", 0)),
                 "skipped_count": int(result.get("skipped_count", 0)),
-                "email_sending": bool(result.get("email_sending", False)),
+                "email_sending": result.get("email_sending") is True or result.get("email_sending") == "enabled",
                 "contact_permission": result.get("contact_permission"),
             },
         ):
