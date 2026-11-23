@@ -9,7 +9,7 @@ The following numbers are from the successful GitHub Actions run for PR #9, head
 - Test Python files: 45
 - Tests: 347 passed, 2 skipped, 0 failed
 - Statement coverage: 83.25%
-- Required minimum: 75%
+- Required minimum: 80%
 - `python -m compileall -q .`: successful
 - CI command: `python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml`
 
