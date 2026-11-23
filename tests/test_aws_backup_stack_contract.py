@@ -24,6 +24,7 @@ def test_backup_bucket_enforces_private_versioned_kms_storage():
     assert "RestrictPublicBuckets: true" in template
     assert "Status: Enabled" in template
     assert "SSEAlgorithm: aws:kms" in template
+    assert "BucketKeyEnabled: true" in template  # Makes the bucket ARN the KMS encryption context.
     assert "DenyInsecureTransport" in template
     assert "aws:SecureTransport: false" in template
     assert "DenyNonKmsBackupUploads" in template
