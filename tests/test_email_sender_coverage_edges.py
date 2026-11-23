@@ -113,8 +113,8 @@ def test_email_sender_rechecks_consent_immediately_before_smtp(monkeypatch):
     def revoke_during_draft(_lead, **_kwargs):
         db.rows[0]["opted_out"] = True
         return "Subject", "Body"
-    monkeypatch.setattr(email_sender, "_draft", revoke_during_draft)
     _configure(monkeypatch, db, send=lambda *args: sent.append(args) or "smtp-id")
+    monkeypatch.setattr(email_sender, "_draft", revoke_during_draft)
 
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
     assert sent == []
