@@ -1,11 +1,11 @@
 # JARVIS – adatbázis-mentés és biztonságos visszaállítás
 
-**Állapot:** előkészített kód és automatizmus; külső tárhely-konfiguráció és integrációs próba még szükséges.  
+**Állapot:** előkészített kód és automatizmus; külső tárhely-konfiguráció és integrációs próba még szükséges. A 2026-11-23-i read-only ellenőrzés frissítette az adatleltárt.  
 **Éles projektazonosító:** `kiutreccucbegskxowek` (Jarvis, EU West)
 
 ## 1. Mit kell menteni?
 
-A teljes alkalmazásadatot és annak sémáját. A 2026-11-20-i élő, csak olvasási ellenőrzéskor a `public` séma nyolc táblát tartalmazott:
+A teljes alkalmazásadatot és annak sémáját. A 2026-11-23-i élő, csak olvasási ellenőrzéskor a `public` séma nyolc táblát tartalmazott:
 
 | Tábla | Mentési ok |
 |---|---|
@@ -18,7 +18,7 @@ A teljes alkalmazásadatot és annak sémáját. A 2026-11-20-i élő, csak olva
 | `jarvis_proactive_state` | proaktív monitor technikai állapota |
 | `posts` | élő adatbázisban lévő legacy tábla; a repository sémája nem definiálja, de a teljes public dump megőrzi |
 
-Az ellenőrzéskori sorok száma: leads 11, logs 28, settings 1, jarvis_proactive_state 1; a többi felsorolt tábla 0 sort tartalmazott. Ezek időpillanat-felvételek, nem állandó értékek.
+Az ellenőrzéskori becsült sorok száma: `leads` 11, `logs` 28, `settings` 1, `jarvis_proactive_state` 1; a többi felsorolt tábla 0 sort tartalmazott. A `storage.buckets` lekérdezés 0 bucketet adott vissza. Ezek időpillanat-felvételek, nem állandó értékek. A Supabase `auth.users` táblában a vizsgálatkor 0 rekord volt; az Auth-séma továbbra sem része a logikai mentésnek.
 
 A mentés mindig a tényleges adatbázisból készül, nem a GitHub-sémából rekonstruálja az adatokat. A jelenlegi élő séma és a repository `supabase/schema.sql` fájlja között eltérések vannak; ezért a visszaállítás az élő dumpot tekinti adatforrásnak, és nem futtat automatikus éles migrációt.
 
@@ -165,11 +165,11 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - éles projekt visszaállításának tiltása külső parancs futtatása előtt;
 - explicit `--confirm-restore` és sandbox allowlist követelménye;
 - nem várt archívumfájlok és sérült hash elutasítása;
-- adatbázis-jelszó eltávolítása a parancssori URL-ből, a credential URL-ek kiszűrése a gyermekfolyamatok örökölt környezetéből, és 0600 age identity fájl;
+- adatbázis-jelszó eltávolítása a parancssori URL-ből, külső folyamatok környezetének szűk allowlistje (nem öröklődnek a JARVIS API-kulcsai vagy Supabase service-role titkai), és 0600 age identity fájl;
 - a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
 Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul mockolt biztonsági tesztjei a teljes CI-futtatás részeként futnak; a legfrissebb futás eredményét a PR Actions ellenőrzése mutatja.
 
 **GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
 
-**2026-11-20 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.
+**2026-11-23 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.
