@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from jarvis_common import (
-    audit_event, env_bool, env_int, generate_text, get_secret, get_supabase,
+    audit_event, env_bool, env_int, generate_text, get_secret, get_service_supabase,
     log_event,
 )
 from jarvis_errors import report_error
@@ -63,7 +63,7 @@ def _run() -> None:
         print("Biztonsági mód: AUTO_SEND_ENABLED nem true, follow-up nem kerül kiküldésre.")
         return
 
-    db = get_supabase()
+    db = get_service_supabase()
     now = datetime.now(timezone.utc)
     rows = db.table("leads").select("*").eq("status", "sent").limit(100).execute().data or []
     due = [lead for lead in rows if _eligible_for_follow_up(lead, now)]
