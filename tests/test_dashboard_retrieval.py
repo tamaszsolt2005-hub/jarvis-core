@@ -406,3 +406,48 @@ def test_retrieve_context_generic_business_question_loads_bounded_leads_and_task
     assert "Minta Kft." in context
     assert "Első feladat" in context
     assert sources == ["leadek", "feladatok"]
+
+
+def test_dashboard_website_profile_rejects_private_redirect_target(monkeypatch):
+    import socket
+    import safe_http
+
+    _load_function("_public_http_url")
+    website_profile = _load_function("_website_profile")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+
+    class Redirect:
+        status_code = 302
+        headers = {"Location": "http://127.0.0.1/admin"}
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    response = Redirect()
+    monkeypatch.setattr(safe_http, "safe_get", lambda *_args, **_kwargs: response)
+
+    result = website_profile("https://example.com")
+
+    assert result["status"] == "nem biztonságos átirányítási cél"
+    assert response.closed
+
+
+def test_dashboard_public_url_rejects_dns_resolving_to_private_address(monkeypatch):
+    import socket
+
+    public_http_url = _load_function("_public_http_url")
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.10", 443))
+        ],
+    )
+    assert public_http_url("https://internal.example") is None
+    assert public_http_url("https://example.com:8443") is None
+    assert public_http_url("https://user:password@example.com") is None
