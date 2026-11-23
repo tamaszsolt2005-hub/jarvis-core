@@ -295,6 +295,7 @@ def audit_event(
     recipient: str | None = None,
     subject: str | None = None,
     delivery_id: str | None = None,
+    actor_user_id: str | None = None,
     level: str = "info",
 ) -> bool:
     """Append a structured, secret-safe audit event to the existing logs table.
@@ -314,6 +315,17 @@ def audit_event(
     except (TypeError, ValueError, AttributeError):
         LOGGER.warning("Invalid audit operation id supplied; generated a new id")
         op_id = str(uuid.uuid4())
+
+    try:
+        safe_actor_user_id = str(uuid.UUID(str(actor_user_id))) if actor_user_id else None
+    except (TypeError, ValueError, AttributeError):
+        report_error(
+            ValueError("Invalid audit actor user id"),
+            module="jarvis_common",
+            operation="validate_audit_actor",
+            severity="warning",
+        )
+        return False
 
     safe_module = sanitize_log_text(module, max_length=80) or "unknown"
     safe_action = sanitize_log_text(action, max_length=120) or "unspecified"
@@ -365,6 +377,7 @@ def audit_event(
         "recipient": safe_recipient,
         "subject": safe_subject,
         "delivery_id": safe_delivery_id,
+        "actor_user_id": safe_actor_user_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
