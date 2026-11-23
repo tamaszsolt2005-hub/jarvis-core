@@ -114,7 +114,7 @@ as $$
     select
       *,
       case
-        when total_entries = 0 then state_hash = repeat('0', 64)
+        when total_entries = 0 then coalesce(state_hash = repeat('0', 64), false)
         else state_hash is not null
           and exists (select 1 from entries where entry_hash = state_hash)
           and not exists (select 1 from entries where previous_hash = state_hash)
