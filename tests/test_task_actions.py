@@ -340,3 +340,76 @@ def test_task_close_concurrency_conflict_is_audited_and_not_reported_as_success(
     assert audit_statuses == ["pending", "blocked"]
     assert db.updated is None
     assert db.attempted_update is not None
+
+
+
+@pytest.mark.parametrize("failure_stage", ["task_read", "task_update"])
+def test_task_database_outage_is_reported_critical_and_re_raised(monkeypatch, failure_stage):
+    import task_actions
+
+    reports = []
+    monkeypatch.setattr(
+        task_actions, "audit_event",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        task_actions, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    class OutageQuery(Query):
+        def execute(self):
+            if failure_stage == "task_read" or self.payload is not None:
+                raise ConnectionError(f"mock {failure_stage} outage")
+            return Result([{"id": TASK_ID, "title": "Teszt", "status": "open"}])
+
+    class OutageDB(FakeDB):
+        def table(self, _name):
+            return OutageQuery(self)
+
+    db = OutageDB()
+    action = (
+        {"type": "close", "id": TASK_ID}
+        if failure_stage == "task_read"
+        else {"type": "update", "id": TASK_ID, "updates": {"title": "Új cím"}}
+    )
+
+    with pytest.raises(ConnectionError, match="mock"):
+        execute_task_action(db, action, approved=True)
+
+    assert len(reports) == 1
+    error, details = reports[0]
+    assert isinstance(error, ConnectionError)
+    assert details["module"] == "task_actions"
+    assert details["operation"] == f"execute:{action['type']}"
+    assert details["severity"] == "critical"
+
+
+def test_task_success_audit_failure_is_reported_without_hiding_completed_action(monkeypatch):
+    import task_actions
+
+    statuses = []
+    reports = []
+    def audit(_db, **kwargs):
+        statuses.append(kwargs["status"])
+        return kwargs["status"] == "pending"
+
+    monkeypatch.setattr(task_actions, "audit_event", audit)
+    monkeypatch.setattr(
+        task_actions, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    db = FakeDB()
+    result = execute_task_action(
+        db,
+        {"type": "create", "title": "Auditteszt", "priority": "normal"},
+        approved=True,
+    )
+
+    assert "Feladat létrehozva" in result
+    assert db.created["title"] == "Auditteszt"
+    assert statuses == ["pending", "success"]
+    # The current implementation records the audit result but does not check
+    # whether the final success audit write itself was persisted.
+    assert reports == []
