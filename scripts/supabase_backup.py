@@ -32,6 +32,19 @@ class BackupError(RuntimeError):
     pass
 
 
+_CHILD_ENV_KEYS = {
+    "PATH", "HOME", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL", "LC_CTYPE",
+    "SYSTEMROOT", "WINDIR", "SSL_CERT_FILE", "SSL_CERT_DIR",
+    "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "PGPASSWORD", "PGSSLROOTCERT", "PGSSLMODE",
+}
+
+
+def _safe_child_env(source: dict[str, str] | None = None) -> dict[str, str]:
+    """Pass only runtime essentials to external tools, never application secrets."""
+    values = os.environ if source is None else source
+    return {key: value for key, value in values.items() if key in _CHILD_ENV_KEYS}
+
+
 def project_ref_from_db_url(db_url: str) -> str:
     """Extract the Supabase project ref from direct or pooler connection URLs."""
     parsed = urlparse(db_url)
@@ -70,16 +83,19 @@ def _connection_env_and_url(db_url: str, work: Path) -> tuple[str, dict[str, str
     query = [(key, value) for key, value in query if key.lower() != "hostaddr"]
     query.append(("hostaddr", ipv4))
     safe_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/postgres", urlencode(query), ""))
-    db_env = os.environ.copy()
+    db_env = _safe_child_env()
     db_env["PGPASSWORD"] = unquote(parsed.password)
     return safe_url, db_env
 
 
 def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
+    # Every external process gets a sanitized environment, including age and
+    # pg_restore calls that do not need a database connection.
+    child_env = _safe_child_env(env)
     try:
         result = subprocess.run(
             args, check=True, text=True, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, env=env,
+            stderr=subprocess.PIPE, env=child_env,
         )
         return result.stdout.strip()
     except FileNotFoundError as exc:
@@ -122,8 +138,8 @@ def create_backup(output_dir: Path) -> Path:
     actual_ref = project_ref_from_db_url(db_url)
     if source_ref != PRODUCTION_PROJECT_REF or actual_ref != PRODUCTION_PROJECT_REF:
         raise BackupError("A mentés csak az előre rögzített JARVIS éles projektből indulhat; a forrásazonosító nem egyezik.")
-    if not shutil.which("pg_dump") or not shutil.which("age"):
-        raise BackupError("A mentéshez a pg_dump és az age program szükséges.")
+    if not all(shutil.which(program) for program in ("pg_dump", "pg_restore", "age")):
+        raise BackupError("A mentéshez a pg_dump, pg_restore és age program szükséges.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -138,18 +154,29 @@ def create_backup(output_dir: Path) -> Path:
         work = Path(tmp)
         schema = work / "schema.sql"
         data = work / "data.sql"
+        dump = work / "database.dump"
         manifest_path = work / "manifest.json"
         archive = work / "backup.tar.gz"
 
-        # Use the runner-installed pg_dump directly; no Supabase CLI Docker container.
-        # PGPASSWORD is inherited by libpq and is never placed in the command arguments.
+        # One custom-format pg_dump gives schema and data the same MVCC snapshot.
+        # Splitting that immutable dump with pg_restore avoids cross-command drift.
+        # PGPASSWORD is inherited by libpq and is never placed in command arguments.
         safe_url, db_env = _connection_env_and_url(db_url, work)
-        # Capture every public-schema object and row, including legacy tables.
-        # --no-password prevents an unattended runner from hanging on a prompt.
-        run_checked(["pg_dump", "--no-password", "--dbname", safe_url, "--schema=public", "--no-owner", "--no-privileges", "--format=plain", "--file", str(schema)], env=db_env)
-        run_checked(["pg_dump", "--no-password", "--dbname", safe_url, "--schema=public", "--data-only", "--no-owner", "--no-privileges", "--format=plain", "--file", str(data)], env=db_env)
-        if not schema.is_file() or not data.is_file() or schema.stat().st_size == 0:
-            raise BackupError("A Supabase CLI nem készített teljes sémamentést és adatmentést.")
+        run_checked([
+            "pg_dump", "--no-password", "--dbname", safe_url,
+            "--schema=public", "--no-owner", "--no-privileges",
+            "--format=custom", "--file", str(dump),
+        ], env=db_env)
+        run_checked([
+            "pg_restore", "--schema-only", "--no-owner", "--no-privileges",
+            "--file", str(schema), str(dump),
+        ])
+        run_checked([
+            "pg_restore", "--data-only", "--no-owner", "--no-privileges",
+            "--file", str(data), str(dump),
+        ])
+        if not dump.is_file() or not schema.is_file() or not data.is_file() or schema.stat().st_size == 0:
+            raise BackupError("A pg_dump/pg_restore nem készített teljes sémamentést és adatmentést.")
 
         manifest = {
             "format_version": 1,
@@ -158,6 +185,7 @@ def create_backup(output_dir: Path) -> Path:
             "source_project_ref": actual_ref,
             "included_schemas": ["public"],
             "included_objects": "all public schema objects and table data, including legacy public tables",
+            "snapshot_consistency": "schema and data extracted from one pg_dump custom archive",
             "excluded": [
                 "Supabase-managed auth/storage/realtime schemas and platform internals",
                 "Supabase Storage object binaries (metadata only is not a file backup)",

@@ -24,9 +24,9 @@ A socket-védelem a pytest folyamaton belüli Python hálózati hívásokat fogj
 
 A jelenlegi dashboard egyetlen megosztott jelszót használ. Nincs külön felhasználói identitás, admin/user szerepkör, felhasználónkénti jogosultságmátrix vagy tenant-szintű adatszegregáció. Az `approved=True` paraméter alkalmazáson belüli védőkorlát, nem önálló hitelesítési token vagy RBAC-rendszer.
 
-A repository `supabase/schema.sql` fájlja RLS-t engedélyez, de nem definiál táblánkénti `CREATE POLICY` szabályokat. A dashboard szerveroldali Supabase service-role kulcsot is használhat; a service-role hozzáférés megkerüli az RLS-t. Emiatt a jelenlegi pytest tesztek az RLS bekapcsolását igazolják, nem a tényleges adatbázis-szintű hozzáférés-szabályokat.
+A repository `supabase/schema.sql` fájlja RLS-t engedélyez. A PR #10 migrációja a `logs` és az auditlánc állapottábla olvasását kizárólag hitelesített `app_metadata.role=admin` felhasználóknak engedi. A többi üzleti tábla továbbra is deny-by-default; a dashboard üzleti műveletei a szerveroldali service-role kliensen keresztül futnak, amely megkerüli az RLS-t. Ezért a PR nem állít teljes üzleti RBAC-et.
 
-Éles jogosultsági garanciához külön döntés és elkülönített tesztkörnyezet szükséges:
+Éles üzleti jogosultsági garanciához külön döntés és elkülönített tesztkörnyezet szükséges:
 1. egyedi felhasználói identitás és szerepkörmodell meghatározása;
 2. táblánkénti RLS policy-k és service-role használati határok megtervezése;
 3. anon, authenticated, admin és service-role hozzáférési mátrix ellenőrzése izolált Supabase tesztprojektben;

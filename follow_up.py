@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
@@ -124,7 +125,7 @@ def _run() -> None:
             audit_fields = {
                 "module": "follow_up",
                 "action": "send_follow_up_email",
-                "operation_id": None,
+                "operation_id": str(uuid.uuid4()),
                 "recipient": str(lead["email"]),
                 "subject": subject,
                 "approved": True,

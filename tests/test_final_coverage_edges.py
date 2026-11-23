@@ -189,7 +189,9 @@ def test_backup_create_rejects_missing_encrypted_output(monkeypatch, tmp_path):
 
     def fake_runner(args, **_kwargs):
         if args[0] == "pg_dump":
-            Path(args[args.index("--file") + 1]).write_text("SELECT 1;")
+            Path(args[args.index("--file") + 1]).write_text("mock custom-format dump")
+        elif args[0] == "pg_restore":
+            Path(args[args.index("--file") + 1]).write_text("-- extracted mock SQL\\n")
         return ""
 
     monkeypatch.setattr(backup, "run_checked", fake_runner)

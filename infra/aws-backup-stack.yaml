@@ -2,15 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: JARVIS encrypted database backup bucket and GitHub Actions OIDC upload role.
 
 Parameters:
-  GitHubRepository:
-    Type: String
-    Default: tamaszsolt2005-hub/jarvis-core
-    Description: Exact owner/repository allowed to assume the backup role.
-    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-  GitHubBranch:
-    Type: String
-    Default: main
-    AllowedPattern: "^[A-Za-z0-9_.-]+$"
   GitHubOidcSubject:
     Type: String
     Default: repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main
@@ -36,6 +27,8 @@ Resources:
 
   BackupKmsKey:
     Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Description: JARVIS encrypted database backup objects in S3.
       EnableKeyRotation: true
@@ -58,6 +51,8 @@ Resources:
 
   BackupBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -85,6 +80,40 @@ Resources:
               NoncurrentDays: 30
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 7
+
+  BackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BackupBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt BackupBucket.Arn
+              - !Sub ${BackupBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: DenyNonKmsBackupUploads
+            Effect: Deny
+            Principal: "*"
+            Action: s3:PutObject
+            Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: aws:kms
+          - Sid: DenyBackupUploadsWithWrongKmsKey
+            Effect: Deny
+            Principal: "*"
+            Action: s3:PutObject
+            Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt BackupKmsKey.Arn
 
   GitHubBackupRole:
     Type: AWS::IAM::Role
@@ -119,14 +148,16 @@ Resources:
                   - s3:AbortMultipartUpload
                   - s3:ListMultipartUploadParts
                 Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*
-              - Sid: EncryptBackupObjects
+              - Sid: UseBackupKmsKeyThroughS3
                 Effect: Allow
                 Action:
                   - kms:GenerateDataKey
-                  - kms:Encrypt
                   - kms:Decrypt
-                  - kms:DescribeKey
                 Resource: !GetAtt BackupKmsKey.Arn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub s3.${AWS::Region}.amazonaws.com
+                    kms:EncryptionContext:aws:s3:arn: !GetAtt BackupBucket.Arn
 
 Outputs:
   BackupBucketName:

@@ -18,6 +18,10 @@ import streamlit as st
 
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_supabase, get_model_name, log_event, env_bool, audit_event
 from jarvis_errors import report_error, sanitize_log_text
+from audit_admin import (
+    audit_rows_to_csv, fetch_audit_page, sign_in_audit_admin,
+    sign_out_audit_admin, verified_admin_client, verify_audit_integrity,
+)
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
 from jarvis_analytics import (build_chat_analytics_context, build_executive_analytics_report, is_analytics_question, is_executive_analytics_report_request, render_analytics)
@@ -239,6 +243,255 @@ st.markdown(
 
 
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
+
+
+def render_audit_admin_page() -> None:
+    """Render the audit viewer only after a separately verified Supabase admin login."""
+    st.title("Központi auditnapló")
+    st.caption(
+        "Külön Supabase Auth-admin belépés szükséges. A közös dashboard-jelszó "
+        "nem ad hozzáférést az auditbejegyzésekhez."
+    )
+    session_key = "_jarvis_audit_admin_session"
+    session = st.session_state.get(session_key)
+
+    if not session:
+        with st.form("jarvis_audit_admin_login", clear_on_submit=True):
+            email = st.text_input("Admin e-mail-cím", key="jarvis_audit_admin_email")
+            password = st.text_input(
+                "Supabase Auth jelszó", type="password",
+                key="jarvis_audit_admin_password",
+            )
+            submitted = st.form_submit_button("Admin belépés", type="primary")
+        if submitted:
+            try:
+                st.session_state[session_key] = sign_in_audit_admin(email, password)
+                st.rerun()
+            except PermissionError:
+                st.error("A belépés nem engedélyezett. Admin szerepkör szükséges.")
+            except (ValueError, RuntimeError) as exc:
+                st.error(str(exc))
+            except Exception as exc:
+                report_error(
+                    exc, module="dashboard", operation="audit_admin_sign_in",
+                    severity="warning",
+                )
+                st.error("A biztonságos audit-belépés nem sikerült.")
+        st.info(
+            "A belépéshez megerősített Supabase Auth-fiók és a megbízható "
+            "app_metadata.role = admin beállítás szükséges."
+        )
+        return
+
+    try:
+        audit_client, refreshed_session = verified_admin_client(session)
+        st.session_state[session_key] = refreshed_session
+    except Exception as exc:
+        st.session_state.pop(session_key, None)
+        st.session_state.pop("_jarvis_audit_export_pending", None)
+        st.session_state.pop("_jarvis_audit_cursor_stack", None)
+        report_error(
+            exc, module="dashboard", operation="audit_admin_session_validation",
+            severity="warning",
+        )
+        st.error("Az audit-admin munkamenet érvénytelen vagy lejárt. Jelentkezz be újra.")
+        return
+
+    header, action = st.columns([4, 1])
+    with header:
+        st.caption(f"Hitelesített admin: {refreshed_session.get('email') or 'Supabase Auth felhasználó'}")
+    with action:
+        if st.button("Kilépés", key="jarvis_audit_admin_logout"):
+            pending_export = st.session_state.get("_jarvis_audit_export_pending")
+            if pending_export:
+                try:
+                    audit_event(
+                        get_supabase(),
+                        module="audit_admin",
+                        action="export_csv",
+                        status="blocked",
+                        operation_id=pending_export["operation_id"],
+                        result={"reason": "admin_signed_out_before_download"},
+                        approved=True,
+                        actor_user_id=pending_export.get("actor_user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_cancel",
+                        severity="warning",
+                    )
+            try:
+                sign_out_audit_admin(refreshed_session)
+            except Exception as exc:
+                report_error(
+                    exc, module="dashboard", operation="audit_admin_sign_out",
+                    severity="warning",
+                )
+            st.session_state.pop(session_key, None)
+            st.session_state.pop("_jarvis_audit_export_pending", None)
+            st.session_state.pop("_jarvis_audit_cursor_stack", None)
+            st.rerun()
+
+    module_filter = st.text_input(
+        "Modul szűrő (üres = minden modul)", key="jarvis_audit_module_filter"
+    ).strip() or None
+    status_filter = st.selectbox(
+        "Művelet státusza",
+        ["Összes státusz", "pending", "success", "failed", "blocked", "unknown"],
+        key="jarvis_audit_status_filter",
+    )
+    operation_filter = st.text_input(
+        "Operation ID (opcionális)", key="jarvis_audit_operation_filter"
+    ).strip() or None
+
+    filter_state = (module_filter, status_filter, operation_filter)
+    if st.session_state.get("_jarvis_audit_filter_state") != filter_state:
+        st.session_state["_jarvis_audit_filter_state"] = filter_state
+        st.session_state["_jarvis_audit_cursor_stack"] = [None]
+    cursor_stack = st.session_state.setdefault("_jarvis_audit_cursor_stack", [None])
+
+    try:
+        page = fetch_audit_page(
+            audit_client,
+            module=module_filter,
+            status=status_filter,
+            operation_id=operation_filter,
+            cursor=cursor_stack[-1],
+            page_size=100,
+        )
+        rows = page["events"]
+        next_cursor = page["next_cursor"]
+    except Exception as exc:
+        report_error(
+            exc, module="dashboard", operation="audit_admin_read",
+            severity="error",
+        )
+        st.error(
+            "Az auditnapló nem olvasható. Ellenőrizd, hogy az auditmezőket "
+            "és az admin-only RLS policy-t tartalmazó adatbázis-migráció alkalmazva van-e."
+        )
+        return
+
+    nav_prev, nav_status, nav_next = st.columns([1, 2, 1])
+    with nav_prev:
+        if st.button("← Előző", disabled=len(cursor_stack) <= 1, key="jarvis_audit_prev"):
+            cursor_stack.pop()
+            st.rerun()
+    with nav_status:
+        st.caption(f"Auditoldal: {len(cursor_stack)} • {len(rows)} bejegyzés")
+    with nav_next:
+        if st.button("Következő →", disabled=next_cursor is None, key="jarvis_audit_next"):
+            cursor_stack.append(next_cursor)
+            st.rerun()
+
+    if st.button("Hash-lánc integritásának ellenőrzése", key="jarvis_audit_integrity_check"):
+        try:
+            integrity = verify_audit_integrity(audit_client)
+            if integrity.get("ok") is True:
+                st.success(
+                    f"Az audit hash-lánc ellenőrzése sikeres. "
+                    f"Vizsgált bejegyzések: {integrity.get('total_entries', 0)}."
+                )
+            else:
+                st.error(
+                    "Az audit hash-lánc integritása nem igazolható. "
+                    f"Hibás hash: {integrity.get('invalid_hashes')}; "
+                    f"hiányzó előzmény: {integrity.get('missing_predecessors')}; "
+                    f"elágazás: {integrity.get('forks')}; "
+                    f"levált rekord: {integrity.get('disconnected_entries')}."
+                )
+        except Exception as exc:
+            report_error(
+                exc, module="dashboard", operation="audit_integrity_check",
+                severity="critical",
+            )
+            st.error("Az audit integritásának ellenőrzése nem futtatható le.")
+
+    if rows:
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        pending_key = "_jarvis_audit_export_pending"
+        if pending_key not in st.session_state:
+            if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
+                operation_id = str(uuid4())
+                try:
+                    audit_db = get_supabase()
+                    recorded = audit_event(
+                        audit_db,
+                        module="audit_admin",
+                        action="export_csv",
+                        status="pending",
+                        operation_id=operation_id,
+                        result={"row_count": len(rows), "page": len(cursor_stack)},
+                        approved=True,
+                        actor_user_id=refreshed_session.get("user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_pending",
+                        severity="critical",
+                    )
+                    recorded = False
+                if not recorded:
+                    st.error("Az export nem indítható el, mert a pending auditbejegyzés nem menthető.")
+                else:
+                    st.session_state[pending_key] = {
+                        "operation_id": operation_id,
+                        "rows": rows,
+                        "actor_user_id": refreshed_session.get("user_id"),
+                        "page": len(cursor_stack),
+                    }
+                    st.rerun()
+        else:
+            pending = st.session_state[pending_key]
+            downloaded = st.download_button(
+                "Audit CSV letöltése",
+                data=audit_rows_to_csv(pending["rows"]),
+                file_name="jarvis-audit-export.csv",
+                mime="text/csv",
+                key="jarvis_audit_csv_export",
+            )
+            if downloaded:
+                try:
+                    completed = audit_event(
+                        get_supabase(),
+                        module="audit_admin",
+                        action="export_csv",
+                        status="success",
+                        operation_id=pending["operation_id"],
+                        result={"row_count": len(pending["rows"]), "page": pending["page"]},
+                        approved=True,
+                        actor_user_id=pending.get("actor_user_id"),
+                    )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_completion",
+                        severity="critical",
+                    )
+                    completed = False
+                if not completed:
+                    try:
+                        audit_event(
+                            get_supabase(),
+                            module="audit_admin",
+                            action="export_csv",
+                            status="unknown",
+                            operation_id=pending["operation_id"],
+                            result={"completion_audit_failed": True, "download_was_triggered": True},
+                            approved=True,
+                            actor_user_id=pending.get("actor_user_id"),
+                            level="critical",
+                        )
+                    except Exception as exc:
+                        report_error(
+                            exc, module="dashboard", operation="audit_export_unknown",
+                            severity="critical",
+                        )
+                    st.error("A letöltés megtörtént, de a lezáró audit bizonytalan maradt.")
+                st.session_state.pop(pending_key, None)
+                st.rerun()
+    else:
+        st.info("A szűrésnek megfelelő auditbejegyzés nem található.")
+
 
 
 def authenticated() -> bool:
@@ -749,6 +1002,12 @@ with st.sidebar:
         type="primary" if current_page == "analytics" else "secondary",
         width="stretch",
     )
+    audit_clicked = st.button(
+        "▤   Audit napló",
+        key="jarvis_nav_audit",
+        type="primary" if current_page == "audit" else "secondary",
+        width="stretch",
+    )
     st.markdown(
         '<div class="jarvis-nav">'
         '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
@@ -766,6 +1025,14 @@ if chat_clicked:
 if analytics_clicked:
     st.session_state["jarvis_page"] = "analytics"
     st.rerun()
+if audit_clicked:
+    st.session_state["jarvis_page"] = "audit"
+    st.rerun()
+
+if st.session_state.get("jarvis_page") == "audit":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    render_audit_admin_page()
+    st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
     # st.chat_input is anchored in Streamlit's global bottom container; hide it on this page.

@@ -1,0 +1,44 @@
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_backup_role_has_scoped_s3_kms_multipart_permissions():
+    template = (ROOT / "infra/aws-backup-stack.yaml").read_text(encoding="utf-8")
+    assert "Resource: !Sub ${BackupBucket.Arn}/jarvis/database/*" in template
+    assert "s3:PutObject" in template
+    assert "s3:GetObject" in template  # Required by the workflow's head-object verification.
+    assert "kms:GenerateDataKey" in template
+    assert "kms:Decrypt" in template
+    assert "kms:ViaService: !Sub s3.${AWS::Region}.amazonaws.com" in template
+    assert "kms:EncryptionContext:aws:s3:arn: !GetAtt BackupBucket.Arn" in template
+    assert "                  - kms:Encrypt\n" not in template
+
+
+def test_backup_bucket_enforces_private_versioned_kms_storage():
+    template = (ROOT / "infra/aws-backup-stack.yaml").read_text(encoding="utf-8")
+    assert "BlockPublicAcls: true" in template
+    assert "BlockPublicPolicy: true" in template
+    assert "IgnorePublicAcls: true" in template
+    assert "RestrictPublicBuckets: true" in template
+    assert "Status: Enabled" in template
+    assert "SSEAlgorithm: aws:kms" in template
+    assert "BucketKeyEnabled: true" in template  # Makes the bucket ARN the KMS encryption context.
+    assert "DenyInsecureTransport" in template
+    assert "aws:SecureTransport: false" in template
+    assert "DenyNonKmsBackupUploads" in template
+    assert "s3:x-amz-server-side-encryption: aws:kms" in template
+    assert "DenyBackupUploadsWithWrongKmsKey" in template
+    assert "s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt BackupKmsKey.Arn" in template
+    assert "ExpirationInDays: 30" in template
+    assert "NoncurrentDays: 30" in template
+    assert template.count("DeletionPolicy: Retain") == 2
+    assert template.count("UpdateReplacePolicy: Retain") == 2
+
+
+def test_github_oidc_trust_is_restricted_to_exact_subject_and_audience():
+    template = (ROOT / "infra/aws-backup-stack.yaml").read_text(encoding="utf-8")
+    assert "token.actions.githubusercontent.com:aud: sts.amazonaws.com" in template
+    assert "token.actions.githubusercontent.com:sub: !Ref GitHubOidcSubject" in template
+    assert "repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main" in template

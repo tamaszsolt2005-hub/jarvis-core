@@ -1,11 +1,11 @@
 # JARVIS – adatbázis-mentés és biztonságos visszaállítás
 
-**Állapot:** előkészített kód és automatizmus; külső tárhely-konfiguráció és integrációs próba még szükséges.  
+**Állapot:** előkészített kód és automatizmus; külső tárhely-konfiguráció és integrációs próba még szükséges. A 2026-11-23-i read-only ellenőrzés frissítette az adatleltárt.  
 **Éles projektazonosító:** `kiutreccucbegskxowek` (Jarvis, EU West)
 
 ## 1. Mit kell menteni?
 
-A teljes alkalmazásadatot és annak sémáját. A 2026-11-20-i élő, csak olvasási ellenőrzéskor a `public` séma nyolc táblát tartalmazott:
+A teljes alkalmazásadatot és annak sémáját. A 2026-11-23-i élő, csak olvasási ellenőrzéskor a `public` séma nyolc táblát tartalmazott:
 
 | Tábla | Mentési ok |
 |---|---|
@@ -18,7 +18,7 @@ A teljes alkalmazásadatot és annak sémáját. A 2026-11-20-i élő, csak olva
 | `jarvis_proactive_state` | proaktív monitor technikai állapota |
 | `posts` | élő adatbázisban lévő legacy tábla; a repository sémája nem definiálja, de a teljes public dump megőrzi |
 
-Az ellenőrzéskori sorok száma: leads 11, logs 28, settings 1, jarvis_proactive_state 1; a többi felsorolt tábla 0 sort tartalmazott. Ezek időpillanat-felvételek, nem állandó értékek.
+Az ellenőrzéskori becsült sorok száma: `leads` 11, `logs` 28, `settings` 1, `jarvis_proactive_state` 1; a többi felsorolt tábla 0 sort tartalmazott. A `storage.buckets` lekérdezés 0 bucketet adott vissza. Ezek időpillanat-felvételek, nem állandó értékek. A Supabase `auth.users` táblában a vizsgálatkor 0 rekord volt; az Auth-séma továbbra sem része a logikai mentésnek.
 
 A mentés mindig a tényleges adatbázisból készül, nem a GitHub-sémából rekonstruálja az adatokat. A jelenlegi élő séma és a repository `supabase/schema.sql` fájlja között eltérések vannak; ezért a visszaállítás az élő dumpot tekinti adatforrásnak, és nem futtat automatikus éles migrációt.
 
@@ -32,6 +32,8 @@ A Supabase CLI `db dump` a Supabase által kezelt sémákat kizárja. Ez a megol
 
 A 2026-11-20-i olvasási ellenőrzéskor a `storage.buckets` üres volt, tehát nem volt Supabase Storage bucket. Ha ez változik, a fájlobjektumokra külön mentési folyamat kell.
 
+**Élesítési kapu:** az audit-admin Auth-felhasználó létrehozása előtt külön Auth-mentési és visszaállítási terv szükséges. Az `auth.users`, identitások, munkamenetek és az Auth-konfiguráció nem része ennek a mentésnek; a vizsgálatkori 0 felhasználó nem jelent jövőbeli védelmet. Hasonlóképpen, Storage bucket vagy fájlobjektum használatba vétele előtt külön objektummentést kell beállítani és visszaállítási próbával igazolni.
+
 A Supabase platform napi backup/PITR funkciója a csomagtól függ. A projekt csomagját és a Backups/PITR beállítást nem ellenőriztük. A külső logikai mentés nem helyettesíti a platform backupot.
 
 ## 3. Titkosított mentés
@@ -42,7 +44,7 @@ A mentési script:
 python scripts/supabase_backup.py backup --output-dir .private-backups
 ```
 
-Szükséges programok: Supabase CLI, `age`, Python 3.11+. A Supabase CLI Docker-alapú dump futtatást használhat, ezért Docker-kompatibilis runner szükséges. A visszaállításhoz az `age` mellett PostgreSQL `psql` kliens is kell, a szerverrel kompatibilis főverzióban.
+Szükséges programok: PostgreSQL 17-kompatibilis `pg_dump`, `pg_restore` és `psql`, `age`, Python 3.11+. A mentés egyetlen custom-format `pg_dump` snapshotból készül; a sémát és adatokat ebből a változatlan archívumból bontja ki a `pg_restore`, így a két SQL-fájl ugyanahhoz az MVCC-pillanatképhez tartozik. Docker és Supabase CLI nem szükséges.
 
 Szükséges környezeti beállítások:
 - `SUPABASE_DB_URL`: közvetlen vagy session-pooler adatbázis-kapcsolati URL, titokként kezelendő.
@@ -51,7 +53,7 @@ Szükséges környezeti beállítások:
 
 A script:
 1. ellenőrzi, hogy a DB URL és a rögzített forrásprojekt az éles JARVIS-projektre mutat;
-2. külön SQL-fájlba dumpolja a teljes `public` sémát és adatokat;
+2. egyetlen konzisztens custom-format PostgreSQL-pillanatképet készít, majd ebből külön SQL-fájlba bontja a teljes `public` sémát és adatokat;
 3. manifestet készít UTC időbélyeggel, UUID-s mentésazonosítóval és SHA-256 hash-ekkel;
 4. a teljes archívumot age nyilvános kulccsal titkosítja;
 5. csak a titkosított `.tar.gz.age` fájlt hagyja meg a kimeneti könyvtárban.
@@ -61,18 +63,21 @@ A helyi `.private-backups/` és a titkosított mentési kiterjesztések Git-igno
 ## 4. AWS/S3 infrastruktúra és GitHub Actions
 
 Workflow: `.github/workflows/database-backup.yml`  
-Ütemezés: naponta 02:15 UTC, valamint kézi indítás.
+Ütemezés: naponta 02:15 UTC, valamint kézi indítás.  
+A workflow rögzített `ubuntu-24.04` runneren fut, és a PGDG tárolóból telepített PostgreSQL 17 `pg_dump`, `pg_restore` és `psql` binárisok verzióját futás előtt ellenőrzi; ez illeszkedik az ellenőrzött éles PostgreSQL 17.11 szerverhez.
 
 ### 4.1. AWS erőforrások létrehozása
 
 Az infrastruktúra CloudFormation sablonja: [`infra/aws-backup-stack.yaml`](../infra/aws-backup-stack.yaml). A sablon a következőket hozza létre:
 - privát S3 bucket teljes public-access blokkolással és Bucket Owner Enforced tulajdonosi móddal;
-- S3 versioning és 30 napos lifecycle a `jarvis/database/` prefix alatt;
+- bucket policy, amely HTTPS-t és a megadott customer-managed KMS kulcsot követeli meg a backup prefixre feltöltött objektumoknál;
+- S3 versioning; a `jarvis/database/` prefix aktuális objektumverziói 30 nap után lejárnak, a nem aktuális verziók pedig a nem aktuálissá válásuktól számított 30 nap után törlődnek;
+- stack törlése vagy erőforrás-csere esetén megtartott S3 bucket és KMS kulcs (`DeletionPolicy: Retain`, `UpdateReplacePolicy: Retain`);
 - saját, automatikus kulcsrotációval ellátott KMS kulcs és alias;
 - GitHub OIDC provider (vagy megadható már létező provider ARN);
-- IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, és csak a backup prefixre enged feltöltést, a megadott KMS kulccsal.
+- IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, a backup prefixre enged feltöltést és az S3 feltöltés utáni objektum-ellenőrzéshez HEAD olvasást; a KMS `Decrypt` és `GenerateDataKey` műveleteket kizárólag az S3 szolgáltatáson keresztül, ehhez a buckethez tartozó encryption context mellett engedélyezi, mert az SSE-KMS multipart feltöltéshez mindkettő szükséges. Az S3-szintű visszafejtés csak az age-gel már titkosított fájl tartalmához ad hozzáférést, nem a mentés eredeti adatbázis-tartalmához.
 
-AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubRepository` alapértéke `tamaszsolt2005-hub/jarvis-core`, a `GitHubBranch` értéke `main`. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
+AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubOidcSubject` alapértéke a repository ellenőrzött, immutable OIDC subjectje a `main` ágra (`repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main`). Más repository vagy branch esetén ezt a teljes subjectet kell a GitHub által kiadott OIDC claimhez igazítva felülírni. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
 
 A stack létrehozása után mentsd ki az Outputs értékeit:
 - `BackupBucketName`
@@ -110,7 +115,7 @@ A GitHub repository titkait a rendelkezésre álló GitHub-kapcsolat nem tudja �
 6. Ellenőrizd, hogy a feltöltött objektum SSE-KMS titkosítást használ, és a várt KMS kulcs ARN-jével készült.
 7. A visszafejtő age privát kulcsot offline, a GitHubtól és az S3 buckettől elkülönítve őrizd.
 
-A javasolt kezdeti megőrzés 30 nap. Ezt a CloudFormation lifecycle szabály konfigurálja, de csak a stack sikeres telepítése után aktív. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
+A CloudFormation lifecycle szabálya az aktuális objektumverziót 30 nap után lejáratja, majd a nem aktuális verziókat a nem aktuálissá válásuktól számított 30 nap után törli. Emiatt egy verziózott mentés korábbi verziója az első feltöltéstől számítva akár körülbelül 60 napig is megmaradhat; ez nem azonos a 30 napos aktuális verziómegőrzéssel. A szabály csak a stack sikeres telepítése után aktív. A GitHub Actions artifact nem a tartós adatbázis-mentési tárhely.
 
 ## 5. Visszaállítás – kizárólag elkülönített, üres célprojektbe
 
@@ -147,7 +152,7 @@ A parancs explicit `--confirm-restore` megerősítést követel. A parancs ellen
 
 A visszaállítás előtt visszavonja az `anon` és `authenticated` szerepkörök új public táblákra öröklődő alapértelmezett jogosultságait. Csak ezután futtatja a sémát és adatokat egyetlen PostgreSQL tranzakcióban, `ON_ERROR_STOP=1` mellett. Nem üres cél esetén a script még SQL-végrehajtás előtt leáll. A sikertelen tranzakció visszagörgethető.
 
-A friss célprojektben a szükséges PostgreSQL-kiterjesztéseket és platformbeállításokat előzetesen ellenőrizni kell. A CLI dump nem másolja át az összes Supabase platformobjektumot vagy egyedi role-jelszót.
+A friss célprojektben a szükséges PostgreSQL-kiterjesztéseket és platformbeállításokat előzetesen ellenőrizni kell. A PostgreSQL logikai dump nem másolja át az összes Supabase platformobjektumot vagy egyedi role-jelszót.
 
 ## 6. Megőrzés és helyreállítási célok
 
@@ -165,11 +170,9 @@ A `tests/test_supabase_backup.py` mockolt teszteket tartalmaz:
 - éles projekt visszaállításának tiltása külső parancs futtatása előtt;
 - explicit `--confirm-restore` és sandbox allowlist követelménye;
 - nem várt archívumfájlok és sérült hash elutasítása;
-- adatbázis-jelszó eltávolítása a parancssori URL-ből és 0600 PGPASSFILE;
+- adatbázis-jelszó eltávolítása a parancssori URL-ből, külső folyamatok környezetének szűk allowlistje (nem öröklődnek a JARVIS API-kulcsai vagy Supabase service-role titkai), és 0600 age identity fájl;
 - a Supabase `public` séma meglévő objektumainak megtartása, a nem üres sandbox elutasítása.
 
-Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A mentési modul 13 biztonsági tesztje a teljes CI-futtatás részeként sikeresen lefutott.
+Ezek egységtesztek, nem készítenek valódi adatbázis-mentést, nem töltenek fel S3-ba, és nem állítanak vissza adatbázist. A tesztek külön ellenőrzik, hogy a séma és az adatok ugyanabból az egyetlen `pg_dump` snapshotból származnak, és a DB URL-t tartalmazó környezeti változók nem öröklődnek tovább a külső folyamatokba. A mentési modul mockolt biztonsági tesztjei a teljes CI-futtatás részeként futnak; a legfrissebb futás eredményét a PR Actions ellenőrzése mutatja.
 
-**GitHub Actions CI:** `194 passed in 2.22s`, a `compileall` is sikeres; [futás megnyitása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/44805466683).
-
-**2026-11-20 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.
+**2026-11-23 állapot:** a kód és workflow elő van készítve. Külső AWS/S3 tárhely és GitHub titkok/változók még nincsenek igazolva; sikeres mentési futás, feltöltés, és elkülönített visszaállítási próba még nem történt. Az éles Supabase-adatbázis a felülvizsgálat során csak olvasási műveleteket kapott, nem módosítottuk.

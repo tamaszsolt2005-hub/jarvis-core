@@ -191,7 +191,10 @@ def test_create_backup_uses_mocked_tools_and_writes_encrypted_output(monkeypatch
         commands.append((args, env))
         if args[0] == "pg_dump":
             output = Path(args[args.index("--file") + 1])
-            output.write_text("SELECT 1;" if "--data-only" not in args else "INSERT INTO sample VALUES (1);")
+            output.write_bytes(b"mock custom-format snapshot")
+        elif args[0] == "pg_restore":
+            output = Path(args[args.index("--file") + 1])
+            output.write_text("CREATE TABLE public.sample(id integer);" if "--schema-only" in args else "COPY public.sample (id) FROM stdin;\n1\n\\.\n")
         elif args[0] == "age":
             output = Path(args[args.index("--output") + 1])
             output.write_bytes(b"mock encrypted backup")
@@ -204,8 +207,11 @@ def test_create_backup_uses_mocked_tools_and_writes_encrypted_output(monkeypatch
     assert result.is_file()
     assert result.read_bytes() == b"mock encrypted backup"
     assert result.suffix == ".age"
-    assert len(commands) == 3
-    assert all("--no-password" in args for args, _env in commands[:2])
+    assert [args[0] for args, _env in commands] == ["pg_dump", "pg_restore", "pg_restore", "age"]
+    assert "--format=custom" in commands[0][0]
+    assert "--schema-only" in commands[1][0]
+    assert "--data-only" in commands[2][0]
+    assert "--no-password" in commands[0][0]
     assert all("mock-password" not in " ".join(args) for args, _env in commands)
     assert commands[0][1]["PGPASSWORD"] == "mock-password"
     if os.name == "posix":
@@ -309,7 +315,7 @@ def test_create_backup_requires_both_external_programs(monkeypatch, tmp_path):
     monkeypatch.setenv("BACKUP_AGE_RECIPIENT", "age1mockrecipient")
     monkeypatch.setenv("JARVIS_BACKUP_SOURCE_PROJECT_REF", backup.PRODUCTION_PROJECT_REF)
     monkeypatch.setattr(backup.shutil, "which", lambda name: None if name == "age" else "/usr/bin/pg_dump")
-    with pytest.raises(backup.BackupError, match="pg_dump és az age"):
+    with pytest.raises(backup.BackupError, match="pg_dump, pg_restore és age"):
         backup.create_backup(tmp_path / "private")
 
 
@@ -406,3 +412,89 @@ def test_restore_rejects_unparseable_empty_schema_count(monkeypatch, tmp_path):
     with patch.object(backup, "run_checked", side_effect=["", "not-a-number"]):
         with pytest.raises(backup.BackupError, match="Nem sikerült ellenőrizni"):
             backup.restore_backup(archive, target_ref, confirmed=True)
+
+
+
+def test_database_url_secrets_are_not_inherited_by_child_processes(tmp_path, monkeypatch):
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:top-secret@db.kiutreccucbegskxowek.supabase.co/postgres")
+    monkeypatch.setenv("JARVIS_RESTORE_DB_URL", "postgresql://postgres:other-secret@db.abcdefghijklmnopqrst.supabase.co/postgres")
+    monkeypatch.setenv("GEMINI_API_KEY", "must-not-leak")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "must-not-leak-either")
+    _safe_url, env = backup._connection_env_and_url(
+        "postgresql://postgres:encoded%3Asecret@db.kiutreccucbegskxowek.supabase.co:5432/postgres",
+        tmp_path,
+    )
+    assert "SUPABASE_DB_URL" not in env
+    assert "JARVIS_RESTORE_DB_URL" not in env
+    assert "GEMINI_API_KEY" not in env
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in env
+    assert env["PGPASSWORD"] == "encoded:secret"
+
+
+def test_backup_uses_one_pg_dump_snapshot_for_schema_and_data(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "SUPABASE_DB_URL",
+        "postgresql://postgres:mock-password@db.kiutreccucbegskxowek.supabase.co:5432/postgres",
+    )
+    monkeypatch.setenv("BACKUP_AGE_RECIPIENT", "age1mockrecipient")
+    monkeypatch.setenv("JARVIS_BACKUP_SOURCE_PROJECT_REF", backup.PRODUCTION_PROJECT_REF)
+    monkeypatch.setattr(backup.shutil, "which", lambda _name: "/usr/bin/mock")
+    monkeypatch.setattr(
+        backup, "_connection_env_and_url",
+        lambda *_args: ("postgresql://postgres@db.example.test/postgres", {"PGPASSWORD": "mock-password"}),
+    )
+    commands = []
+
+    def fake_run_checked(args, *, env=None):
+        commands.append(args)
+        if args[0] == "pg_dump":
+            Path(args[args.index("--file") + 1]).write_bytes(b"one consistent snapshot")
+        elif args[0] == "pg_restore":
+            Path(args[args.index("--file") + 1]).write_text("SELECT 1;")
+        elif args[0] == "age":
+            Path(args[args.index("--output") + 1]).write_bytes(b"encrypted")
+        return ""
+
+    monkeypatch.setattr(backup, "run_checked", fake_run_checked)
+    backup.create_backup(tmp_path / "private")
+
+    assert sum(command[0] == "pg_dump" for command in commands) == 1
+    assert sum(command[0] == "pg_restore" for command in commands) == 2
+    assert commands[0][commands[0].index("--file") + 1].endswith("database.dump")
+    assert commands[1][-1] == commands[0][commands[0].index("--file") + 1]
+    assert commands[2][-1] == commands[0][commands[0].index("--file") + 1]
+
+
+
+def test_run_checked_sanitizes_database_urls_even_without_explicit_env(monkeypatch):
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:never-leak@db.kiutreccucbegskxowek.supabase.co/postgres")
+    monkeypatch.setenv("JARVIS_RESTORE_DB_URL", "postgresql://postgres:also-never-leak@db.abcdefghijklmnopqrst.supabase.co/postgres")
+    captured = {}
+
+    def fake_run(_args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(_args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(backup.subprocess, "run", fake_run)
+    backup.run_checked(["age", "--version"])
+
+    assert "SUPABASE_DB_URL" not in captured["env"]
+    assert "JARVIS_RESTORE_DB_URL" not in captured["env"]
+
+
+
+def test_run_checked_does_not_pass_unrelated_application_secrets(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "never-leak")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "never-leak-either")
+    captured = {}
+
+    def fake_run(_args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(_args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(backup.subprocess, "run", fake_run)
+    backup.run_checked(["age", "--version"])
+
+    assert "GEMINI_API_KEY" not in captured["env"]
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in captured["env"]
+    assert "PATH" in captured["env"]

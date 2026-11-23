@@ -595,3 +595,21 @@ def test_streamlit_outer_chat_failure_is_reported_without_fabricated_answer(monk
     assert reports and reports[0][1]["module"] == "dashboard"
     assert reports[0][1]["severity"] == "error"
     assert not app.exception
+
+
+
+def test_audit_page_requires_separate_supabase_auth_login(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    assert not app.exception
+
+    app.button(key="jarvis_nav_audit").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "audit"
+    assert len(app.text_input) == 2
+    assert any("Külön Supabase Auth-admin belépés szükséges" in item.value for item in app.caption)
+    assert "_jarvis_audit_admin_session" not in app.session_state
+    assert "_jarvis_db" not in app.session_state
