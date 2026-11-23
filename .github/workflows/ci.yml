@@ -123,7 +123,7 @@ jobs:
           CREATE EXTENSION pgtap;
           CREATE OR REPLACE FUNCTION auth.jwt()
           RETURNS jsonb LANGUAGE sql STABLE
-          AS 'SELECT COALESCE(NULLIF(current_setting(''request.jwt.claims'', true), ''''), ''{}'')::jsonb';
+          AS 'SELECT current_setting(''request.jwt.claims'', true)::jsonb';
           GRANT USAGE ON SCHEMA auth, extensions TO authenticated, service_role;
           GRANT EXECUTE ON FUNCTION auth.jwt() TO authenticated, service_role;
           CREATE TABLE public.logs (
