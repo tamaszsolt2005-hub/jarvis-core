@@ -184,9 +184,15 @@ st.markdown(
 
     @media(max-width:1100px) {
         .block-container { padding-left:20px !important; padding-right:20px !important; }
-        [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; align-items:stretch !important; }
-        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
-            flex:1 1 180px !important; min-width:180px !important;
+        [data-testid="stHorizontalBlock"] {
+            display:grid !important;
+            grid-template-columns:repeat(auto-fit,minmax(180px,1fr)) !important;
+            column-gap:16px !important;
+            row-gap:16px !important;
+            align-items:stretch !important;
+        }
+        [data-testid="stHorizontalBlock"] > div {
+            width:auto !important; min-width:0 !important; flex:none !important;
         }
         .jarvis-kpi { height:132px; padding:14px; }
         .jarvis-kpi-value { font-size:1.7rem; }
