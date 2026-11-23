@@ -238,7 +238,7 @@ def create_backup(output_dir: Path) -> Path:
     return final_path
 
 
-def _safe_extract(archive: Path, destination: Path) -> dict:
+def _safe_extract(archive: Path, destination: Path, *, allow_local_test: bool = False) -> dict:
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
         names = {m.name for m in members}
@@ -251,13 +251,7 @@ def _safe_extract(archive: Path, destination: Path) -> dict:
 
     manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
     source_ref = manifest.get("source_project_ref")
-    local_test_archive = (
-        source_ref == "local-test"
-        and (
-            os.environ.get("JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
-            or os.environ.get("JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true"
-        )
-    )
+    local_test_archive = source_ref == "local-test" and allow_local_test
     if manifest.get("format_version") != 1 or (
         source_ref != PRODUCTION_PROJECT_REF and not local_test_archive
     ):
@@ -304,7 +298,8 @@ def verify_backup(archive_path: Path) -> dict:
             "age", "--decrypt", "--identity", str(identity_path),
             "--output", str(decrypted), str(archive_path),
         ])
-        return _safe_extract(decrypted, extracted)
+        allow_local_test = os.environ.get("JARVIS_BACKUP_ALLOW_LOCAL_TEST_DB", "").strip().lower() == "true" and _is_loopback_db_url(os.environ.get("SUPABASE_DB_URL", ""))
+        return _safe_extract(decrypted, extracted, allow_local_test=allow_local_test)
 
 
 def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False) -> None:
@@ -343,7 +338,7 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         work = Path(tmp)
         decrypted = work / "backup.tar.gz"
         run_checked(["age", "--decrypt", "--identity", identity, "--output", str(decrypted), str(archive_path)])
-        manifest = _safe_extract(decrypted, work)
+        manifest = _safe_extract(decrypted, work, allow_local_test=local_test)
         if manifest["source_project_ref"] == target_ref and not local_test:
             raise BackupError("A forrás és cél projekt nem lehet azonos.")
         # Refuse any non-empty public schema: restore is only allowed into a fresh,
