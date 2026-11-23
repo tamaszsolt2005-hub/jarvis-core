@@ -4,6 +4,26 @@ from types import SimpleNamespace
 import jarvis_common
 
 
+class FakeModels:
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)
+        self.model_calls = []
+        self.configs = []
+
+    def generate_content(self, *, model, contents, config=None):
+        self.model_calls.append(model)
+        self.configs.append(config)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return SimpleNamespace(text=outcome)
+
+
+class FakeClient:
+    def __init__(self, outcomes):
+        self.models = FakeModels(outcomes)
+
+
 class _Query:
     def __init__(self, db, table):
         self.db = db
