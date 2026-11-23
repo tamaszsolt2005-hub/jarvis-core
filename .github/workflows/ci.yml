@@ -138,7 +138,7 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql
           output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/audit_access_and_integrity.test.sql)"
-          printf '%s\\n' "$output"
+          printf '%s\n' "$output"
           if grep -q '^not ok ' <<< "$output"; then
             echo "pgTAP reported failed audit assertions."
             exit 1
