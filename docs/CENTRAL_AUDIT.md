@@ -9,7 +9,7 @@ strukturált auditbejegyzések ugyanabba a táblába kerülnek.
 
 A strukturált rekord fontos mezői: `id`, `operation_id`, `created_at`,
 `module`, `action`, `status`, `result`, `error`, `approved`,
-`recipient`, `subject`, `delivery_id`, `level`.
+`recipient`, `subject`, `delivery_id`, `actor_user_id`, `previous_hash`, `entry_hash`, `level`.
 
 ## Lefedett műveleti életciklusok
 
@@ -62,17 +62,19 @@ legújabbtól legrégebbiig rendezve. Szűrhető modul, művelet, státusz és
 azonos időbélyegű események kihagyása nélkül. A kurzor időbélyegét és UUID-ját
 a lekérdezés előtt validálja.
 
-Kész, szerepkör szerint védett adminisztrációs audit UI jelenleg nincs. A
-dashboard még közös jelszót használ, ezért auditadatot megjelenítő új UI-t
-nem szabad minden közös jelszóval rendelkező felhasználó számára megnyitni;
-az admin-only felület az Auth/RBAC migrációval együtt vezethető be.
+A külön audit-admin oldal már elkészült. A közös dashboard-jelszó önmagában
+nem ad hozzáférést: külön Supabase Auth belépés, szerveroldali `get_user()`
+ellenőrzés és a megbízható `app_metadata.role = admin` claim szükséges.
+A nézet felhasználói JWT-vel olvas, modul/státusz/operation ID szerint szűr,
+kurzorosan lapoz, CSV-t exportál pending/success audit-életciklussal, és
+kézzel indítható hash-lánc integritás-ellenőrzést biztosít.
 
 ## Adatbázis-kompatibilitás és telepítés
 
-A repository `supabase/schema.sql` fájlja a meglévő `logs` táblához
-`ADD COLUMN IF NOT EXISTS` utasításokkal adja hozzá a strukturált mezőket,
-és indexeket hoz létre. Ez additív: nem törli és nem írja át a korábbi
-naplóbejegyzéseket. Ehhez a bővítéshez új tábla vagy új oszlop nem szükséges.
+A repository `supabase/schema.sql` fájlja és a két egymásra épülő migráció
+additív módon bővíti a meglévő `logs` táblát. A második migráció egyetlen
+privát `audit_chain_state` fejállapot-táblát használ a hash-lánc sorosításához;
+ez nem párhuzamos eseménynapló. A régi naplóbejegyzések nem kerülnek átírásra.
 
 A forráskód és a sémafájl ellenőrzése nem bizonyítja, hogy a változás már
 alkalmazva van az éles Supabase-projekten. A telepítés előtt ellenőrizni kell,
@@ -81,12 +83,13 @@ adatbázis módosítása külön jóváhagyást igényel.
 
 ## Ismert korlátok
 
-- A `logs` táblán az RLS be van kapcsolva, de a repository sémája nem ad
-  végleges, szerepkörspecifikus policy-kat. A service-role kulcs megkerüli az RLS-t.
-- Admin-only audit UI még nincs; bevezetése az Auth/RBAC migrációtól függ.
-- Nincs igazolt immutable/WORM tárolás, aláírt auditlánc vagy megőrzési/retenciós
-  szabály. Ezekhez külön, jóváhagyott tárolási és megőrzési követelmény, valamint
-  külső infrastruktúra szükséges.
+- A `logs` olvasása admin-only RLS policy-val védett, de a service-role kulcs
+  továbbra is megkerüli az RLS-t, és szerveroldali üzleti műveletek használják.
+- A hash-lánc append-only triggert és SHA-256 ellenőrzést biztosít az új
+  rekordokra, de nem WORM és nem véd a DB-tulajdonos vagy más privilegizált
+  operátor ellen. A régi rekordok nem részei a láncnak.
+- Nincs jóváhagyott megőrzési idő, jogi hold vagy külső immutable/WORM archívum.
+  Ezekhez külön üzleti döntés és tárolási infrastruktúra szükséges.
 - A batch audit nem helyettesíti a soronkénti üzleti rekordtörténetet.
 
 
