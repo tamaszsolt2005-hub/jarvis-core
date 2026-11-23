@@ -413,7 +413,7 @@ def main() -> int:
     except Exception as exc:
         report_error(
             exc, module="supabase_backup",
-            operation="create_backup" if args.command == "backup" else "restore_backup",
+            operation={"backup": "create_backup", "verify": "verify_backup", "restore": "restore_backup"}[args.command],
             severity="critical",
         )
         parser.exit(2, "HIBA: váratlan hiba történt; a részleteket a helyi hibajelentés rögzítette.\n")
