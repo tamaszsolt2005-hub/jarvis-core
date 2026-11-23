@@ -17,12 +17,17 @@ class _Query:
         self.filters = []
         self.operation = "select"
         self.values = None
+        self.negated = False
 
     @property
     def not_(self):
+        self.negated = True
         return self
 
     def is_(self, key, value):
+        if self.negated and value == "null":
+            self.negated = False
+            return self
         self.filters.append((key, None if value == "null" else value))
         return self
 
