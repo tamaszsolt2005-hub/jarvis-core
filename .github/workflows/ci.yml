@@ -148,7 +148,7 @@ jobs:
             echo "pgTAP reported failed audit assertions."
             exit 1
           fi
-          grep -q '1..15' <<< "$output"
+          grep -q '1..17' <<< "$output"
       - name: Run real encrypted backup and restore roundtrip
         run: python -m pytest -q tests/test_backup_restore_integration.py
       - name: Remove test age identity
