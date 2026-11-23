@@ -15,6 +15,17 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install -r requirements-test.txt
+      - run: python -m playwright install --with-deps chromium
       - run: python -m compileall -q .
-      - run: python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml
+      - name: Run unit, AppTest and browser tests
+        env:
+          JARVIS_BROWSER_ARTIFACT_DIR: test-results
+        run: python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml
+      - name: Upload responsive UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-dashboard-responsive-screenshots
+          path: test-results/*.png
+          if-no-files-found: ignore
