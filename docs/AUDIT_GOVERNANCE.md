@@ -25,8 +25,8 @@ database verification.
   privileges from `anon` and `authenticated`.
 - Database triggers reject UPDATE, DELETE, and TRUNCATE on audit rows.
 - New audit rows receive a SHA-256 hash linked to the previous hashed row.
-  An advisory transaction lock serializes inserts to prevent concurrent
-  chain forks.
+  A private singleton chain-head row is locked during each insert, serializing
+  writers even when multiple events share one transaction timestamp.
 - Existing legacy rows are not rewritten. Their `previous_hash` and
   `entry_hash` remain null; the chain begins with the first insert after the
   migration is applied.
