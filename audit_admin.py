@@ -165,6 +165,15 @@ def fetch_audit_page(
     )
 
 
+def verify_audit_integrity(client: Client) -> dict[str, Any]:
+    """Run the SECURITY INVOKER SQL verifier under the current admin JWT."""
+    response = client.rpc("verify_logs_audit_chain").execute()
+    rows = response.data or []
+    if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        raise RuntimeError("Az adatbázis nem adott vissza audit-integritási eredményt.")
+    return rows[0]
+
+
 def audit_rows_to_csv(rows: list[dict[str, Any]]) -> bytes:
     """Serialize only the selected audit rows; no secrets or request bodies are added."""
     output = io.StringIO(newline="")
