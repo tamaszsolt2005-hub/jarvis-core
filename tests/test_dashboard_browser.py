@@ -208,6 +208,7 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                                 mainClient: main ? main.clientWidth : 0,
                                 mainScroll: main ? main.scrollWidth : 0,
                                 chartWidths: charts.map(chart => Math.round(chart.getBoundingClientRect().width)),
+                                kpiWidths: [...document.querySelectorAll('.jarvis-kpi')].map(card => Math.round(card.getBoundingClientRect().width)),
                                 chartCount: charts.length
                             };
                         }"""
@@ -216,6 +217,7 @@ def test_chromium_responsive_dashboard_and_analytics_interactions(tmp_path, monk
                     assert dimensions["chartCount"] == 4, (label, dimensions)
                     assert dimensions["mainScroll"] <= dimensions["mainClient"] + 2, (label, dimensions)
                     assert all(0 < chart_width <= dimensions["mainClient"] + 2 for chart_width in dimensions["chartWidths"]), (label, dimensions)
+                    assert len(dimensions["kpiWidths"]) == 5 and min(dimensions["kpiWidths"]) >= 180, (label, dimensions)
 
                 page.get_by_role("button", name="Chat").click()
                 page.get_by_text("BROWSER_CHAT_RESPONSE").wait_for(timeout=15000)
