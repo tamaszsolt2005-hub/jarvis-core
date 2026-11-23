@@ -22,6 +22,12 @@ def test_backup_bucket_enforces_private_versioned_kms_storage():
     assert "RestrictPublicBuckets: true" in template
     assert "Status: Enabled" in template
     assert "SSEAlgorithm: aws:kms" in template
+    assert "DenyInsecureTransport" in template
+    assert "aws:SecureTransport: false" in template
+    assert "DenyNonKmsBackupUploads" in template
+    assert "s3:x-amz-server-side-encryption: aws:kms" in template
+    assert "DenyBackupUploadsWithWrongKmsKey" in template
+    assert "s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt BackupKmsKey.Arn" in template
     assert "ExpirationInDays: 30" in template
     assert "NoncurrentDays: 30" in template
 
