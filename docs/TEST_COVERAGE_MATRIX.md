@@ -23,16 +23,16 @@ below lists the remaining files reported by coverage.
 | `business_learning.py` | 96% | Evidence-based learning and memory inputs |
 | `daily_briefing.py` | 98% | Read-only report, consent-gated overdue follow-ups |
 | `dashboard.py` | 93% | Streamlit AppTest covers login/chat/email, analytics navigation and period selection, empty/populated analytics, DB outage, task create/close/update approval, task rejection, diagnostics, market/research approval and executive report. Chromium/Firefox/WebKit E2E covers responsive chat and analytics at five viewports |
-| `email_inbox.py` | 91% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
+| `email_inbox.py` | 99% | Mocked IMAP reply, opt-out, and UID checkpoint processing |
 | `email_sender.py` | 94% | Consent recheck, atomic state claims, pending audit, SMTP failure and follow-up limit paths |
 | `follow_up.py` | 95% | Consent recheck, opt-out race, uncertain delivery, audit failure and recovery paths |
 | `global_lead_research.py` | 93% | Grounding validation, malformed model output, deduplication, evidence quality and no-contact-permission invariants |
 | `global_lead_research_job.py` | 94% | Scheduled-job orchestration and error reporting |
 | `health_check.py` | 96% | Configuration, table/column probes, Gemini and safety-lock failures |
-| `inbox_monitor.py` | 88% | Inbox monitoring and error paths |
+| `inbox_monitor.py` | 93% | Inbox monitoring and error paths |
 | `intelligent_lead_scoring.py` | 97% | Lead scoring |
 | `jarvis_analytics.py` | 96% | Empty/populated analytics rendering and database failure |
-| `jarvis_common.py` | 92% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
+| `jarvis_common.py` | 94% | Shared configuration, DB, audit sanitization, truncation and persistence failures |
 | `jarvis_errors.py` | 96% | Centralized error reporting and sanitization |
 | `jarvis_memory.py` | 97% | Explicit save/list/forget, bounded retrieval and sensitive-data rejection |
 | `jarvis_status.py` | 95% | Status helpers |
@@ -114,7 +114,8 @@ The expanded test suite adds explicit negative and recovery-path checks for:
 - tests/test_jarvis_common_edge_coverage.py: audit result redaction/truncation, persistence failures, audit filtering, settings helpers, Supabase/Gemini client selection, and model fallback errors.
 - tests/test_email_workflow.py and tests/test_inbox_analyzer.py: chat-email malformed/empty draft handling and inbound classifier provider failure/empty response.
 - tests/test_business_learning.py: malformed research evidence, score clamping, and conservative decision matching.
-- tests/test_lead_scoring.py, tests/test_proactive_monitor.py and tests/test_reply_analyzer.py: malformed URLs, date parsing, snapshot error propagation, and model-classification fallbacks.
+- tests/test_lead_scoring.py and tests/test_proactive_monitor.py: malformed URLs, date parsing, and snapshot error propagation.
+- tests/test_reply_analyzer.py and tests/test_inbox_monitor.py: model-classification fallbacks, encoded headers, empty bodies, duplicate markers, and worker error propagation.
 
 A defect found during this review was fixed in jarvis_errors.sanitize_log_text: CR/LF and other ASCII control characters are now replaced before log or audit persistence, preventing log-record injection. The regression is exercised through the shared logging helper tests.
 
