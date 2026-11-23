@@ -753,6 +753,8 @@ if analytics_clicked:
     st.rerun()
 
 if st.session_state.get("jarvis_page") == "analytics":
+    # st.chat_input is anchored in Streamlit's global bottom container; hide it on this page.
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     try:
         analytics_db = st.session_state.get("_jarvis_db")
         if analytics_db is None:
