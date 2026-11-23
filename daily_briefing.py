@@ -10,7 +10,7 @@ from intelligent_lead_scoring import rank_researched_leads
 from jarvis_errors import report_error
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
-_EMAIL_RE = re.compile(r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def _local_date(value: Any) -> date | None:
