@@ -385,11 +385,22 @@ def test_task_database_outage_is_reported_critical_and_re_raised(monkeypatch, fa
     assert details["severity"] == "critical"
 
 
-def test_task_success_audit_failure_is_reported_without_hiding_completed_action(monkeypatch):
+@pytest.mark.parametrize(
+    ("action", "expected_message"),
+    [
+        ({"type": "create", "title": "Auditteszt", "priority": "normal"}, "A feladat létrejött"),
+        ({"type": "close", "id": TASK_ID}, "A feladat lezárult"),
+        ({"type": "update", "id": TASK_ID, "updates": {"title": "Új cím"}}, "A feladat módosult"),
+    ],
+)
+def test_task_success_audit_failure_is_reported_without_hiding_completed_action(
+    monkeypatch, action, expected_message
+):
     import task_actions
 
     statuses = []
     reports = []
+
     def audit(_db, **kwargs):
         statuses.append(kwargs["status"])
         return kwargs["status"] == "pending"
@@ -401,15 +412,18 @@ def test_task_success_audit_failure_is_reported_without_hiding_completed_action(
     )
 
     db = FakeDB()
-    result = execute_task_action(
-        db,
-        {"type": "create", "title": "Auditteszt", "priority": "normal"},
-        approved=True,
-    )
+    result = execute_task_action(db, action, approved=True)
 
-    assert "Feladat létrehozva" in result
-    assert db.created["title"] == "Auditteszt"
+    assert expected_message in result
+    assert "auditbejegyzés mentése nem sikerült" in result
+    if action["type"] == "create":
+        assert db.created["title"] == "Auditteszt"
+    else:
+        assert db.updated is not None
     assert statuses == ["pending", "success"]
-    # The current implementation records the audit result but does not check
-    # whether the final success audit write itself was persisted.
-    assert reports == []
+    assert len(reports) == 1
+    error, details = reports[0]
+    assert isinstance(error, RuntimeError)
+    assert details["module"] == "task_actions"
+    assert details["operation"] == f"audit_success:task_{action['type']}"
+    assert details["severity"] == "critical"
