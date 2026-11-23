@@ -115,7 +115,6 @@ Resources:
                 Action:
                   - kms:GenerateDataKey
                   - kms:Encrypt
-                  - kms:Decrypt
                   - kms:DescribeKey
                 Resource: !GetAtt BackupKmsKey.Arn
 
