@@ -181,6 +181,7 @@ Before applying the existing audit migrations in production:
 - Review the admin read policy against the real trusted JWT
   `app_metadata.role` provisioning process. Do not use user-editable
   `user_metadata` for authorization.
+- The separate Auth/RBAC foundation in [PR #13](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13) is still open and is not production activation: its own scope says the dashboard login has not switched, business modules still use the service-role client, and no production RLS policies or migrations have been applied. Reconcile/review that branch against current `main`, complete the trusted admin-role provisioning path, and test real JWT/RLS behavior before enabling the audit admin policy.
 - Confirm that the application uses server-side `service_role` writes and
   never exposes that key to a client.
 - Verify that append-only triggers will not break any legitimate maintenance
