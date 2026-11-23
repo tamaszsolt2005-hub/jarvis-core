@@ -452,6 +452,7 @@ def test_streamlit_market_change_and_global_research_run_only_after_approval(mon
 
 def test_streamlit_explicit_memory_save_command_isolated_and_categorized(monkeypatch):
     memory_calls = []
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     monkeypatch.setattr(
         jarvis_memory, "memory_command",
         lambda _prompt: ("save:decision", "A német piac legyen a második célpiac"),
@@ -462,7 +463,6 @@ def test_streamlit_explicit_memory_save_command_isolated_and_categorized(monkeyp
             memory_calls.append((db, content, category)) or True
         ),
     )
-    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     prompts = []
     monkeypatch.setattr(
         jarvis_common, "generate_text",
@@ -490,11 +490,10 @@ def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypa
         jarvis_common, "generate_text",
         lambda prompt, **_kwargs: (prompts.append(prompt) or "APPT_CHAT_RESPONSE"),
     )
+    monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("list", ""))
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
-
-    monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("list", ""))
     monkeypatch.setattr(
         jarvis_memory, "get_memories",
         lambda *_args, **_kwargs: [
@@ -521,6 +520,7 @@ def test_streamlit_memory_list_and_forget_commands_render_confirmations(monkeypa
 
 def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypatch):
     memory_calls = []
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     monkeypatch.setattr(
         jarvis_memory, "memory_command",
         lambda _prompt: ("save", "token=private"),
@@ -529,7 +529,6 @@ def test_streamlit_memory_save_rejection_is_reported_without_persisting(monkeypa
         jarvis_memory, "save_memory",
         lambda *_args, **_kwargs: (memory_calls.append("attempted") or False),
     )
-    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     prompts = []
     monkeypatch.setattr(
         jarvis_common, "generate_text",
