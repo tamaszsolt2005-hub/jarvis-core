@@ -75,7 +75,7 @@ Az infrastruktúra CloudFormation sablonja: [`infra/aws-backup-stack.yaml`](../i
 - stack törlése vagy erőforrás-csere esetén megtartott S3 bucket és KMS kulcs (`DeletionPolicy: Retain`, `UpdateReplacePolicy: Retain`);
 - saját, automatikus kulcsrotációval ellátott KMS kulcs és alias;
 - GitHub OIDC provider (vagy megadható már létező provider ARN);
-- IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, a backup prefixre enged feltöltést és az S3 feltöltés utáni objektum-ellenőrzéshez HEAD olvasást; KMS decrypt jogosultságot nem kap.
+- IAM role, amely csak a megadott repository `main` ágának GitHub Actions tokenjét fogadja el, a backup prefixre enged feltöltést és az S3 feltöltés utáni objektum-ellenőrzéshez HEAD olvasást; a KMS `Decrypt` és `GenerateDataKey` műveleteket kizárólag az S3 szolgáltatáson keresztül, ehhez a buckethez tartozó encryption context mellett engedélyezi, mert az SSE-KMS multipart feltöltéshez mindkettő szükséges. Az S3-szintű visszafejtés csak az age-gel már titkosított fájl tartalmához ad hozzáférést, nem a mentés eredeti adatbázis-tartalmához.
 
 AWS Console → CloudFormation → Create stack → With new resources (standard) → töltsd fel a sablont. A `GitHubOidcSubject` alapértéke a repository ellenőrzött, immutable OIDC subjectje a `main` ágra (`repo:tamaszsolt2005-hub@346335800/jarvis-core@1456951119:ref:refs/heads/main`). Más repository vagy branch esetén ezt a teljes subjectet kell a GitHub által kiadott OIDC claimhez igazítva felülírni. Ha az AWS-fiókban már van `token.actions.githubusercontent.com` OIDC provider, annak ARN-jét add meg az `ExistingGitHubOidcProviderArn` paraméterben; különben hagyd üresen, és a stack létrehozza.
 
