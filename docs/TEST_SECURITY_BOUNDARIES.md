@@ -44,4 +44,4 @@ A CI a `pytest-cov` csomaggal minden push és pull request során lefedettségi 
 python -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=xml
 ```
 
-A repository jelenlegi minimum küszöbe 75%. A küszöb alatti futás hibás CI-eredményt ad. A százalék a Python statement-lefedettséget méri; önmagában nem bizonyítja az összes üzleti útvonal, integráció, jogosultsági szabály vagy éles szolgáltatás helyességét. A nagy Streamlit UI-felület és az összetett adatbázis-/külső szolgáltatási folyamatok további célzott tesztelést igényelnek.
+A repository jelenlegi minimum küszöbe 80%. A küszöb alatti futás hibás CI-eredményt ad. A százalék a Python statement-lefedettséget méri; önmagában nem bizonyítja az összes üzleti útvonal, integráció, jogosultsági szabály vagy éles szolgáltatás helyességét. A nagy Streamlit UI-felület és az összetett adatbázis-/külső szolgáltatási folyamatok további célzott tesztelést igényelnek.
