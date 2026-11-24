@@ -415,7 +415,7 @@ def render_audit_admin_page() -> None:
             if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
                 operation_id = str(uuid4())
                 try:
-                    audit_db = _get_dashboard_supabase()
+                    audit_db = get_legacy_dashboard_supabase()
                     recorded = audit_event(
                         audit_db,
                         module="audit_admin",
@@ -1195,7 +1195,7 @@ if prompt:
     try:
         db = st.session_state.get("_jarvis_db")
         if db is None:
-            db = get_legacy_dashboard_supabase()
+            db = _get_dashboard_supabase()
             st.session_state["_jarvis_db"] = db
 
         # Record event types only; never store the user's prompt or model response.
