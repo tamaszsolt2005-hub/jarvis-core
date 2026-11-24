@@ -216,3 +216,14 @@ engedélyező táblánkénti RLS/GRANT modell; a `logs` auditírási policy és
 biztonságos backend auditírási útvonal nincs véglegesítve; a dashboard Auth
 belépése és session-átadása nincs bekötve. Ezért ez a kód csak előkészített,
 feature-flag mögötti védelem, nem aktív production RBAC.
+
+
+## 2026-11-24 implementation update – dashboard Auth and shared-workspace RLS
+
+The following later implementation supersedes the earlier staged-status notes above:
+
+- The main Streamlit dashboard now has an opt-in individual Supabase Auth login controlled by `JARVIS_SUPABASE_AUTH_LOGIN_ENABLED` (default OFF). In this mode it refreshes/verifies the Auth session on each rerun and obtains its business-data client using the user's verified JWT. It never falls back to service-role credentials in Auth mode.
+- Enabling this login flag also activates the shared server-side permission guard. The chat passes the session into task, lead-research, memory and SMTP operations. Analytics is admin-only because it reads the protected audit log.
+- A new versioned migration, `20261124130000_shared_workspace_role_access.sql`, defines per-table GRANT/RLS policies for the current single shared workspace. Operators can read only `settings.key = 'lead_research_market'`; only admins can change settings. Readers cannot write. Audit SELECT is admin-only; admin/operator append is actor-bound to `auth.uid()` and the chain trigger remains append-only.
+- CI now runs a dedicated PostgreSQL 17/pgTAP suite for these policies. A green local PostgreSQL test does not prove real Supabase Auth/JWT behavior.
+- The migration is NOT applied to production. The missing five historical migration sources and repo/remote history mismatch documented in `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md` remain a hard deployment blocker. The Auth flag must remain OFF until an admin Auth account exists and migration reconciliation is completed.
