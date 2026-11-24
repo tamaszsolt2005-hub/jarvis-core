@@ -22,8 +22,8 @@ A CI zöld állapota önmagában nem jelent production-ready Auth/RBAC-ot.
 
 ### P0 – migrációs előzmények és schema reconciliation
 
-- [ ] Az öt remote migration ledgerben szereplő, Gitből hiányzó történeti SQL eredeti példányának visszakeresése.
-- [ ] Ha nem állítható helyre: teljes, aktuális schema-only snapshot és külön forward-only reconciliation terv; a történeti verziókat nem szabad kitalált SQL-lel pótolni.
+- [x] Az öt remote migration ledgerben szereplő történeti SQL visszanyerése a `supabase_migrations.schema_migrations.statements` mezőből és az eredeti verzióazonosítójú fájlok visszaállítása. Lásd `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md`.
+- [ ] A teljes, aktuális schema-only snapshot és külön forward-only reconciliation terv véglegesítése; a visszanyert történeti SQL nem helyettesíti a schema/ledger drift rendezését.
 - [ ] A két `20261117` repo migráció ledgereltérésének bizonyítékalapú rendezése.
 - [ ] A live `settings`, `posts`, `logs` legacy struktúrájának megőrzése és az audit/RBAC migrációk előfeltételeinek ellenőrzése.
 - [ ] Tiszta bootstrap és production-shape PostgreSQL 17 teszt, negatív precondition tesztekkel.
@@ -156,3 +156,19 @@ Hiányzó vagy nem admin session esetén minden DB/Gemini próba előtt leáll.
 A legacy shared-password mód korábbi read-only működése megmaradt.
 A változást tesztek fedik le; a végleges CI-eredmény a legfrissebb branch
 headre még szükséges.
+
+
+## Történeti migrációk forrásának visszanyerése – elvégzett
+
+A remote Supabase migration ledger `statements` oszlopa tárolta az öt hiányzó
+migráció pontos SQL-utasításait. Ezeket read-only módon visszanyertük, és
+mind az öt fájlt visszaállítottuk a `supabase/migrations/` könyvtárba.
+Új teszt ellenőrzi a fájlok jelenlétét és a ledgerből visszanyert fő SQL
+utasításokat. A CI integrációs workflow mostantól a repo-only 20261117
+migrációkkal együtt, sorrendben futtatja a teljes történeti → audit → RBAC
+láncot PostgreSQL 17-en.
+
+Ez a feladat teljesült, de a production migrációs drift csak a repo-only
+20261117 verziók, a live schema snapshot és a későbbi audit/RBAC változások
+pontos összevetése után tekinthető lezártnak. Production továbbra is
+változatlan; a titkosított backup kapu továbbra is kötelező.
