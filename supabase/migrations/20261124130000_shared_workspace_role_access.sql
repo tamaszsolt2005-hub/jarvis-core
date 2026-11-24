@@ -121,7 +121,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public, extensions
-AS $
+AS $rbac$
 DECLARE
   prior_hash text;
   canonical_row text;
@@ -153,7 +153,7 @@ BEGIN
    WHERE singleton = true;
   RETURN NEW;
 END;
-$;
+$rbac$;
 
 REVOKE ALL ON FUNCTION public.set_logs_audit_hash_chain() FROM PUBLIC, anon, authenticated;
 
