@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(26);
+SELECT plan(27);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
