@@ -130,26 +130,97 @@ jobs:
           GRANT USAGE ON SCHEMA auth, extensions TO authenticated, service_role;
           GRANT EXECUTE ON FUNCTION auth.jwt() TO authenticated, service_role;
           GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated, service_role;
+          -- Mirror the live Jarvis production table definitions captured by
+          -- the read-only catalog snapshot (PostgreSQL 17). Existing RLS is
+          -- already enabled in production before these additive migrations.
+          CREATE TABLE public.leads (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            company_name text NOT NULL,
+            email text,
+            status text DEFAULT 'new',
+            created_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
+            consent_basis text,
+            approved_to_contact boolean NOT NULL DEFAULT false,
+            consent_confirmed_at timestamptz,
+            opted_out boolean NOT NULL DEFAULT false,
+            first_sent_at timestamptz,
+            next_follow_up_at timestamptz,
+            follow_up_count integer NOT NULL DEFAULT 0,
+            followed_up_at timestamptz,
+            last_message_id text,
+            last_inbound_message_id text,
+            reply_category text,
+            updated_at timestamptz NOT NULL DEFAULT now(),
+            website text,
+            notes text,
+            source text
+          );
+          CREATE TABLE public.tasks (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            lead_id uuid REFERENCES public.leads(id) ON DELETE SET NULL,
+            title text NOT NULL,
+            notes text,
+            priority text NOT NULL DEFAULT 'normal'
+              CHECK (priority = ANY (ARRAY['normal','high','urgent']::text[])),
+            status text NOT NULL DEFAULT 'open'
+              CHECK (status = ANY (ARRAY['open','done','cancelled']::text[])),
+            due_at timestamptz,
+            completed_at timestamptz,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE TABLE public.email_drafts (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            lead_id uuid REFERENCES public.leads(id) ON DELETE SET NULL,
+            recipient text NOT NULL,
+            subject text NOT NULL,
+            body text NOT NULL,
+            status text NOT NULL DEFAULT 'draft'
+              CHECK (status = ANY (ARRAY['draft','approved','archived']::text[])),
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE TABLE public.settings (
+            id serial PRIMARY KEY,
+            key text NOT NULL UNIQUE,
+            value jsonb,
+            updated_at timestamp without time zone DEFAULT now()
+          );
           CREATE TABLE public.logs (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             module text NOT NULL,
             message text NOT NULL,
-            created_at timestamptz NOT NULL DEFAULT now(),
+            created_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
             level text NOT NULL DEFAULT 'info'
           );
-          CREATE TABLE public.leads (
+          CREATE TABLE public.jarvis_memory (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-            company_name text NOT NULL
+            category text NOT NULL DEFAULT 'business_preference',
+            content text NOT NULL CHECK (char_length(content) BETWEEN 1 AND 700),
+            source text NOT NULL DEFAULT 'explicit_user_instruction',
+            active boolean NOT NULL DEFAULT true,
+            created_at timestamptz NOT NULL DEFAULT now()
           );
-          CREATE TABLE public.tasks (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
-          CREATE TABLE public.email_drafts (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
-          CREATE TABLE public.settings (
-            id serial PRIMARY KEY, key text NOT NULL UNIQUE,
-            value jsonb, updated_at timestamp without time zone DEFAULT now()
+          CREATE TABLE public.jarvis_proactive_state (
+            key text PRIMARY KEY,
+            snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+            updated_at timestamptz NOT NULL DEFAULT now()
           );
-          CREATE TABLE public.jarvis_memory (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
-          CREATE TABLE public.jarvis_proactive_state (key text PRIMARY KEY, snapshot jsonb DEFAULT '{}'::jsonb);
-          CREATE TABLE public.posts (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+          CREATE TABLE public.posts (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            content text NOT NULL,
+            scheduled_for timestamptz,
+            status text DEFAULT 'pending',
+            created_at timestamptz NOT NULL DEFAULT timezone('utc', now())
+          );
+          ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.email_drafts ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.jarvis_memory ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.jarvis_proactive_state ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
           -- Simulate a legacy production row written before structured audit
           -- columns and hash-chain triggers were introduced.
           INSERT INTO public.logs (id, module, message, level)
