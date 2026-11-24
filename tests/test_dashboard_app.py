@@ -66,7 +66,10 @@ def _prepare_dashboard(monkeypatch):
     monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "APPT_CHAT_RESPONSE")
     monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(jarvis_common, "audit_event", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: email_switch["enabled"])
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: email_switch["enabled"] if name == "CHAT_EMAIL_ENABLED" else default,
+    )
     monkeypatch.setattr(global_lead_research, "get_research_market", lambda _db: "Hungary")
     monkeypatch.setattr(jarvis_memory, "memory_command", lambda _prompt: ("", None))
     monkeypatch.setattr(jarvis_memory, "get_memories", lambda *_args, **_kwargs: [])
