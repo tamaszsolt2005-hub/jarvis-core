@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(22);
+SELECT plan(25);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -29,12 +29,14 @@ SELECT is((SELECT count(*) FROM public.jarvis_proactive_state),0::bigint,'reader
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
 SELECT is((WITH inserted AS (INSERT INTO public.leads (company_name) VALUES ('operator allowed') RETURNING 1) SELECT count(*) FROM inserted),1::bigint,'operator can insert leads');
+SELECT is((WITH inserted AS (INSERT INTO public.logs (module,message,level,action,status) VALUES ('rbac_test','operator event','info','test','success') RETURNING 1) SELECT count(*) FROM inserted),1::bigint,'operator can append an audit event');
+SELECT is((SELECT actor_user_id::text FROM public.logs WHERE module='rbac_test' LIMIT 1),'10000000-0000-0000-0000-000000000002','audit trigger binds actor to authenticated JWT');
 SELECT is((SELECT count(*) FROM public.settings),0::bigint,'operator cannot read settings');
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}',true);
 SELECT is((SELECT count(*) FROM public.settings),0::bigint,'admin can query settings table even when empty');
 SELECT is((WITH inserted AS (INSERT INTO public.settings (key,value) VALUES ('rbac_fixture','{}'::jsonb) RETURNING 1) SELECT count(*) FROM inserted),1::bigint,'admin can write settings');
-SELECT is((SELECT count(*) FROM public.logs),0::bigint,'admin can query audit table when empty');
+SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'admin can read the operator audit event');
 
 SELECT * FROM finish();
 ROLLBACK;
