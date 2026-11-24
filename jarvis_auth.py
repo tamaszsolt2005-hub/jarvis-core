@@ -27,12 +27,10 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
         "leads.read", "leads.write",
         "tasks.read", "tasks.write",
         "email_drafts.read", "email_drafts.write", "email.send",
-        "analytics.read",
         "memory.read", "memory.write",
     }),
     "reader": frozenset({
-        "leads.read", "tasks.read", "email_drafts.read",
-        "analytics.read", "memory.read",
+        "leads.read", "tasks.read", "email_drafts.read", "memory.read",
     }),
 }
 
