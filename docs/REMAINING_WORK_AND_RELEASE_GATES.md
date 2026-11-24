@@ -101,3 +101,17 @@ A privát age identity kizárólag GitHub Secretben tárolható; chatbe és Gitb
 mindegyiken RLS engedélyezve, policy nélkül; `auth.users` üres volt; az audit
 mezők és hash-chain objektumok hiányoztak. Ezeket az adatokat új, friss
 production read-only ellenőrzés nélkül nem szabad aktuálisabbnak feltüntetni.
+
+
+## CI státusz pontosítás (2026-11-24)
+
+A `45462249173` futás végül nem lett teljesen zöld: a PostgreSQL 17
+integrációs job sikeres, a Python `test` jobot a kombinált
+unit/AppTest/browser tesztlépés közben megszakították (cancelled), amikor
+újabb commitok kerültek a PR ágra. A feltöltött, de megszakított futáshoz
+tartozó coverage XML 3,500/3,732 sort (93.78%) mutat, ebből
+`dashboard.py` 82.27%. Ez csak részleges/provizórikus mérés, nem tekinthető
+sikeres CI-nek és nem helyettesíti a teljes pytest futás coverage riportját.
+
+**Aktuális következő technikai lépés:** teljes CI-futtatás a legfrissebb PR
+headen, végleges pytest/AppTest/browser eredménnyel és coverage artifacttal.
