@@ -519,7 +519,8 @@ def authenticated() -> bool:
         session = st.session_state.get("_jarvis_auth_session")
         if isinstance(session, dict):
             try:
-                _get_dashboard_supabase()
+                dashboard_db = _get_dashboard_supabase()
+                st.session_state["_jarvis_db"] = dashboard_db
                 st.session_state["authenticated"] = True
                 return True
             except Exception:
