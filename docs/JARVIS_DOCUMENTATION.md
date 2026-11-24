@@ -372,3 +372,23 @@ A production `posts` tábla legacy/árva objektumnak tűnik, de a repo-hivatkoz�
 ---
 
 **Állapot:** a dokumentum a 2026-11-23-i repository- és csak olvasási production-audit bizonyítékokra épül. Nem jelent production migrációs, backup-, Auth/RBAC- vagy külső integrációs jóváhagyást.
+
+
+## Dokumentációs kiegészítés – 2026-11-24
+
+A PR #13 dashboard Auth helper tesztjeinek új állapota, valamint a CI
+bizonyítékok és korlátok a
+[`PR13_CI_VALIDATION_2026-11-24.md`](PR13_CI_VALIDATION_2026-11-24.md)
+fájlban szerepelnek. A teljes, prioritásos hiánylista és production release
+gate a [`REMAINING_WORK_AND_RELEASE_GATES.md`](REMAINING_WORK_AND_RELEASE_GATES.md)
+dokumentumban található.
+
+A legutóbbi CI run `45462249173` PostgreSQL 17 integrációs jobja sikeres;
+a Python/AppTest/browser tesztlépés a dokumentáció frissítésekor még futott,
+ezért az új Auth helper tesztek végleges tesztszáma és coverage értéke nincs
+igazolva. A korábbi `45460581824` 93.57%-os coverage értéke nem vetíthető
+automatikusan az új kódra.
+
+A jelenlegi tesztdupla a dashboard Auth helper útvonalát vizsgálja; nem
+helyettesíti a valós Supabase Auth/JWT/RLS integrációt. A CI-ben futó
+PostgreSQL/age backup-restore izolált lokális teszt, nem production mentés.
