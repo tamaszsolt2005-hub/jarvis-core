@@ -270,7 +270,7 @@ def test_csv_export_uses_utf8_bom_and_neutralizes_formula_cells():
         {"id": 3, "message": "-1"},
         {"id": 4, "message": "@SUM(A1:A2)"},
     ])
-    assert payload.startswith(b"\\xef\\xbb\\xbf")
+    assert payload[:3] == bytes((239, 187, 191))
     decoded = payload.decode("utf-8-sig")
     assert "' =HYPERLINK" in decoded
     assert "'+cmd" in decoded
