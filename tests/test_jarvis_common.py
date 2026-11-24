@@ -239,3 +239,55 @@ def test_user_factory_delegates_to_verified_jwt_client(monkeypatch):
     )
     assert client is sentinel_client
     assert current_session is refreshed
+
+
+
+def test_enforced_user_client_is_disabled_by_default(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: False)
+    assert jarvis_common.get_enforced_user_supabase(
+        None, "leads.write", allowed_roles={"admin", "operator"}
+    ) is None
+
+
+def test_enforced_user_client_denies_missing_session_before_client_creation(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing session must be rejected before client creation"),
+    )
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        jarvis_common.get_enforced_user_supabase(
+            None, "leads.write", allowed_roles={"admin", "operator"}
+        )
+
+
+def test_enforced_user_client_checks_permission_and_refreshes_session(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    client = object()
+    session = {"access_token": "old", "refresh_token": "old-refresh", "user_id": "u1"}
+    refreshed = {
+        "access_token": "new", "refresh_token": "new-refresh",
+        "user_id": "u1", "role": "operator",
+    }
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda supplied, *, allowed_roles: (client, refreshed),
+    )
+    result = jarvis_common.get_enforced_user_supabase(
+        session, "leads.write", allowed_roles={"admin", "operator"}
+    )
+    assert result == (client, refreshed)
+    assert session == refreshed
+
+
+def test_enforced_user_client_denies_role_without_permission(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: (object(), {"role": "reader"}),
+    )
+    with pytest.raises(PermissionError, match="leads.write"):
+        jarvis_common.get_enforced_user_supabase(
+            {"access_token": "a", "refresh_token": "r", "user_id": "u1"},
+            "leads.write", allowed_roles={"admin", "operator", "reader"},
+        )
