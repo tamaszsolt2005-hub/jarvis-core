@@ -1,6 +1,7 @@
 """Focused tests for the dashboard's opt-in Supabase Auth session helpers."""
 import ast
 import time
+from uuid import uuid4
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,7 @@ class FakeStreamlit:
 
 
 def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, legacy=None):
-    names = {"_auth_login_enabled", "_auth_session_kwargs", "_get_dashboard_supabase", "authenticated"}
+    names = {"_auth_login_enabled", "_auth_session_kwargs", "_approval_actor", "_stage_pending_action", "_consume_pending_action", "_get_dashboard_supabase", "authenticated"}
     selected = [
         node for node in TREE.body
         if isinstance(node, ast.FunctionDef) and node.name in names
@@ -58,6 +59,8 @@ def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, l
     namespace = {
         "Any": Any,
         "time": time,
+        "uuid4": uuid4,
+        "PENDING_APPROVAL_TTL_SECONDS": 5 * 60,
         "AUTH_SESSION_TTL_SECONDS": 8 * 60 * 60,
         "st": st,
         "env_bool": lambda name, default=False: enabled if name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED" else default,
@@ -160,3 +163,64 @@ def test_authenticated_clears_stale_session_and_pending_action_on_verification_e
     assert st.session_state["authenticated"] is False
     assert st.warnings
     assert calls["legacy"] == 0
+
+
+
+def test_pending_approval_is_one_time_and_bound_to_authenticated_user(monkeypatch):
+    session = {"access_token": "token", "user_id": "user-a"}
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": session},
+        enabled=True,
+    )
+    action = {"task_action": {"type": "create", "title": "Bound action"}}
+
+    namespace["_stage_pending_action"](action)
+    staged = st.session_state["_jarvis_pending_action"]
+    assert staged["_approval_actor"] == "auth:user-a"
+    assert staged["_approval_nonce"]
+    assert isinstance(staged["_approval_created_at"], (int, float))
+
+    consumed = namespace["_consume_pending_action"]()
+    assert consumed == action
+    assert "_jarvis_pending_action" not in st.session_state
+    assert namespace["_consume_pending_action"]() is None
+
+
+def test_pending_approval_expires_after_five_minutes(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({"market": "HU"})
+    st.session_state["_jarvis_pending_action"]["_approval_created_at"] = (
+        time.time() - namespace["PENDING_APPROVAL_TTL_SECONDS"] - 1
+    )
+
+    assert namespace["_consume_pending_action"]() is None
+    assert "_jarvis_pending_action" not in st.session_state
+
+
+def test_pending_approval_cannot_be_consumed_by_a_different_user(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({"chat_email": {"recipient": "a@example.com"}})
+    st.session_state["_jarvis_auth_session"] = {"user_id": "user-b"}
+
+    assert namespace["_consume_pending_action"]() is None
+    assert "_jarvis_pending_action" not in st.session_state
+
+
+def test_pending_approval_requires_valid_legacy_login_timestamp(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"authenticated": True},
+        enabled=False,
+    )
+    namespace["_stage_pending_action"]({"market": "HU"})
+    assert namespace["_consume_pending_action"]() is None
+    assert "_jarvis_pending_action" not in st.session_state
