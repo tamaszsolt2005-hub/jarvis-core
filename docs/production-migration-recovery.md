@@ -434,3 +434,38 @@ This validates the repository code and isolated CI fixtures for commit
 `8a2cfeda2d88802c1a792737af3ff3b3029b6b7a`. It does not constitute a production
 backup or production Auth/RLS verification. The documentation-only follow-up
 commit does not change the tested application or migration SQL.
+
+
+## PR #13 validation follow-up (2026-11-24 18:20 UTC)
+
+The documentation-only head `63a50c656ae0f27fe0210d80771f64551dc938ee`
+was validated by workflow run
+[45457848935](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45457848935).
+Both jobs completed successfully.
+
+- Python/AppTest/browser suite: **682 passed, 3 skipped**.
+- Total measured Python coverage: **92.44%** (required minimum 80%).
+- PostgreSQL 17 audit/RBAC integration and pgTAP checks: successful.
+- Encrypted age backup/restore round-trip: **1 passed**.
+- Compileall and CloudFormation lint: successful.
+- Dashboard responsive screenshots and coverage XML were uploaded as CI artifacts.
+
+The backup integration uses an isolated loopback PostgreSQL test database,
+a temporary age identity, and the `local-test` source marker. It is not a
+backup of the live Jarvis Supabase project and does not verify AWS/S3
+credentials or production restore readiness.
+
+The test report highlights remaining coverage gaps in `audit_admin.py`
+(71%), `jarvis_auth.py` (78%), and `dashboard.py` (81%), even though the
+repository-wide threshold is met. These should be targeted by follow-up
+negative-path tests before enabling production Auth.
+
+The CI logs also report GitHub Actions Node.js 20 deprecation warnings for
+`actions/checkout@v4`, `actions/setup-python@v5`, and
+`actions/upload-artifact@v4`; update to compatible maintained action
+versions in a separate CI maintenance change after validating runner
+compatibility.
+
+This run validates the repository commit and isolated fixtures only. It does
+not resolve the production migration-ledger mismatch, create production Auth
+users, apply live RLS policies, or establish a verified production backup.
