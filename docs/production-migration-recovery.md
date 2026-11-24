@@ -418,3 +418,19 @@ preservation, and hash-chain behavior. Keep dashboard Auth enforcement disabled
 until a real admin account with trusted `app_metadata.role` is provisioned and
 end-to-end JWT tests pass. The current `auth.users` count of zero means no
 production Auth login can yet succeed.
+
+
+### CI completion follow-up (2026-11-24)
+
+A follow-up check of workflow run
+[45457110039](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45457110039)
+confirmed that both jobs completed successfully:
+
+- `test`: Python unit, Streamlit AppTest, browser tests, compileall and CloudFormation lint.
+- `backup-restore-integration`: PostgreSQL 17 audit migrations, 17 audit pgTAP assertions,
+  31 shared-workspace RBAC pgTAP assertions, and encrypted age backup/restore round trip.
+
+This validates the repository code and isolated CI fixtures for commit
+`8a2cfeda2d88802c1a792737af3ff3b3029b6b7a`. It does not constitute a production
+backup or production Auth/RLS verification. The documentation-only follow-up
+commit does not change the tested application or migration SQL.
