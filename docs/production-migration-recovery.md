@@ -367,3 +367,54 @@ project-controlled owner and that `postgres` default ACLs are correct; it
 does not attempt to revoke or rewrite `supabase_admin` defaults.
 See [Supabase's explanation of the reserved-role limitation](https://supabase.com/kb/troubleshooting/cant-change-the-default-privileges-of-supabase_admin-in-the-public-schema-448af9)
 and [PostgreSQL 17 ALTER DEFAULT PRIVILEGES](https://www.postgresql.org/docs/17/sql-alterdefaultprivileges.html).
+
+
+## Full production revalidation (2026-11-24 19:14 CET)
+
+A further read-only inspection was performed against the existing production project
+after the PR head advanced to `8a2cfeda2d88802c1a792737af3ff3b3029b6b7a`.
+
+Confirmed:
+
+- Project remains `ACTIVE_HEALTHY`, PostgreSQL 17.11.
+- The eight production tables and their previously documented legacy shapes remain
+  present. Current counts: 11 leads, 28 logs, 1 settings row, 1 proactive-state
+  row; tasks, email drafts, memory and posts are empty. `auth.users` remains empty.
+- All eight tables have RLS enabled, zero policies, zero public-schema triggers,
+  and zero public-schema functions. No public views were found in the prior
+  inventory. The current security advisor still reports eight
+  `rls_enabled_no_policy` findings.
+- Existing direct table/sequence privileges remain limited to `postgres` and
+  `service_role`; no `anon` or `authenticated` direct table access was found.
+  The `postgres` default ACLs for public tables, sequences and functions remain
+  restricted to `postgres` and `service_role`. Platform-managed
+  `supabase_admin` defaults are not a project migration target.
+- `pgcrypto` is already installed in the `extensions` schema, so the audit
+  hash functions' `extensions.digest` dependency is available.
+- The remote migration ledger remains the same five historical versions.
+  The two `20261117` schema effects are present despite their versions being
+  absent from the ledger. Audit and RBAC migrations remain unapplied in production.
+
+The current PR head is `8a2cfeda2d88802c1a792737af3ff3b3029b6b7a`.
+Workflow run [45457110039](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45457110039)
+has its PostgreSQL 17 encrypted backup/restore integration job completed
+successfully. At the time of this snapshot, the Python/AppTest/browser test job
+was still in progress. The run has no uploaded artifacts.
+
+**Deployment gate:** no verified fresh production backup is currently available
+through the connected tools. The repository's backup workflow requires GitHub
+secrets and AWS configuration that have not been verified as configured. No
+production DDL/DML, migration repair, Auth user provisioning, or role/policy
+activation was performed during this inspection. Do not apply the audit or RBAC
+migrations until a fresh encrypted backup is taken and verified and the exact
+migration sequence is reviewed against the live schema and app compatibility.
+
+The repository RBAC migration is ordered after the two additive audit migrations:
+it expects `audit_chain_state` and the audit columns to exist. The production
+deployment sequence must therefore be: verified backup; apply the structured
+audit expansion; apply the hash-chain migration; apply the RBAC migration; then
+verify policies, grants, triggers, function ownership/ACLs, legacy-row
+preservation, and hash-chain behavior. Keep dashboard Auth enforcement disabled
+until a real admin account with trusted `app_metadata.role` is provisioned and
+end-to-end JWT tests pass. The current `auth.users` count of zero means no
+production Auth login can yet succeed.
