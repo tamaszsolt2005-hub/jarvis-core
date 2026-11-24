@@ -613,3 +613,57 @@ def test_audit_page_requires_separate_supabase_auth_login(monkeypatch):
     assert any("Külön Supabase Auth-admin belépés szükséges" in item.value for item in app.caption)
     assert "_jarvis_audit_admin_session" not in app.session_state
     assert "_jarvis_db" not in app.session_state
+
+
+
+def test_streamlit_individual_auth_uses_verified_user_client_without_legacy_fallback(monkeypatch):
+    import pytest
+    import jarvis_auth
+
+    user_db = _ReadOnlyDB()
+    session = {
+        "access_token": "verified-access",
+        "refresh_token": "verified-refresh",
+        "user_id": "10000000-0000-0000-0000-000000000001",
+        "email": "admin@example.com",
+        "role": "admin",
+    }
+    client_calls = []
+
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED",
+    )
+    monkeypatch.setattr(jarvis_auth, "sign_in_user", lambda email, password: session.copy())
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda supplied, *, allowed_roles: (
+            client_calls.append((supplied["user_id"], allowed_roles))
+            or (user_db, session.copy())
+        ),
+    )
+    monkeypatch.setattr(
+        jarvis_common, "get_legacy_dashboard_supabase",
+        lambda: pytest.fail("Auth mode must never fall back to service-role access"),
+    )
+    monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(jarvis_common, "audit_event", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "AUTH_MODE_OK")
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "estimate_response_tokens", lambda _prompt: 128)
+
+    app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
+    app.run()
+    assert not app.exception
+    assert len(app.text_input) == 2
+    app.text_input[0].set_value("admin@example.com")
+    app.text_input[1].set_value("test-password")
+    app.button[0].click().run()
+
+    assert not app.exception
+    assert app.session_state["authenticated"] is True
+    assert app.session_state["_jarvis_user_role"] == "admin"
+    assert app.session_state["_jarvis_db"] is user_db
+    assert client_calls == [
+        ("10000000-0000-0000-0000-000000000001", {"admin", "operator", "reader"})
+    ]
