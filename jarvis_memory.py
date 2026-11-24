@@ -108,15 +108,7 @@ def save_memory(
     return True
 
 
-def get_memories(
-    db: Any, question: str = "", limit: int = 100,
-    *, auth_session: dict[str, str] | None = None,
-) -> list[dict]:
-    enforced = get_enforced_user_supabase(
-        auth_session, "memory.read", allowed_roles={"admin", "operator", "reader"}
-    )
-    if enforced is not None:
-        db, _ = enforced
+def _get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     rows = db.table("jarvis_memory").select("id,category,content,created_at").eq(
         "active", True
     ).order("created_at", desc=True).limit(min(max(limit, 1), 100)).execute().data or []
@@ -149,6 +141,18 @@ def get_memories(
     return [row for _, _, row in scored[:20]]
 
 
+def get_memories(
+    db: Any, question: str = "", limit: int = 100,
+    *, auth_session: dict[str, str] | None = None,
+) -> list[dict]:
+    enforced = get_enforced_user_supabase(
+        auth_session, "memory.read", allowed_roles={"admin", "operator", "reader"}
+    )
+    if enforced is not None:
+        db, _ = enforced
+    return _get_memories(db, question, limit)
+
+
 def forget_memories(
     db: Any, phrase: str, *, auth_session: dict[str, str] | None = None
 ) -> int:
@@ -163,7 +167,7 @@ def forget_memories(
         terms = _tokens(phrase)
         if not terms:
             return 0
-        rows = get_memories(db, phrase, limit=100, auth_session=auth_session)
+        rows = _get_memories(db, phrase, limit=100)
         ids = [row["id"] for row in rows if row.get("id") is not None
                and _matches_query(str(row.get("content") or ""), terms)]
         # Use individual id updates for broad PostgREST compatibility.
