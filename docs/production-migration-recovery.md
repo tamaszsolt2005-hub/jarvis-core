@@ -292,12 +292,17 @@ Observed current state:
     `jarvis_proactive_state` retain the previously inventoried runtime
     columns and constraints.
 - Owner-specific default ACLs remain important: defaults for objects created
-  by `postgres` grant only to `postgres` and `service_role`, while
-  defaults for objects created by `supabase_admin` include `anon` and
-  `authenticated` privileges for tables, sequences, and function execution.
-  This is a future-object risk, not evidence that those roles currently have
-  direct grants on the eight existing tables. Any correction must be scoped
-  to the actual migration object owner and verified after deployment.
+  by `postgres` grant only to `postgres` and `service_role`, while catalog
+  entries for `supabase_admin` include `anon` and `authenticated` privileges
+  for tables, sequences, and function execution. This is not evidence of
+  direct grants on the eight existing tables. Supabase documents
+  `supabase_admin` as an internal reserved role whose default privileges
+  cannot be changed by the project `postgres` role; do not propose an
+  `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` migration. Instead,
+  ensure application migrations create their objects as the intended
+  project-controlled role (normally `postgres`), verify the resulting
+  ownership/ACLs, and avoid treating platform-managed `supabase_admin`
+  defaults as a project-fixable setting.
 
 ### Forward-only reconciliation proposal (design only; not executable SQL)
 
@@ -348,3 +353,17 @@ production database.
 
 This section supersedes the older “latest PR #13 head” and in-progress CI
 status recorded in the earlier 2026-11-24 revalidation note above.
+
+
+### Supabase-managed role limitation (documentation correction)
+
+The catalog snapshot above exposes `supabase_admin` default-ACL entries, but
+these must not be treated as a normal project-owned migration target.
+Supabase's guidance states that project users cannot alter
+`supabase_admin` default privileges because the role is reserved and the
+project `postgres` role is not a member of it. Therefore the reconciliation
+proposal is limited to ensuring project-created objects use the intended
+project-controlled owner and that `postgres` default ACLs are correct; it
+does not attempt to revoke or rewrite `supabase_admin` defaults.
+See [Supabase's explanation of the reserved-role limitation](https://supabase.com/kb/troubleshooting/cant-change-the-default-privileges-of-supabase_admin-in-the-public-schema-448af9)
+and [PostgreSQL 17 ALTER DEFAULT PRIVILEGES](https://www.postgresql.org/docs/17/sql-alterdefaultprivileges.html).
