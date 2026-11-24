@@ -56,3 +56,10 @@ A kiinduló refen 17 közvetlen `get_supabase()` hívás volt 12 hívómodulban.
 - A service-role hozzáférés átnevezése nem helyettesíti a jogosultsági modellt.
 - Nem történt production DB-írás, Auth-user létrehozás, RLS-policy alkalmazás vagy kézi SQL.
 - A #11, #12 és #13 PR nincs merge-elve.
+
+
+## 2026-11-24 implementation update
+
+The main dashboard now supports an opt-in `JARVIS_SUPABASE_AUTH_LOGIN_ENABLED` path. When enabled, its chat and analytics business-data clients use the verified user JWT; the flag also enables server-side permission enforcement. The legacy shared-password/service-role path remains the default until production migration history is reconciled and an admin Auth user is provisioned. Audit admin tooling retains its separate verified admin session and server-side audit append boundary.
+
+The versioned `20261124130000_shared_workspace_role_access.sql` migration defines the current single-workspace table policy matrix. It has not been applied to production. See `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md` for the exact history mismatch and activation gates.
