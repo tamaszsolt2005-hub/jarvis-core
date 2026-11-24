@@ -21,7 +21,7 @@ A JARVIS jelenlegi, közös dashboard-jelszavas belépése nem biztosít felhasz
 | E-mail-tervezetek olvasása | igen | igen | igen |
 | E-mail-tervezetek létrehozása/módosítása | igen | igen | nem |
 | Jóváhagyott e-mail-küldés | igen | igen, külön megerősítéssel | nem |
-| Analitika olvasása | igen | igen | igen |
+| Analitika olvasása | igen | nem | nem |
 | Rendszerbeállítások olvasása/módosítása | igen | nem | nem |
 | Felhasználók és szerepkörök kezelése | igen | nem | nem |
 | Auditnapló olvasása | igen | nem | nem |
@@ -227,3 +227,14 @@ The following later implementation supersedes the earlier staged-status notes ab
 - A new versioned migration, `20261124130000_shared_workspace_role_access.sql`, defines per-table GRANT/RLS policies for the current single shared workspace. Operators can read only `settings.key = 'lead_research_market'`; only admins can change settings. Readers cannot write. Audit SELECT is admin-only; admin/operator append is actor-bound to `auth.uid()` and the chain trigger remains append-only.
 - CI now runs a dedicated PostgreSQL 17/pgTAP suite for these policies. A green local PostgreSQL test does not prove real Supabase Auth/JWT behavior.
 - The migration is NOT applied to production. The missing five historical migration sources and repo/remote history mismatch documented in `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md` remain a hard deployment blocker. The Auth flag must remain OFF until an admin Auth account exists and migration reconciliation is completed.
+
+
+## Aktuális állapot és pontosítás – 2026-11-24
+
+A fenti történeti fázisleírások közül a későbbi implementation update az irányadó: a fő dashboard egyéni Supabase Auth módja már megvalósult, de feature flag mögött, alapértelmezetten kikapcsolva. Bekapcsolt Auth módban a dashboard user-JWT klienst használ, és a szerveroldali permission enforcement is aktiválódik. A production migrációk ettől még nincsenek alkalmazva, Auth admin-fiók nincs provisionálva, ezért a production flag nem kapcsolható be.
+
+**Analitika jogosultság:** admin-only. A korábbi táblázat operator/reader engedélyezése ellentmondott a tényleges `ROLE_PERMISSIONS` mátrixnak, a dashboard guardnak és a `logs` RLS policy-nak; ezt a sort javítottuk.
+
+**Jóváhagyási megerősítés:** a dashboard függő műveletei egyszer használatosak, az új felhasználói üzenet törli a korábbi függő jóváhagyást, a jóváhagyás öt percen belül használható fel, és a függő művelet az aktuális Auth felhasználóhoz (legacy módban a bejelentkezési időbélyeghez) kötött. A dashboard a jóváhagyás elfogadása előtt elfogyasztja a függő állapotot; a tesztek a lejáratot, felhasználóváltást és ismételt felhasználást is ellenőrzik. Ez az alkalmazási jóváhagyási kapu; nem helyettesíti a DB RLS-t vagy az adminisztratív szerepkör-ellenőrzést.
+
+A teljes CI run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568) 718 passed / 3 skipped és 93.78% line coverage eredménnyel zárult. Az új approval és audit-session regressziós tesztek ezt követően kerültek be, ezért azok végleges CI-validációja a következő futás feladata.
