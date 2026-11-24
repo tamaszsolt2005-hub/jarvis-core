@@ -104,6 +104,49 @@ CREATE POLICY logs_admin_read_only
 -- Authenticated admins/operators may append only their own audit event.
 -- The trigger assigns actor_user_id from auth.uid() and advances the chain
 -- under its tightly scoped SECURITY DEFINER owner context.
+-- SECURITY DEFINER is narrowly scoped to the insert trigger so that it
+-- can lock/update the private chain-head row. Direct EXECUTE is revoked below.
+CREATE OR REPLACE FUNCTION public.set_logs_audit_hash_chain()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, extensions
+AS $
+DECLARE
+  prior_hash text;
+  canonical_row text;
+BEGIN
+  -- A JWT-authenticated user cannot spoof another actor id.
+  IF auth.uid() IS NOT NULL THEN
+    NEW.actor_user_id := auth.uid();
+  END IF;
+
+  INSERT INTO public.audit_chain_state (singleton, last_hash)
+  VALUES (true, repeat('0', 64))
+  ON CONFLICT (singleton) DO NOTHING;
+
+  SELECT last_hash INTO prior_hash
+    FROM public.audit_chain_state
+   WHERE singleton = true
+   FOR UPDATE;
+
+  NEW.previous_hash := coalesce(prior_hash, repeat('0', 64));
+  canonical_row := (to_jsonb(NEW) - 'previous_hash' - 'entry_hash')::text;
+  NEW.entry_hash := encode(
+    extensions.digest(convert_to(NEW.previous_hash || ':' || canonical_row, 'UTF8'), 'sha256'),
+    'hex'
+  );
+
+  UPDATE public.audit_chain_state
+     SET last_hash = NEW.entry_hash,
+         updated_at = clock_timestamp()
+   WHERE singleton = true;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.set_logs_audit_hash_chain() FROM PUBLIC, anon, authenticated;
+
 GRANT INSERT ON TABLE public.logs TO authenticated;
 DROP POLICY IF EXISTS logs_admin_operator_append ON public.logs;
 CREATE POLICY logs_admin_operator_append
