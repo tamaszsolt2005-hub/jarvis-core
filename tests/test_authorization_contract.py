@@ -179,7 +179,7 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
 def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
     approval_start = DASHBOARD_SOURCE.index('elif q in {"jóváhagyom"')
     consume_index = DASHBOARD_SOURCE.index(
-        'st.session_state.pop("_jarvis_pending_action", None)', approval_start
+        "_consume_pending_action()", approval_start
     )
     execute_index = DASHBOARD_SOURCE.index(
         "execute_task_action(", approval_start
