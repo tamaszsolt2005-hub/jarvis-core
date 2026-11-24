@@ -63,3 +63,29 @@ A kiinduló refen 17 közvetlen `get_supabase()` hívás volt 12 hívómodulban.
 The main dashboard now supports an opt-in `JARVIS_SUPABASE_AUTH_LOGIN_ENABLED` path. When enabled, its chat and analytics business-data clients use the verified user JWT; the flag also enables server-side permission enforcement. The legacy shared-password/service-role path remains the default until production migration history is reconciled and an admin Auth user is provisioned. Audit admin tooling retains its separate verified admin session and server-side audit append boundary.
 
 The versioned `20261124130000_shared_workspace_role_access.sql` migration defines the current single-workspace table policy matrix. It has not been applied to production. See `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md` for the exact history mismatch and activation gates.
+
+
+## 2026-11-24 security follow-up
+
+The separate audit-admin UI now uses the verified admin user-JWT client for
+all export audit writes (pending, success, blocked and unknown); it no longer
+uses `get_legacy_dashboard_supabase()` for this operation. The pending CSV
+export is bound to the verified admin user ID and expires after five minutes.
+An expired or mismatched pending export is discarded and recorded as blocked
+when the admin-JWT audit append path is available.
+
+The audit session refresh now also requires the refreshed Auth user ID to
+match the user ID captured at sign-in. A missing identity or changed identity
+fails closed. Unit tests cover the identity-substitution case.
+
+The only remaining `get_legacy_dashboard_supabase()` use in `dashboard.py`
+is the explicit fallback of `_get_dashboard_supabase()` while individual
+Auth login is disabled. When `JARVIS_SUPABASE_AUTH_LOGIN_ENABLED=true`, the
+dashboard obtains its data client via the verified user JWT; it never falls
+back to the service-role client.
+
+These are code-level boundaries only. Production currently has no Auth users
+and no public RLS policies, as confirmed by the
+[2026-11-24 18:51 UTC read-only revalidation](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+The feature flag must remain OFF until migration reconciliation, encrypted
+production backup and real Auth/RLS validation are complete.
