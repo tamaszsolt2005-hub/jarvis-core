@@ -1224,7 +1224,9 @@ if prompt:
             memory_notice = f"{deleted} memóriaelemet inaktiváltam."
         elif memory_action == "list":
             stage = "JARVIS memória áttekintése"
-            saved_memories = get_memories(db, "", limit=100)
+            saved_memories = get_memories(
+                db, "", limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+            )
             memory_notice = "JARVIS AKTÍV HOSSZÚ TÁVÚ MEMÓRIÁJA:\n" + (
                 "\n".join(
                     f"- [{item.get('category', 'business_preference')}] {item.get('content', '')}"
