@@ -27,7 +27,7 @@ jobs:
       AWS_BACKUP_ROLE_ARN: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check external backup configuration
         id: config
@@ -90,7 +90,7 @@ jobs:
 
       - name: Configure AWS role through GitHub OIDC
         if: steps.config.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
           aws-region: ${{ vars.BACKUP_AWS_REGION }}
