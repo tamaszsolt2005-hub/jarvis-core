@@ -291,3 +291,18 @@ def test_enforced_user_client_denies_role_without_permission(monkeypatch):
             {"access_token": "a", "refresh_token": "r", "user_id": "u1"},
             "leads.write", allowed_roles={"admin", "operator", "reader"},
         )
+
+
+def test_individual_dashboard_login_always_enables_server_side_rbac(monkeypatch):
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED",
+    )
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing Auth session must fail before client creation"),
+    )
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        jarvis_common.get_enforced_user_supabase(
+            None, "email.send", allowed_roles={"admin", "operator"}
+        )
