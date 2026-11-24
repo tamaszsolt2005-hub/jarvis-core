@@ -165,9 +165,13 @@ def test_verified_session_rejects_disallowed_role():
     [
         ("admin", "settings.write", True),
         ("operator", "leads.write", True),
+        ("operator", "settings.read", True),
         ("operator", "settings.write", False),
+        ("operator", "analytics.read", False),
         ("reader", "leads.read", True),
         ("reader", "leads.write", False),
+        ("reader", "settings.read", False),
+        ("reader", "analytics.read", False),
         (None, "leads.read", False),
         ("unknown", "audit.read", False),
     ],
