@@ -172,3 +172,29 @@ Ez a feladat teljesült, de a production migrációs drift csak a repo-only
 20261117 verziók, a live schema snapshot és a későbbi audit/RBAC változások
 pontos összevetése után tekinthető lezártnak. Production továbbra is
 változatlan; a titkosított backup kapu továbbra is kötelező.
+
+## Latest verified code and CI state — 2026-11-24 19:12 UTC
+
+The latest PR head is 50ff914a67aa48906a96c1abe5983bb2b826dff3.
+Workflow [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381) is fully green: **734 passed, 3 skipped, 93.67% coverage**. Both the Python/AppTest/browser job and PostgreSQL 17 integration job passed.
+
+### Closed repository-side gaps
+
+- [x] Five historical migration SQL sources recovered exactly from the remote ledger's stored statements and restored as versioned migration files.
+- [x] CI replays the two repository-only 20261117 migrations, the five recovered historical migrations, and the audit/hash-chain/RBAC migrations in order against the production-shape PostgreSQL 17 fixture.
+- [x] Audit-admin session refresh is bound to the original verified user ID.
+- [x] Pending chat operations are one-use, expire after five minutes and are bound to the authenticated principal; a missing principal fails closed.
+- [x] Audit CSV export uses the verified admin user-JWT client, is user-bound and expires after five minutes; invalid/expired export is discarded and audited as blocked when the append path is available.
+- [x] Dashboard system diagnostics require admin-only system.diagnostics permission in Auth mode, use the verified user JWT, and do not fall back to service-role or probe internal service-only tables.
+- [x] Schema bootstrap includes the legacy posts table and production-compatible integer identity settings ID plus unique key.
+- [x] Coverage and screenshot artifact retention is explicitly limited to 14 and 7 days.
+
+### Still blocked outside the repository
+
+- The remote ledger and repository still differ for the two 20261117 migration versions: their effects are present in production, but those versions are not recorded in the remote ledger. The five previously missing historical sources are now recovered; this does not by itself reconcile the two repo-only versions.
+- Production has no public RLS policies, no Auth users, no audit_chain_state and no structured audit columns on logs. The audit/RBAC migrations remain unapplied.
+- No verified encrypted production backup exists yet; AWS backup resources and required GitHub Actions secrets/variables are not confirmed/deployed.
+- Real Supabase Auth/JWT/RLS behavior requires an already-existing, explicitly authorized isolated environment. Production must not be used as a test environment.
+- The shared-workspace RBAC model is not tenant isolation; audit hash-chain integrity is not WORM against a database owner; cross-process approval race prevention and external Gemini/SMTP/IMAP integration tests remain open.
+
+See PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md and SUPABASE_MIGRATION_DRIFT_RECONCILIATION.md.

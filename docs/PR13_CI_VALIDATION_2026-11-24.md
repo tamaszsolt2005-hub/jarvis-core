@@ -120,3 +120,23 @@ Artifacts:
 - [Responsive UI screenshots](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568/artifacts/14954031342)
 
 This is a complete green repository CI run. It does not prove a production AWS/S3 backup, production restore, or real Supabase Auth/JWT/RLS behavior.
+
+## Latest complete CI run — 2026-11-24 19:12 UTC
+
+Workflow run [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381) completed successfully on head 50ff914a67aa48906a96c1abe5983bb2b826dff3.
+
+- Python / Streamlit / AppTest / browser job: **success**.
+- **734 passed, 3 skipped**.
+- Total Python line coverage: **93.67%** (3,553 / 3,793 statements; 80% minimum).
+- dashboard.py: **82%**; audit_admin.py: **96%**; jarvis_auth.py: **97%**.
+- PostgreSQL 17 migration/RBAC integration job: **success**.
+- CI applied the two repository-only 20261117 migrations, all five SQL sources recovered from the remote migration ledger, then audit expansion, hash-chain and shared-workspace RBAC migrations in order.
+- pgTAP security tests passed; encrypted age backup/restore round-trip passed in an isolated PostgreSQL database.
+- CloudFormation validation, Playwright installation, compileall and all tests passed.
+- Coverage and 27 responsive dashboard screenshots uploaded.
+
+Artifacts:
+- [Coverage XML](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381/artifacts/14955532724) — 14-day retention.
+- [Responsive UI screenshots](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381/artifacts/14955985728) — 7-day retention.
+
+This validates repository code and the migration chain against an isolated CI fixture. It is not a production backup, AWS/S3 deployment, production restore or real Supabase Auth/JWT/RLS validation.

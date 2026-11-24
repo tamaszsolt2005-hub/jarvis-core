@@ -166,3 +166,30 @@ tesztfixture-en. A teljes futás eredményét meg kell várni.
 remote ledgerben, noha hatásuk a production sémában látszik; az audit és RBAC
 migrációk még nincsenek productionben alkalmazva. A pontos alkalmazási tervet
 a schema snapshot és a friss, titkosított backup után kell lezárni.
+
+## 2026-11-24 19:12 UTC – végleges CI és catalog kiegészítés
+
+A teljes PR CI [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+mindkét jobja sikeres: 734 passed, 3 skipped, 93.67% coverage. A PostgreSQL 17
+job a teljes történeti → audit → RBAC migrációs láncot, a pgTAP ellenőrzéseket
+és a titkosított lokális age backup/restore körutat is sikeresen futtatta.
+
+A további read-only catalog ellenőrzés szerint productionben:
+- mind a 8 public tábla postgres tulajdonú, RLS enabled, FORCE RLS false;
+- 0 public RLS policy van;
+- közvetlen tábla-grant csak postgres és service_role részére van;
+- postgres public default ACL-jei tables/sequences/functions esetén postgres
+  és service_role szerepekre korlátozottak;
+- nincs public-schema function vagy trigger; a public sequence a
+  settings_id_seq;
+- az öt korábban hiányzó történeti SQL forrás a remote ledger statements
+  mezőjéből visszanyerésre került.
+
+A repository schema bootstrap is frissült: létrehozza a legacy posts táblát,
+és a settings integer identity ID-t plusz egyedi key-t. Ez nem módosította
+productiont.
+
+A két 20261117 repo-only migration verzió továbbra sincs a remote ledgerben;
+az audit/RBAC migrációk továbbra sincsenek productionben alkalmazva.
+Production Auth flag OFF. A titkosított, visszaellenőrzött production backup
+és a migration-history reconciliation továbbra is P0 blokkoló.

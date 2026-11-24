@@ -418,3 +418,30 @@ kerültek be; ezek végleges CI-eredménye még ellenőrzendő.
 
 A teljes, prioritásos blokkolólista:
 [`REMAINING_WORK_AND_RELEASE_GATES.md`](REMAINING_WORK_AND_RELEASE_GATES.md).
+
+## 2026-11-24 – aktuális teljes CI és kódszintű javítások
+
+A legfrissebb teljesen zöld PR #13 CI-futás:
+[45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+— 734 passed, 3 skipped, 93.67% line coverage. A PostgreSQL 17 integrációs
+job a két repo-only 20261117 migrációt, az öt visszanyert történeti SQL-t,
+majd az audit/hash-chain/RBAC migrációkat is sikeresen futtatta a lokális
+production-shape fixture-en. Az encrypted age backup/restore körút is sikeres.
+
+A repository további biztonsági javításai:
+- audit-admin session user-ID folytonosság ellenőrzése;
+- ötperces, egyszer fogyasztható, felhasználóhoz kötött chat-jóváhagyás;
+- user-JWT alapú, lejáró és adminhoz kötött audit CSV export;
+- admin-only rendszerdiagnosztika user-JWT-vel, service-role fallback nélkül;
+- production-compatible settings identity és posts tábla a schema bootstrapban;
+- coverage és UI screenshot artifact retention 14/7 napra korlátozva.
+
+A remote ledgerből visszanyert öt migrációs forrás repositoryban van.
+A teljes production migration drift azonban még nem zárt: a két 20261117
+repo-verzió hiányzik a remote ledgerből, az audit/RBAC migrációk pedig még
+nincsenek productionben alkalmazva.
+
+Friss production read-only leltár:
+[PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+Prioritásos hátralévő feladatok:
+[REMAINING_WORK_AND_RELEASE_GATES.md](REMAINING_WORK_AND_RELEASE_GATES.md).

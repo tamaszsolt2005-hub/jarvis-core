@@ -61,3 +61,22 @@ The previously documented `20261117` repository-vs-remote mismatch also remains 
 ## Change record
 
 This report records the fresh read-only inspection at 18:51 UTC on 2026-11-24. The inspection did not modify the production database, Auth users, migration history, policies, secrets, or AWS resources.
+
+## Follow-up catalog checks and migration-source recovery — 2026-11-24 19:10 UTC
+
+Additional read-only catalog queries confirmed:
+
+- All eight public tables are owned by postgres; RLS is enabled, FORCE ROW LEVEL SECURITY is false, and there are still zero public policies.
+- Direct table privileges are present for postgres and service_role only; anon/authenticated have no direct table grants.
+- PostgreSQL default privileges for postgres in public are restricted to postgres and service_role for tables, sequences and functions; no PUBLIC, anon or authenticated default grants were observed.
+- No public-schema functions or triggers were present at this inspection; the only public sequence was settings_id_seq.
+- The remote migration ledger stores the SQL statement arrays for all five historical versions previously missing from Git. Their exact SQL statements were recovered read-only and the versioned files restored to the repository. The ledger rollback field was NULL for these five versions.
+
+Recovered sources:
+- 20261119191911_create_jarvis_memory_and_fk_indexes.sql
+- 20261119192040_complete_jarvis_runtime_schema.sql
+- 20261119192145_enable_rls_on_legacy_posts.sql
+- 20261119192412_revoke_anon_authenticated_public_table_and_sequence_privileges.sql
+- 20261119192559_secure_postgres_default_privileges_public_schema.sql
+
+No production DDL, DML, Auth provisioning, policy change or migration-ledger repair was performed. The two repo-only 20261117 versions remain absent from the remote ledger, and audit/RBAC migrations remain unapplied.

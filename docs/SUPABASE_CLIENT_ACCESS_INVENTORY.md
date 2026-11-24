@@ -89,3 +89,25 @@ and no public RLS policies, as confirmed by the
 [2026-11-24 18:51 UTC read-only revalidation](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
 The feature flag must remain OFF until migration reconciliation, encrypted
 production backup and real Auth/RLS validation are complete.
+
+## 2026-11-24 – legfrissebb hozzáférési határok
+
+- A dashboard audit-admin exportja verified admin user-JWT kliensen írja a
+  pending/success/blocked/unknown audit eseményeket; nincs legacy service-role
+  kliens az audit export UI útvonalán.
+- Az audit-admin session refresh összeveti a frissített user ID-t az eredeti
+  bejelentkezési user ID-val.
+- A dashboardból indított rendszerdiagnosztika Auth módban kizárólag admin
+  számára érhető el, user-JWT-t használ, és nem esik vissza service-role-ra.
+  A belső audit-chain és proactive-state táblákat Auth módban nem próbálja
+  megkerülni.
+- A chatben függőben lévő műveletek és az audit CSV export öt perc után
+  lejárnak, egyszer fogyaszthatók és az aktuális felhasználóhoz kötöttek.
+- A dashboardban a get_legacy_dashboard_supabase() egyetlen fennmaradó
+  használata a _get_dashboard_supabase() explicit legacy fallback ága,
+  kizárólag Auth OFF módban. Auth ON esetén a dashboard user-JWT klienst használ.
+- A teljes CI [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+  zöld: 734 passed, 3 skipped, 93.67% coverage.
+
+Productionben továbbra sincs Auth user és nincs RLS policy; a feature flag
+maradjon OFF a backup-, migration-history- és valós Auth/RLS kapuk lezárásáig.

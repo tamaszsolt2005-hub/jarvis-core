@@ -60,3 +60,14 @@ valamint a következő feladatok a
 [prioritásos hiány- és élesítési listában](docs/REMAINING_WORK_AND_RELEASE_GATES.md)
 követhetők. A CI-eredmények és azok korlátai:
 [PR #13 CI-validáció](docs/PR13_CI_VALIDATION_2026-11-24.md).
+
+## Aktuális migrációs és production állapot
+
+- [Friss production read-only ellenőrzés](docs/PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md)
+- [Supabase migrációs drift és helyreállítási terv](docs/SUPABASE_MIGRATION_DRIFT_RECONCILIATION.md)
+- [Hátralévő feladatok és élesítési kapuk](docs/REMAINING_WORK_AND_RELEASE_GATES.md)
+- [Legfrissebb PR #13 CI-eredmények](docs/PR13_CI_VALIDATION_2026-11-24.md)
+
+A legfrissebb teljes CI 734 passed / 3 skipped és 93.67% coverage eredménnyel
+zárult. Ez nem helyettesíti a production backupot vagy a valós Supabase
+Auth/RLS validációt.

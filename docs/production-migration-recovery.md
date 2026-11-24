@@ -491,3 +491,34 @@ These are repository/CI checks only. They do not alter the production
 migration ledger, apply RLS policies, provision Auth users, or create a
 verified production backup. All production deployment gates in this document
 remain in force.
+
+## Current recovery state — 2026-11-24 19:12 UTC
+
+The five historical SQL sources previously missing from the repository have now
+been recovered from the read-only remote ledger field
+supabase_migrations.schema_migrations.statements. The restored files preserve
+the original version identifiers and SQL statement bodies. The ledger rollback
+field was NULL for all five, so there is no stored automatic rollback SQL;
+plan forward-only recovery.
+
+The PostgreSQL 17 CI integration now replays, in order:
+1. the two repository-only 20261117 idempotent column migrations;
+2. the five recovered historical migrations;
+3. audit-field expansion;
+4. audit hash-chain/admin access;
+5. shared-workspace RBAC.
+
+The latest full CI run [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+passed both jobs: 734 passed, 3 skipped, 93.67% coverage; PostgreSQL 17,
+pgTAP, migration replay and encrypted local age backup/restore all passed.
+
+This is isolated CI evidence, not a production restore. Production still has
+the two 20261117 versions missing from its migration ledger, and the audit/RBAC
+migrations are not applied. The repository bootstrap schema has also been
+corrected to include posts and an integer identity settings ID with a unique
+key, but that does not alter the live production database.
+
+Do not run supabase db push, migration repair or production DDL/DML until a
+fresh encrypted production backup has been independently verified and the
+two 20261117 ledger discrepancies plus exact migration order have a reviewed
+forward-only plan.
