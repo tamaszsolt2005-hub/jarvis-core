@@ -392,3 +392,29 @@ automatikusan az új kódra.
 A jelenlegi tesztdupla a dashboard Auth helper útvonalát vizsgálja; nem
 helyettesíti a valós Supabase Auth/JWT/RLS integrációt. A CI-ben futó
 PostgreSQL/age backup-restore izolált lokális teszt, nem production mentés.
+
+
+## 2026-11-24 friss állapot – CI és biztonsági javítások
+
+A korábbi, még futó/megszakított CI állapotot a későbbi teljes zöld futás
+felülírja: [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568)
+718 passed, 3 skipped, 93.78% line coverage eredményt adott. A PostgreSQL 17
+audit/RBAC pgTAP és titkosított local age backup/restore integráció sikeres.
+Ez CI-bizonyíték, nem production backup vagy valós Supabase Auth-teszt.
+
+A legutóbbi, külön read-only production ellenőrzés 2026-11-24 18:51 UTC-kor
+megerősítette, hogy productionben 8 public tábla van RLS-sel, de 0 RLS policy;
+az `auth.users` üres; az audit hash-chain tábla és a strukturált audit
+mezők hiányoznak; a remote migration ledger öt Gitből hiányzó történeti
+migrációt tartalmaz. Részletes pillanatkép:
+[`PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md`](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+
+A chatműveletek pending jóváhagyása most öt perc után lejár, egyszer
+használható és az aktuális felhasználóhoz kötött. Az audit-admin session
+refresh ellenőrzi a user ID folytonosságát. Az audit CSV export eseményei
+ellenőrzött admin user-JWT kliensen keresztül íródnak, és az export-jóváhagyás
+is lejáró, adminhoz kötött. Az új regressziós tesztek a korábbi zöld CI után
+kerültek be; ezek végleges CI-eredménye még ellenőrzendő.
+
+A teljes, prioritásos blokkolólista:
+[`REMAINING_WORK_AND_RELEASE_GATES.md`](REMAINING_WORK_AND_RELEASE_GATES.md).
