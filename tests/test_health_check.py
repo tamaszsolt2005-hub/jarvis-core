@@ -1,6 +1,12 @@
 from health_check import REQUIRED_TABLES, run_self_diagnostics
 
 
+@pytest.fixture(autouse=True)
+def _legacy_diagnostics_mode(monkeypatch):
+    import health_check
+    monkeypatch.setattr(health_check, "get_enforced_user_supabase", lambda *_args, **_kwargs: None)
+
+
 class FakeResponse:
     text = "OK"
 
@@ -258,3 +264,77 @@ def test_diagnostics_reports_gemini_transport_failure(monkeypatch):
     assert "Gemini API próbakérés | FIGYELMET IGÉNYEL" in report
     assert reports[0][1]["operation"] == "probe_gemini"
     assert reports[0][1]["severity"] == "warning"
+
+
+
+def test_auth_diagnostics_uses_admin_user_jwt_and_never_service_role(monkeypatch):
+    import health_check
+
+    calls = {}
+    user_db = FakeDB()
+    monkeypatch.setattr(
+        health_check,
+        "get_enforced_user_supabase",
+        lambda session, permission, *, allowed_roles: (
+            calls.update({
+                "session": session,
+                "permission": permission,
+                "allowed_roles": allowed_roles,
+            }) or (user_db, {"role": "admin"})
+        ),
+    )
+    monkeypatch.setattr(
+        health_check, "get_service_supabase",
+        lambda: (_ for _ in ()).throw(AssertionError("Auth diagnostics must not use service role")),
+    )
+    values = {
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+        "SUPABASE_ANON_KEY": None,
+        "SUPABASE_SERVICE_ROLE_KEY": "must-not-be-used",
+        "SUPABASE_KEY": None,
+        "GEMINI_API_KEY": None,
+        "JARVIS_DASHBOARD_PASSWORD": None,
+    }
+    monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
+
+    report = run_self_diagnostics(
+        auth_session={"access_token": "verified", "user_id": "admin-1"}
+    )
+
+    assert calls == {
+        "session": {"access_token": "verified", "user_id": "admin-1"},
+        "permission": "system.diagnostics",
+        "allowed_roles": {"admin"},
+    }
+    assert "ellenőrzött felhasználói kliens" in report
+    assert "Supabase tábla: audit_chain_state" not in report
+    assert "Supabase tábla: jarvis_proactive_state" not in report
+    assert "must-not-be-used" not in report
+
+
+def test_auth_diagnostics_denies_non_admin_before_any_external_probe(monkeypatch):
+    import health_check
+
+    calls = []
+    monkeypatch.setattr(
+        health_check, "get_enforced_user_supabase",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("reader denied")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_service_supabase",
+        lambda: (_ for _ in ()).throw(AssertionError("Denied user must not reach service role")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_gemini_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Denied user must not probe Gemini")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_secret",
+        lambda name: calls.append(name) or None,
+    )
+
+    report = run_self_diagnostics(auth_session={"access_token": "reader", "user_id": "reader-1"})
+
+    assert "kizárólag ellenőrzött admin" in report
+    assert calls == []
