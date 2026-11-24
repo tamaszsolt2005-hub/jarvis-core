@@ -506,6 +506,55 @@ def _auth_session_kwargs() -> dict[str, Any]:
     return {"auth_session": st.session_state.get("_jarvis_auth_session")}
 
 
+PENDING_APPROVAL_TTL_SECONDS = 5 * 60
+
+
+def _approval_actor() -> str | None:
+    """Bind a pending approval to the currently authenticated principal."""
+    if _auth_login_enabled():
+        session = st.session_state.get("_jarvis_auth_session")
+        user_id = session.get("user_id") if isinstance(session, dict) else None
+        return f"auth:{user_id}" if user_id else None
+    authenticated_at = st.session_state.get("_jarvis_authenticated_at")
+    if isinstance(authenticated_at, (int, float)) and authenticated_at > 0:
+        return f"legacy:{authenticated_at}"
+    return None
+
+
+def _stage_pending_action(action: dict[str, Any]) -> None:
+    """Stage a one-use action approval with a short expiry and principal binding."""
+    if not isinstance(action, dict):
+        raise TypeError("A függő jóváhagyásnak objektumnak kell lennie.")
+    pending = dict(action)
+    pending["_approval_created_at"] = time.time()
+    pending["_approval_actor"] = _approval_actor()
+    pending["_approval_nonce"] = uuid4().hex
+    st.session_state["_jarvis_pending_action"] = pending
+
+
+def _consume_pending_action() -> dict[str, Any] | None:
+    """Consume an approval exactly once; reject expired or cross-user approvals."""
+    pending = st.session_state.pop("_jarvis_pending_action", None)
+    if not isinstance(pending, dict):
+        return None
+    created_at = pending.get("_approval_created_at")
+    now = time.time()
+    if (
+        not isinstance(created_at, (int, float))
+        or isinstance(created_at, bool)
+        or created_at <= 0
+        or created_at > now
+        or now - created_at > PENDING_APPROVAL_TTL_SECONDS
+        or not pending.get("_approval_nonce")
+        or pending.get("_approval_actor") != _approval_actor()
+    ):
+        return None
+    return {
+        key: value for key, value in pending.items()
+        if not key.startswith("_approval_")
+    }
+
+
 def _get_dashboard_supabase():
     """Use a verified user JWT in individual-login mode; never fall back."""
     if _auth_login_enabled():
@@ -1260,13 +1309,13 @@ if prompt:
             else:
                 approval_notice = "Nincs függőben jóváhagyásra váró művelet."
         elif q in {"jóváhagyom", "jovahagyom", "jóváhagyom a műveletet", "jovahagyom a muveletet", "végrehajthatod", "vegrehajthatod", "igen, mehet"}:
+            pending_action = _consume_pending_action()
             if pending_action:
                 market_change = pending_action.get("market")
                 research_prompt = pending_action.get("research_prompt")
                 task_action = pending_action.get("task_action")
                 chat_email = pending_action.get("chat_email")
                 chat_email_action = chat_email
-                st.session_state.pop("_jarvis_pending_action", None)
                 if chat_email:
                     stage = "Jóváhagyott chatből indított e-mail"
                     if not EMAIL_DELIVERY_ENABLED or not env_bool("CHAT_EMAIL_ENABLED", False):
@@ -1343,10 +1392,10 @@ if prompt:
                     subject, body = build_chat_email_draft(prompt, generate_text)
                     chat_email = {"recipient": recipient, "subject": subject, "body": body}
                     chat_email_action = chat_email
-                    st.session_state["_jarvis_pending_action"] = {
+                    _stage_pending_action({
                         "market": None, "research_prompt": None, "task_action": None,
                         "chat_email": chat_email,
-                    }
+                    })
                     approval_notice = (
                         "Jóváhagyásra váró e-mail-tervezet:\n"
                         f"Címzett: {recipient}\nTárgy: {subject}\n\n{body}\n\n"
@@ -1370,9 +1419,9 @@ if prompt:
                     else:
                         task_title = matching_tasks[0].get("title") or task_action["id"]
                 if task_action:
-                    st.session_state["_jarvis_pending_action"] = {
+                    _stage_pending_action({
                         "market": None, "research_prompt": None, "task_action": task_action,
-                    }
+                    })
                     descriptions = {
                         "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
                         "close": f"feladat lezárása: **{task_title}** (azonosító: {task_action['id']})",
@@ -1380,11 +1429,11 @@ if prompt:
                     }
                     approval_notice = "Jóváhagyásra váró feladatművelet: " + descriptions.get(task_action["type"], "feladatművelet") + ". Írd be: „Jóváhagyom” vagy „Elutasítom”."
             elif requested_market or requested_research:
-                st.session_state["_jarvis_pending_action"] = {
+                _stage_pending_action({
                     "market": requested_market,
                     "research_prompt": requested_research,
                     "task_action": None,
-                }
+                })
                 parts = []
                 if requested_market:
                     parts.append(f"célpiac váltása erre: {requested_market}")
