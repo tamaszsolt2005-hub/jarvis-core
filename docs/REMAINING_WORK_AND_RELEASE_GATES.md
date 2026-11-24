@@ -10,6 +10,21 @@ A CI zöld állapota önmagában nem jelent production-ready Auth/RBAC-ot.
 
 ## 1. Legutóbbi igazolt fejlesztési állapot
 
+### Aktuális CI pontosítás – 2026-11-25
+
+A jelenlegi branch head `649f5796ec8f475d0a069d2e263669efbb290d1b`.
+A korábbi teljesen zöld CI (734 passed / 3 skipped, 93.67%) nem ezen a
+commiton futott. Az újabb audit UI futás 751 passed / 11 failed / 3 skipped
+és 94.17% coverage eredményt adott; mind a 11 hiba az audit UI tesztfájlban
+jelentkezett. A javítások bekerültek, de a hatásuk még nincs igazolva.
+
+A jelenlegi head push futása [45509638790](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509638790):
+a PostgreSQL 17 backup/restore integráció sikeres, a Python teszt job a
+legutóbbi ellenőrzéskor még futott. A teszt végső eredménye és coverage-e
+nem ismert; a korábbi 94.17%-ot nem szabad új eredményként feltüntetni.
+A PR futás: [45509647393](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509647393).
+
+
 - PR #13 továbbra is nyitott és draft.
 - A legutóbbi teljesen zöld CI-t tartalmazó PR head: `4945816b9010d899c1737a90ff3785ec1898acdd`.
 - A legutóbbi teljes CI run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568) mindkét jobja sikeres: **718 passed, 3 skipped, 93.78% coverage** (3,500/3,732 sor); `dashboard.py` 82.27%, `jarvis_auth.py` 96.55%, `audit_admin.py` 96.19%.
