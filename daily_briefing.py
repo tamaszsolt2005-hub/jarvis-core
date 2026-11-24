@@ -1,7 +1,7 @@
 """Read-only daily executive briefing from existing JARVIS records."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 import re
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -78,7 +78,6 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due_date == today:
             due_today.append(item)
 
-    now_utc = datetime.now(timezone.utc)
     overdue_followups = []
     for lead in leads:
         due_date = _local_date(lead.get("next_follow_up_at"))
