@@ -190,3 +190,77 @@ def test_sign_in_rejects_missing_credentials():
         jarvis_auth.sign_in_user("", "password")
     with pytest.raises(ValueError):
         jarvis_auth.sign_in_user("user@example.com", "")
+
+
+def test_create_user_client_uses_only_public_supabase_key(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        jarvis_auth, "public_supabase_config",
+        lambda: ("https://project.supabase.co", "publishable-key"),
+    )
+    monkeypatch.setattr(
+        jarvis_auth, "create_client",
+        lambda url, key: (calls.append((url, key)) or "public-client"),
+    )
+    assert jarvis_auth.create_user_client() == "public-client"
+    assert calls == [("https://project.supabase.co", "publishable-key")]
+
+
+def test_verified_user_rejects_missing_user_and_malformed_metadata():
+    with pytest.raises(PermissionError):
+        jarvis_auth._verified_user(SimpleNamespace(user=None))
+    malformed = SimpleNamespace(
+        id="user-1", email_confirmed_at="confirmed",
+        confirmed_at=None, app_metadata=["admin"],
+    )
+    with pytest.raises(PermissionError):
+        jarvis_auth._verified_user(SimpleNamespace(user=malformed))
+
+
+def test_sign_in_rejects_missing_auth_session():
+    client = FakeClient(FakeAuth(user=user("admin"), session=None))
+    with pytest.raises(PermissionError):
+        jarvis_auth.sign_in_user(
+            "admin@example.com", "password", client_factory=lambda: client
+        )
+
+
+def test_sign_in_revokes_session_when_verified_user_lookup_fails():
+    auth = FakeAuth(user=None, session=session())
+    with pytest.raises(PermissionError):
+        jarvis_auth.sign_in_user(
+            "admin@example.com", "password",
+            client_factory=lambda: FakeClient(auth),
+        )
+    assert auth.signed_out is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {},
+        {"access_token": "access", "refresh_token": "refresh"},
+        {"user_id": "user-1", "refresh_token": "refresh"},
+    ],
+)
+def test_verified_user_client_rejects_missing_or_incomplete_session(value):
+    with pytest.raises(PermissionError):
+        jarvis_auth.verified_user_client(value)
+
+
+def test_sign_out_user_is_noop_for_missing_session():
+    jarvis_auth.sign_out_user(None)
+    jarvis_auth.sign_out_user({})
+    jarvis_auth.sign_out_user({"access_token": "only-access"})
+
+
+def test_sign_out_user_revokes_verified_session(monkeypatch):
+    auth = FakeAuth(user=user("admin"), session=session())
+    client = FakeClient(auth)
+    jarvis_auth.sign_out_user(
+        {"access_token": "access", "refresh_token": "refresh"},
+        client_factory=lambda: client,
+    )
+    assert auth.set_session_args == ("access", "refresh")
+    assert auth.signed_out is True
