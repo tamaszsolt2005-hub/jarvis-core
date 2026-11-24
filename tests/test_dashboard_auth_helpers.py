@@ -21,6 +21,9 @@ class FakeStreamlit:
     def warning(self, message):
         self.warnings.append(message)
 
+    def error(self, message):
+        self.warnings.append(message)
+
     def markdown(self, *_args, **_kwargs):
         return None
 
