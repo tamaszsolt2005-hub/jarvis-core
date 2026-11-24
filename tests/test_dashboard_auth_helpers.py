@@ -1,6 +1,7 @@
 """Focused tests for the dashboard's opt-in Supabase Auth session helpers."""
 import ast
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,24 @@ class FakeStreamlit:
 
     def warning(self, message):
         self.warnings.append(message)
+
+    def markdown(self, *_args, **_kwargs):
+        return None
+
+    def title(self, *_args, **_kwargs):
+        return None
+
+    def caption(self, *_args, **_kwargs):
+        return None
+
+    def form(self, *_args, **_kwargs):
+        return nullcontext()
+
+    def text_input(self, *_args, **_kwargs):
+        return ""
+
+    def form_submit_button(self, *_args, **_kwargs):
+        return False
 
 
 def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, legacy=None):
