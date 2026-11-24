@@ -16,7 +16,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_model_name, log_event, env_bool, audit_event
+from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_user_supabase, get_model_name, log_event, env_bool, audit_event
+from jarvis_auth import sign_in_user, sign_out_user, has_permission
 from jarvis_errors import report_error, sanitize_log_text
 from audit_admin import (
     audit_rows_to_csv, fetch_audit_page, sign_in_audit_admin,
@@ -414,7 +415,7 @@ def render_audit_admin_page() -> None:
             if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
                 operation_id = str(uuid4())
                 try:
-                    audit_db = get_legacy_dashboard_supabase()
+                    audit_db = _get_dashboard_supabase()
                     recorded = audit_event(
                         audit_db,
                         module="audit_admin",
@@ -494,8 +495,62 @@ def render_audit_admin_page() -> None:
 
 
 
+def _auth_login_enabled() -> bool:
+    return env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
+
+
+def _get_dashboard_supabase():
+    """Use a verified user JWT in individual-login mode; never fall back."""
+    if _auth_login_enabled():
+        session = st.session_state.get("_jarvis_auth_session")
+        db, refreshed = get_user_supabase(
+            session, allowed_roles={"admin", "operator", "reader"}
+        )
+        session.update(refreshed)
+        st.session_state["_jarvis_auth_session"] = session
+        st.session_state["_jarvis_user_role"] = refreshed["role"]
+        return db
+    return get_legacy_dashboard_supabase()
+
+
 def authenticated() -> bool:
     now = time.time()
+    if _auth_login_enabled():
+        session = st.session_state.get("_jarvis_auth_session")
+        if isinstance(session, dict):
+            try:
+                _get_dashboard_supabase()
+                st.session_state["authenticated"] = True
+                return True
+            except Exception:
+                st.session_state.pop("_jarvis_auth_session", None)
+                st.session_state.pop("_jarvis_user_role", None)
+                st.session_state.pop("_jarvis_db", None)
+                st.session_state.pop("_jarvis_pending_action", None)
+                st.session_state["authenticated"] = False
+                st.warning("A munkamenet lejárt vagy már nem jogosult. Jelentkezz be újra.")
+        st.markdown('<div class="jarvis-eyebrow">PRIVATE BUSINESS INTELLIGENCE</div>', unsafe_allow_html=True)
+        st.title("JARVIS")
+        st.caption("Személyes Supabase Auth-fiókkal történő biztonságos belépés.")
+        with st.form("jarvis_auth_login_form", clear_on_submit=True):
+            email = st.text_input("E-mail-cím", autocomplete="email")
+            password = st.text_input("Jelszó", type="password", autocomplete="current-password")
+            submitted = st.form_submit_button("Belépés", type="primary", width="stretch")
+        if submitted:
+            try:
+                session = sign_in_user(email, password)
+                st.session_state["_jarvis_auth_session"] = session
+                st.session_state["_jarvis_user_role"] = session["role"]
+                st.session_state["authenticated"] = True
+                st.rerun()
+            except Exception as exc:
+                report_error(
+                    exc, module="dashboard", operation="supabase_auth_sign_in",
+                    severity="warning",
+                )
+                st.error("A belépés sikertelen. Ellenőrizd a hitelesítő adatokat és a fiók jogosultságát.")
+        return False
+
     if st.session_state.get("authenticated"):
         authenticated_at = st.session_state.get("_jarvis_authenticated_at")
         if isinstance(authenticated_at, (int, float)) and 0 <= now - authenticated_at < AUTH_SESSION_TTL_SECONDS:
@@ -883,7 +938,9 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                     + pd.Series(strategy).to_json(force_ascii=False)
                 )
                 loaded.append("korábbi kutatások piaci mintázatai")
-                learning = build_business_learning(get_memories(db, "", limit=100), lead_rows)
+                learning = build_business_learning(get_memories(
+                db, "", limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+            ), lead_rows)
                 sections.append(
                     "ÜZLETI TANULÓMEMÓRIA (kutatási minták + kizárólag explicit döntések/eredmények/tanulságok):\n"
                     + pd.Series(learning).to_json(force_ascii=False)
@@ -982,6 +1039,21 @@ with st.sidebar:
         '</div>',
         unsafe_allow_html=True,
     )
+    if _auth_login_enabled():
+        st.caption(f"Bejelentkezve: {st.session_state.get('_jarvis_auth_session', {}).get('email', '')}")
+        if st.button("Kijelentkezés", key="jarvis_auth_logout", width="stretch"):
+            current_session = st.session_state.get("_jarvis_auth_session")
+            try:
+                sign_out_user(current_session)
+            except Exception as exc:
+                report_error(exc, module="dashboard", operation="supabase_auth_sign_out", severity="warning")
+            for key in (
+                "_jarvis_auth_session", "_jarvis_user_role", "_jarvis_db",
+                "_jarvis_pending_action", "authenticated",
+            ):
+                st.session_state.pop(key, None)
+            st.rerun()
+
     chat_clicked = st.button(
         "◉   Chat",
         key="jarvis_nav_chat",
@@ -1035,12 +1107,17 @@ if st.session_state.get("jarvis_page") == "audit":
     st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
+    if _auth_login_enabled() and not has_permission(
+        st.session_state.get("_jarvis_user_role"), "analytics.read"
+    ):
+        st.error("Az analitika megtekintéséhez admin jogosultság szükséges.")
+        st.stop()
     # st.chat_input is anchored in Streamlit's global bottom container; hide it on this page.
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     try:
         analytics_db = st.session_state.get("_jarvis_db")
         if analytics_db is None:
-            analytics_db = get_legacy_dashboard_supabase()
+            analytics_db = _get_dashboard_supabase()
             st.session_state["_jarvis_db"] = analytics_db
         render_analytics(analytics_db)
     except Exception as exc:
@@ -1132,12 +1209,17 @@ if prompt:
             memory_category = memory_action.split(":", 1)[1] if ":" in memory_action else "business_preference"
             memory_notice = (
                 f"A kért {memory_category} elemet elmentettem a hosszú távú memóriába."
-                if save_memory(db, memory_payload, category=memory_category)
+                if save_memory(
+                    db, memory_payload, category=memory_category,
+                    auth_session=st.session_state.get("_jarvis_auth_session"),
+                )
                 else "Ezt nem mentettem el: túl hosszú lehet, vagy titkot/személyes adatot tartalmazhat."
             )
         elif memory_action == "forget":
             stage = "JARVIS memória törlése"
-            deleted = forget_memories(db, memory_payload)
+            deleted = forget_memories(
+                db, memory_payload, auth_session=st.session_state.get("_jarvis_auth_session")
+            )
             memory_notice = f"{deleted} memóriaelemet inaktiváltam."
         elif memory_action == "list":
             stage = "JARVIS memória áttekintése"
@@ -1150,7 +1232,9 @@ if prompt:
                 if saved_memories else "Még nincs elmentett emlék."
             )
 
-        relevant_memories = get_memories(db, prompt, limit=100) if memory_action != "list" else []
+        relevant_memories = get_memories(
+            db, prompt, limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+        ) if memory_action != "list" else []
         q = prompt.casefold().strip()
         pending_action = st.session_state.get("_jarvis_pending_action")
         approval_notice = ""
@@ -1191,7 +1275,9 @@ if prompt:
                             raise RuntimeError("Az e-mailt nem küldtem el: az auditnapló nem írható.")
                         try:
                             message_id = send_email(
-                                chat_email["recipient"], chat_email["subject"], chat_email["body"]
+                                chat_email["recipient"], chat_email["subject"], chat_email["body"],
+                                auth_session=st.session_state.get("_jarvis_auth_session"),
+                                approved=True,
                             )
                         except Exception as email_exc:
                             audit_event(
@@ -1220,7 +1306,10 @@ if prompt:
                             approval_notice = f"Az SMTP-szerver átvette az e-mailt ({message_id or 'azonosító nélkül'}), de a végső auditbejegyzés mentése nem sikerült. A küldést ne ismételd meg ellenőrzés nélkül."
                 elif task_action:
                     stage = "Jóváhagyott feladatművelet"
-                    approval_notice = execute_task_action(db, task_action, approved=True)
+                    approval_notice = execute_task_action(
+                        db, task_action, approved=True,
+                        auth_session=st.session_state.get("_jarvis_auth_session"),
+                    )
                 else:
                     approval_notice = "A jóváhagyott művelet végrehajtása elindult."
             else:
@@ -1294,13 +1383,18 @@ if prompt:
                 approval_notice = "Jóváhagyásra váró művelet: " + "; ".join(parts) + ". Írd be: „Jóváhagyom” vagy „Elutasítom”."
         if market_change:
             stage = "Leadkutatási célpiac módosítása"
-            active_market = set_research_market(db, market_change)
+            active_market = set_research_market(
+                db, market_change, auth_session=st.session_state.get("_jarvis_auth_session")
+            )
 
         research_result = None
         if research_prompt:
             stage = f"Leadkutatás – {active_market}"
             with st.spinner(f"JARVIS {active_market} piacán keres cégeket, ellenőrzi a forrásokat és kiszűri a duplikátumokat…"):
-                research_result = research_global_companies(db, research_prompt, market_country=active_market)
+                research_result = research_global_companies(
+                    db, research_prompt, market_country=active_market,
+                    auth_session=st.session_state.get("_jarvis_auth_session"),
+                )
         
         stage = "Supabase-adatlekérdezés"
         with st.spinner("JARVIS lekérdezi a szükséges adatokat és elemez…"):
