@@ -272,7 +272,7 @@ def render_audit_admin_page() -> None:
             except (ValueError, RuntimeError) as exc:
                 st.error(str(exc))
             except Exception as exc:
-                jarvis_errors.jarvis_errors.report_error(
+                jarvis_errors.report_error(
                     exc, module="dashboard", operation="audit_admin_sign_in",
                     severity="warning",
                 )
@@ -290,7 +290,7 @@ def render_audit_admin_page() -> None:
         st.session_state.pop(session_key, None)
         st.session_state.pop("_jarvis_audit_export_pending", None)
         st.session_state.pop("_jarvis_audit_cursor_stack", None)
-        jarvis_errors.jarvis_errors.report_error(
+        jarvis_errors.report_error(
             exc, module="dashboard", operation="audit_admin_session_validation",
             severity="warning",
         )
@@ -305,7 +305,7 @@ def render_audit_admin_page() -> None:
             pending_export = st.session_state.get("_jarvis_audit_export_pending")
             if pending_export:
                 try:
-                    jarvis_common.jarvis_common.audit_event(
+                    jarvis_common.audit_event(
                         audit_client,
                         module="audit_admin",
                         action="export_csv",
@@ -316,14 +316,14 @@ def render_audit_admin_page() -> None:
                         actor_user_id=pending_export.get("actor_user_id"),
                     )
                 except Exception as exc:
-                    jarvis_errors.jarvis_errors.report_error(
+                    jarvis_errors.report_error(
                         exc, module="dashboard", operation="audit_export_cancel",
                         severity="warning",
                     )
             try:
                 audit_admin.sign_out_audit_admin(refreshed_session)
             except Exception as exc:
-                jarvis_errors.jarvis_errors.report_error(
+                jarvis_errors.report_error(
                     exc, module="dashboard", operation="audit_admin_sign_out",
                     severity="warning",
                 )
@@ -362,7 +362,7 @@ def render_audit_admin_page() -> None:
         rows = page["events"]
         next_cursor = page["next_cursor"]
     except Exception as exc:
-        jarvis_errors.jarvis_errors.report_error(
+        jarvis_errors.report_error(
             exc, module="dashboard", operation="audit_admin_read",
             severity="error",
         )
@@ -401,7 +401,7 @@ def render_audit_admin_page() -> None:
                     f"levált rekord: {integrity.get('disconnected_entries')}."
                 )
         except Exception as exc:
-            jarvis_errors.jarvis_errors.report_error(
+            jarvis_errors.report_error(
                 exc, module="dashboard", operation="audit_integrity_check",
                 severity="critical",
             )
@@ -414,7 +414,7 @@ def render_audit_admin_page() -> None:
             if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
                 operation_id = str(uuid4())
                 try:
-                    recorded = jarvis_common.jarvis_common.audit_event(
+                    recorded = jarvis_common.audit_event(
                         audit_client,
                         module="audit_admin",
                         action="export_csv",
@@ -425,7 +425,7 @@ def render_audit_admin_page() -> None:
                         actor_user_id=refreshed_session.get("user_id"),
                     )
                 except Exception as exc:
-                    jarvis_errors.jarvis_errors.report_error(
+                    jarvis_errors.report_error(
                         exc, module="dashboard", operation="audit_export_pending",
                         severity="critical",
                     )
@@ -447,7 +447,7 @@ def render_audit_admin_page() -> None:
                 st.session_state.pop(pending_key, None)
                 try:
                     if isinstance(pending, dict) and pending.get("operation_id"):
-                        jarvis_common.jarvis_common.audit_event(
+                        jarvis_common.audit_event(
                             audit_client,
                             module="audit_admin",
                             action="export_csv",
@@ -458,7 +458,7 @@ def render_audit_admin_page() -> None:
                             actor_user_id=refreshed_session.get("user_id"),
                         )
                 except Exception as exc:
-                    jarvis_errors.jarvis_errors.report_error(
+                    jarvis_errors.report_error(
                         exc, module="dashboard", operation="audit_export_expired",
                         severity="warning",
                     )
@@ -473,7 +473,7 @@ def render_audit_admin_page() -> None:
                 )
                 if downloaded:
                     try:
-                        completed = jarvis_common.jarvis_common.audit_event(
+                        completed = jarvis_common.audit_event(
                             audit_client,
                             module="audit_admin",
                             action="export_csv",
@@ -484,14 +484,14 @@ def render_audit_admin_page() -> None:
                             actor_user_id=pending.get("actor_user_id"),
                         )
                     except Exception as exc:
-                        jarvis_errors.jarvis_errors.report_error(
+                        jarvis_errors.report_error(
                             exc, module="dashboard", operation="audit_export_completion",
                             severity="critical",
                         )
                         completed = False
                     if not completed:
                         try:
-                            jarvis_common.jarvis_common.audit_event(
+                            jarvis_common.audit_event(
                                 audit_client,
                                 module="audit_admin",
                                 action="export_csv",
@@ -503,7 +503,7 @@ def render_audit_admin_page() -> None:
                                 level="critical",
                             )
                         except Exception as exc:
-                            jarvis_errors.jarvis_errors.report_error(
+                            jarvis_errors.report_error(
                                 exc, module="dashboard", operation="audit_export_unknown",
                                 severity="critical",
                             )
@@ -644,7 +644,7 @@ def authenticated() -> bool:
                 st.session_state["authenticated"] = True
                 st.rerun()
             except Exception as exc:
-                jarvis_errors.jarvis_errors.report_error(
+                jarvis_errors.report_error(
                     exc, module="dashboard", operation="supabase_auth_sign_in",
                     severity="warning",
                 )
@@ -711,7 +711,7 @@ def _safe_rows(
         # A missing optional column or unavailable table must not take down the
         # whole chat/analytics flow. Keep the failure visible in the central log.
         try:
-            jarvis_errors.jarvis_errors.report_error(
+            jarvis_errors.report_error(
                 exc, module="dashboard", operation=f"read_rows:{table}",
                 severity="warning",
             )
@@ -847,10 +847,10 @@ def _website_profile(url: Any) -> dict[str, Any]:
                     "content_excerpt": text[:3500]}
         return {"status": "az oldal nem adott használható választ", "score": 0, "url": current_url}
     except requests.RequestException as exc:
-        jarvis_errors.jarvis_errors.report_error(exc, module="dashboard", operation="audit_lead_website_http", severity="warning")
+        jarvis_errors.report_error(exc, module="dashboard", operation="audit_lead_website_http", severity="warning")
         return {"status": f"weboldal nem érhető el ({type(exc).__name__})", "score": 0, "url": current_url}
     except Exception as exc:
-        jarvis_errors.jarvis_errors.report_error(exc, module="dashboard", operation="audit_lead_website_parse", severity="error")
+        jarvis_errors.report_error(exc, module="dashboard", operation="audit_lead_website_parse", severity="error")
         return {"status": f"weboldal feldolgozási hiba ({type(exc).__name__})", "score": 0, "url": current_url}
     finally:
         if response is not None:
@@ -1146,7 +1146,7 @@ with st.sidebar:
             try:
                 sign_out_user(current_session)
             except Exception as exc:
-                jarvis_errors.jarvis_errors.report_error(exc, module="dashboard", operation="supabase_auth_sign_out", severity="warning")
+                jarvis_errors.report_error(exc, module="dashboard", operation="supabase_auth_sign_out", severity="warning")
             for key in (
                 "_jarvis_auth_session", "_jarvis_user_role", "_jarvis_db",
                 "_jarvis_pending_action", "authenticated",
@@ -1221,7 +1221,7 @@ if st.session_state.get("jarvis_page") == "analytics":
             st.session_state["_jarvis_db"] = analytics_db
         render_analytics(analytics_db)
     except Exception as exc:
-        jarvis_errors.jarvis_errors.report_error(exc, module="dashboard", operation="render_analytics", severity="error", db=analytics_db if "analytics_db" in locals() else None)
+        jarvis_errors.report_error(exc, module="dashboard", operation="render_analytics", severity="error", db=analytics_db if "analytics_db" in locals() else None)
         st.error("Az Analitika oldal nem tudott betöltődni.")
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
@@ -1373,7 +1373,7 @@ if prompt:
                             "recipient": chat_email["recipient"],
                             "subject": chat_email["subject"],
                         }
-                        if not jarvis_common.jarvis_common.audit_event(db, status="pending", **audit_fields):
+                        if not jarvis_common.audit_event(db, status="pending", **audit_fields):
                             raise RuntimeError("Az e-mailt nem küldtem el: az auditnapló nem írható.")
                         try:
                             message_id = send_email(
@@ -1382,11 +1382,11 @@ if prompt:
                                 approved=True,
                             )
                         except Exception as email_exc:
-                            jarvis_common.jarvis_common.audit_event(
+                            jarvis_common.audit_event(
                                 db, status="failed", error=email_exc, level="error",
                                 **audit_fields,
                             )
-                            jarvis_errors.jarvis_errors.report_error(
+                            jarvis_errors.report_error(
                                 email_exc,
                                 module="dashboard",
                                 operation="send_approved_chat_email",
@@ -1394,7 +1394,7 @@ if prompt:
                                 db=db,
                             )
                             raise
-                        audit_saved = jarvis_common.jarvis_common.audit_event(
+                        audit_saved = jarvis_common.audit_event(
                             db, status="success",
                             result={"smtp_accepted": True},
                             delivery_id=message_id or None,
@@ -1565,7 +1565,7 @@ if prompt:
                             truncated=len(report_records) >= 5000,
                         )
                     except Exception as report_exc:
-                        jarvis_errors.jarvis_errors.report_error(
+                        jarvis_errors.report_error(
                             report_exc,
                             module="dashboard",
                             operation="build_executive_analytics_report",
@@ -1650,7 +1650,7 @@ if prompt:
         if db is not None:
             log_event(db, "chat", f"chat_error|request_id={request_id}", level="error")
         # Use the same redaction rules for persisted logs and user-visible diagnostics.
-        jarvis_errors.jarvis_errors.report_error(
+        jarvis_errors.report_error(
             exc, module="dashboard", operation=f"chat_request:{stage}",
             severity="error", db=db,
         )
