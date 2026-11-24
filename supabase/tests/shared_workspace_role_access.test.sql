@@ -47,6 +47,8 @@ INSERT INTO public.logs (module,message,level,action,status) VALUES ('rbac_test'
 SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'operator can append an audit event');
 SELECT is((SELECT actor_user_id::text FROM public.logs WHERE module='rbac_test' LIMIT 1),'10000000-0000-0000-0000-000000000002','audit trigger binds actor to authenticated JWT');
 SELECT is((SELECT count(*) FROM public.settings),1::bigint,'operator can read only the research-market setting');
+SELECT is((SELECT count(*) FROM public.logs),0::bigint,'operator cannot read audit events');
+SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'operator cannot read audit chain state');
 UPDATE public.settings SET value='{"country":"France"}'::jsonb WHERE key='lead_research_market';
 SELECT is((SELECT count(*) FROM public.settings WHERE key='lead_research_market' AND value->>'country'='Germany'),1::bigint,'operator cannot change settings');
 
