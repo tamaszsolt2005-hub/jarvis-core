@@ -140,3 +140,31 @@ Artifacts:
 - [Responsive UI screenshots](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381/artifacts/14955985728) — 7-day retention.
 
 This validates repository code and the migration chain against an isolated CI fixture. It is not a production backup, AWS/S3 deployment, production restore or real Supabase Auth/JWT/RLS validation.
+
+
+## Legfrissebb branch-ellenőrzés – 2026-11-25
+
+A PR #13 jelenlegi branch headje: `649f5796ec8f475d0a069d2e263669efbb290d1b`.
+A legutóbbi teljesen zöld baseline továbbra is a [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+futás (734 passed, 3 skipped, 93.67% coverage); ez korábbi commiton futott,
+így nem igazolja a jelenlegi headet.
+
+A korábbi audit UI tesztfutás 751 passed, 11 failed, 3 skipped és 94.17%
+coverage eredményt adott. Mind a 11 hiba a`tests/test_dashboard_audit_ui.py`
+tesztjeiben jelentkezett. A dashboard audit-függőségeinek modulon keresztüli
+hivatkozására és az importok korrekciójára javítások kerültek a branchre.
+Ezek hatása csak a jelenlegi head teljes tesztfutása után tekinthető
+igazoltnak; a korábbi 94.17% nem az új futás coverage-adata.
+
+A jelenlegi head push CI futása [45509638790](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509638790),
+a PR CI futása [45509647393](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509647393).
+A push futásban a `backup-restore-integration` job sikeres; a `test` jobban
+a függőségtelepítés, CloudFormation-validáció, Playwright telepítés és
+`compileall` sikeres, a kombinált unit/AppTest/browser tesztlépés azonban az
+dokumentum frissítésekor még futott. Végleges tesztszám és coverage ezért
+még nincs közölve. A PR-futás eredményét is külön ellenőrizni kell.
+
+**Értelmezés:** a lokális PostgreSQL 17 + pgTAP + age backup/restore sikeres
+CI-eredménye továbbra sem production backup, és nem igazolja a valós
+Supabase Auth/JWT/RLS működést. PR #13 nyitott és draft; merge és production
+módosítás nem történt.
