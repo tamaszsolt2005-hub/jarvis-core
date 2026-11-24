@@ -37,6 +37,7 @@ jobs:
           name: jarvis-dashboard-responsive-screenshots
           path: test-results/**/*.png
           if-no-files-found: ignore
+          retention-days: 7
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
@@ -44,6 +45,7 @@ jobs:
           name: jarvis-coverage-report
           path: coverage.xml
           if-no-files-found: ignore
+          retention-days: 14
 
   backup-restore-integration:
     runs-on: ubuntu-24.04
@@ -228,6 +230,15 @@ jobs:
                   'legacy_fixture', 'preserve this pre-migration event', 'info');
           SQL
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file "$RUNNER_TEMP/audit-test-setup.sql"
+          # Replay the repository's historical, idempotent schema migrations
+          # against the production-shape fixture before the audit/RBAC chain.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119191911_create_jarvis_memory_and_fk_indexes.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192040_complete_jarvis_runtime_schema.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192145_enable_rls_on_legacy_posts.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192412_revoke_anon_authenticated_public_table_and_sequence_privileges.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192559_secure_postgres_default_privileges_public_schema.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql
           output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/audit_access_and_integrity.test.sql)"
