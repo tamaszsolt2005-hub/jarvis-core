@@ -307,7 +307,7 @@ def render_audit_admin_page() -> None:
             if pending_export:
                 try:
                     audit_event(
-                        get_legacy_dashboard_supabase(),
+                        audit_client,
                         module="audit_admin",
                         action="export_csv",
                         status="blocked",
@@ -415,9 +415,8 @@ def render_audit_admin_page() -> None:
             if st.button("CSV export előkészítése", key="jarvis_audit_export_prepare"):
                 operation_id = str(uuid4())
                 try:
-                    audit_db = get_legacy_dashboard_supabase()
                     recorded = audit_event(
-                        audit_db,
+                        audit_client,
                         module="audit_admin",
                         action="export_csv",
                         status="pending",
@@ -439,57 +438,63 @@ def render_audit_admin_page() -> None:
                         "operation_id": operation_id,
                         "rows": rows,
                         "actor_user_id": refreshed_session.get("user_id"),
+                        "created_at": time.time(),
                         "page": len(cursor_stack),
                     }
                     st.rerun()
         else:
             pending = st.session_state[pending_key]
-            downloaded = st.download_button(
-                "Audit CSV letöltése",
-                data=audit_rows_to_csv(pending["rows"]),
-                file_name="jarvis-audit-export.csv",
-                mime="text/csv",
-                key="jarvis_audit_csv_export",
-            )
-            if downloaded:
-                try:
-                    completed = audit_event(
-                        get_legacy_dashboard_supabase(),
-                        module="audit_admin",
-                        action="export_csv",
-                        status="success",
-                        operation_id=pending["operation_id"],
-                        result={"row_count": len(pending["rows"]), "page": pending["page"]},
-                        approved=True,
-                        actor_user_id=pending.get("actor_user_id"),
-                    )
-                except Exception as exc:
-                    report_error(
-                        exc, module="dashboard", operation="audit_export_completion",
-                        severity="critical",
-                    )
-                    completed = False
-                if not completed:
+            if not _audit_export_is_valid(pending, refreshed_session.get("user_id")):
+                st.session_state.pop(pending_key, None)
+                st.warning("Az audit CSV export jóváhagyása lejárt vagy másik felhasználóhoz tartozik. Készíts új exportot.")
+            else:
+                downloaded = st.download_button(
+                    "Audit CSV letöltése",
+                    data=audit_rows_to_csv(pending["rows"]),
+                    file_name="jarvis-audit-export.csv",
+                    mime="text/csv",
+                    key="jarvis_audit_csv_export",
+                )
+                if downloaded:
                     try:
-                        audit_event(
-                            get_legacy_dashboard_supabase(),
+                        completed = audit_event(
+                            audit_client,
                             module="audit_admin",
                             action="export_csv",
-                            status="unknown",
+                            status="success",
                             operation_id=pending["operation_id"],
-                            result={"completion_audit_failed": True, "download_was_triggered": True},
+                            result={"row_count": len(pending["rows"]), "page": pending["page"]},
                             approved=True,
                             actor_user_id=pending.get("actor_user_id"),
-                            level="critical",
                         )
                     except Exception as exc:
                         report_error(
-                            exc, module="dashboard", operation="audit_export_unknown",
+                            exc, module="dashboard", operation="audit_export_completion",
                             severity="critical",
                         )
-                    st.error("A letöltés megtörtént, de a lezáró audit bizonytalan maradt.")
-                st.session_state.pop(pending_key, None)
-                st.rerun()
+                        completed = False
+                    if not completed:
+                        try:
+                            audit_event(
+                                audit_client,
+                                module="audit_admin",
+                                action="export_csv",
+                                status="unknown",
+                                operation_id=pending["operation_id"],
+                                result={"completion_audit_failed": True, "download_was_triggered": True},
+                                approved=True,
+                                actor_user_id=pending.get("actor_user_id"),
+                                level="critical",
+                            )
+                        except Exception as exc:
+                            report_error(
+                                exc, module="dashboard", operation="audit_export_unknown",
+                                severity="critical",
+                            )
+                        st.error("A letöltés megtörtént, de a lezáró audit bizonytalan maradt.")
+                    st.session_state.pop(pending_key, None)
+                    st.rerun()
+    
     else:
         st.info("A szűrésnek megfelelő auditbejegyzés nem található.")
 
@@ -557,6 +562,24 @@ def _consume_pending_action() -> dict[str, Any] | None:
         key: value for key, value in pending.items()
         if not key.startswith("_approval_")
     }
+
+
+def _audit_export_is_valid(pending: Any, actor_user_id: str | None, *, now: float | None = None) -> bool:
+    """Accept an audit CSV export only for its original admin and within the approval TTL."""
+    if not isinstance(pending, dict) or not actor_user_id:
+        return False
+    created_at = pending.get("created_at")
+    current = time.time() if now is None else now
+    return (
+        isinstance(created_at, (int, float))
+        and not isinstance(created_at, bool)
+        and 0 < created_at <= current
+        and current - created_at <= PENDING_APPROVAL_TTL_SECONDS
+        and pending.get("actor_user_id") == actor_user_id
+        and isinstance(pending.get("operation_id"), str)
+        and bool(pending.get("operation_id"))
+        and isinstance(pending.get("rows"), list)
+    )
 
 
 def _get_dashboard_supabase():
