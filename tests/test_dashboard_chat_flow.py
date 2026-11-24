@@ -113,8 +113,8 @@ def test_chat_email_sending_requires_explicit_approval_and_both_server_switches(
     approval = _approval_branch()
     _call_positions(approval, [
         'elif q in {"jóváhagyom"',
-        'chat_email = pending_action.get("chat_email")',
         '_consume_pending_action()',
+        'chat_email = pending_action.get("chat_email")',
         "if chat_email:",
         "if not EMAIL_DELIVERY_ENABLED or not env_bool(\"CHAT_EMAIL_ENABLED\", False):",
         'if not audit_event(db, status="pending", **audit_fields):',
