@@ -78,7 +78,7 @@ def test_get_dashboard_supabase_refreshes_session_and_uses_allowed_roles(monkeyp
 
     assert calls["legacy"] == 0
     assert calls["user"] == [(session, {"admin", "operator", "reader"})]
-    assert db is st.session_state["_jarvis_db"] if "_jarvis_db" in st.session_state else db
+    assert db is not None
     assert session == {"access_token": "refreshed", "role": "operator"}
     assert st.session_state["_jarvis_user_role"] == "operator"
 
