@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from jarvis_common import get_secret, get_service_supabase, get_gemini_client, get_model_name
+from jarvis_common import (
+    get_secret, get_service_supabase, get_enforced_user_supabase,
+    get_gemini_client, get_model_name,
+)
 from jarvis_errors import report_error
 
 
@@ -22,18 +25,44 @@ REQUIRED_TABLES = (
     "email_drafts",
     "audit_chain_state",
 )
+USER_VISIBLE_DIAGNOSTIC_TABLES = tuple(
+    table for table in REQUIRED_TABLES
+    if table not in {"jarvis_proactive_state", "audit_chain_state"}
+)
 
 
 def _check(label: str, ok: bool, detail: str) -> dict[str, Any]:
     return {"label": label, "ok": bool(ok), "detail": str(detail)[:240]}
 
 
-def run_self_diagnostics() -> str:
-    """Probe configured integrations with bounded read-only checks and one tiny Gemini request."""
+def run_self_diagnostics(*, auth_session: dict[str, str] | None = None) -> str:
+    """Probe integrations; Auth mode is admin-only and uses the verified user JWT."""
     checks: list[dict[str, Any]] = []
+    user_client_mode = False
+    db = None
+    try:
+        enforced = get_enforced_user_supabase(
+            auth_session,
+            "system.diagnostics",
+            allowed_roles={"admin"},
+        )
+    except PermissionError:
+        return (
+            "# JARVIS rendszerdiagnosztika\n\n"
+            "A rendszerdiagnosztika egyéni Supabase Auth módban kizárólag "
+            "ellenőrzött admin felhasználó számára érhető el. "
+            "Nem történt adatbázis- vagy külső szolgáltatás-lekérdezés.\n"
+        )
+    if enforced is not None:
+        db, _refreshed_session = enforced
+        user_client_mode = True
 
     supabase_url = get_secret("SUPABASE_URL")
-    supabase_key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or get_secret("SUPABASE_KEY")
+    supabase_key = (
+        get_secret("SUPABASE_PUBLISHABLE_KEY") or get_secret("SUPABASE_ANON_KEY")
+        if user_client_mode
+        else get_secret("SUPABASE_SERVICE_ROLE_KEY") or get_secret("SUPABASE_KEY")
+    )
     gemini_key = get_secret("GEMINI_API_KEY")
     dashboard_password = get_secret("JARVIS_DASHBOARD_PASSWORD")
 
@@ -42,11 +71,12 @@ def run_self_diagnostics() -> str:
     checks.append(_check("Gemini API-kulcs", bool(gemini_key), "Beállítva." if gemini_key else "Hiányzik a GEMINI_API_KEY."))
     checks.append(_check("Dashboard jelszó", bool(dashboard_password), "Beállítva." if dashboard_password else "Hiányzik a JARVIS_DASHBOARD_PASSWORD."))
 
-    db = None
-    if supabase_url and supabase_key:
+    if db is not None:
+        checks.append(_check("Supabase kapcsolat", True, "Az ellenőrzött felhasználói kliens elérhető."))
+    elif supabase_url and supabase_key:
         try:
             db = get_service_supabase()
-            checks.append(_check("Supabase kapcsolat", True, "A kliens létrehozása sikerült."))
+            checks.append(_check("Supabase kapcsolat", True, "A szerveroldali diagnosztikai kliens létrehozása sikerült."))
         except Exception as exc:
             _report_diagnostic_error(exc, "initialize_supabase")
             checks.append(_check("Supabase kapcsolat", False, f"Kapcsolat inicializálása sikertelen ({type(exc).__name__})."))
@@ -54,7 +84,8 @@ def run_self_diagnostics() -> str:
         checks.append(_check("Supabase kapcsolat", False, "A hiányzó konfiguráció miatt nem futott le."))
 
     if db is not None:
-        for table in REQUIRED_TABLES:
+        diagnostic_tables = USER_VISIBLE_DIAGNOSTIC_TABLES if user_client_mode else REQUIRED_TABLES
+        for table in diagnostic_tables:
             try:
                 db.table(table).select("*").limit(1).execute()
                 checks.append(_check(f"Supabase tábla: {table}", True, "Lekérdezhető (üres tábla is megfelelő)."))
@@ -62,7 +93,8 @@ def run_self_diagnostics() -> str:
                 _report_diagnostic_error(exc, "probe_table")
                 checks.append(_check(f"Supabase tábla: {table}", False, f"Nem kérdezhető le ({type(exc).__name__}); ellenőrizd a sémát és az RLS-hozzáférést."))
     else:
-        for table in REQUIRED_TABLES:
+        diagnostic_tables = USER_VISIBLE_DIAGNOSTIC_TABLES if user_client_mode else REQUIRED_TABLES
+        for table in diagnostic_tables:
             checks.append(_check(f"Supabase tábla: {table}", False, "A Supabase-kapcsolat hiánya miatt nem ellenőrizhető."))
 
     if db is not None:
