@@ -243,3 +243,71 @@ def test_audit_export_approval_is_time_limited_and_bound_to_admin(monkeypatch):
     assert not namespace["_audit_export_is_valid"](valid, "admin-b", now=500.0)
     assert not namespace["_audit_export_is_valid"](valid, "admin-a", now=701.0)
     assert not namespace["_audit_export_is_valid"](valid, None, now=500.0)
+
+
+def test_pending_approval_rejects_malformed_metadata_and_non_dict_actions(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch, state={"_jarvis_auth_session": {"user_id": "user-a"}}, enabled=True
+    )
+    with pytest.raises(TypeError):
+        namespace["_stage_pending_action"]("not-a-dict")
+    for bad_timestamp, bad_nonce in ((True, "nonce"), (time.time() + 60, "nonce"), (time.time(), "")):
+        namespace["_stage_pending_action"]({"operation": "write"})
+        pending = st.session_state["_jarvis_pending_action"]
+        pending["_approval_created_at"] = bad_timestamp
+        pending["_approval_nonce"] = bad_nonce
+        assert namespace["_consume_pending_action"]() is None
+        assert "_jarvis_pending_action" not in st.session_state
+
+
+def test_pending_approval_legacy_actor_and_valid_consumption(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch, state={"_jarvis_authenticated_at": 1234.5}, enabled=False
+    )
+    assert namespace["_approval_actor"]() == "legacy:1234.5"
+    namespace["_stage_pending_action"]({"action": "archive"})
+    assert namespace["_consume_pending_action"]() == {"action": "archive"}
+
+
+def test_pending_approval_without_principal_is_rejected(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=True)
+    namespace["_stage_pending_action"]({"action": "send"})
+    assert st.session_state["_jarvis_pending_action"]["_approval_actor"] is None
+    assert namespace["_consume_pending_action"]() is None
+
+
+@pytest.mark.parametrize("pending", [
+    None,
+    [],
+    {"created_at": True, "actor_user_id": "admin", "operation_id": "op", "rows": []},
+    {"created_at": 10, "actor_user_id": "admin", "operation_id": "", "rows": []},
+    {"created_at": 10, "actor_user_id": "admin", "operation_id": "op", "rows": ()},
+    {"created_at": 501, "actor_user_id": "admin", "operation_id": "op", "rows": []},
+])
+def test_audit_export_rejects_malformed_or_future_approval(monkeypatch, pending):
+    namespace, _st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=True)
+    assert namespace["_audit_export_is_valid"](pending, "admin", now=500) is False
+
+
+def test_authenticated_legacy_session_expiry_and_missing_password(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"authenticated": True, "_jarvis_authenticated_at": time.time() - 9 * 60 * 60},
+        enabled=False,
+    )
+    assert namespace["authenticated"]() is False
+    assert "authenticated" not in st.session_state
+    assert "_jarvis_db" not in st.session_state
+
+    namespace, st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=False)
+    namespace["get_secret"] = lambda _name: None
+    assert namespace["authenticated"]() is False
+
+
+def test_authenticated_legacy_session_within_ttl_is_accepted(monkeypatch):
+    namespace, _st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"authenticated": True, "_jarvis_authenticated_at": time.time() - 30},
+        enabled=False,
+    )
+    assert namespace["authenticated"]() is True
