@@ -7,7 +7,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from uuid import uuid4
 
-from jarvis_common import audit_event
+from jarvis_common import audit_event, env_bool, get_user_supabase
+from jarvis_auth import require_permission
 from jarvis_errors import report_error
 
 
@@ -257,12 +258,30 @@ def _validate_action(action: Any) -> None:
 
 
 def execute_task_action(
-    db: Any, action: dict[str, Any], *, approved: bool = False
+    db: Any,
+    action: dict[str, Any],
+    *,
+    approved: bool = False,
+    auth_session: dict[str, str] | None = None,
 ) -> str:
-    """Execute a task only when the caller confirms the dashboard approval gate."""
+    """Execute an approved task; enforced Auth mode uses only the verified user JWT client."""
     if approved is not True:
         raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
     _validate_action(action)
+
+    # Roll out behind an explicit server-side flag. Until the dashboard login and
+    # table policies are ready, the existing legacy path remains unchanged.
+    # If the flag is enabled, a missing/invalid session denies the operation and
+    # all task/audit queries use the public-key client carrying the user's JWT.
+    if env_bool("JARVIS_AUTH_RBAC_ENFORCED", False):
+        if not isinstance(auth_session, dict):
+            raise PermissionError("A feladatművelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
+        db, refreshed_session = get_user_supabase(
+            auth_session, allowed_roles={"admin", "operator"}
+        )
+        require_permission(refreshed_session.get("role"), "tasks.write")
+        auth_session.update(refreshed_session)
+
     try:
         return _execute_task_action(db, action)
     except Exception as exc:
