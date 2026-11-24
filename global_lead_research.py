@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from google.genai import types
 
-from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event
+from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
 
 
@@ -117,8 +117,15 @@ def get_research_market(db: Any) -> str:
     return DEFAULT_MARKET
 
 
-def set_research_market(db: Any, country: str) -> str:
+def set_research_market(
+    db: Any, country: str, *, auth_session: dict[str, str] | None = None
+) -> str:
     """Persist the active market without changing email permissions."""
+    enforced = get_enforced_user_supabase(
+        auth_session, "settings.write", allowed_roles={"admin"}
+    )
+    if enforced is not None:
+        db, _ = enforced
     if country not in set(MARKET_ALIASES.values()):
         raise ValueError("Nem támogatott vagy nem ismert célország.")
     db.table("settings").upsert({
@@ -164,14 +171,23 @@ def _research_quality(item: dict[str, Any]) -> tuple[str, int | None, list[str]]
     return confidence, score, evidence
 
 
-def research_global_companies(db: Any, request: str, client: Any | None = None,
-                              max_results: int = MAX_RESULTS, market_country: str | None = None) -> dict[str, Any]:
+def research_global_companies(
+    db: Any, request: str, client: Any | None = None,
+    max_results: int = MAX_RESULTS, market_country: str | None = None,
+    *, auth_session: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Find public business entities worldwide and save unapproved company-only leads.
 
     Search results are treated as untrusted. Only entries tied to a Google Search
     grounding source are accepted. No personal emails are collected and every
     inserted record has approved_to_contact=False.
     """
+    enforced = get_enforced_user_supabase(
+        auth_session, "leads.write", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None:
+        db, _ = enforced
+
     client = client or get_gemini_client()
     market_country = market_country or get_research_market(db)
     market_instruction = (
