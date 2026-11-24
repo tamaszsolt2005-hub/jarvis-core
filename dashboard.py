@@ -1219,7 +1219,7 @@ if prompt:
                 f"A kért {memory_category} elemet elmentettem a hosszú távú memóriába."
                 if save_memory(
                     db, memory_payload, category=memory_category,
-                    auth_session=st.session_state.get("_jarvis_auth_session"),
+                    **_auth_session_kwargs(),
                 )
                 else "Ezt nem mentettem el: túl hosszú lehet, vagy titkot/személyes adatot tartalmazhat."
             )
