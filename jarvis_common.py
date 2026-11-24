@@ -112,7 +112,13 @@ def get_enforced_user_supabase(
     The default-off flag preserves the legacy dashboard until its Auth session
     and table policies are ready. Enforced mode always fails closed.
     """
-    if not env_bool("JARVIS_AUTH_RBAC_ENFORCED", False):
+    # Enabling the individual dashboard Auth flow also enables enforcement;
+    # otherwise a reader could reach external side effects such as SMTP.
+    enforced = (
+        env_bool("JARVIS_AUTH_RBAC_ENFORCED", False)
+        or env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
+    )
+    if not enforced:
         return None
     if not isinstance(session, dict):
         raise PermissionError("Ehhez a művelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
