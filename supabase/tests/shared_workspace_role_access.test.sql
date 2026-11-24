@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(27);
+SELECT plan(32);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -9,6 +9,7 @@ SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.settings'::regc
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.jarvis_memory'::regclass), 'RLS enabled on jarvis_memory');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.posts'::regclass), 'RLS enabled on posts');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.jarvis_proactive_state'::regclass), 'RLS enabled on proactive state');
+SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.audit_chain_state'::regclass), 'RLS enabled on audit chain state');
 SELECT ok(NOT has_table_privilege('anon','public.leads','SELECT'), 'anon cannot read leads');
 SELECT ok(has_table_privilege('authenticated','public.leads','SELECT'), 'authenticated has leads SELECT grant');
 SELECT ok(has_table_privilege('authenticated','public.leads','INSERT'), 'authenticated has leads INSERT grant, filtered by RLS');
@@ -37,6 +38,7 @@ SELECT throws_ok(
   '42501', NULL, 'reader cannot append audit events'
 );
 SELECT is((SELECT count(*) FROM public.jarvis_proactive_state),0::bigint,'reader cannot read proactive state');
+SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'reader cannot read audit chain state');
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
 INSERT INTO public.leads (company_name) VALUES ('operator allowed');
@@ -53,6 +55,7 @@ SELECT is((SELECT count(*) FROM public.settings),2::bigint,'admin can read all s
 INSERT INTO public.settings (key,value) VALUES ('rbac_fixture','{}'::jsonb);
 SELECT is((SELECT count(*) FROM public.settings WHERE key='rbac_fixture'),1::bigint,'admin can write settings');
 SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'admin can read the operator audit event');
+SELECT is((SELECT count(*) FROM public.audit_chain_state),1::bigint,'admin can read audit chain state');
 
 SELECT * FROM finish();
 ROLLBACK;
