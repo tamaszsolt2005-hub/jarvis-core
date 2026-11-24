@@ -96,3 +96,27 @@ were queued for this head at the time of this update. Their results are pending.
 The earlier 45462875186 / 45462891101 runs were still in progress on the
 previous documentation head and are not substitutes for a completed check on
 the latest commit.
+
+
+## Latest complete CI run — 2026-11-24
+
+Workflow run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568)
+completed successfully on head `4945816b9010d899c1737a90ff3785ec1898acdd`.
+
+- Python / Streamlit / AppTest / browser test job: **success**.
+- Test result: **718 passed, 3 skipped**.
+- Total Python line coverage: **93.78%** (3,500 / 3,732 lines).
+- `dashboard.py`: **82.27%**.
+- `jarvis_auth.py`: **96.55%**.
+- `audit_admin.py`: **96.19%**.
+- PostgreSQL 17 audit/RBAC integration job: **success**.
+- Audit and shared-workspace RBAC pgTAP migrations/tests: **success**.
+- Encrypted age backup/restore round-trip in isolated CI PostgreSQL: **success**.
+- CloudFormation validation, Playwright browser installation, compileall: **success**.
+- Coverage XML and 27 responsive dashboard screenshots uploaded as artifacts.
+
+Artifacts:
+- [Coverage report](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568/artifacts/14953501639)
+- [Responsive UI screenshots](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568/artifacts/14954031342)
+
+This is a complete green repository CI run. It does not prove a production AWS/S3 backup, production restore, or real Supabase Auth/JWT/RLS behavior.
