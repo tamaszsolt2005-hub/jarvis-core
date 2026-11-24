@@ -11,13 +11,10 @@ A CI zöld állapota önmagában nem jelent production-ready Auth/RBAC-ot.
 ## 1. Legutóbbi igazolt fejlesztési állapot
 
 - PR #13 továbbra is nyitott és draft.
-- A legutóbbi dashboard Auth helper tesztet tartalmazó commit:
-  `c1d50154451c35f10d9f16094dbef7680b7e9fed`.
-- CI run [45462249173](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45462249173):
-  - PostgreSQL 17 audit/RBAC + pgTAP + encrypted local backup/restore job: sikeres.
-  - CloudFormation validation, Playwright telepítés, compileall: sikeres.
-  - Python/AppTest/browser tesztlépés az utolsó ellenőrzéskor még futott; végleges tesztszám és coverage nincs rögzítve.
-- Az előző teljesen zöld futás, [45460581824](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45460581824), 93.57% teljes Python line coverage-et igazolt. Ez az új dashboard Auth tesztek előtti baseline, nem az új commit coverage értéke.
+- A legutóbbi teljesen zöld CI-t tartalmazó PR head: `4945816b9010d899c1737a90ff3785ec1898acdd`.
+- A legutóbbi teljes CI run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568) mindkét jobja sikeres: **718 passed, 3 skipped, 93.78% coverage** (3,500/3,732 sor); `dashboard.py` 82.27%, `jarvis_auth.py` 96.55%, `audit_admin.py` 96.19%.
+- A PostgreSQL 17 audit/RBAC + pgTAP + titkosított age backup/restore integráció, CloudFormation-validáció, Playwright, compileall és a Python/AppTest/browser tesztek egyaránt sikeresek.
+- Coverage és 27 reszponzív dashboard screenshot artifact feltöltve. Ez CI-bizonyíték, nem production backup vagy valós Supabase Auth-teszt.
 - A dashboard Auth helper tesztcsomag a session frissítést, hiányzó/visszavont session fail-closed kezelését, régi kliens kizárását Auth módban és a sessionből történő takarítást ellenőrzi.
 - A PostgreSQL CI job lokális, izolált PostgreSQL környezetet használ. Ez nem production backup, nem Supabase Auth szolgáltatás és nem AWS/S3 restore-próba.
 
@@ -69,8 +66,8 @@ A privát age identity kizárólag GitHub Secretben tárolható; chatbe és Gitb
 
 ## 4. Tesztelési hiányok és minőségi kapuk
 
-- [ ] A `45462249173` run végleges Python/AppTest/browser eredményének és coverage riportjának rögzítése.
-- [ ] `dashboard.py` Auth/session/UI ágak coverage javítása; a korábbi 81.25% érték baseline, új riport szükséges.
+- [x] A teljes Python/AppTest/browser eredmény és coverage riport rögzítése a `45463032568` futásból.
+- [x] Új dashboard Auth/session helper tesztek CI-validálása; `dashboard.py` coverage 82.27% (további UI ágak még javíthatók).
 - [ ] Valós Supabase Auth/JWT/RLS integrációs tesztek (mockolt teszt nem elegendő).
 - [ ] Minden role és CRUD művelet negatív tesztje, beleértve az RPC-ket, view-kat és közvetlen API hozzáférést.
 - [ ] E-mail és task jóváhagyási replay/race/failure tesztek.
@@ -115,3 +112,16 @@ sikeres CI-nek és nem helyettesíti a teljes pytest futás coverage riportját.
 
 **Aktuális következő technikai lépés:** teljes CI-futtatás a legfrissebb PR
 headen, végleges pytest/AppTest/browser eredménnyel és coverage artifacttal.
+
+
+## Legfrissebb CI – teljesen zöld (2026-11-24)
+
+A [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568)
+futás mindkét jobja sikeres: 718 teszt passed, 3 skipped, 93.78% line
+coverage (3,500/3,732). A PostgreSQL 17 audit/RBAC pgTAP és titkosított
+lokális backup/restore integráció is zöld. A coverage és 27 UI screenshot
+artifact elérhető a workflow-ban.
+
+Ezzel a repo CI-validációs kapu teljesült az adott commitra. Továbbra is
+nyitott blokkoló a production backup, a remote migrációs előzmények
+helyreállítása/egyeztetése, valamint a valós Auth/JWT/RLS ellenőrzés.
