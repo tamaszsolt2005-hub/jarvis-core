@@ -41,7 +41,7 @@ class FakeStreamlit:
 
 
 def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, legacy=None):
-    names = {"_auth_login_enabled", "_auth_session_kwargs", "_approval_actor", "_stage_pending_action", "_consume_pending_action", "_get_dashboard_supabase", "authenticated"}
+    names = {"_auth_login_enabled", "_auth_session_kwargs", "_approval_actor", "_stage_pending_action", "_consume_pending_action", "_audit_export_is_valid", "_get_dashboard_supabase", "authenticated"}
     selected = [
         node for node in TREE.body
         if isinstance(node, ast.FunctionDef) and node.name in names
@@ -224,3 +224,22 @@ def test_pending_approval_requires_valid_legacy_login_timestamp(monkeypatch):
     namespace["_stage_pending_action"]({"market": "HU"})
     assert namespace["_consume_pending_action"]() is None
     assert "_jarvis_pending_action" not in st.session_state
+
+
+
+def test_audit_export_approval_is_time_limited_and_bound_to_admin():
+    namespace, _st, _calls = load_auth_helpers(
+        pytest.MonkeyPatch(),
+        state={},
+        enabled=True,
+    )
+    valid = {
+        "operation_id": "operation-1",
+        "rows": [{"id": "audit-1"}],
+        "actor_user_id": "admin-a",
+        "created_at": 400.0,
+    }
+    assert namespace["_audit_export_is_valid"](valid, "admin-a", now=500.0)
+    assert not namespace["_audit_export_is_valid"](valid, "admin-b", now=500.0)
+    assert not namespace["_audit_export_is_valid"](valid, "admin-a", now=701.0)
+    assert not namespace["_audit_export_is_valid"](valid, None, now=500.0)
