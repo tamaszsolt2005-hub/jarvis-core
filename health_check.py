@@ -67,9 +67,16 @@ def run_self_diagnostics(*, auth_session: dict[str, str] | None = None) -> str:
     dashboard_password = get_secret("JARVIS_DASHBOARD_PASSWORD")
 
     checks.append(_check("Supabase URL konfiguráció", bool(supabase_url), "Beállítva." if supabase_url else "Hiányzik a SUPABASE_URL."))
-    checks.append(_check("Supabase API-kulcs konfiguráció", bool(supabase_key), "Beállítva; a tényleges jogosultságot a táblalekérdezések igazolják." if supabase_key else "Hiányzik a SUPABASE_SERVICE_ROLE_KEY vagy SUPABASE_KEY."))
+    missing_key = (
+        "SUPABASE_PUBLISHABLE_KEY vagy SUPABASE_ANON_KEY"
+        if user_client_mode else "SUPABASE_SERVICE_ROLE_KEY vagy SUPABASE_KEY"
+    )
+    checks.append(_check("Supabase API-kulcs konfiguráció", bool(supabase_key), "Beállítva; a tényleges jogosultságot a táblalekérdezések igazolják." if supabase_key else f"Hiányzik a {missing_key}."))
     checks.append(_check("Gemini API-kulcs", bool(gemini_key), "Beállítva." if gemini_key else "Hiányzik a GEMINI_API_KEY."))
-    checks.append(_check("Dashboard jelszó", bool(dashboard_password), "Beállítva." if dashboard_password else "Hiányzik a JARVIS_DASHBOARD_PASSWORD."))
+    if user_client_mode:
+        checks.append(_check("Legacy dashboard jelszó", True, "Auth módban nem szükséges."))
+    else:
+        checks.append(_check("Dashboard jelszó", bool(dashboard_password), "Beállítva." if dashboard_password else "Hiányzik a JARVIS_DASHBOARD_PASSWORD."))
 
     if db is not None:
         checks.append(_check("Supabase kapcsolat", True, "Az ellenőrzött felhasználói kliens elérhető."))
