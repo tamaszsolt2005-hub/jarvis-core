@@ -173,7 +173,7 @@ def test_verified_admin_client_refreshes_and_returns_verified_identity(monkeypat
     client = FakeClient(auth)
     _client_factory(monkeypatch, client)
     verified, refreshed = audit_admin.verified_admin_client(
-        {"access_token": "old-access", "refresh_token": "old-refresh"}
+        {"access_token": "old-access", "refresh_token": "old-refresh", "user_id": "admin-1"}
     )
     assert verified is client
     assert auth.set_session_args == ("old-access", "old-refresh")
@@ -182,7 +182,10 @@ def test_verified_admin_client_refreshes_and_returns_verified_identity(monkeypat
     assert refreshed["user_id"] == "admin-1"
 
 
-@pytest.mark.parametrize("session", [None, [], {}, {"access_token": "a"}, {"refresh_token": "r"}])
+@pytest.mark.parametrize("session", [
+    None, [], {}, {"access_token": "a"}, {"refresh_token": "r"},
+    {"access_token": "a", "refresh_token": "r"},
+])
 def test_verified_admin_client_rejects_invalid_session(monkeypatch, session):
     _client_factory(monkeypatch, FakeClient())
     with pytest.raises(PermissionError):
@@ -193,12 +196,25 @@ def test_verified_admin_client_rejects_expired_or_demoted_session(monkeypatch):
     expired_auth = FakeAuth(user=_user(), session=None)
     _client_factory(monkeypatch, FakeClient(expired_auth))
     with pytest.raises(PermissionError):
-        audit_admin.verified_admin_client({"access_token": "a", "refresh_token": "r"})
+        audit_admin.verified_admin_client({
+            "access_token": "a", "refresh_token": "r", "user_id": "admin-1"
+        })
 
     demoted_auth = FakeAuth(user=_user("operator"), session=_session())
     _client_factory(monkeypatch, FakeClient(demoted_auth))
     with pytest.raises(PermissionError):
-        audit_admin.verified_admin_client({"access_token": "a", "refresh_token": "r"})
+        audit_admin.verified_admin_client({
+            "access_token": "a", "refresh_token": "r", "user_id": "admin-1"
+        })
+
+
+def test_verified_admin_client_rejects_session_user_substitution(monkeypatch):
+    auth = FakeAuth(user=_user(user_id="different-user"), session=_session())
+    _client_factory(monkeypatch, FakeClient(auth))
+    with pytest.raises(PermissionError, match="nem egyezik"):
+        audit_admin.verified_admin_client({
+            "access_token": "a", "refresh_token": "r", "user_id": "admin-1"
+        })
 
 
 def test_sign_out_is_noop_without_tokens_and_revokes_valid_session(monkeypatch):
