@@ -66,3 +66,21 @@ with the final results once the run completes.
 
 The successful local backup/restore job is isolated CI evidence only. It is
 not a backup of production and does not verify AWS/S3 deployment or secrets.
+
+
+### Final status of run 45462249173
+
+A later status check found that the run did **not** complete fully:
+
+- `backup-restore-integration`: **success**.
+- `test`: **cancelled** during the combined unit/AppTest/browser test step.
+- The workflow uploaded a coverage artifact before cancellation. Its XML reports
+  3,500 / 3,732 lines, **93.78%** overall; `dashboard.py` 82.27%,
+  `audit_admin.py` 96.19%, and `jarvis_auth.py` 96.55%.
+- Because the test step's final result is cancelled, these coverage numbers are
+  **provisional artifact data, not a successful CI validation**. No final
+  passed/skipped/failed test count is claimed for this run.
+
+The run was superseded while later commits were pushed to the PR branch. A new
+complete CI run on the current PR head is required before the dashboard Auth
+test additions or the current branch head can be called fully validated.
