@@ -68,3 +68,38 @@ További eltérés:
 - Az új RLS migráció verziókezelt fájlként elkészült, de productionben nem futott le.
 - A migration history drift miatt production migráció nem indítható.
 - Nincs új Supabase tesztprojekt vagy branch létrehozva.
+
+
+## 4. Dashboard Auth tesztelési állapot (2026-11-24)
+
+A PR #13 ágon új `tests/test_dashboard_auth_helpers.py` tesztcsomag készült.
+A teszt a dashboard Auth helper függvényeit külön, izolált Streamlit
+tesztduplával futtatja. Lefedett esetek:
+
+- Auth feature flag kikapcsolt és bekapcsolt állapota;
+- a bejelentkezett session átadása a user-JWT kliensnek;
+- engedélyezett szerepkörök explicit halmaza;
+- frissített token és role visszaírása a Streamlit sessionbe;
+- hiányzó vagy visszavont session esetén fail-closed viselkedés;
+- a régi DB-kliens, szerepkör, Auth session és függő művelet eltávolítása
+  sikertelen session-ellenőrzés után;
+- legacy shared-password kliens használata kizárólag Auth OFF módban.
+
+Az első CI futásban (45461593492) 717 teszt sikerült, 1 teszt a hiányos
+Streamlit tesztdupla miatt bukott el, 3 teszt skipelődött. Az alkalmazáskód
+helyesen törölte a lejárt session állapotát; a tesztduplából hiányoztak a
+visszairányított login űrlap metódusai. A tesztdupla javítása:
+`c1d50154451c35f10d9f16094dbef7680b7e9fed`.
+
+A javított CI futás (45462249173) PostgreSQL 17 integrációs jobja sikeres,
+beleértve az audit/RBAC migrációkat, pgTAP ellenőrzéseket és a titkosított,
+izolált local backup/restore körutat. A Python jobban a CloudFormation
+validáció, Playwright telepítés és compileall is sikeres; az utolsó ellenőrzés
+idején a Python/AppTest/browser tesztlépés még futott. Emiatt a végleges
+tesztszám és coverage még nincs igazolva.
+
+**Fontos korlát:** ezek mockolt dashboard-helper tesztek. Nem bizonyítják a
+Supabase Auth szolgáltatás valódi JWT refresh, token-visszavonás vagy RLS
+policy integrációját. Ehhez már létező, külön engedélyezett izolált Supabase
+környezet szükséges; új projektet nem hozunk létre, production nem használható
+tesztkörnyezetként.
