@@ -101,7 +101,7 @@ def test_chat_email_requires_single_explicit_recipient_and_prepares_preview_only
         "recipient = extract_explicit_recipient(prompt)",
         "if not recipient:",
         "build_chat_email_draft(prompt, generate_text)",
-        'st.session_state["_jarvis_pending_action"] = {',
+        '_stage_pending_action({',
         "Jóváhagyásra váró e-mail-tervezet:",
     ])
     assert "send_email(" not in draft
@@ -114,7 +114,7 @@ def test_chat_email_sending_requires_explicit_approval_and_both_server_switches(
     _call_positions(approval, [
         'elif q in {"jóváhagyom"',
         'chat_email = pending_action.get("chat_email")',
-        'st.session_state.pop("_jarvis_pending_action", None)',
+        '_consume_pending_action()',
         "if chat_email:",
         "if not EMAIL_DELIVERY_ENABLED or not env_bool(\"CHAT_EMAIL_ENABLED\", False):",
         'if not audit_event(db, status="pending", **audit_fields):',
@@ -239,7 +239,7 @@ def test_diagnostic_shortcut_returns_without_running_normal_chat_pipeline():
     source = ast.get_source_segment(SOURCE, branch)
     _call_positions(source, [
         'if prompt.strip().casefold() in {',
-        "run_self_diagnostics()",
+        "run_self_diagnostics(**_auth_session_kwargs())",
         'st.session_state.chat.append(("assistant", diagnostic_report))',
         "st.stop()",
         'response_status = st.status(',
