@@ -82,17 +82,27 @@ BEGIN
 END;
 $$;
 
--- Settings contain system-wide configuration and are admin-only.
+-- Settings writes are admin-only. Operators may read only the non-secret
+-- lead-research market key; all other settings remain admin-only.
 DROP POLICY IF EXISTS settings_admin_only ON public.settings;
+DROP POLICY IF EXISTS settings_operator_read_market ON public.settings;
 CREATE POLICY settings_admin_only
   ON public.settings
   FOR ALL
   TO authenticated
   USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
   WITH CHECK ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+CREATE POLICY settings_operator_read_market
+  ON public.settings
+  FOR SELECT
+  TO authenticated
+  USING (
+    (SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'operator'
+    AND key = 'lead_research_market'
+  );
 
--- Audit events are admin-readable and append-only. Client inserts are denied;
--- trusted server-side service_role jobs remain the only writer.
+-- Audit events are admin-readable and append-only. Admin/operator users may
+-- append events only as themselves; UPDATE/DELETE/TRUNCATE remain forbidden.
 DROP POLICY IF EXISTS "Admins can read audit logs" ON public.logs;
 DROP POLICY IF EXISTS logs_admin_read_only ON public.logs;
 CREATE POLICY logs_admin_read_only
