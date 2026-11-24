@@ -101,3 +101,58 @@ lehet biztonságosan egyetlen audit policy-val megoldani.
 4. Valós Auth/JWT/RLS integrációs bizonyíték. Új tesztprojektet nem hozunk létre; amíg nincs engedélyezett izolált tesztkörnyezet, csak mockolt tesztek állíthatók sikeresnek.
 
 **Éles adatbázis, Auth-felhasználók, szerepkörök és production migrációk nem változtak.**
+
+## Konkrét üzleti műveleti leltár – a következő kódfázis bemenete
+
+A dashboard és a modulok forráskódjának áttekintése alapján az Auth/RLS átállás
+nem egyetlen klienscsere: az alábbi műveleteket külön-külön kell jogosultsághoz
+és táblánkénti adatbázis-hozzáféréshez kötni.
+
+| Belépési pont | Érintett adat / mellékhatás | Cél jogosultság | Kötelező szerveroldali ellenőrzés |
+|---|---|---|---|
+| `dashboard.py: retrieve_context` | `leads`, `tasks`, `email_drafts`, `logs`, `jarvis_memory`, `settings` olvasása | `leads.read`, `tasks.read`, `email_drafts.read`, `analytics.read`, `memory.read`, `settings.read` | Minden lekérdezés a bejelentkezett felhasználó JWT-jével fusson; a jogosultság nélküli forrást ne kérdezze le. |
+| `task_actions.execute_task_action` | `tasks` INSERT/UPDATE, valamint auditbejegyzés | `tasks.write` | A jóváhagyás mellett minden végrehajtás előtt ellenőrizni kell a hitelesített szerepkört; a DB RLS is tiltsa a reader írást. |
+| `global_lead_research.research_global_companies` | `leads` olvasás/INSERT; kutatási audit és napló | új, szűk `leads.research` képesség (admin/operator) | A kutatás indítása és minden lead INSERT szerveroldali jogosultság-ellenőrzés mögött legyen. A mentett rekord továbbra sem ad kapcsolatfelvételi engedélyt. |
+| `global_lead_research.set_research_market` | `settings` upsert (`lead_research_market`) | külön `research_market.write` (admin/operator), vagy dokumentált admin-only döntés | A célpiac módosítása ne örökölje automatikusan a dashboard közös jelszavának jogosultságát. |
+| `jarvis_memory.save_memory` / `forget_memories` | `jarvis_memory` INSERT/UPDATE | `memory.write` | Csak explicit felhasználói utasítás és engedélyezett szerepkör után; a lekérdezés és módosítás felhasználói JWT-vel történjen. |
+| `email_utils.send_email` a chat jóváhagyási ágban | külső SMTP-küldés, előtte/utána audit | `email.send` | A külön jóváhagyás, az engedélyező szerepkör és mindkét szerveroldali küldési kapcsoló szükséges. A DB RLS önmagában nem védi az SMTP-mellékhatást. |
+| `jarvis_analytics.render_analytics` és vezetői jelentés | `logs` olvasás | `analytics.read` | Az analitika ne használjon service-role klienst felhasználói kérésből; csak a jogosult adatkört olvassa. |
+| `audit_admin.fetch_audit_page` / `verify_audit_integrity` | `logs` auditmezők és integritás RPC olvasása | `audit.read` (admin-only) | Már külön Auth-admin session és user-JWT útvonalon működik; az adatbázis admin-only policy-ja kötelező. |
+
+### A jelenlegi implementációból következő konkrét korlátok
+
+- A fő `authenticated()` függvény kizárólag a közös
+  `JARVIS_DASHBOARD_PASSWORD` értéket ellenőrzi; nem állít elő egyedi
+  felhasználói identitást vagy szerepkört.
+- A Chat és az Analitika a `get_legacy_dashboard_supabase()` klienssel
+  dolgozik. Ez a factory a service-role kliensre delegál, így a jelenlegi
+  felhasználói műveletek nem RLS-sel korlátozottak.
+- A feladat-jóváhagyás `st.session_state`-ben tárolt egyszeri megerősítés;
+  ez műveleti megerősítés, nem RBAC-ellenőrzés.
+- A leadkutatás adatbázisba ír, a célpiacváltás pedig a `settings` táblát
+  módosítja. Ezek jelenleg nem kapnak külön, hitelesített szerepkör-ellenőrzést.
+- A memória mentése és törlése explicit parancshoz kötött, de ez önmagában
+  nem felhasználói jogosultság-ellenőrzés.
+- A külön auditoldal már ellenőrzi az admin Auth-sessiont, és a naplót a
+  felhasználói JWT-vel olvassa. Ez nem jelenti a többi üzleti tábla RBAC
+  védelmét.
+
+### Kötelező átállási sorrend
+
+1. Műveleti szintű permission-check beépítése a fenti írási és külső
+   mellékhatású belépési pontokba, úgy, hogy hiányzó session/role esetén
+   alapértelmezetten tiltson.
+2. Minden felhasználói adatútvonal átállítása ellenőrzött user-JWT kliensre;
+   a service-role kliens csak külön azonosított, szerveroldali háttérműveletben
+   maradhat.
+3. A táblánkénti RLS és minimális GRANT migrációk megtervezése a tényleges
+   production séma és a hiányzó történeti migrációk rendezése után.
+4. Negatív tesztek minden műveletre: reader írás tiltva; operator settings és
+   audit olvasás tiltva; hiányzó/hibás role tiltva; másik user adata nem érhető
+   el; külső e-mail-küldés jogosultság és jóváhagyás nélkül tiltva.
+5. Csak az előző pontok és egy már létező, kifejezetten engedélyezett izolált
+   Auth/JWT tesztkörnyezet sikeres ellenőrzése után lehet a fő dashboard
+   Auth-belépését bekapcsolni.
+
+Ez a leltár dokumentációs változás. Nem aktivál RBAC-ot, nem változtat
+production adatbázist, Auth-felhasználót, szerepkört vagy deploy-konfigurációt.
