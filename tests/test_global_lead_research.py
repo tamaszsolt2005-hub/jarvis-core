@@ -232,3 +232,18 @@ def test_global_research_uses_configured_gemini_client_and_no_sampling_params(mo
     assert "temperature" not in captured
     assert "top_p" not in captured
     assert "top_k" not in captured
+
+
+def test_lead_research_and_market_write_deny_missing_auth_session_when_enforced(monkeypatch):
+    import jarvis_common
+    import pytest
+
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing session must be denied before DB access"),
+    )
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        research.research_global_companies(FakeDB(), "kutatás", FakeClient({}))
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        research.set_research_market(FakeDB(), "Germany")
