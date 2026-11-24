@@ -264,3 +264,87 @@ If those artifacts cannot be recovered, prepare a separately reviewed,
 forward-only baseline/reconciliation proposal from a complete schema snapshot;
 it must not claim to be the original historical SQL. Production execution
 remains gated on explicit approval of the exact reviewed migration plan.
+
+
+## Latest catalog snapshot and CI revalidation (2026-11-24 18:12 UTC)
+
+A further read-only catalog snapshot was captured directly from the existing
+Jarvis production project. It included object definitions/metadata only; no
+application row contents or secrets were selected.
+
+Observed current state:
+
+- Exactly eight public tables, all owned by `postgres`: `leads`,
+  `tasks`, `email_drafts`, `logs`, `settings`, `jarvis_memory`,
+  `jarvis_proactive_state`, and `posts`.
+- RLS is enabled and not forced on all eight tables.
+- There are zero public-schema RLS policies, zero non-internal public
+  triggers, and zero public-schema functions in this snapshot.
+- No direct `anon` or `authenticated` table grants were returned for
+  existing public tables.
+- The current column inventory confirms the production-specific shapes:
+  - `logs`: `id, module, message, created_at, level`
+  - `settings`: `id, key, value, updated_at`; integer sequence-backed
+    `id` and unique `key`
+  - `posts`: `id, content, scheduled_for, status, created_at`
+  - `leads`: includes `website`, `notes`, and `source`
+  - `tasks`, `email_drafts`, `jarvis_memory`, and
+    `jarvis_proactive_state` retain the previously inventoried runtime
+    columns and constraints.
+- Owner-specific default ACLs remain important: defaults for objects created
+  by `postgres` grant only to `postgres` and `service_role`, while
+  defaults for objects created by `supabase_admin` include `anon` and
+  `authenticated` privileges for tables, sequences, and function execution.
+  This is a future-object risk, not evidence that those roles currently have
+  direct grants on the eight existing tables. Any correction must be scoped
+  to the actual migration object owner and verified after deployment.
+
+### Forward-only reconciliation proposal (design only; not executable SQL)
+
+Because the original five historical SQL files were not recovered from the
+available GitHub repository history/branches or the two connected Supabase
+projects, the safe next artifact is a reviewed proposal—not a fabricated
+historical migration and not a production change.
+
+1. **Freeze historical reconstruction.** Preserve the five remote migration
+   ledger entries as evidence. Do not reuse their version numbers, mark them
+   repaired, or run `supabase db push` while source/history drift remains.
+2. **Treat live schema as the baseline.** Preserve all eight tables and their
+   production-specific columns, constraints, owners, sequences, and existing
+   rows. In particular, do not replace the integer-keyed `settings` table
+   or remove the legacy `posts` table to match repository snapshots.
+3. **Separate independently reviewable changes.** Any future migration set
+   must split (a) owner-specific default-ACL hardening, (b) trusted Auth/RLS
+   policy deployment, and (c) structured audit/hash-chain expansion. Do not
+   mix them into one broad baseline operation.
+4. **Require explicit preconditions.** Before each migration, assert the
+   expected relation/column/constraint/owner/ACL state and stop on mismatch.
+   Avoid broad `IF NOT EXISTS` statements that could silently accept an
+   incompatible object definition.
+5. **Require postconditions and data preservation checks.** Verify exact
+   grants/default ACLs, policy expressions, trigger/function ownership and
+   execution ACLs, and audit-chain behavior. Preserve legacy log rows without
+   retroactively assigning hash-chain values.
+6. **Test two paths in PostgreSQL 17 CI.** Test a clean bootstrap and a
+   production-shaped legacy fixture populated with representative existing
+   rows, owner-specific defaults, and the exact production table shapes.
+   Assert both successful migration and deliberate failure on unexpected
+   preconditions.
+7. **Keep production deployment separately gated.** A fresh encrypted backup,
+   exact SQL review, maintenance window, explicit approval, and read-only
+   post-deployment verification are prerequisites. No such approval or
+   deployment is implied by this design note.
+
+### CI / pull request status at this snapshot
+
+PR #13 remains open and draft at head
+`a510699e16784f07fd6eb88dc7dc84a255e2ccfd`. Workflow run
+[45391367059](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45391367059)
+has now completed successfully: both `test` and
+`backup-restore-integration` jobs passed. The latter ran PostgreSQL 17
+audit/pgTAP checks and an encrypted backup/restore round trip. These results
+validate CI fixtures and repository code; they do not validate or modify the
+production database.
+
+This section supersedes the older “latest PR #13 head” and in-progress CI
+status recorded in the earlier 2026-11-24 revalidation note above.
