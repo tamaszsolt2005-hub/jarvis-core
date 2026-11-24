@@ -7,6 +7,7 @@ from email.message import EmailMessage
 from email.utils import formataddr
 
 from jarvis_common import env_bool, get_secret, required_secret, get_enforced_user_supabase
+from jarvis_errors import report_error
 
 # Must be explicitly enabled in the server-side environment/secrets.
 EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
@@ -60,10 +61,17 @@ def send_email(
     message["Subject"] = subject
     message.set_content(body)
 
-    with smtplib.SMTP(host, port, timeout=30) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(sender, password)
-        server.send_message(message)
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(sender, password)
+            server.send_message(message)
+    except Exception as exc:
+        report_error(
+            exc, module="email_utils", operation="smtp_delivery",
+            severity="critical",
+        )
+        raise
     return str(message.get("Message-ID") or "")
