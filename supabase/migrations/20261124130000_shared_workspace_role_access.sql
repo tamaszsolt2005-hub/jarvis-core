@@ -101,7 +101,21 @@ CREATE POLICY logs_admin_read_only
   TO authenticated
   USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+-- Authenticated admins/operators may append only their own audit event.
+-- The trigger assigns actor_user_id from auth.uid() and advances the chain
+-- under its tightly scoped SECURITY DEFINER owner context.
+GRANT INSERT ON TABLE public.logs TO authenticated;
+DROP POLICY IF EXISTS logs_admin_operator_append ON public.logs;
+CREATE POLICY logs_admin_operator_append
+  ON public.logs
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    (SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin', 'operator')
+    AND actor_user_id = (SELECT auth.uid())
+  );
+
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.logs FROM PUBLIC, anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.audit_chain_state FROM PUBLIC, anon, authenticated;
