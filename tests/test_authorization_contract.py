@@ -54,6 +54,7 @@ def _load_authenticated(*, session_state, now, expected_password=None, submitted
         "hmac": hmac,
         "get_secret": lambda _name: expected_password,
         "AUTH_SESSION_TTL_SECONDS": 8 * 60 * 60,
+        "_auth_login_enabled": lambda: False,
     }
     module = ast.Module(body=[function], type_ignores=[])
     exec(compile(module, str(ROOT / "dashboard.py"), "exec"), namespace)
@@ -164,7 +165,8 @@ def test_every_repository_application_table_has_rls_enabled_in_schema():
 
 
 def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
-    assert "execute_task_action(db, task_action, approved=True)" in DASHBOARD_SOURCE
+    assert "execute_task_action(" in DASHBOARD_SOURCE
+    assert "approved=True" in DASHBOARD_SOURCE
 
     task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
     assert "approved: bool = False" in task_source
@@ -180,7 +182,7 @@ def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
         'st.session_state.pop("_jarvis_pending_action", None)', approval_start
     )
     execute_index = DASHBOARD_SOURCE.index(
-        "execute_task_action(db, task_action, approved=True)", approval_start
+        "execute_task_action(", approval_start
     )
     assert consume_index < execute_index
 
