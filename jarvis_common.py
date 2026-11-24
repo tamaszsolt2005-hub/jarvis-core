@@ -101,6 +101,30 @@ def get_user_supabase(
     return verified_user_client(session, allowed_roles=allowed_roles)
 
 
+def get_enforced_user_supabase(
+    session: dict[str, str] | None,
+    permission: str,
+    *,
+    allowed_roles: set[str] | frozenset[str],
+) -> tuple[Client, dict[str, str]] | None:
+    """Resolve a verified user-JWT client when RBAC enforcement is enabled.
+
+    The default-off flag preserves the legacy dashboard until its Auth session
+    and table policies are ready. Enforced mode always fails closed.
+    """
+    if not env_bool("JARVIS_AUTH_RBAC_ENFORCED", False):
+        return None
+    if not isinstance(session, dict):
+        raise PermissionError("Ehhez a művelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
+
+    db, refreshed_session = get_user_supabase(session, allowed_roles=allowed_roles)
+    from jarvis_auth import require_permission
+
+    require_permission(refreshed_session.get("role"), permission)
+    session.update(refreshed_session)
+    return db, refreshed_session
+
+
 def get_supabase() -> Client:
     """Deprecated compatibility alias; use an explicitly scoped client factory."""
     return get_service_supabase()
