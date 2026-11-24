@@ -24,11 +24,17 @@ INSERT INTO public.settings (key,value) VALUES
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"}}',true);
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='RBAC fixture'),1::bigint,'reader can read shared leads');
-SELECT is((WITH inserted AS (INSERT INTO public.leads (company_name) VALUES ('reader denied') RETURNING 1) SELECT count(*) FROM inserted),0::bigint,'reader cannot insert leads');
+SELECT throws_ok(
+  $INSERT INTO public.leads (company_name) VALUES ('reader denied')$,
+  '42501', NULL, 'reader cannot insert leads'
+);
 SELECT is((WITH changed AS (UPDATE public.leads SET company_name='reader changed' WHERE company_name='RBAC fixture' RETURNING 1) SELECT count(*) FROM changed),0::bigint,'reader cannot update leads');
 SELECT is((SELECT count(*) FROM public.settings),0::bigint,'reader cannot read settings');
 SELECT is((SELECT count(*) FROM public.logs),0::bigint,'reader cannot read audit events');
-SELECT is((WITH inserted AS (INSERT INTO public.logs (module,message,level,action,status) VALUES ('reader_test','reader event','info','test','success') RETURNING 1) SELECT count(*) FROM inserted),0::bigint,'reader cannot append audit events');
+SELECT throws_ok(
+  $INSERT INTO public.logs (module,message,level,action,status) VALUES ('reader_test','reader event','info','test','success')$,
+  '42501', NULL, 'reader cannot append audit events'
+);
 SELECT is((SELECT count(*) FROM public.jarvis_proactive_state),0::bigint,'reader cannot read proactive state');
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
