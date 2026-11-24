@@ -156,3 +156,33 @@ nem egyetlen klienscsere: az alábbi műveleteket külön-külön kell jogosults
 
 Ez a leltár dokumentációs változás. Nem aktivál RBAC-ot, nem változtat
 production adatbázist, Auth-felhasználót, szerepkört vagy deploy-konfigurációt.
+
+## RBAC enforcement – feladatműveleti első vertikális szelet
+
+A következő kódlépésben a `task_actions.execute_task_action()` már támogatja
+a szerveroldali `JARVIS_AUTH_RBAC_ENFORCED` kapcsolót.
+
+- Kikapcsolt vagy hiányzó kapcsoló mellett a korábbi dashboard-folyamat
+  változatlan marad; ez a jelenlegi alapértelmezés.
+- Bekapcsolt állapotban hiányzó Auth-session esetén a függvény még bármilyen
+  adatbázis-hozzáférés előtt tilt.
+- Csak `admin` vagy `operator` szerepkörű, a Supabase Auth `get_user()`
+  hívásával frissen ellenőrzött munkamenet jut tovább; a `reader` tiltott.
+- A művelet a `get_user_supabase()` által létrehozott publikus kulcsú,
+  ellenőrzött user-JWT kliensen fut, nem a hívótól kapott legacy kliensen.
+- A megújított session tokenjei visszakerülnek az átadott session dictbe.
+- Az explicit műveleti jóváhagyás továbbra is kötelező; az RBAC ezt nem váltja ki.
+
+**Fontos integrációs korlát:** a Streamlit dashboard jelenleg még nem ad át
+egyéni Auth-sessiont a feladatvégrehajtásnak. Emiatt a kapcsolót nem szabad
+éles környezetben bekapcsolni a dashboard Auth-belépésének és a szükséges
+RLS/grant migrációknak az elkészülte előtt. Ha a kapcsoló túl korán aktiválódik,
+a feladatműveletek szándékosan letiltódnak. A felhasználói JWT-vel végzett
+pending/success auditírás is csak akkor működik, ha a végleges adatbázis-policy
+kifejezetten engedélyezi a biztonságos auditírási útvonalat; jelenleg az audit
+táblán kliensoldali írás nem engedélyezett.
+
+A hozzáadott tesztek igazolják a hiányzó session és reader tiltását, valamint
+azt, hogy enforced módban a legacy kliens helyett a hitelesített user kliens
+kapja az adatbázis-műveletet. Ez az első vertikális szelet, nem teljes RBAC
+élesítés.
