@@ -1,0 +1,120 @@
+-- Role-based access for the single shared JARVIS workspace.
+-- This is intentionally NOT tenant isolation: all permitted roles see the
+-- same workspace rows. Do not use this policy model for multiple customers.
+-- Requires the audit schema migrations to have been applied first.
+
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'leads', 'tasks', 'email_drafts', 'settings', 'logs',
+    'jarvis_memory', 'jarvis_proactive_state', 'posts',
+    'audit_chain_state'
+  ] LOOP
+    IF to_regclass(format('public.%I', table_name)) IS NULL THEN
+      RAISE EXCEPTION 'Required JARVIS table public.% is missing; reconcile schema before RBAC migration', table_name;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+-- Remove inherited/default API grants first. service_role retains its
+-- explicit privileged server-side access and bypasses RLS by design.
+REVOKE ALL ON TABLE
+  public.leads, public.tasks, public.email_drafts, public.settings,
+  public.logs, public.jarvis_memory, public.jarvis_proactive_state,
+  public.posts, public.audit_chain_state
+FROM PUBLIC, anon, authenticated;
+
+-- The authenticated role receives only the operations that RLS further
+-- constrains. Reader writes are rejected by policies, not by UI convention.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public.leads, public.tasks, public.email_drafts, public.jarvis_memory,
+  public.posts, public.settings
+TO authenticated;
+
+GRANT SELECT ON TABLE public.logs, public.audit_chain_state TO authenticated;
+
+-- settings uses a legacy integer sequence in the live database. Sequence
+-- access alone grants no row access; the table policy remains admin-only.
+DO $$
+DECLARE
+  seq_name text;
+BEGIN
+  seq_name := pg_get_serial_sequence('public.settings', 'id');
+  IF seq_name IS NOT NULL THEN
+    EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE %s TO authenticated', seq_name);
+  END IF;
+END;
+$$;
+
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jarvis_memory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jarvis_proactive_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_chain_state ENABLE ROW LEVEL SECURITY;
+
+-- Shared-workspace business data: all roles can read; admin/operator can
+-- create, update and delete. JWT authorization uses trusted app_metadata only.
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'leads', 'tasks', 'email_drafts', 'jarvis_memory', 'posts'
+  ] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', table_name || '_shared_read', table_name);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', table_name || '_admin_operator_write', table_name);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING ((SELECT auth.jwt() -> ''app_metadata'' ->> ''role'') IN (''admin'', ''operator'', ''reader''))',
+      table_name || '_shared_read', table_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING ((SELECT auth.jwt() -> ''app_metadata'' ->> ''role'') IN (''admin'', ''operator'')) WITH CHECK ((SELECT auth.jwt() -> ''app_metadata'' ->> ''role'') IN (''admin'', ''operator''))',
+      table_name || '_admin_operator_write', table_name
+    );
+  END LOOP;
+END;
+$$;
+
+-- Settings contain system-wide configuration and are admin-only.
+DROP POLICY IF EXISTS settings_admin_only ON public.settings;
+CREATE POLICY settings_admin_only
+  ON public.settings
+  FOR ALL
+  TO authenticated
+  USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- Audit events are admin-readable and append-only. Client inserts are denied;
+-- trusted server-side service_role jobs remain the only writer.
+DROP POLICY IF EXISTS "Admins can read audit logs" ON public.logs;
+DROP POLICY IF EXISTS logs_admin_read_only ON public.logs;
+CREATE POLICY logs_admin_read_only
+  ON public.logs
+  FOR SELECT
+  TO authenticated
+  USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.logs FROM PUBLIC, anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.audit_chain_state FROM PUBLIC, anon, authenticated;
+
+-- Proactive monitor state is a machine-owned singleton, never user-readable.
+REVOKE ALL ON TABLE public.jarvis_proactive_state FROM PUBLIC, anon, authenticated;
+
+-- Keep anon explicitly out of every exposed business table.
+REVOKE ALL ON TABLE
+  public.leads, public.tasks, public.email_drafts, public.settings,
+  public.logs, public.jarvis_memory, public.jarvis_proactive_state,
+  public.posts, public.audit_chain_state
+FROM anon;
+
+COMMENT ON POLICY leads_shared_read ON public.leads IS
+  'Single shared workspace: admin/operator/reader can read; this is not tenant isolation.';
