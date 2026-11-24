@@ -91,13 +91,11 @@ A privát age identity kizárólag GitHub Secretben tárolható; chatbe és Gitb
 - [Auth/RBAC production reconciliation](AUTH_RBAC_PRODUCTION_RECONCILIATION.md)
 - [Supabase klienshozzáférési leltár](SUPABASE_CLIENT_ACCESS_INVENTORY.md)
 - [Production migration recovery](production-migration-recovery.md)
+- [Friss production read-only revalidation](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md)
 - [PR #13 CI validation](PR13_CI_VALIDATION_2026-11-24.md)
 - [PR #13](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)
 
-**Production állapot:** az előző read-only felméréskor nyolc public tábla volt,
-mindegyiken RLS engedélyezve, policy nélkül; `auth.users` üres volt; az audit
-mezők és hash-chain objektumok hiányoztak. Ezeket az adatokat új, friss
-production read-only ellenőrzés nélkül nem szabad aktuálisabbnak feltüntetni.
+**Production állapot:** a friss, 2026-11-24 18:51 UTC read-only revalidation ugyanazt igazolta: 8 public tábla, mindegyiken RLS engedélyezve, 0 policy; `auth.users` üres; `audit_chain_state` hiányzik; a 12 ellenőrzött strukturált audit oszlopból 0 található a `logs` táblában. Részletek: [PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
 
 
 ## CI státusz pontosítás (2026-11-24)
@@ -110,8 +108,7 @@ tartozó coverage XML 3,500/3,732 sort (93.78%) mutat, ebből
 `dashboard.py` 82.27%. Ez csak részleges/provizórikus mérés, nem tekinthető
 sikeres CI-nek és nem helyettesíti a teljes pytest futás coverage riportját.
 
-**Aktuális következő technikai lépés:** teljes CI-futtatás a legfrissebb PR
-headen, végleges pytest/AppTest/browser eredménnyel és coverage artifacttal.
+Ez a CI-futás történeti állapot. A későbbi teljesen zöld futás a [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568), amely 718 passed / 3 skipped és 93.78% coverage eredményt adott. A legutóbbi audit-export és jóváhagyáslejárati módosítások újabbak ennél, ezért azok a legfrissebb branch headen külön CI-ellenőrzést igényelnek.
 
 
 ## Legfrissebb CI – teljesen zöld (2026-11-24)
@@ -125,3 +122,26 @@ artifact elérhető a workflow-ban.
 Ezzel a repo CI-validációs kapu teljesült az adott commitra. Továbbra is
 nyitott blokkoló a production backup, a remote migrációs előzmények
 helyreállítása/egyeztetése, valamint a valós Auth/JWT/RLS ellenőrzés.
+
+
+## Új kódszintű biztonsági javítások – CI-re vár (2026-11-24)
+
+- A chatben előkészített task, célpiac, leadkutatás és e-mail műveletek
+  jóváhagyása most 5 perc után lejár, egyszer fogyasztható, és az aktuális
+  Supabase Auth felhasználóhoz kötött. A legacy belépésnél a bejelentkezési
+  időbélyeg a kötés alapja; azonosítható principal nélkül a jóváhagyás tiltott.
+- A külön audit-admin session refresh most megköveteli, hogy a frissített
+  Supabase Auth user ID egyezzen az eredetileg bejelentkezett user ID-val.
+- Az audit CSV export pending/success/blocked/unknown eseményei a külön
+  ellenőrzött admin user-JWT klienssel íródnak, nem a legacy service-role
+  dashboard klienssel. A pending export 5 perc után lejár, és admin
+  felhasználóhoz kötött.
+- Új regressziós tesztek fedik le a jóváhagyás lejáratát, egyszeri
+  felhasználását, user-váltást, audit-session identity substitutiont és az
+  audit export JWT-kliens szerződését.
+- Ezek a változások a korábbi zöld CI után kerültek be; végleges eredményüket
+  a legfrissebb PR headen kell megvárni.
+
+**Megmaradó korlát:** az alkalmazás UI approval továbbra sem kriptográfiai
+aláírás és nem helyettesíti az adatbázis RLS-t vagy a szerveroldali RBAC-ot.
+A production RLS policy-k még nincsenek alkalmazva.
