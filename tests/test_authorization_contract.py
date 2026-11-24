@@ -198,3 +198,17 @@ def test_new_chat_request_invalidates_previous_pending_approval():
         "requested_task_action = parse_task_command(prompt)", invalidation_comment
     )
     assert invalidation_comment < invalidate_index < parse_index
+
+
+
+def test_audit_csv_export_uses_verified_admin_jwt_and_expires():
+    audit_page = next(
+        node for node in DASHBOARD_TREE.body
+        if isinstance(node, ast.FunctionDef) and node.name == "render_audit_admin_page"
+    )
+    source = ast.unparse(audit_page)
+    assert "verified_admin_client(session)" in source
+    assert "audit_event(\n                        audit_client" in source
+    assert "get_legacy_dashboard_supabase" not in source
+    assert "_audit_export_is_valid" in source
+    assert '"created_at": time.time()' in source
