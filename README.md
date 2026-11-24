@@ -51,3 +51,12 @@ A projekt architektúrája, funkcióinak állapota, adatmodellje, automatizmusai
 **[JARVIS – teljes projekt- és műszaki dokumentáció](docs/JARVIS_DOCUMENTATION.md)**
 
 A dokumentációban a kódban implementált, automatikusan tesztelt, integrációsan igazolt és productionben ténylegesen működő állapot külön van kezelve.
+
+
+## Fejlesztési és élesítési állapot
+
+A PR #13 Auth/RBAC és a production migráció/backup jelenlegi blokkolói,
+valamint a következő feladatok a
+[prioritásos hiány- és élesítési listában](docs/REMAINING_WORK_AND_RELEASE_GATES.md)
+követhetők. A CI-eredmények és azok korlátai:
+[PR #13 CI-validáció](docs/PR13_CI_VALIDATION_2026-11-24.md).
