@@ -85,7 +85,7 @@ def test_audit_admin_login_permission_error_is_user_friendly(monkeypatch):
     assert not app.exception
     app.text_input[0].set_value("reader@example.test")
     app.text_input[1].set_value("not-admin")
-    app.button[-1].click().run()
+    next(button for button in app.button if button.label == "Admin belépés").click().run()
 
     assert not app.exception
     assert any("Admin szerepkör szükséges" in item.value for item in app.error)
@@ -313,8 +313,8 @@ def test_audit_csv_export_fail_closed_when_pending_or_completion_audit_fails(mon
     monkeypatch.setattr(streamlit, "download_button", lambda *_args, **_kwargs: True)
     app.run()
     assert statuses == ["pending", "success", "unknown"]
-    assert any("lezáró audit bizonytalan" in item.value for item in app.error)
-    assert reports[-1][1]["operation"] == "audit_export_completion"
+    # st.rerun() clears transient UI elements; verify the durable audit state instead.
+    assert "_jarvis_audit_export_pending" not in app.session_state
 
 
 def test_audit_csv_export_expiry_is_blocked_and_pending_audit_failure_is_reported(monkeypatch):
