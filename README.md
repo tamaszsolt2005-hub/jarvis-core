@@ -68,6 +68,8 @@ követhetők. A CI-eredmények és azok korlátai:
 - [Hátralévő feladatok és élesítési kapuk](docs/REMAINING_WORK_AND_RELEASE_GATES.md)
 - [Legfrissebb PR #13 CI-eredmények](docs/PR13_CI_VALIDATION_2026-11-24.md)
 
-A legfrissebb teljes CI 734 passed / 3 skipped és 93.67% coverage eredménnyel
-zárult. Ez nem helyettesíti a production backupot vagy a valós Supabase
+A legutóbbi teljesen zöld baseline CI 734 passed / 3 skipped és 93.67% coverage
+eredményt adott egy korábbi commiton. A jelenlegi PR #13 head teljes CI-je még
+fut; a státusz és az eredmények a [PR #13 CI-validációs naplóban](docs/PR13_CI_VALIDATION_2026-11-24.md)
+követhetők. A CI nem helyettesíti a production backupot vagy a valós Supabase
 Auth/RLS validációt.
