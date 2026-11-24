@@ -427,3 +427,82 @@ def test_task_success_audit_failure_is_reported_without_hiding_completed_action(
     assert details["module"] == "task_actions"
     assert details["operation"] == f"audit_success:task_{action['type']}"
     assert details["severity"] == "critical"
+
+def test_auth_enforcement_denies_missing_session_before_any_database_access(monkeypatch):
+    import task_actions
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("No database access is allowed without a verified Auth session")
+
+    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        task_actions, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("A missing session must be rejected first"),
+    )
+    with pytest.raises(PermissionError, match="Supabase Auth-munkamenet"):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Tiltott", "priority": "normal"},
+            approved=True,
+        )
+
+
+def test_auth_enforcement_denies_reader_before_database_access(monkeypatch):
+    import task_actions
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("A reader must not reach task tables")
+
+    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        task_actions, "get_user_supabase",
+        lambda *_args, **_kwargs: (ForbiddenDB(), {
+            "access_token": "verified-access", "refresh_token": "verified-refresh",
+            "user_id": "reader-id", "role": "reader",
+        }),
+    )
+    session = {"access_token": "old", "refresh_token": "old-refresh", "user_id": "reader-id"}
+    with pytest.raises(PermissionError, match="tasks.write"):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Tiltott", "priority": "normal"},
+            approved=True,
+            auth_session=session,
+        )
+
+
+def test_auth_enforcement_uses_verified_user_client_not_legacy_client(monkeypatch):
+    import task_actions
+
+    legacy_db = FakeDB()
+    user_db = FakeDB()
+    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
+
+    def verified_client(session, *, allowed_roles):
+        assert allowed_roles == {"admin", "operator"}
+        return user_db, {
+            "access_token": "new-access", "refresh_token": "new-refresh",
+            "user_id": "operator-id", "role": "operator",
+        }
+
+    monkeypatch.setattr(task_actions, "get_user_supabase", verified_client)
+    monkeypatch.setattr(task_actions, "audit_event", lambda *_args, **_kwargs: True)
+    session = {
+        "access_token": "old-access", "refresh_token": "old-refresh",
+        "user_id": "operator-id", "role": "operator",
+    }
+
+    result = execute_task_action(
+        legacy_db,
+        {"type": "create", "title": "RBAC teszt", "priority": "normal"},
+        approved=True,
+        auth_session=session,
+    )
+
+    assert "létrehozva" in result
+    assert legacy_db.created is None
+    assert user_db.created["title"] == "RBAC teszt"
+    assert session["access_token"] == "new-access"
+    assert session["refresh_token"] == "new-refresh"
