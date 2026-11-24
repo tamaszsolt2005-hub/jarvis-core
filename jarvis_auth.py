@@ -22,6 +22,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
         "settings.read", "settings.write",
         "users.manage", "audit.read",
         "memory.read", "memory.write",
+        "system.diagnostics",
     }),
     "operator": frozenset({
         "leads.read", "leads.write",
