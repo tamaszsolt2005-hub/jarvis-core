@@ -103,3 +103,36 @@ Supabase Auth szolgáltatás valódi JWT refresh, token-visszavonás vagy RLS
 policy integrációját. Ehhez már létező, külön engedélyezett izolált Supabase
 környezet szükséges; új projektet nem hozunk létre, production nem használható
 tesztkörnyezetként.
+
+
+## 2026-11-24 – legfrissebb production read-only állapot
+
+A 18:51 UTC-kor végzett új read-only ellenőrzés megerősítette:
+- 8 public tábla, mindegyiken RLS enabled;
+- 0 public RLS policy és 8 Supabase Security Advisor `rls_enabled_no_policy` finding;
+- `auth.users` száma 0;
+- `public.audit_chain_state` nem létezik;
+- a `logs` táblán a 12 vizsgált strukturált audit/hash oszlopból egy sem található;
+- a remote ledgerben továbbra is öt, repositoryból hiányzó történeti migráció van.
+
+A pontos tábla-/oszlopleltár és a migrációverziók:
+[`PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md`](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+A vizsgálat kizárólag read-only SQL/catalog lekérdezéseket használt; production
+adat, séma, policy, Auth-fiók és migration history nem változott.
+
+## 2026-11-24 – audit session és export hardening
+
+- Az audit-admin session refresh már összeveti a frissített Auth user ID-t a
+  bejelentkezéskor rögzített user ID-val; hiányzó vagy eltérő identitás tiltást
+  eredményez.
+- A CSV export auditbejegyzései a verified admin user-JWT klienssel készülnek,
+  nem a service-role legacy dashboard klienssel.
+- A pending export admin userhez kötött és öt perc után lejár; lejárt vagy
+  eltérő adminhoz tartozó pending export nem tölthető le.
+- A task/leadkutatás/célpiac/chat-email pending jóváhagyások öt perc után
+  lejárnak, egyszer fogyaszthatók, és Auth módban a felhasználóhoz kötöttek.
+- A hozzájuk tartozó regressziós tesztek bekerültek, de a korábbi teljesen zöld
+  CI run után; a legfrissebb branch head teljes CI-je szükséges.
+
+A production Auth flag továbbra is OFF marad. A policyk és migrációk
+productionre alkalmazása a backup- és migration-history gate lezárásáig tilos.
