@@ -84,3 +84,15 @@ A later status check found that the run did **not** complete fully:
 The run was superseded while later commits were pushed to the PR branch. A new
 complete CI run on the current PR head is required before the dashboard Auth
 test additions or the current branch head can be called fully validated.
+
+
+### Documentation head rerun
+
+After the release-gate and production-recovery documentation updates, PR #13
+head advanced to `02d3d9ab3834525cdf94d4c5f0801381528a0694`. New push and
+pull-request workflow runs [45462966257](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45462966257)
+and [45462977149](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45462977149)
+were queued for this head at the time of this update. Their results are pending.
+The earlier 45462875186 / 45462891101 runs were still in progress on the
+previous documentation head and are not substitutes for a completed check on
+the latest commit.
