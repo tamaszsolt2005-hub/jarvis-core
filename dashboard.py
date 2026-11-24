@@ -446,6 +446,23 @@ def render_audit_admin_page() -> None:
             pending = st.session_state[pending_key]
             if not _audit_export_is_valid(pending, refreshed_session.get("user_id")):
                 st.session_state.pop(pending_key, None)
+                try:
+                    if isinstance(pending, dict) and pending.get("operation_id"):
+                        audit_event(
+                            audit_client,
+                            module="audit_admin",
+                            action="export_csv",
+                            status="blocked",
+                            operation_id=pending["operation_id"],
+                            result={"reason": "expired_or_wrong_admin_session"},
+                            approved=True,
+                            actor_user_id=refreshed_session.get("user_id"),
+                        )
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="audit_export_expired",
+                        severity="warning",
+                    )
                 st.warning("Az audit CSV export jóváhagyása lejárt vagy másik felhasználóhoz tartozik. Készíts új exportot.")
             else:
                 downloaded = st.download_button(
