@@ -43,8 +43,12 @@ SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-00000000
 INSERT INTO public.leads (company_name) VALUES ('operator allowed');
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='operator allowed'),1::bigint,'operator can insert leads');
 INSERT INTO public.logs (module,message,level,action,status) VALUES ('rbac_test','operator event','info','test','success');
-SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'operator can append an audit event');
+-- Operators may append but cannot read audit rows. Inspect the append result
+-- as the database owner, then return to the authenticated operator context.
+RESET ROLE;
+SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'operator audit append is persisted');
 SELECT is((SELECT actor_user_id::text FROM public.logs WHERE module='rbac_test' LIMIT 1),'10000000-0000-0000-0000-000000000002','audit trigger binds actor to authenticated JWT');
+SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.settings),1::bigint,'operator can read only the research-market setting');
 SELECT is((SELECT count(*) FROM public.logs),0::bigint,'operator cannot read audit events');
 SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'operator cannot read audit chain state');
