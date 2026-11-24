@@ -212,3 +212,12 @@ def test_audit_csv_export_uses_verified_admin_jwt_and_expires():
     assert "get_legacy_dashboard_supabase" not in source
     assert "_audit_export_is_valid" in source
     assert "time.time()" in source
+
+
+
+def test_dashboard_system_diagnostics_receives_auth_session():
+    assert "run_self_diagnostics(**_auth_session_kwargs())" in DASHBOARD_SOURCE
+    health_source = (ROOT / "health_check.py").read_text(encoding="utf-8")
+    assert '"system.diagnostics"' in health_source
+    assert "allowed_roles={\"admin\"}" in health_source
+    assert "get_enforced_user_supabase(" in health_source
