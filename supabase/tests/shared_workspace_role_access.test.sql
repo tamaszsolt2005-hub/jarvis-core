@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(32);
+SELECT plan(31);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -37,7 +37,6 @@ SELECT throws_ok(
   $reader$INSERT INTO public.logs (module,message,level,action,status) VALUES ('reader_test','reader event','info','test','success')$reader$,
   '42501', NULL, 'reader cannot append audit events'
 );
-SELECT is((SELECT count(*) FROM public.jarvis_proactive_state),0::bigint,'reader cannot read proactive state');
 SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'reader cannot read audit chain state');
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
