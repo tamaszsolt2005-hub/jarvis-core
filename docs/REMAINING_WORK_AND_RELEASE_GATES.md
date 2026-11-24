@@ -145,3 +145,14 @@ helyreállítása/egyeztetése, valamint a valós Auth/JWT/RLS ellenőrzés.
 **Megmaradó korlát:** az alkalmazás UI approval továbbra sem kriptográfiai
 aláírás és nem helyettesíti az adatbázis RLS-t vagy a szerveroldali RBAC-ot.
 A production RLS policy-k még nincsenek alkalmazva.
+
+
+### Rendszerdiagnosztika service-role útvonal lezárása
+
+A dashboardból hívható `run_self_diagnostics()` Auth módban már
+`system.diagnostics` admin-only permissiont követel, a frissen ellenőrzött
+user-JWT klienst használja, és nem kérdez rá a belső service-only táblákra.
+Hiányzó vagy nem admin session esetén minden DB/Gemini próba előtt leáll.
+A legacy shared-password mód korábbi read-only működése megmaradt.
+A változást tesztek fedik le; a végleges CI-eredmény a legfrissebb branch
+headre még szükséges.
