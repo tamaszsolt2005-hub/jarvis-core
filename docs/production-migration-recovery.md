@@ -469,3 +469,25 @@ compatibility.
 This run validates the repository commit and isolated fixtures only. It does
 not resolve the production migration-ledger mismatch, create production Auth
 users, apply live RLS policies, or establish a verified production backup.
+
+
+## CI status note (2026-11-24, PR #13)
+
+The dashboard Auth helper follow-up CI run
+[45462249173](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45462249173)
+completed its PostgreSQL 17 integration job successfully, including the
+repository audit/RBAC migrations, pgTAP checks, and encrypted local age
+backup/restore round-trip. Its Python test job was cancelled during the
+combined unit/AppTest/browser step after subsequent branch pushes. The
+uploaded coverage artifact is provisional and must not be cited as a completed
+CI pass.
+
+A new run
+[45462875186](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45462875186)
+is running on the current PR documentation head. Its outcome is pending at
+the time of this update.
+
+These are repository/CI checks only. They do not alter the production
+migration ledger, apply RLS policies, provision Auth users, or create a
+verified production backup. All production deployment gates in this document
+remain in force.
