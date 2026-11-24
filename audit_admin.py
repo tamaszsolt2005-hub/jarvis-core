@@ -92,14 +92,14 @@ def verified_admin_client(session: dict[str, str]) -> tuple[Client, dict[str, st
         raise PermissionError("Hiányzó audit munkamenet.")
     access_token = session.get("access_token")
     refresh_token = session.get("refresh_token")
-    if not access_token or not refresh_token:
+    expected_user_id = session.get("user_id")
+    if not access_token or not refresh_token or not expected_user_id:
         raise PermissionError("Hiányos audit munkamenet.")
 
     client = _client()
     client.auth.set_session(access_token, refresh_token)
     user = _user_from_verified_response(client.auth.get_user())
-    expected_user_id = session.get("user_id")
-    if not expected_user_id or str(user.id) != str(expected_user_id):
+    if str(user.id) != str(expected_user_id):
         raise PermissionError("Az audit munkamenet felhasználója nem egyezik a hitelesített fiókkal.")
     current = client.auth.get_session()
     refreshed = getattr(current, "access_token", None)
