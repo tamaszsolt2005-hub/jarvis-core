@@ -111,3 +111,24 @@ production backup and real Auth/RLS validation are complete.
 
 Productionben továbbra sincs Auth user és nincs RLS policy; a feature flag
 maradjon OFF a backup-, migration-history- és valós Auth/RLS kapuk lezárásáig.
+
+
+## Ellenőrzési pontosítás – 2026-11-25
+
+A korábbi zöld CI eredmény történeti baseline, nem a jelenlegi PR head validációja.
+A legutóbbi branch head `a14fca757e2dd6cb73e4e00243ff9fde34635e6b`.
+A korábbi audit UI tesztfutás 751 passed, 11 failed, 3 skipped eredményt
+adott; a 11 hiba a `tests/test_dashboard_audit_ui.py` fájlban jelentkezett.
+Az ezt követő kódjavítások után a jelenlegi head CI-je újraindult.
+
+A jelenlegi push futás [45509971875](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509971875)
+ellenőrzésekor a PostgreSQL 17 audit/RBAC pgTAP és titkosított lokális
+age backup/restore job sikeres volt. A Python jobban a függőségtelepítés és
+a CloudFormation-validáció sikeres, a Playwright telepítés még futott;
+a compileall és a teljes unit/AppTest/browser tesztlépés még nem kezdődött el.
+Végleges tesztszám és coverage nincs. A PR esemény futása is külön ellenőrzendő.
+
+Ezért a jelenlegi kódállapot még nem minősíthető teljesen CI-validáltnak.
+A PostgreSQL/age eredmény izolált CI-környezetből származik, nem production
+backup vagy valós Supabase Auth/JWT/RLS bizonyíték. A production Auth flag
+maradjon OFF; nincs production migrációs vagy adatbázis-módosítási engedély.

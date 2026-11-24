@@ -421,9 +421,9 @@ A teljes, prioritásos blokkolólista:
 
 ## 2026-11-24 – aktuális teljes CI és kódszintű javítások
 
-A legfrissebb teljesen zöld PR #13 CI-futás:
+A 2026-11-24-i teljesen zöld PR #13 baseline CI-futás:
 [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
-— 734 passed, 3 skipped, 93.67% line coverage. A PostgreSQL 17 integrációs
+— 734 passed, 3 skipped, 93.67% line coverage egy korábbi commiton. Ez nem a jelenlegi PR head validációja. A PostgreSQL 17 integrációs
 job a két repo-only 20261117 migrációt, az öt visszanyert történeti SQL-t,
 majd az audit/hash-chain/RBAC migrációkat is sikeresen futtatta a lokális
 production-shape fixture-en. Az encrypted age backup/restore körút is sikeres.
@@ -445,3 +445,24 @@ Friss production read-only leltár:
 [PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
 Prioritásos hátralévő feladatok:
 [REMAINING_WORK_AND_RELEASE_GATES.md](REMAINING_WORK_AND_RELEASE_GATES.md).
+
+
+## Ellenőrzési pontosítás – 2026-11-25
+
+A korábbi zöld CI eredmény történeti baseline, nem a jelenlegi PR head validációja.
+A legutóbbi branch head `a14fca757e2dd6cb73e4e00243ff9fde34635e6b`.
+A korábbi audit UI tesztfutás 751 passed, 11 failed, 3 skipped eredményt
+adott; a 11 hiba a `tests/test_dashboard_audit_ui.py` fájlban jelentkezett.
+Az ezt követő kódjavítások után a jelenlegi head CI-je újraindult.
+
+A jelenlegi push futás [45509971875](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509971875)
+ellenőrzésekor a PostgreSQL 17 audit/RBAC pgTAP és titkosított lokális
+age backup/restore job sikeres volt. A Python jobban a függőségtelepítés és
+a CloudFormation-validáció sikeres, a Playwright telepítés még futott;
+a compileall és a teljes unit/AppTest/browser tesztlépés még nem kezdődött el.
+Végleges tesztszám és coverage nincs. A PR esemény futása is külön ellenőrzendő.
+
+Ezért a jelenlegi kódállapot még nem minősíthető teljesen CI-validáltnak.
+A PostgreSQL/age eredmény izolált CI-környezetből származik, nem production
+backup vagy valós Supabase Auth/JWT/RLS bizonyíték. A production Auth flag
+maradjon OFF; nincs production migrációs vagy adatbázis-módosítási engedély.
