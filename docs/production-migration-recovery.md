@@ -205,3 +205,62 @@ Secrets and must never be copied into source control or chat.
 The current evidence is sufficient to prepare a reconciliation PR, but not
 sufficient to safely mutate production or to reconstruct the five missing
 historical migrations as if their original source had been recovered.
+## Fresh read-only revalidation (2026-11-24)
+
+The production project was rechecked through the Supabase project tools after the
+RBAC migration and CI work were added to the repository. This was a read-only
+check; no SQL migration, DDL, DML, migration repair, Auth-user creation, or
+project/branch creation was performed.
+
+- The remote migration ledger still contains exactly the five versions listed
+  above. None of the two 20261117 repository migrations or the two audit
+  migrations appears in that remote list.
+- The live public schema still contains exactly these eight tables:
+  leads, tasks, email_drafts, logs, settings, jarvis_memory,
+  jarvis_proactive_state, and posts. The proposed audit_chain_state table is
+  not present.
+- RLS is enabled on all eight tables. The current security advisor still
+  reports eight rls_enabled_no_policy findings.
+- The live logs columns remain only
+  id, module, message, created_at, level; there are 28 rows.
+- The live settings table still uses integer id backed by settings_id_seq,
+  unique key, nullable value jsonb, and updated_at timestamp without time zone;
+  it has one row.
+- The legacy posts table remains present with
+  id, content, scheduled_for, status, created_at and zero rows.
+- Current row counts include 11 leads, zero tasks, zero email_drafts, zero
+  jarvis_memory, and one jarvis_proactive_state row. Existing rows must be
+  preserved.
+- The five exact historical migration filenames were not returned by GitHub
+  code search on the default branch, and the path-specific commit history on
+  the default branch returned no commits for any of the five files. The first
+  missing filename was also checked directly across all 17 active repository
+  branches and was absent. This does not prove that no external deployment
+  artifact or developer backup exists; those remain the recovery sources to
+  investigate.
+
+The current RBAC migration
+20261124130000_shared_workspace_role_access.sql is still repository-only.
+Its PostgreSQL 17/pgTAP integration suite passed in CI, but the production
+advisor findings and absent audit schema confirm that it has not been applied
+and must not be activated against the current production schema.
+
+The latest PR #13 head at this revalidation was
+df3fb7bd8dd9d055d40f0cafd7075e086b0edd63. Both workflow runs
+45387974804 and 45387986390 completed successfully, including the
+Python/AppTest/browser test job and the PostgreSQL 17 encrypted
+backup/restore integration job. These CI results validate the repository
+fixtures, not the production database.
+
+### Reconciliation decision after revalidation
+
+The five missing SQL files have not been recovered from the checked GitHub
+history. Do not create replacement files under their historical version
+numbers, and do not run supabase migration repair merely to silence the
+history mismatch. The next safe recovery action is to obtain the original
+migration artifacts from the environment that ran the deployment (developer
+working copies, deployment logs/artifacts, or a retained repository archive).
+If those artifacts cannot be recovered, prepare a separately reviewed,
+forward-only baseline/reconciliation proposal from a complete schema snapshot;
+it must not claim to be the original historical SQL. Production execution
+remains gated on explicit approval of the exact reviewed migration plan.
