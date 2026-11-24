@@ -186,3 +186,33 @@ A hozzáadott tesztek igazolják a hiányzó session és reader tiltását, vala
 azt, hogy enforced módban a legacy kliens helyett a hitelesített user kliens
 kapja az adatbázis-műveletet. Ez az első vertikális szelet, nem teljes RBAC
 élesítés.
+
+
+## RBAC enforcement – további üzleti írási belépési pontok
+
+A közös `get_enforced_user_supabase()` helperrel további kritikus belépési
+pontok kaptak szerveroldali, fail-closed jogosultságellenőrzést:
+
+- `global_lead_research.research_global_companies()`: `leads.write`, admin/operator.
+- `global_lead_research.set_research_market()`: `settings.write`, admin-only.
+- `jarvis_memory.save_memory()` és `forget_memories()`: `memory.write`, admin/operator.
+- `jarvis_memory.get_memories()`: `memory.read`, mindhárom szerepkör.
+- `email_utils.send_email()`: `email.send`, admin/operator; enforced módban külön
+  explicit `approved=True` megerősítés is kötelező.
+
+A kapcsoló továbbra is `JARVIS_AUTH_RBAC_ENFORCED`, alapértelmezésben kikapcsolva.
+Enforced módban hiányzó session esetén a művelet a Gemini-, adatbázis- vagy
+SMTP-mellékhatás előtt tilt. A felhasználói adatbázis-műveletek a frissen
+ellenőrzött publikus kulcsú user-JWT klienssel futnak; service-role fallback
+nincs. A hívók jelenlegi dashboard-integrációja még nem ad át Auth-sessiont,
+ezért a kapcsoló éles bekapcsolása továbbra is tilos.
+
+A hozzáadott regressziós tesztek ellenőrzik a közös helper default-off és
+fail-closed viselkedését, a leadkutatás/célpiac, memória és e-mail belépési
+pontok hiányzó-session tiltását, valamint a küldés külön jóváhagyási kapuját.
+
+**Fennmaradó blokkolók:** a production táblákon nincs user-JWT hozzáférést
+engedélyező táblánkénti RLS/GRANT modell; a `logs` auditírási policy és
+biztonságos backend auditírási útvonal nincs véglegesítve; a dashboard Auth
+belépése és session-átadása nincs bekötve. Ezért ez a kód csak előkészített,
+feature-flag mögötti védelem, nem aktív production RBAC.
