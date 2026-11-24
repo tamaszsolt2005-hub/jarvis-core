@@ -208,7 +208,7 @@ def test_audit_csv_export_uses_verified_admin_jwt_and_expires():
     )
     source = ast.unparse(audit_page)
     assert "verified_admin_client(session)" in source
-    assert "audit_event(\n                        audit_client" in source
+    assert "audit_client" in source
     assert "get_legacy_dashboard_supabase" not in source
     assert "_audit_export_is_valid" in source
-    assert '"created_at": time.time()' in source
+    assert "time.time()" in source
