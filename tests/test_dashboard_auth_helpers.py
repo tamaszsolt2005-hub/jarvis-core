@@ -227,9 +227,9 @@ def test_pending_approval_requires_valid_legacy_login_timestamp(monkeypatch):
 
 
 
-def test_audit_export_approval_is_time_limited_and_bound_to_admin():
+def test_audit_export_approval_is_time_limited_and_bound_to_admin(monkeypatch):
     namespace, _st, _calls = load_auth_helpers(
-        pytest.MonkeyPatch(),
+        monkeypatch,
         state={},
         enabled=True,
     )
