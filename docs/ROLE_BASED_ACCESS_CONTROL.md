@@ -25,6 +25,7 @@ A JARVIS jelenlegi, közös dashboard-jelszavas belépése nem biztosít felhasz
 | Rendszerbeállítások olvasása/módosítása | igen | nem | nem |
 | Felhasználók és szerepkörök kezelése | igen | nem | nem |
 | Auditnapló olvasása | igen | nem | nem |
+| Rendszerdiagnosztika | igen | nem | nem |
 | Hosszú távú memória módosítása | igen | igen, explicit utasítással | nem |
 
 A végleges táblánkénti SQL-policy-kat a tényleges táblák, függvények, view-k és háttérfolyamatok áttekintése után kell rögzíteni. Az audit események írása backend-feladat; a böngészőből közvetlen audit-hamisítást nem szabad engedni.
@@ -238,3 +239,21 @@ A fenti történeti fázisleírások közül a későbbi implementation update a
 **Jóváhagyási megerősítés:** a dashboard függő műveletei egyszer használatosak, az új felhasználói üzenet törli a korábbi függő jóváhagyást, a jóváhagyás öt percen belül használható fel, és a függő művelet az aktuális Auth felhasználóhoz (legacy módban a bejelentkezési időbélyeghez) kötött. A dashboard a jóváhagyás elfogadása előtt elfogyasztja a függő állapotot; a tesztek a lejáratot, felhasználóváltást és ismételt felhasználást is ellenőrzik. Ez az alkalmazási jóváhagyási kapu; nem helyettesíti a DB RLS-t vagy az adminisztratív szerepkör-ellenőrzést.
 
 A teljes CI run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568) 718 passed / 3 skipped és 93.78% line coverage eredménnyel zárult. Az új approval és audit-session regressziós tesztek ezt követően kerültek be, ezért azok végleges CI-validációja a következő futás feladata.
+
+
+## Rendszerdiagnosztika hozzáférési javítás – 2026-11-24
+
+A dashboardról indítható rendszerdiagnosztika Auth módban mostantól
+`system.diagnostics` permissiont igényel, amely kizárólag az admin
+szerepkörhöz tartozik. A `health_check.run_self_diagnostics()` az
+`get_enforced_user_supabase()` segítségével frissen ellenőrzött user-JWT
+klienst használja; Auth enforcement esetén nem esik vissza service-role
+kliensre. Hiányzó vagy nem admin session esetén a diagnosztika a DB- és
+Gemini-próba előtt biztonságosan leáll. A felhasználói JWT-vel csak a
+felhasználói policy által elérhető táblákat vizsgálja; a belső
+`audit_chain_state` és `jarvis_proactive_state` táblát nem próbálja
+service-role klienssel megkerülni.
+
+A legacy shared-password módban a régi szerveroldali read-only diagnosztika
+viselkedése marad. Az Auth módú admin-only útvonalat külön regressziós
+tesztek fedik le; a legfrissebb teljes CI-futás még szükséges.
