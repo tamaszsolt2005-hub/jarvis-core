@@ -1283,7 +1283,7 @@ if prompt:
     }:
         with st.chat_message("assistant"):
             with st.spinner("JARVIS rendszerellenőrzés folyamatban…"):
-                diagnostic_report = run_self_diagnostics()
+                diagnostic_report = run_self_diagnostics(**_auth_session_kwargs())
             st.markdown(diagnostic_report)
         st.session_state.chat.append(("assistant", diagnostic_report))
         st.stop()
