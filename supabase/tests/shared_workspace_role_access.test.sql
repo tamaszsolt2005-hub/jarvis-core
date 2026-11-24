@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(25);
+SELECT plan(26);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -12,7 +12,7 @@ SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.jarvis_proactiv
 SELECT ok(NOT has_table_privilege('anon','public.leads','SELECT'), 'anon cannot read leads');
 SELECT ok(has_table_privilege('authenticated','public.leads','SELECT'), 'authenticated has leads SELECT grant');
 SELECT ok(has_table_privilege('authenticated','public.leads','INSERT'), 'authenticated has leads INSERT grant, filtered by RLS');
-SELECT ok(NOT has_table_privilege('authenticated','public.logs','INSERT'), 'authenticated cannot append audit events');
+SELECT ok(has_table_privilege('authenticated','public.logs','INSERT'), 'authenticated may attempt append subject to role RLS');
 SELECT ok(NOT has_table_privilege('authenticated','public.jarvis_proactive_state','SELECT'), 'authenticated cannot read machine state');
 
 INSERT INTO public.leads (id, company_name) VALUES
@@ -25,6 +25,7 @@ SELECT is((WITH inserted AS (INSERT INTO public.leads (company_name) VALUES ('re
 SELECT is((WITH changed AS (UPDATE public.leads SET company_name='reader changed' WHERE company_name='RBAC fixture' RETURNING 1) SELECT count(*) FROM changed),0::bigint,'reader cannot update leads');
 SELECT is((SELECT count(*) FROM public.settings),0::bigint,'reader cannot read settings');
 SELECT is((SELECT count(*) FROM public.logs),0::bigint,'reader cannot read audit events');
+SELECT is((WITH inserted AS (INSERT INTO public.logs (module,message,level,action,status) VALUES ('reader_test','reader event','info','test','success') RETURNING 1) SELECT count(*) FROM inserted),0::bigint,'reader cannot append audit events');
 SELECT is((SELECT count(*) FROM public.jarvis_proactive_state),0::bigint,'reader cannot read proactive state');
 
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
