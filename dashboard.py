@@ -1226,13 +1226,13 @@ if prompt:
         elif memory_action == "forget":
             stage = "JARVIS memória törlése"
             deleted = forget_memories(
-                db, memory_payload, auth_session=st.session_state.get("_jarvis_auth_session")
+                db, memory_payload, **_auth_session_kwargs()
             )
             memory_notice = f"{deleted} memóriaelemet inaktiváltam."
         elif memory_action == "list":
             stage = "JARVIS memória áttekintése"
             saved_memories = get_memories(
-                db, "", limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+                db, "", limit=100, **_auth_session_kwargs()
             )
             memory_notice = "JARVIS AKTÍV HOSSZÚ TÁVÚ MEMÓRIÁJA:\n" + (
                 "\n".join(
@@ -1243,7 +1243,7 @@ if prompt:
             )
 
         relevant_memories = get_memories(
-            db, prompt, limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+            db, prompt, limit=100, **_auth_session_kwargs()
         ) if memory_action != "list" else []
         q = prompt.casefold().strip()
         pending_action = st.session_state.get("_jarvis_pending_action")
@@ -1286,7 +1286,7 @@ if prompt:
                         try:
                             message_id = send_email(
                                 chat_email["recipient"], chat_email["subject"], chat_email["body"],
-                                auth_session=st.session_state.get("_jarvis_auth_session"),
+                                **_auth_session_kwargs(),
                                 approved=True,
                             )
                         except Exception as email_exc:
@@ -1318,7 +1318,7 @@ if prompt:
                     stage = "Jóváhagyott feladatművelet"
                     approval_notice = execute_task_action(
                         db, task_action, approved=True,
-                        auth_session=st.session_state.get("_jarvis_auth_session"),
+                        **_auth_session_kwargs(),
                     )
                 else:
                     approval_notice = "A jóváhagyott művelet végrehajtása elindult."
@@ -1394,7 +1394,7 @@ if prompt:
         if market_change:
             stage = "Leadkutatási célpiac módosítása"
             active_market = set_research_market(
-                db, market_change, auth_session=st.session_state.get("_jarvis_auth_session")
+                db, market_change, **_auth_session_kwargs()
             )
 
         research_result = None
@@ -1403,7 +1403,7 @@ if prompt:
             with st.spinner(f"JARVIS {active_market} piacán keres cégeket, ellenőrzi a forrásokat és kiszűri a duplikátumokat…"):
                 research_result = research_global_companies(
                     db, research_prompt, market_country=active_market,
-                    auth_session=st.session_state.get("_jarvis_auth_session"),
+                    **_auth_session_kwargs(),
                 )
         
         stage = "Supabase-adatlekérdezés"
