@@ -51,7 +51,9 @@ További eltérés:
 - a live `settings` tábla integer ID/sequence sémát használ, és a legacy `posts` tábla nincs a repo aktuális sémaképében;
 - a production `logs` kezdeti sémája legacy oszlopokat tartalmazott, ezért az auditmigrációk előfeltétele a naplóséma bővítése.
 
-**Következmény:** a `supabase db push` nem biztonságos, amíg a hiányzó történeti SQL-források nem kerülnek elő és a repo/remote migrációs állapot nincs összeegyeztetve. A történeti SQL-t nem szabad a jelenlegi sémából találgatva rekonstruálni, és a remote migration history-t sem szabad vakon átírni.
+**Helyreállítás:** az öt fenti migráció forrása már visszakerült a repositoryba, a remote ledgerben tárolt SQL-utasítások alapján. A visszanyert fájlokat a `tests/test_migration_recovery.py` ellenőrzi, és a CI PostgreSQL 17 integrációs jobja a teljes történeti láncot az audit/RBAC migrációk előtt próbálja futtatni. A visszanyerés a forráshiányt megszüntette, de a teljes migration drift még nem zárult le.
+
+**Következmény:** a `supabase db push` továbbra sem biztonságos, amíg a repo-only `20261117` migrációk, a remote ledger, a production schema snapshot és a későbbi audit/RBAC migrációk sorrendje nincs véglegesen egyeztetve, és nincs friss, ellenőrzött production backup. A remote migration history-t nem szabad vakon átírni.
 
 ### Biztonságos további sorrend
 
@@ -136,3 +138,31 @@ adat, séma, policy, Auth-fiók és migration history nem változott.
 
 A production Auth flag továbbra is OFF marad. A policyk és migrációk
 productionre alkalmazása a backup- és migration-history gate lezárásáig tilos.
+
+
+## Történeti SQL-források visszanyerése – 2026-11-24
+
+A remote `supabase_migrations.schema_migrations` tábla nemcsak a verziót és
+nevet, hanem a futtatott SQL `statements` tömbjét is tárolta. Read-only
+lekérdezéssel visszanyertük mind az öt korábban hiányzó migráció SQL-tartalmát.
+A visszaállított fájlok:
+
+- `20261119191911_create_jarvis_memory_and_fk_indexes.sql`
+- `20261119192040_complete_jarvis_runtime_schema.sql`
+- `20261119192145_enable_rls_on_legacy_posts.sql`
+- `20261119192412_revoke_anon_authenticated_public_table_and_sequence_privileges.sql`
+- `20261119192559_secure_postgres_default_privileges_public_schema.sql`
+
+A fájlok SQL-törzse a remote ledgerben tárolt utasításokat követi; nem a live
+sémából lett találgatva. A visszanyerés kizárólag read-only lekérdezést
+használt, production állapot nem változott.
+
+A CI PostgreSQL 17 integráció most már a két repo-only `20261117` idempotens
+oszlopmigrációt, az öt visszanyert történeti migrációt, majd az audit és
+shared-workspace RBAC migrációkat sorrendben futtatja a production-shape
+tesztfixture-en. A teljes futás eredményét meg kell várni.
+
+**Fennmaradó migrációs eltérés:** a két `20261117` migráció nem szerepel a
+remote ledgerben, noha hatásuk a production sémában látszik; az audit és RBAC
+migrációk még nincsenek productionben alkalmazva. A pontos alkalmazási tervet
+a schema snapshot és a friss, titkosított backup után kell lezárni.
