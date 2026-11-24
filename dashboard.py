@@ -538,6 +538,8 @@ def _consume_pending_action() -> dict[str, Any] | None:
     if not isinstance(pending, dict):
         return None
     created_at = pending.get("_approval_created_at")
+    actor = _approval_actor()
+    nonce = pending.get("_approval_nonce")
     now = time.time()
     if (
         not isinstance(created_at, (int, float))
@@ -545,8 +547,10 @@ def _consume_pending_action() -> dict[str, Any] | None:
         or created_at <= 0
         or created_at > now
         or now - created_at > PENDING_APPROVAL_TTL_SECONDS
-        or not pending.get("_approval_nonce")
-        or pending.get("_approval_actor") != _approval_actor()
+        or not isinstance(nonce, str)
+        or not nonce
+        or actor is None
+        or pending.get("_approval_actor") != actor
     ):
         return None
     return {
