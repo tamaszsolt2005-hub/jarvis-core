@@ -563,7 +563,7 @@ def test_safe_extract_rejects_path_traversal_and_non_regular_members(tmp_path):
         backup._safe_extract(symlink_archive, tmp_path / "symlink-out")
 
 
-def test_safe_extract_rejects_unknown_source_and_allows_explicit_local_test(tmp_path):
+def test_safe_extract_rejects_unknown_source_and_requires_explicit_local_test(tmp_path):
     unknown = _make_backup_archive(tmp_path, source_ref="abcdefghijklmnopqrst")
     out = tmp_path / "unknown-out"
     out.mkdir()
@@ -575,8 +575,10 @@ def test_safe_extract_rejects_unknown_source_and_allows_explicit_local_test(tmp_
     local_out.mkdir()
     with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
         backup._safe_extract(local, local_out)
-    # The explicit local-test switch is only accepted by the restore path,
-    # which additionally verifies that the configured target URL is loopback.
+    allowed_out = tmp_path / "local-allowed-out"
+    allowed_out.mkdir()
+    manifest = backup._safe_extract(local, allowed_out, allow_local_test=True)
+    assert manifest["source_project_ref"] == "local-test"
 
 
 def test_verify_backup_requires_identity_configuration(monkeypatch, tmp_path):
