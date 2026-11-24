@@ -1,8 +1,8 @@
 """Supabase Auth primitives and fail-closed RBAC policy helpers.
 
-This module is a foundation only: the dashboard must not switch away from its
-legacy login until real Auth users exist and matching RLS policies are safely
-prepared and verified. It never creates a service-role client.
+This module provides verified Supabase Auth sessions and fail-closed role
+checks. The dashboard Auth path remains opt-in until users and RLS policies
+are provisioned. It never creates a service-role client.
 """
 from __future__ import annotations
 
