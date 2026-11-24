@@ -173,7 +173,7 @@ jobs:
             echo "pgTAP reported failed RBAC assertions."
             exit 1
           fi
-          grep -q '1..26' <<< "$rbac_output"
+          grep -q '1..27' <<< "$rbac_output"
       - name: Run real encrypted backup and restore roundtrip
         run: python -m pytest -q tests/test_backup_restore_integration.py
       - name: Remove test age identity
