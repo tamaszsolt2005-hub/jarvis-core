@@ -1,5 +1,7 @@
 from health_check import REQUIRED_TABLES, run_self_diagnostics
 
+import pytest
+
 
 @pytest.fixture(autouse=True)
 def _legacy_diagnostics_mode(monkeypatch):
