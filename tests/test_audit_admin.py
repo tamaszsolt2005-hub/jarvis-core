@@ -212,7 +212,7 @@ def test_sign_out_is_noop_without_tokens_and_revokes_valid_session(monkeypatch):
 
 
 def test_fetch_audit_rows_bounds_limit_and_applies_optional_filters():
-    client = FakeClient([{"id": 1}, "malformed", {"id": 2}])
+    client = FakeClient(data=[{"id": 1}, "malformed", {"id": 2}])
     rows = audit_admin.fetch_audit_rows(
         client, module="email", status="failed", limit=900
     )
@@ -224,7 +224,7 @@ def test_fetch_audit_rows_bounds_limit_and_applies_optional_filters():
 
 
 def test_fetch_audit_rows_omits_all_filters_and_rejects_non_list():
-    client = FakeClient([])
+    client = FakeClient(data=[])
     assert audit_admin.fetch_audit_rows(
         client, module="Összes modul", status="Összes státusz", limit=0
     ) == []
@@ -232,7 +232,7 @@ def test_fetch_audit_rows_omits_all_filters_and_rejects_non_list():
     assert not any(call[0] == "eq" for call in client.query.calls)
 
     with pytest.raises(TypeError):
-        audit_admin.fetch_audit_rows(FakeClient({"not": "a list"}))
+        audit_admin.fetch_audit_rows(FakeClient(data={"not": "a list"}))
 
 
 def test_fetch_audit_page_clamps_size_and_forwards_filters(monkeypatch):
@@ -255,12 +255,12 @@ def test_fetch_audit_page_clamps_size_and_forwards_filters(monkeypatch):
 
 
 def test_verify_integrity_requires_a_well_formed_result():
-    client = FakeClient([{"valid": True}])
+    client = FakeClient(data=[{"valid": True}])
     assert audit_admin.verify_audit_integrity(client) == {"valid": True}
     assert client.rpc_name == "verify_logs_audit_chain"
     for data in (None, [], ["bad"], {"valid": True}):
         with pytest.raises(RuntimeError):
-            audit_admin.verify_audit_integrity(FakeClient(data))
+            audit_admin.verify_audit_integrity(FakeClient(data=data))
 
 
 def test_csv_export_uses_utf8_bom_and_neutralizes_formula_cells():
