@@ -499,6 +499,13 @@ def _auth_login_enabled() -> bool:
     return env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
 
 
+def _auth_session_kwargs() -> dict[str, Any]:
+    """Pass a session only in the opt-in Auth path; preserve legacy call contracts."""
+    if not _auth_login_enabled():
+        return {}
+    return {"auth_session": st.session_state.get("_jarvis_auth_session")}
+
+
 def _get_dashboard_supabase():
     """Use a verified user JWT in individual-login mode; never fall back."""
     if _auth_login_enabled():
@@ -940,7 +947,7 @@ def retrieve_context(db: Any, question: str) -> tuple[str, list[str]]:
                 )
                 loaded.append("korábbi kutatások piaci mintázatai")
                 learning = build_business_learning(get_memories(
-                db, "", limit=100, auth_session=st.session_state.get("_jarvis_auth_session")
+                db, "", limit=100, **_auth_session_kwargs()
             ), lead_rows)
                 sections.append(
                     "ÜZLETI TANULÓMEMÓRIA (kutatási minták + kizárólag explicit döntések/eredmények/tanulságok):\n"
