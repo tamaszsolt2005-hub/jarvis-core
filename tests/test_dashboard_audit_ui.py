@@ -43,11 +43,15 @@ def _prepare_audit_app(monkeypatch, *, admin_session=True):
     monkeypatch.setattr(jarvis_common, "log_event", lambda *_args, **_kwargs: True)
 
     app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
+    # AppTest registers the script's state on the first run; seed after that
+    # initial render so the next run preserves the custom principal/session.
+    app.run()
     app.session_state["authenticated"] = True
     app.session_state["_jarvis_authenticated_at"] = time.time()
     app.session_state["jarvis_page"] = "audit"
     if admin_session:
         app.session_state["_jarvis_audit_admin_session"] = dict(_ADMIN_SESSION)
+    app.run()
     return app
 
 
