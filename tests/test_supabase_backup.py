@@ -522,6 +522,7 @@ def test_verify_backup_requires_private_identity_file(monkeypatch, tmp_path):
 
 
 def _make_backup_archive(tmp_path, *, source_ref=None, version=1, member_name="schema.sql"):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     work = tmp_path / "archive-source"
     work.mkdir()
     schema = work / "schema.sql"
@@ -569,7 +570,13 @@ def test_safe_extract_rejects_unknown_source_and_allows_explicit_local_test(tmp_
     with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
         backup._safe_extract(unknown, out)
 
-    local = _make_backup_archive(tmp_path / "local", source_ref="local-test") if False else None
+    local = _make_backup_archive(tmp_path / "local", source_ref="local-test")
+    local_out = tmp_path / "local-out"
+    local_out.mkdir()
+    with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
+        backup._safe_extract(local, local_out)
+    # The explicit local-test switch is only accepted by the restore path,
+    # which additionally verifies that the configured target URL is loopback.
 
 
 def test_verify_backup_requires_identity_configuration(monkeypatch, tmp_path):
