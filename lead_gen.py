@@ -97,9 +97,13 @@ def run(path="data/leads.csv"):
                     raise RuntimeError("Lead mentése leállítva: a pending auditbejegyzés nem menthető.")
                 side_effect_started = True
                 lead_write_attempted = True
-                inserted = db.table("leads").insert(record).execute()
+                inserted = db.table("leads").insert(record).select("id").execute()
                 inserted_rows = getattr(inserted, "data", None) or []
                 lead_id = inserted_rows[0].get("id") if inserted_rows and isinstance(inserted_rows[0], dict) else None
+                if not lead_id:
+                    raise RuntimeError(
+                        "A CSV-import lead mentését az adatbázis nem igazolta vissza."
+                    )
                 if not audit_event(
                     db,
                     module="lead_gen",
