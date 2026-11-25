@@ -181,7 +181,7 @@ No production changes were made. No CI or database tests were run, in accordance
 
 ## Branch és production állapot szétválasztása – 2026-11-25, PR #26
 
-A [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán új audit/approval/task RPC migrációk, privilege-lock SQL és hozzájuk tartozó tesztek szerepelnek. Ezek **repository/branch állapotúak**, nem production állapotúak. A legutóbbi ismert branch commit `38693f2f93b790608aef37a33f190a86e611ff0d`; a PR nincs merge-ölve.
+A [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán új audit/approval/task RPC migrációk, privilege-lock SQL és hozzájuk tartozó tesztek szerepelnek. Ezek **repository/branch állapotúak**, nem production állapotúak. A aktuális PR-head `eaad5428311d86590f03c744f7f5b0e02da45064`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`; a PR nincs merge-ölve.
 
 A korábbi production snapshot a két `20261117` ledger gap reconciliation után hét migrációs ledger bejegyzést rögzít, míg hat későbbi migráció továbbra is unapplied. A `20261125160000_atomic_task_approvals_and_operations.sql` és `20261125170000_enforce_atomic_task_write_privileges.sql` nem tekinthető productionben telepítettnek. A CI PostgreSQL 17 fixture tesztje nem ír a Supabase production adatbázisba.
 
