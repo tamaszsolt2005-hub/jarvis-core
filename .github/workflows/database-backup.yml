@@ -145,9 +145,10 @@ jobs:
               raise SystemExit("S3 object is not SSE-KMS encrypted")
           if obj.get("SSEKMSKeyId") != expected_key:
               raise SystemExit("S3 object uses an unexpected KMS key")
-          if not isinstance(obj.get("ContentLength"), int) or obj["ContentLength"] <= 0:
-              raise SystemExit("S3 object size is invalid")
-          print(f"S3 object verified: {obj['ContentLength']} bytes; SSE-KMS key matches.")
+          content_length = obj.get("ContentLength")
+if not isinstance(content_length, int) or content_length <= 0:
+    raise SystemExit("S3 object size is invalid")
+print(f"S3 object verified: {content_length} bytes; SSE-KMS key matches.")
           '
           mkdir -p "$RUNNER_TEMP/jarvis-backup-verify"
           downloaded="$RUNNER_TEMP/jarvis-backup-verify/$(basename "$BACKUP_S3_KEY")"
