@@ -7,10 +7,10 @@
 
 ## 1. Aktuális GitHub-állapot
 
-- Main HEAD: `f49eda731dbfc5792744d128ce2ee6f34fc55465`.
+- Main HEAD: `6b22893b650c4a6336adef3b43429ce69e567738`.
 - PR #13 head: `32aef539c0128c1fedaa9e03768477433e93abe1`.
 - PR #13: draft, nyitott, nincs merge-elve.
-- PR #13: 282 commit ahead, 6 commit behind a mainhez képest.
+- PR #13: a main integrálása megtörtént; 0 commit behind. A PR továbbra is draft és nincs merge-elve.
 - [PR CI #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): sikeres a PR akkori headjén.
 - [Main CI #45621572548](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45621572548): sikeres a `f49eda7` main headen.
 
@@ -18,7 +18,7 @@ A CI eredmények csak a megadott commitokra érvényesek. A main és a PR friss�
 
 ## 2. PR merge gate
 
-- [ ] A PR frissítése a legújabb mainre; a behind érték 0.
+- [x] A PR frissítése a legújabb mainre; a behind érték 0.
 - [ ] A teljes PR diff és commit-történet review-ja lezárult.
 - [ ] A migrációk, RLS/GRANT, Auth trust boundary, backup workflow és approval/idempotencia útvonalak review-ja lezárult.
 - [ ] A PR legfrissebb headjén minden kötelező CI-job sikeres.
@@ -27,7 +27,7 @@ A CI eredmények csak a megadott commitokra érvényesek. A main és a PR friss�
 - [ ] A fennmaradó, nem blokkoló fejlesztési adósságok elfogadása és ütemezése dokumentált.
 - [ ] Külön, kifejezett döntés született a merge-ről.
 
-**Merge-döntés:** a CI-zöldség önmagában nem elég. A PR jelenlegi mérete (282 commit ahead) miatt teljes review szükséges. A merge nem automatikus.
+**Merge-döntés:** a CI-zöldség önmagában nem elég. A PR jelentős változáscsomagja miatt teljes review szükséges. A merge nem automatikus.
 
 ## 3. Production release gate
 
@@ -52,7 +52,7 @@ A production bevezetés a PR merge-től külön döntés. A következő bizonyí
 
 ## 5. Döntési állapot
 
-**PR #13:** merge előtt frissíteni kell a mainre, majd a teljes változáscsomagot review-zni és a friss head CI-jét ellenőrizni.
+**PR #13:** a main szinkronizálása megtörtént (0 behind). A teljes változáscsomagot továbbra is review-zni kell, és a friss head CI-jét ellenőrizni.
 
 **Production:** nem release-ready, amíg a konkrét production backup restore, preflight és az izolált élő Auth/JWT/RLS bizonyítékok nem állnak rendelkezésre, és a production változtatási terv nincs külön jóváhagyva.
 
