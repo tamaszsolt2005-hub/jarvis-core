@@ -215,7 +215,7 @@ def test_sender_success_records_pending_and_success_audit_after_smtp_acceptance(
     result = email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc))
 
     assert result is True
-    assert sent == [("person@example.test", "Subject", "Body")]
+    assert sent == [("person@example.test", "Subject", "Body", email_sender.email_idempotency_key(_approved_lead(), False))]
     assert audit_statuses == ["pending", "success"]
     assert any(update and update.get("status") == "sending" for update in db.updates)
     assert any(update and update.get("status") == "sent" for update in db.updates)

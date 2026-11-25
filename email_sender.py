@@ -68,9 +68,8 @@ def _draft(lead: dict, follow_up: bool = False) -> tuple[str, str]:
 def email_idempotency_key(lead: dict, follow_up: bool) -> str:
     """Return a stable operation key for one lead and one delivery sequence.
 
-    A future provider adapter must send this exact value as its idempotency key.
-    SMTP itself does not provide provider-side idempotency; the key is currently
-    persisted in the audit record to keep retries/reconciliation correlated.
+    A provider adapter must send this exact value as its idempotency key.
+    The Resend adapter forwards it to the provider; SMTP cannot deduplicate.
     """
     lead_id = str(lead.get("id") or "").strip()
     if not lead_id:
@@ -134,7 +133,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
             result={"reason": "lead_claim_not_acquired"},
         )
         return False
-    smtp_attempted = False
+    delivery_attempted = False
     try:
         subject, body = _draft(lead, follow_up=follow_up)
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
@@ -167,15 +166,15 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         }
         if not audit_event(db, status="pending", **audit_fields):
             raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
-        # Only a failed SMTP DATA submission (or a completed send followed by a
-        # local persistence failure) is ambiguous. Preflight/auth/connect failures
-        # and the hard-disabled guard are known not to have delivered a message.
+        # Only an ambiguous provider response (or a completed send followed by a
+        # local persistence failure) is uncertain. Preflight/auth failures and
+        # the hard-disabled guard are known not to have delivered a message.
         try:
-            message_id = send_email(str(lead["email"]), subject, body)
+            message_id = send_email(str(lead["email"]), subject, body, operation_id)
         except EmailDeliveryOutcomeUnknown:
-            smtp_attempted = True
+            delivery_attempted = True
             raise
-        smtp_attempted = True
+        delivery_attempted = True
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
             max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
@@ -200,7 +199,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         db.table("leads").update(values).eq("id", lead["id"]).eq("status", claim_status).execute()
         if not audit_event(
             db, status="success", delivery_id=message_id or None,
-            result={"smtp_accepted": True, "follow_up": follow_up},
+            result={"provider_accepted": True, "follow_up": follow_up},
             **audit_fields,
         ):
             raise RuntimeError("Az SMTP átvette a levelet, de a sikeres auditbejegyzés nem menthető.")
@@ -209,19 +208,19 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     except Exception as exc:
         if "audit_fields" in locals():
             audit_event(
-                db, status="unknown" if smtp_attempted else "failed",
+                db, status="unknown" if delivery_attempted else "failed",
                 error=exc, level="error",
-                result={"smtp_attempted": smtp_attempted},
+                result={"delivery_attempted": delivery_attempted},
                 **audit_fields,
             )
         report_error(
             exc, module="email_sender", operation="send_one", severity="error", db=db
         )
         try:
-            db.table("leads").update({"status": "send_unknown" if smtp_attempted else "send_error", "next_follow_up_at": None if smtp_attempted else lead.get("next_follow_up_at")}).eq("id", lead["id"]).eq("status", claim_status).execute()
+            db.table("leads").update({"status": "send_unknown" if delivery_attempted else "send_error", "next_follow_up_at": None if delivery_attempted else lead.get("next_follow_up_at")}).eq("id", lead["id"]).eq("status", claim_status).execute()
         except Exception as state_exc:
             report_error(
-                state_exc, module="email_sender", operation="mark_send_unknown" if smtp_attempted else "mark_send_error",
+                state_exc, module="email_sender", operation="mark_send_unknown" if delivery_attempted else "mark_send_error",
                 severity="critical", db=db,
             )
         return False

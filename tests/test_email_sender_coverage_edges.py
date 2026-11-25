@@ -113,7 +113,7 @@ def test_email_sender_rechecks_consent_immediately_before_smtp(monkeypatch):
     def revoke_during_draft(_lead, **_kwargs):
         db.rows[0]["opted_out"] = True
         return "Subject", "Body"
-    _configure(monkeypatch, db, send=lambda *args: sent.append(args) or "smtp-id")
+    _configure(monkeypatch, db, send=lambda *args: sent.append(args) or "provider-id")
     monkeypatch.setattr(email_sender, "_draft", revoke_during_draft)
 
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
@@ -188,9 +188,9 @@ def test_email_sender_success_records_delivery_and_followup_schedule(monkeypatch
     now = datetime.now(timezone.utc)
 
     assert email_sender._send_one(db, db.rows[0], False, now) is True
-    assert sent == [("contact@example.test", "Subject", "Body")]
+    assert sent == [("contact@example.test", "Subject", "Body", email_sender.email_idempotency_key(db.rows[0], False))]
     assert db.rows[0]["status"] == "sent"
-    assert db.rows[0]["last_message_id"] == "smtp-id"
+    assert db.rows[0]["last_message_id"] == "provider-id"
     assert db.rows[0]["next_follow_up_at"] is not None
     assert [item["status"] for item in audits] == ["pending", "success"]
 
