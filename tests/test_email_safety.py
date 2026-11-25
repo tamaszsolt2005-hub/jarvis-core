@@ -98,3 +98,71 @@ def test_smtp_transport_is_hard_disabled_even_when_environment_flag_is_true(monk
         assert "kódszinten letiltva" in str(exc)
     else:
         raise AssertionError("Direct SMTP call must be blocked")
+
+
+def test_smtp_data_submission_failure_is_classified_as_unknown(monkeypatch):
+    import email_utils
+
+    class FakeSMTP:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def ehlo(self):
+            return None
+
+        def starttls(self):
+            return None
+
+        def login(self, *_args):
+            return None
+
+        def send_message(self, _message):
+            raise OSError("connection lost while waiting for SMTP DATA response")
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "get_enforced_user_supabase", lambda *_a, **_k: None)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.com", "EMAIL_PASSWORD": "not-a-real-secret"
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda name, default=None: default)
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(email_utils, "report_error", lambda *_a, **_k: None)
+
+    try:
+        email_utils.send_email("person@example.com", "Subject", "Body", approved=True)
+    except email_utils.EmailDeliveryOutcomeUnknown as exc:
+        assert "automatikus újraküldés tilos" in str(exc)
+    else:
+        raise AssertionError("An uncertain SMTP DATA result must not look successful")
+
+
+def test_smtp_connection_failure_is_not_misclassified_as_delivery_unknown(monkeypatch):
+    import email_utils
+
+    class FailingSMTP:
+        def __init__(self, *_args, **_kwargs):
+            raise OSError("connection refused before SMTP session")
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "get_enforced_user_supabase", lambda *_a, **_k: None)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.com", "EMAIL_PASSWORD": "not-a-real-secret"
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda name, default=None: default)
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FailingSMTP)
+    monkeypatch.setattr(email_utils, "report_error", lambda *_a, **_k: None)
+
+    try:
+        email_utils.send_email("person@example.com", "Subject", "Body", approved=True)
+    except email_utils.EmailDeliveryOutcomeUnknown:
+        raise AssertionError("A pre-session connection failure is a known non-delivery")
+    except OSError as exc:
+        assert "connection refused" in str(exc)
+    else:
+        raise AssertionError("The simulated SMTP connection must fail")

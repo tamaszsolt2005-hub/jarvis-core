@@ -11,6 +11,12 @@ from jarvis_errors import report_error
 
 # Deliberately not environment-controlled: enabling SMTP requires a reviewed code change.
 EMAIL_DELIVERY_ENABLED = False
+
+
+class EmailDeliveryOutcomeUnknown(RuntimeError):
+    """SMTP DATA submission failed with an outcome that may have reached the server."""
+
+
 _EMAIL_ADDRESS_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
 
 
@@ -69,7 +75,14 @@ def send_email(
             server.starttls()
             server.ehlo()
             server.login(sender, password)
-            server.send_message(message)
+            try:
+                server.send_message(message)
+            except Exception as exc:
+                # Once DATA submission begins, a lost final response cannot prove
+                # whether the remote server accepted the message. Never auto-retry.
+                raise EmailDeliveryOutcomeUnknown(
+                    "Az SMTP átvételének eredménye bizonytalan; automatikus újraküldés tilos."
+                ) from exc
     except Exception as exc:
         report_error(
             exc, module="email_utils", operation="smtp_delivery",

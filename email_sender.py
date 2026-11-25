@@ -5,7 +5,7 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from email_utils import EMAIL_DELIVERY_ENABLED, send_email
+from email_utils import EMAIL_DELIVERY_ENABLED, EmailDeliveryOutcomeUnknown, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_service_supabase, log_event, audit_event
 from jarvis_errors import report_error
 from lead_scoring import score_lead
@@ -144,10 +144,15 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         }
         if not audit_event(db, status="pending", **audit_fields):
             raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
-        # The remote server may accept the message even if its final SMTP response is lost.
-        # From this point onward the outcome is uncertain and automatic retry is forbidden.
+        # Only a failed SMTP DATA submission (or a completed send followed by a
+        # local persistence failure) is ambiguous. Preflight/auth/connect failures
+        # and the hard-disabled guard are known not to have delivered a message.
+        try:
+            message_id = send_email(str(lead["email"]), subject, body)
+        except EmailDeliveryOutcomeUnknown:
+            smtp_attempted = True
+            raise
         smtp_attempted = True
-        message_id = send_email(str(lead["email"]), subject, body)
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
             max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
