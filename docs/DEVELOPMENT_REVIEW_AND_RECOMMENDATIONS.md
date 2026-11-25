@@ -19,12 +19,12 @@ A jelenlegi nyitott integráció a [PR #13](https://github.com/tamaszsolt2005-hu
 | PR base | `main` |
 | PR draft / merged | draft / nincs merge-elve |
 | PR mergeability | Az API friss mergeability értéke ebben az ellenőrzésben nem volt külön lekérve |
-| Branch összehasonlítás | 282 commit ahead, 0 commit behind |
+| Branch összehasonlítás | 282 commit ahead, 5 commit behind (a dokumentációs main-commitok után ellenőrizve) |
 | Legfrissebb PR workflow | [45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): fut |
 | PR workflow jobok | `backup-restore-integration` sikeres; `test` fut |
 | Ugyanezen HEAD push workflow | [45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359): sikeres |
 
-A korábbi `09bde885...` headhez tartozó sikeres CI nem helyettesíti a frissebb `32aef539...` head teljes ellenőrzését. A PR jelenlegi teljes CI-eredménye ezért még **nem tekinthető lezártnak**.
+A korábbi `09bde885...` headhez tartozó sikeres CI nem helyettesíti a frissebb `32aef539...` head teljes ellenőrzését. A dokumentációs frissítések a `main`-re kerültek, ezért a PR most 5 commitnyira lemarad a main-től; a lemaradás a mostani dokumentációs commitokat tartalmazza. A PR jelenlegi teljes CI-eredménye ezért még **nem tekinthető lezártnak**.
 
 **Fontos integrációs kockázat:** a PR 282 commitot tartalmaz a `main`-hez képest. Ez lényegesen több, mint egy kis, izolált PR; a változáscsomag méretét, commit-történetét és teljes diffjét merge előtt külön review-zni kell. A 0 behind csak azt jelenti, hogy a PR a jelenlegi `main`-ből indul, nem azt, hogy a PR változásai már a `main` részei.
 

@@ -11,7 +11,7 @@ Ez a dokumentum a korábbi checklisták státuszait a fenti felülvizsgálati id
 - `main`: `2fb9081f80741692a05d08f805c04d0a23ad1350`
 - PR #13 head: `32aef539c0128c1fedaa9e03768477433e93abe1`
 - PR #13: draft, open, not merged.
-- Branch összehasonlítás: 282 commit ahead, 0 behind.
+- Branch összehasonlítás: 282 commit ahead, 5 behind (a dokumentációs main-commitok után ellenőrizve).
 - [PR push CI #45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359): sikeres.
 - [PR CI #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): backup-restore-integration sikeres, test job a felülvizsgálatkor futott.
 - A korábbi `09bde885...` head sikeres CI-je nem bizonyítja az újabb `32aef539...` head teljes CI-jét.

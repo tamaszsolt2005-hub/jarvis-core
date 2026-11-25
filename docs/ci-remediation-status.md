@@ -76,6 +76,6 @@ A dokumentum korábbi CI-bejegyzései történeti naplóként olvasandók. A jel
 - [PR workflow #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): `backup-restore-integration` sikeres; `test` job a felülvizsgálat időpontjában futott.
 - [Push workflow #45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359): sikeres.
 - A korábbi `09bde885...` headhez tartozó #45619101972 zöld futás nem a jelenlegi head bizonyítéka.
-- PR #13 draft és nincs merge-elve; a feature branch 282 commit ahead, 0 behind a `main`-hez képest.
+- PR #13 draft és nincs merge-elve; a feature branch 282 commit ahead, 5 behind a `main`-hez képest a dokumentációs main-commitok után.
 
 A további státuszhoz és a merge-kritériumokhoz lásd a [fejlesztési áttekintést](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate listát](REMAINING_WORK_AND_RELEASE_GATES.md). A hosszú távú fejlesztési ág a `main`; a PR ág átmeneti.
