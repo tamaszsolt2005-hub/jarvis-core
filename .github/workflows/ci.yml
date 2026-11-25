@@ -421,6 +421,11 @@ jobs:
             exit 1
           fi
           grep -q '1..32' <<< "$rbac_output"
+          # Add the stable task-creation idempotency key after the existing
+          # RBAC schema is in place; replay to verify forward recovery.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125150000_task_creation_idempotency.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125150000_task_creation_idempotency.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_creation_idempotency.test.sql
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |
