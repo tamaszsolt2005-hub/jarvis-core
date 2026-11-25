@@ -89,7 +89,7 @@ A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_A
 
 ## Aktuális implementációs állapot – PR #26, 2026-11-25
 
-A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; aktuális PR-head `eaad5428311d86590f03c744f7f5b0e02da45064`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
+A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
 
 - **Approval:** a DB tárolja a token hashét, a principal/payload kötést és lejáratot; az egyszeri fogyasztás a végrehajtó tranzakció része. A replay/revoke SQL-tesztek hozzáadva.
 - **Task műveletek:** az `execute_approved_task_action` RPC operation ID alapján sorosítja az azonos műveletet; a már lezárt művelet eredményét adja vissza. A párhuzamos kettős végrehajtás ellenőrzésére két-session CI teszt van.
