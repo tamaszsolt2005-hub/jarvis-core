@@ -245,3 +245,55 @@ Status: implementation committed; CI result pending at documentation time. This 
 does not repair or modify the remote ledger. The exact CLI-compatible resolution of
 the two missing versions and failure-injection recovery for later audit/RBAC migrations
 remain open. Production stays read-only and Auth stays OFF.
+
+---
+
+## 2026-11-25 – állapotfrissítés a tényleges branch-head alapján
+
+**Ez a szakasz felülírja a dokumentum korábbi, elavult branch-head/CI adatait és minden Supabase branch-létrehozást javasló lépést.** A státuszok a d76e8e859bca9021a4d5d491e49e04591dc5a26f branch-head ellenőrzésekor érvényesek.
+
+### Elkészült és repository/CI-ben lefedett tételek
+
+- [x] Az öt remote migration-ledger SQL-forrás visszanyerése és verziózott fájlként tárolása.
+- [x] Production schema snapshot és az öt remote ledger-verzió read-only rögzítése.
+- [x] A két 20261117 migráció már meglévő hatásának és legacy adatoknak a külön PostgreSQL 17 fixture-ben történő modellezése.
+- [x] A két additive 20261117 migráció ismételt replay-je, valamint a lead/log/settings/posts rekordok és az integer, sequence-backed settings ID megőrzésének ellenőrzése.
+- [x] Audit mező migráció utáni megszakítás és forward replay ellenőrzése; részlegesen előkészített audit DDL-prefix utáni teljes migráció replay-je.
+- [x] Hash-chain migráció utáni megszakítás és forward replay ellenőrzése; RBAC migráció ismételt replay-je.
+- [x] Audit és shared-workspace RBAC pgTAP tesztek a PostgreSQL 17 CI fixture-ben.
+- [x] JWT trust-boundary regresszió: a user_metadata.role=admin nem írhatja felül az app_metadata.role=reader értéket; ismeretlen app_metadata role esetén a hozzáférés megtagadott. A shared-workspace tesztterv 32 assertiont tartalmaz.
+- [x] A CI elvárása frissítve a 32 pgTAP assertionre.
+- [x] A production-shape migrációs és backup/restore CI infrastruktúra a repository workflow-ban létezik.
+- [x] Valós Supabase Auth-issued JWT/PostgREST smoke tesztharness és manuális workflow elkészült; a futtatáshoz szükséges védett környezeti titkok/értékek és futási bizonyíték még hiányzik.
+- [x] Az Auth/RBAC implementáció, migrációk, tesztek és dokumentáció a PR #13 branch-en vannak; a production Auth flag továbbra is OFF.
+
+### Legfrissebb CI állapot – ne keverd össze a korábbi zöld futásokkal
+
+A d76e8e859bca9021a4d5d491e49e04591dc5a26f headhez tartozó legutóbbi futások az ellenőrzés pillanatában még futottak:
+
+- Push: https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45589657934 – in_progress.
+- PR: https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45589669569 – in_progress.
+- Mindkét futásban a Python test és a PostgreSQL/backup-restore backup-restore-integration job futott; végleges tesztszám, coverage és teljes siker még nincs igazolva.
+- A korábbi, 762 passed / 3 skipped / 96.47% coverage eredmény korábbi headhez tartozik; nem tekinthető a mostani JWT role tesztmódosítás CI-bizonyítékának.
+
+### Még szükséges – nyitott kapuk
+
+| Terület | Státusz | Mi hiányzik a lezáráshoz |
+|---|---|---|
+| Aktuális CI | **Fut** | A fenti push és PR futás mindkét jobja zöld legyen; rögzíteni kell az új tesztszámot és coverage-et. |
+| Supabase CLI migration repair szemantika | **Nincs igazolva** | A CI workflow jelenleg nem telepít és nem futtat Supabase CLI-t; ezért a pontos migration repair viselkedés továbbra is unverified. Csak izolált, lokális környezetben vizsgálható; production parancs nem futtatható. |
+| Két 20261117 ledger-eltérés | **Nyitott** | Az ismételt SQL replay és adatmegőrzés bizonyított a lokális fixture-ben, de ez nem javítja és nem bizonyítja a remote ledger biztonságos módosítását. Pontos, CLI-kompatibilis reconciliation eljárás és független review kell. |
+| Migrációs katalógus-postconditionök | **Részben kész** | A CI-ben további explicit ellenőrzés szükséges a productionnel egyező owner/grant/policy/function ACL/trigger/index állapotra; az összes objektumra kiterjedő egyezés nincs teljes körűen bizonyítva. |
+| Production backup + restore | **Csak lokális CI-ben bizonyított** | AWS stack/OIDC/secrets konfiguráció ellenőrzése, titkosított production backup S3-ba, objektum letöltés/decrypt/hash/manifest ellenőrzés, külön adatbázisba restore és jegyzőkönyv. |
+| Valós Supabase Auth/JWT/RLS | **Harness kész, futtatás nyitott** | A már létező Jarvis projekten kívüli tesztprojekt/branch nem hozható létre; a meglévő Jarvis production projekt csak read-only. Ha nincs már engedélyezett izolált Supabase környezet, a valós live teszt blokkolt marad. A live workflowhoz szükséges secret/variable beállítás és futtatás nincs igazolva. |
+| Üzleti mellékhatások és külső integrációk | **Nyitott** | Approval race/replay/failure tesztek, SMTP/IMAP/Gemini kontrollált integrációs tesztek és audit fail-closed bizonyíték. |
+| Operáció | **Nyitott** | Production restore-gyakorlat, RPO/RTO, retention/riasztás, incidens- és kulcsrotációs runbook. |
+| Release | **Blokkolt** | Független kód/SQL review, minden P0 kapu, pontos change terv és külön felhasználói jóváhagyás. PR #13 draft marad; automatikus merge nincs. |
+
+### Környezeti és production korlátozások
+
+- Kizárólag a meglévő Jarvis Supabase projekt használható; új account, project vagy branch létrehozása tilos. A projekt branch listája üres.
+- A production Supabase projekt read-only marad. Nincs db push, migration repair, ledger edit, DDL/DML, policy-változtatás vagy Auth-user provisioning.
+- Production Auth/RBAC feature flag OFF marad.
+- A GitHub Actions PostgreSQL 17 fixture a migrációs replay/failure-recovery bizonyíték egyetlen engedélyezett helye ebben a fázisban.
+- Bármely production adatbázis-módosításhoz külön, konkrét műveletre és SQL/migrációs készletre szóló jóváhagyás szükséges.
