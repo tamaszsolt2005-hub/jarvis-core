@@ -26,3 +26,24 @@ def test_crm_tables_have_row_level_security_enabled():
     schema = (ROOT / "supabase" / "schema.sql").read_text(encoding="utf-8").lower()
     for table in ("leads", "logs", "tasks", "email_drafts", "jarvis_memory", "jarvis_proactive_state", "posts"):
         assert f"alter table public.{table} enable row level security;" in schema
+
+
+def test_lead_email_uniqueness_migration_has_non_destructive_preflight():
+    migration = (
+        ROOT / "supabase" / "migrations"
+        / "20261125180000_unique_normalized_lead_email.sql"
+    ).read_text(encoding="utf-8").lower()
+    assert "lock table public.leads in share row exclusive mode" in migration
+    assert "group by lower(btrim(email))" in migration
+    assert "having count(*) > 1" in migration
+    assert "resolve them manually" in migration
+    assert "create unique index if not exists leads_email_normalized_uidx" in migration
+    assert "delete from" not in migration
+    assert "update public.leads" not in migration
+    assert "insert into public.leads" not in migration
+
+
+def test_schema_declares_normalized_lead_email_uniqueness():
+    schema = (ROOT / "supabase" / "schema.sql").read_text(encoding="utf-8").lower()
+    assert "create unique index if not exists leads_email_normalized_uidx" in schema
+    assert "on public.leads (lower(btrim(email)))" in schema
