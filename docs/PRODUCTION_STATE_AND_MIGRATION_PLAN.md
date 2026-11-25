@@ -168,3 +168,12 @@ The earlier 20261117 effects are present and reconciled. The production read-onl
 The repository directory contains 13 files; there is no `20261124150000` migration file in this branch. Do not invent or ledger an absent migration version.
 
 **Current result:** the two historical ledger gaps are reconciled and verified. The complete file inventory and dependency order are reviewed, but the six later migrations are intentionally not applied. No CI was run, in accordance with the agreed batch-testing workflow. The app host is still unidentified, so the required application deploy/smoke gate for the final privilege-lock migration remains blocked.
+
+
+## 2026-11-25 – RBAC task-read coverage review
+
+A follow-up static review confirmed that the shared-workspace policy-generation loop in `20261124130000_shared_workspace_role_access.sql` already includes `public.tasks`; it creates the `tasks_shared_read` policy for authenticated admin/operator/reader roles. The migration itself did not need a change.
+
+The test suite did not explicitly prove that task rows are visible to reader and operator roles. Added two behavioral assertions to `supabase/tests/shared_workspace_role_access.test.sql` and a catalog postcondition requiring the `tasks_shared_read` SELECT policy. The pgTAP plan was increased from 34 to 36 assertions.
+
+No production changes were made. No CI or database tests were run, in accordance with the agreed batch-testing sequence; the tests remain queued for the consolidated run after the full implementation/review batch.
