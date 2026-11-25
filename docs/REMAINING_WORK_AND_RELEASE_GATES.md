@@ -342,3 +342,21 @@ The separate Python/unit/AppTest/browser job completed its test step successfull
 job stopped before the structured audit pgTAP, catalog postconditions and backup/restore
 steps, so those results remain unverified. A new CI run for the assertion fix is required
 before closing any of the first three gates.
+
+
+## 2026-11-25 – aktuális PR merge- és production állapot (felülírja a régi CI-státuszokat)
+
+A legfrissebb ellenőrzött PR-head: `09bde885407643146238ecc77811eded1ad8aef8`.
+A [JARVIS CI #45619101972](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45619101972)
+mindkét jobja sikeres:
+- `test`: sikeres (compileall, CloudFormation, Playwright, unit/AppTest/browser tesztek).
+- `backup-restore-integration`: sikeres (PostgreSQL 17 migrációs replay, pgTAP/catalog postconditions, izolált age backup/restore).
+- GitHub check-runs: 4/4 sikeres a fenti headen.
+- GitHub mergeability: `mergeable=true`, `mergeable_state=clean`; a feature branch 0 commitnyira van lemaradva a `main`-től.
+- PR #13 továbbra is draft és nincs merge-elve. A repository engedélyezi a squash merge-et; ha a PR jóváhagyásra kész, ez tartja a `main` történetét egyetlen tömör integrációs commitban.
+
+**Fontos különbség:** a repository/PR merge és a production Auth/RBAC aktiválás két külön kapu. A fenti CI alapján a kód CI-ellenőrzése sikeres, de ez nem igazolja a production backup külön adatbázisba történő restore-ját vagy a valós Supabase Auth/JWT/RLS viselkedést. Ezek production bevezetési blokkolók, nem szabad őket CI-sikernek feltüntetni.
+
+**Még nyitott repository-oldali fejlesztési feladatok:** több worker/process közötti atomikus approval consumption és általános replay/idempotencia; külső Gemini/SMTP/IMAP integrációs tesztek; e-mail delivery idempotencia. Ezeket a PR review során külön döntési pontként kell kezelni, és nem szabad késznek jelölni, amíg nincs implementáció és teszt.
+
+**Korlátok:** production adatbázis továbbra is read-only; Auth/RBAC flag OFF. Nem történt production DDL/DML, migration repair, Auth-user provisioning, AWS deploy vagy PR merge.
