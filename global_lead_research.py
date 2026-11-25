@@ -284,7 +284,7 @@ def research_global_companies(
         ):
             raise RuntimeError("A kutatási lead mentése leállítva: a pending auditbejegyzés nem menthető.")
         try:
-            db.table("leads").insert({
+            insert_response = db.table("leads").insert({
                 "company_name": name,
                 "email": None,
                 "website": website,
@@ -295,6 +295,8 @@ def research_global_companies(
                 "approved_to_contact": False,
                 "opted_out": False,
             }).execute()
+            if not getattr(insert_response, "data", None):
+                raise RuntimeError("A kutatási lead mentését az adatbázis nem igazolta vissza.")
         except Exception as exc:
             audit_event(
                 db,
