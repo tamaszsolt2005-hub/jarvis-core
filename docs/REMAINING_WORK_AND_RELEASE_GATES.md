@@ -62,3 +62,11 @@ A release gate-ek **nem teljesültek** pusztán attól, hogy a PR CI zöld: elő
 
 
 A PR #23 kimenő e-mailt letiltó kódmódosítása után az SMTP-küldés nem aktiválható GitHub secret vagy runtime környezeti változó átállításával. Ez csak a PR merge és a CI sikeres lezárása után tekinthető a main ágban érvényesnek.
+
+
+## 2026-11-25 17:06 UTC – friss audit és main állapot
+
+- PR #23 SMTP hard-disable merge-elve a mainbe: `c1364e8aaf0741ba2c8ef33360799c744bf1b688`. Merge utáni main CI `45661201562`: backup–restore sikeres, test job futott az utolsó ellenőrzéskor.
+- Production read-only: 8/8 public táblán RLS enabled, 0 policy; anon/authenticated közvetlen DML jog false; service_role teljes DML true. Private schema, audit chain state, approval táblák és task RPC hiányoznak; tasks.operation_id hiányzik; migration ledger 5 (20261119). Advisor 8 INFO policy nélküli RLS miatt.
+- SMTP main kódban hard-disabled, de production runtime deploy nem történt. Secrets nem módosultak, e-mail nem ment ki.
+- Production migráció, ledger repair, GRANT/REVOKE, Auth provisioning és deploy továbbra is blokkolt külön jóváhagyásig.
