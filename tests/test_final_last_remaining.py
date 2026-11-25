@@ -109,6 +109,10 @@ def test_global_research_defaults_when_setting_value_has_unexpected_shape(monkey
             return self
         def limit(self, *_args):
             return self
+        def order(self, *_args):
+            return self
+        def range(self, *_args):
+            return self
         def execute(self):
             return SimpleNamespace(data=[{"value": "not-an-object"}])
 
