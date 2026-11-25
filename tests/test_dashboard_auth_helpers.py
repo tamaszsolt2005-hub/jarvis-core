@@ -61,6 +61,9 @@ def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, l
 
     namespace = {
         "Any": Any,
+        "hashlib": __import__("hashlib"),
+        "hmac": __import__("hmac"),
+        "json": __import__("json"),
         "time": time,
         "uuid4": uuid4,
         "PENDING_APPROVAL_TTL_SECONDS": 5 * 60,
@@ -188,6 +191,34 @@ def test_pending_approval_is_one_time_and_bound_to_authenticated_user(monkeypatc
     assert consumed == action
     assert "_jarvis_pending_action" not in st.session_state
     assert namespace["_consume_pending_action"]() is None
+
+
+def test_pending_approval_rejects_payload_mutation_after_staging(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({"task_action": {"type": "create", "title": "Original"}})
+    st.session_state["_jarvis_pending_action"]["task_action"]["title"] = "Tampered"
+
+    assert namespace["_consume_pending_action"]() is None
+    assert "_jarvis_pending_action" not in st.session_state
+
+
+def test_pending_approval_copies_nested_payload_before_staging(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    action = {"task_action": {"type": "create", "title": "Original"}}
+    namespace["_stage_pending_action"](action)
+    action["task_action"]["title"] = "Changed after staging"
+
+    assert namespace["_consume_pending_action"]() == {
+        "task_action": {"type": "create", "title": "Original"}
+    }
 
 
 def test_pending_approval_expires_after_five_minutes(monkeypatch):
