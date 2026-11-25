@@ -2,6 +2,10 @@
 
 Magyar nyelvű, Streamlit-alapú üzleti asszisztens. A JARVIS leadkutatást, weboldal-elemzést, üzleti összefoglalókat, feladatkezelést, memóriát, vezetői briefinget és jóváhagyáshoz kötött e-mail-folyamatokat támogat.
 
+## Fejlesztési irány
+
+**Elsőként olvasd el a [JARVIS elsődleges fejlesztési útitervét](docs/JARVIS_DEVELOPMENT_ROADMAP.md).** Ez rögzíti a fejlesztés kötelező sorrendjét, az öt fő célt és a mindenkori haladási állapotot.
+
 ## Fő képességek
 
 - Gemini-alapú, magyar nyelvű chat.
@@ -42,6 +46,7 @@ A szükséges környezeti változókat a kód és a telepítési környezet hat�
 
 ## Dokumentáció és AI-fejlesztés
 
+- [Elsődleges fejlesztési útiterv – mindig ezt olvasd először](docs/JARVIS_DEVELOPMENT_ROADMAP.md)
 - [AI fejlesztési útmutató](AGENTS.md)
 - [JARVIS képességei és architektúrája](docs/JARVIS_DOCUMENTATION.md)
 - [Production állapot és migrációs terv](docs/PRODUCTION_STATE_AND_MIGRATION_PLAN.md)

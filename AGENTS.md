@@ -2,12 +2,13 @@
 
 ## Elsődleges szabályok
 
-1. A tartós ág a `main`. A feature ág és PR csak átmeneti integrációs eszköz; merge után zárd le, ha a GitHub jogosultság engedi.
-2. Módosítás előtt olvasd el ezt a fájlt, a `README.md`-t és a releváns részt a `docs/JARVIS_DOCUMENTATION.md`-ből.
-3. A forráskód, a `supabase/migrations/` és a `.github/workflows/` az elsődleges technikai igazság. A dokumentáció ezek összefoglalója.
-4. Minden státusznál különböztesd meg: **kódban implementált**, **automatikusan tesztelt**, **külső integrációval igazolt**, **productionben aktív**. Ezek nem felcserélhetők.
-5. Minden kódváltozással együtt frissítsd az érintett dokumentációt. Töröld az elavult állításokat; ne adj hozzá újabb dátumos státusznaplót, ha a meglévő központi dokumentum frissíthető.
-6. Ne találgass production állapotot. A production adatbázisról csak friss, read-only lekérdezés alapján állíts tényt.
+1. **Minden munkamenet első dokumentuma: [JARVIS elsődleges fejlesztési útiterve](docs/JARVIS_DEVELOPMENT_ROADMAP.md).** Ez határozza meg a fejlesztés sorrendjét és az aktuális haladást.
+2. A roadmap után olvasd el ezt a fájlt, a `README.md`-t és a releváns részletes dokumentációt.
+3. A tartós ág a `main`. A feature ág és PR csak átmeneti integrációs eszköz; merge után zárd le, ha a GitHub jogosultság engedi.
+4. A forráskód, a `supabase/migrations/` és a `.github/workflows/` az elsődleges technikai igazság. A dokumentáció ezek összefoglalója.
+5. Minden státusznál különböztesd meg: **kódban implementált**, **automatikusan tesztelt**, **külső integrációval igazolt**, **productionben aktív**. Ezek nem felcserélhetők.
+6. Minden kódváltozással együtt frissítsd az érintett dokumentációt és a roadmap haladási státuszát. Ne készíts párhuzamos, dátumozott státusznaplót.
+7. Ne találgass production állapotot. A production adatbázisról csak friss, read-only lekérdezés alapján állíts tényt.
 
 ## Production biztonsági határ
 
@@ -17,7 +18,8 @@ Külön, konkrét jóváhagyás nélkül TILOS:
 - GRANT/REVOKE, RLS policy vagy Auth user módosítása;
 - production Auth/RBAC feature flag bekapcsolása;
 - AWS production deploy vagy backup-infrastruktúra módosítása;
-- új Supabase projekt vagy branch létrehozása.
+- új Supabase projekt vagy branch létrehozása;
+- PR merge.
 
 A production projekt read-only állapotának vizsgálata nem ad engedélyt írásra. Titkot, tokent, connection stringet, személyes adatot ne tegyél Gitbe, logba vagy dokumentációba.
 
@@ -33,10 +35,11 @@ Ne állíts sikeres tesztet pusztán azért, mert a workflow elindult. A futásn
 
 ## Dokumentumok – egyetlen forrás minden témához
 
+- `docs/JARVIS_DEVELOPMENT_ROADMAP.md`: elsőként olvasandó, elsődleges fejlesztési sorrend és haladás.
 - `README.md`: rövid projektismertető, telepítés, dokumentációs belépő.
 - `docs/JARVIS_DOCUMENTATION.md`: jelenlegi képességek, architektúra, modulok, működési korlátok.
 - `docs/PRODUCTION_STATE_AND_MIGRATION_PLAN.md`: production tények, migrációs drift, backup, Auth/RLS kapuk.
-- `docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md`: egyetlen fejlesztési backlog, prioritással.
+- `docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md`: részletes technikai backlog az elsődleges roadmaphez igazítva.
 - `docs/REMAINING_WORK_AND_RELEASE_GATES.md`: kizárólag production/release engedélyezési kapuk.
 
-A PR-állapotot, CI-eredményeket és dátumozott pillanatfelvételeket ne másold több dokumentumba. Hivatkozz a GitHub Actions futásra vagy frissítsd a fenti központi fájlt.
+A PR-állapotot, CI-eredményeket és dátumozott pillanatfelvételeket ne másold több dokumentumba. Hivatkozz a GitHub Actions futásra vagy frissítsd a megfelelő központi dokumentumot.
