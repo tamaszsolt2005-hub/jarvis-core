@@ -172,7 +172,7 @@ A következő ellenőrzések közös munkacsomagban lefutottak:
 
 ## Aktuális állapotfrissítés – 2026-11-25, PR #26
 
-**Fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) · **aktuális PR-head:** `eaad5428311d86590f03c744f7f5b0e02da45064`. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d`.
+**Fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) · **aktuális PR-head:** `a PR oldalon látható aktuális head`. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 A PR #26-ban a korábban nyitott biztonsági munka több kódbeli és tesztelési eleme elkészült:
 - DB-szintű, rövid életű, principal- és payload-kötött approval token; atomikus consume a task végrehajtással együtt.
