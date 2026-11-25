@@ -12,8 +12,10 @@ class Query:
     def __init__(self, db):
         self.db = db
         self.row = None
+        self.selected_columns = None
 
-    def select(self, _columns):
+    def select(self, columns):
+        self.selected_columns = columns
         return self
 
     def limit(self, _limit):
@@ -26,7 +28,9 @@ class Query:
     def execute(self):
         if self.row is not None:
             self.db.inserted.append(self.row)
-            return Result([] if self.db.lose_insert_response else [self.row])
+            if self.db.lose_insert_response or self.selected_columns != "id":
+                return Result([])
+            return Result([{"id": "inserted-lead-id"}])
         return Result(self.db.existing)
 
 
