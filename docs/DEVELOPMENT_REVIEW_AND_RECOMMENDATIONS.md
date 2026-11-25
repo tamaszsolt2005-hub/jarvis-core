@@ -110,3 +110,15 @@ Az alábbi pontok a jelenlegi tényleges állapotot tükrözik; a már kész kó
 
 **Egy menetben végzendő alacsony nehézségűek:** host felderítése, SMTP kódbeli/workflow ellenőrzése (production deploy külön engedéllyel), SQL review előkészítése, backup scope felmérése, branch protection audit, indokolt célzott coverage. A magasabb nehézségű feladatok külön munkafázisban maradnak.
 
+## 2026-11-25 – összevont alacsony nehézségű feladatok: eredmény
+
+- **Host/URL (3/10):** a production JARVIS host nem azonosítható a repository és a rendelkezésre álló Railway-információ alapján. Streamlit projekt, de igazolt URL nincs.
+- **SMTP (4/10):** kódban hard-disabled, korai guarddal; a küldő workflow outbound stepje letiltott. Production deploy/runtime még hiányzik.
+- **SQL review (4/10):** a migration drift, PG17 replay, pre/post-check, adatmegőrzés és rollback checklist elkészült; független review nem.
+- **Service-role teszt (4/10):** izolált PostgreSQL 17 + pgTAP tesztek sikeresek; productionben a service_role közvetlen DML továbbra is engedélyezett.
+- **RLS/grant (3/10):** read-only audit kész; 8/8 tábla RLS-enabled, 0 policy; service_role DML true; anon/authenticated DML false.
+- **Build/health/secrets (3/10):** ismert adatok dokumentálva; production hostspecifikus konfiguráció nincs.
+- **Branch protection (2/10):** audit kész: `main.protected=false`, required checks enforcement `off`, repository rulesets nincs. A beállítás még nyitott.
+
+A fenti vizsgálatok során production DB-írás, GRANT/REVOKE, deploy, secrets-módosítás és PR merge nem történt.
+
