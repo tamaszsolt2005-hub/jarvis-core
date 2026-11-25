@@ -1,9 +1,8 @@
 # JARVIS – teljes projekt- és műszaki dokumentáció
 
 > **Felülvizsgálat:** 2026-11-25  
-> **Vizsgált main commit:** `5f6045069ea875997a896bb3ac83e83869da7e97`  
-> **Vizsgált fejlesztési branch:** `feat/supabase-auth-rbac-foundation`  
-> **Igazolt branch commit:** `e6736101405180c220d6b96b5a7a3c1d890813e0`  
+> **Vizsgált main commit:** `0b1afaf7e18e9a292e0ef3e38ac63953697edff6`  
+> **Pull request:** [#13 – aktuális head és ellenőrzések](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)  
 > **Repository:** `tamaszsolt2005-hub/jarvis-core`
 
 Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A forráskód, a Supabase-migrációk és a GitHub Actions workflow-k az elsődleges technikai bizonyítékok. A dokumentum külön választja a kódban létező funkciót, a tesztelt működést és az éles környezetben ténylegesen igazolt állapotot.
@@ -27,9 +26,9 @@ Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A for
 
 ## Aktuális állapot és bizonyítékok – 2026-11-25
 
-A fejlesztési branch aktuális commitja `e6736101405180c220d6b96b5a7a3c1d890813e0`. A [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) teljesen sikeres: **762 passed, 3 skipped, 96.47% Python line coverage**. A PostgreSQL 17 + pgTAP integráció, az izolált age backup/restore round-trip, CloudFormation-validáció, Playwright telepítés és compileall is sikeres.
+A `e6736101405180c220d6b96b5a7a3c1d890813e0` commiton mért [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) történeti baseline: **762 passed, 3 skipped, 96.47% Python line coverage**. A main későbbi, [45617334463 CI-futása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45617334463) mindkét jobbal sikeres. A PR #13 négy közös fájljának main/PR összevezetése után új PR CI indult; annak eredményét külön kell megvárni, ezért a korábbi tesztszám nem tulajdonítható az új headnek.
 
-Ez a repository és izolált CI környezet bizonyítéka. Nem igazolja a production AWS/S3 mentést, production restore-t, valós Supabase Auth/JWT/RLS viselkedést vagy éles e-mail kézbesítést. A production állapot ismert read-only vizsgálata szerint RLS policy és Auth user még nincs telepítve; a production Auth flag ezért OFF marad. A PR #13 nyitott és draft.
+A production age-titkosított logikai backup 2026-11-25-én sikeresen S3-ba került, majd a letöltött objektum visszafejtése és manifest-hash ellenőrzése is sikerült ([45611038142](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038142)). Az izolált PostgreSQL 17 CI restore-round-trip a [45617334463](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45617334463) futásban sikeres. Ez nem teljes Supabase-platform/Storage backup, és nem production Auth/JWT/RLS bizonyíték. A production állapot ismert read-only vizsgálata szerint RLS policy és Auth user még nincs telepítve; a production Auth flag ezért OFF marad. A PR #13 nyitott és draft.
 
 A végrehajtandó feladatok, felelősségi területek és elfogadási kritériumok a [fennmaradó feladatok és release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak. A dokumentum a CI-ben igazolt állapotot elkülöníti a productionben még nem bizonyított képességektől.
 
