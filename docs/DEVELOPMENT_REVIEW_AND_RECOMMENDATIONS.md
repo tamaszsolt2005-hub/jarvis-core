@@ -85,3 +85,28 @@ Az alábbi pontok a jelenlegi tényleges állapotot tükrözik; a már kész kó
 - [ ] Alacsony coverage modulok célzott tesztjei, kockázat alapján.
 
 **Lezárási szabály:** a P0 minden pontja és a külső hatásokat érintő P1 pontok teljesüljenek; az új funkciók előfeltételéül szolgáló termék-alapok elfogadási tesztjei zöldek legyenek. P2 nem lehet ürügy a végtelen halasztásra. Ne ismételjük meg a már zöld CI/backup teszteket ok nélkül, és ne találjunk ki további kapukat a fenti feltételek teljesülése után.
+
+
+## Nehézségi pontszámok és csoportosítás
+
+1–10 skála: 1 könnyű, 10 nagyon nehéz. Az **5/10 alatti** feladatokat közös munkacsomagban végzem, a biztonságos függőségi sorrendet megtartva.
+
+| Feladat | Nehézség |
+|---|:---:|
+| Production host/URL felderítése | **3/10** |
+| SMTP hard-disable deploy és runtime ellenőrzés | **4/10** |
+| Migration drift és PG17 replay | **6/10** |
+| SQL review, pre/post-check, rollback terv | **4/10** |
+| Audit/approval DB integráció és fail-closed | **7/10** |
+| RPC write path, service_role lockdown | **7/10** |
+| Auth/JWT/session/RLS smoke | **6/10** |
+| Production app release és smoke | **6/10** |
+| Provider idempotencia E2E | **8/10** |
+| Proaktív üzleti monitor minőségmérése | **6/10** |
+| Lead→eredmény workflow E2E | **7/10** |
+| Forrásolt, jogosultságkezelt memória | **7/10** |
+| Backup scope és branch protection felmérése | **2–5/10** |
+| Célzott coverage javítás | **4/10** |
+
+**Egy menetben végzendő alacsony nehézségűek:** host felderítése, SMTP kódbeli/workflow ellenőrzése (production deploy külön engedéllyel), SQL review előkészítése, backup scope felmérése, branch protection audit, indokolt célzott coverage. A magasabb nehézségű feladatok külön munkafázisban maradnak.
+
