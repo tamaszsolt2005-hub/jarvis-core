@@ -94,7 +94,8 @@ def _load_existing_company_keys(db: Any) -> tuple[set[str], set[str]]:
     while True:
         rows = (
             db.table("leads")
-            .select("company_name,website")
+            .select("id,company_name,website")
+            .order("id")
             .range(offset, offset + EXISTING_LEAD_PAGE_SIZE - 1)
             .execute()
             .data
