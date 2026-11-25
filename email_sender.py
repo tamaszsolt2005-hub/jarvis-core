@@ -232,7 +232,7 @@ def _run() -> None:
         or not env_bool("AUTO_SEND_ENABLED", False)
         or not env_bool("EMAIL_INBOX_MONITOR_ENABLED", False)
     ):
-        print("Biztonsági mód: az SMTP-küldés, az automatikus küldés és a bejövő levélfigyelés mind szükséges; az e-mail nem kerül kiküldésre.")
+        print("Biztonsági mód: a kimenő e-mailküldés kódszinten tiltott; az e-mail nem kerül kiküldésre.")
         return
     db = get_service_supabase()
     now = datetime.now(timezone.utc)

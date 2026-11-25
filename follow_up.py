@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 import time
-import uuid
 from datetime import datetime, timezone
 
 from email_utils import EMAIL_DELIVERY_ENABLED, EmailDeliveryOutcomeUnknown, send_email
@@ -172,7 +171,7 @@ def _run() -> None:
                 **audit_fields,
             ):
                 raise RuntimeError(
-                    "Az SMTP átvette a levelet, de a sikeres auditbejegyzés nem menthető."
+                    "A szolgáltató átvette a levelet, de a sikeres auditbejegyzés nem menthető."
                 )
 
             log_event(db, "follow_up", f"Follow-up elküldve: {lead.get('company_name')}")
