@@ -118,3 +118,50 @@ def test_resend_provider_is_blocked_by_global_hard_disable(monkeypatch):
             "recipient@example.test", "Subject", "Body",
             "stable-operation-id", approved=True,
         )
+
+
+
+def test_smtp_recipient_refusal_is_known_non_delivery(monkeypatch):
+    class FakeSMTP:
+        def __init__(self, *_args, **_kwargs):
+            self.sent = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def ehlo(self):
+            return None
+
+        def starttls(self):
+            return None
+
+        def login(self, *_args):
+            return None
+
+        def send_message(self, _message):
+            self.sent = True
+            return {"recipient@example.test": (550, b"mailbox unavailable")}
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "get_enforced_user_supabase", lambda *_a, **_k: None)
+    monkeypatch.setattr(email_utils, "get_secret", lambda name, default=None: {
+        "EMAIL_PROVIDER": "smtp",
+        "EMAIL_FROM_NAME": "JARVIS",
+        "SMTP_HOST": "smtp.example.test",
+        "SMTP_PORT": "587",
+    }.get(name, default))
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.test",
+        "EMAIL_PASSWORD": "test-password",
+    }[name])
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(email_utils, "report_error", lambda *_a, **_k: None)
+
+    with pytest.raises(email_utils.smtplib.SMTPRecipientsRefused):
+        email_utils.send_email(
+            "recipient@example.test", "Subject", "Body",
+            "stable-operation-id", approved=True,
+        )
