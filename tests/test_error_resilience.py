@@ -146,16 +146,33 @@ def test_task_action_failure_is_reported_and_original_error_reraised(monkeypatch
     original = RuntimeError("database unavailable")
     reports = []
 
-    def fail_audit(*args, **kwargs):
-        raise original
+    class BrokenDB:
+        def rpc(self, name, _params):
+            assert name == "execute_approved_task_action"
+            class Query:
+                def execute(self):
+                    raise original
+            return Query()
 
-    monkeypatch.setattr(task_actions, "audit_event", fail_audit)
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         task_actions, "report_error",
         lambda error, **kwargs: reports.append((error, kwargs)),
     )
     with pytest.raises(RuntimeError) as caught:
-        task_actions.execute_task_action(object(), {"type": "create", "title": "Test", "priority": "normal"}, approved=True)
+        task_actions.execute_task_action(
+            BrokenDB(),
+            {
+                "type": "create", "title": "Test", "priority": "normal",
+                "due_at": None, "notes": "",
+                "operation_id": "223e4567-e89b-42d3-a456-426614174001",
+            },
+            approved=True,
+            approval={
+                "token": "test-one-use-approval-token-that-is-long-enough",
+                "principal": "legacy:323e4567-e89b-42d3-a456-426614174002",
+            },
+        )
     assert caught.value is original
     assert reports[0][0] is original
     assert reports[0][1]["module"] == "task_actions"

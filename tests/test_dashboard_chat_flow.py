@@ -150,8 +150,8 @@ def test_chat_email_final_audit_failure_warns_against_duplicate_send():
         'audit_saved = audit_event(',
         "if audit_saved:",
         "else:",
-        "SMTP átvétel megtörtént, de a záró auditbejegyzés nem menthető.",
         'db, status="unknown"',
+        "SMTP átvétel megtörtént, de a záró auditbejegyzés nem menthető.",
         "A küldést ne ismételd meg ellenőrzés nélkül.",
     ])
 

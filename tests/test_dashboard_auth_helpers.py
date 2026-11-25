@@ -77,6 +77,8 @@ def load_helpers(monkeypatch, *, state=None, enabled=True, get_user=None):
         calls["user"].append((session, allowed_roles))
         if get_user:
             return get_user(session, allowed_roles=allowed_roles)
+        if not isinstance(session, dict):
+            raise PermissionError("verified Auth session required")
         return object(), {
             "access_token": "refreshed", "refresh_token": "new-refresh",
             "user_id": session["user_id"], "role": "operator",

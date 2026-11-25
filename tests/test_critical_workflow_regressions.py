@@ -135,19 +135,15 @@ def test_task_database_write_failure_is_reported_and_original_error_reraised(mon
     database_error = RuntimeError("mock database write failure")
     reports = []
 
-    class BrokenQuery:
-        def insert(self, _payload):
-            return self
+    class BrokenRPC:
+        def rpc(self, name, _params):
+            assert name == "execute_approved_task_action"
+            class Query:
+                def execute(self):
+                    raise database_error
+            return Query()
 
-        def execute(self):
-            raise database_error
-
-    class BrokenDB:
-        def table(self, name):
-            assert name == "tasks"
-            return BrokenQuery()
-
-    monkeypatch.setattr(task_actions, "audit_event", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         task_actions, "report_error",
         lambda error, **kwargs: reports.append((error, kwargs)),
@@ -155,9 +151,17 @@ def test_task_database_write_failure_is_reported_and_original_error_reraised(mon
 
     with pytest.raises(RuntimeError) as caught:
         task_actions.execute_task_action(
-            BrokenDB(),
-            {"type": "create", "title": "Mock task", "priority": "normal"},
+            BrokenRPC(),
+            {
+                "type": "create", "title": "Mock task", "priority": "normal",
+                "due_at": None, "notes": "",
+                "operation_id": "223e4567-e89b-42d3-a456-426614174001",
+            },
             approved=True,
+            approval={
+                "token": "test-one-use-approval-token-that-is-long-enough",
+                "principal": "legacy:323e4567-e89b-42d3-a456-426614174002",
+            },
         )
 
     assert caught.value is database_error
