@@ -43,6 +43,9 @@ alter table public.leads add column if not exists updated_at timestamptz not nul
 create index if not exists leads_status_idx on public.leads(status);
 create index if not exists leads_next_follow_up_idx on public.leads(next_follow_up_at);
 create index if not exists leads_email_idx on public.leads(lower(email));
+create unique index if not exists leads_email_normalized_uidx
+  on public.leads (lower(btrim(email)))
+  where email is not null and btrim(email) <> '';
 
 create table if not exists public.logs (
   id uuid primary key default gen_random_uuid(),
