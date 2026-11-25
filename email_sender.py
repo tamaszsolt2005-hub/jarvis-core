@@ -121,12 +121,19 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     ):
         return False
     claim_status = "follow_up_sending" if follow_up else "sending"
-    claim = (
+    claim_query = (
         db.table("leads").update({"status": claim_status})
         .eq("id", lead["id"]).eq("status", current_status)
         .eq("opted_out", False).eq("approved_to_contact", True)
-        .eq("consent_basis", "consent").select("id").execute()
+        .eq("consent_basis", "consent")
     )
+    if follow_up:
+        claim_query = (
+            claim_query
+            .eq("follow_up_count", lead.get("follow_up_count"))
+            .eq("next_follow_up_at", lead.get("next_follow_up_at"))
+        )
+    claim = claim_query.select("id").execute()
     if not claim.data:
         audit_event(
             db, module="email_sender", action="send_claim", status="blocked",
@@ -139,12 +146,16 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
         fresh = (
             db.table("leads")
-            .select("id,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id")
+            .select("id,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,next_follow_up_at,follow_up_count")
             .eq("id", lead["id"]).limit(1).execute().data or []
         )
         if (
             not fresh or fresh[0].get("status") != claim_status
             or not _valid_consent(fresh[0])
+            or (
+                follow_up
+                and not _due_follow_up({**fresh[0], "status": current_status}, now)
+            )
             or fresh[0].get("reply_category")
             or fresh[0].get("last_inbound_message_id")
             or fresh[0].get("email") != lead.get("email")
