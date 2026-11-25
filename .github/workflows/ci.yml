@@ -296,6 +296,24 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192412_revoke_anon_authenticated_public_table_and_sequence_privileges.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192559_secure_postgres_default_privileges_public_schema.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
+          # Failure injection: stop between migrations after expansion committed.
+          # The next invocation must safely replay the completed migration.
+          if PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --command "SELECT 1/0"; then
+            echo "Expected injected interruption after audit expansion did not occur."
+            exit 1
+          else
+            echo "Observed expected interruption after audit expansion."
+          fi
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql
+          # Second failure boundary: hash-chain migration committed, RBAC not yet run.
+          if PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --command "SELECT 1/0"; then
+            echo "Expected injected interruption after hash-chain migration did not occur."
+            exit 1
+          else
+            echo "Observed expected interruption after hash-chain migration."
+          fi
+          # Forward recovery replays the last committed migration before proceeding.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261123093000_admin_audit_access_and_hash_chain.sql
           output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/audit_access_and_integrity.test.sql)"
           printf '%s\n' "$output"
@@ -304,6 +322,8 @@ jobs:
             exit 1
           fi
           grep -q '1..17' <<< "$output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261124130000_shared_workspace_role_access.sql
+          # Replaying the final migration proves recovery after a committed RBAC step.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261124130000_shared_workspace_role_access.sql
           rbac_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/shared_workspace_role_access.test.sql)"
           printf '%s\n' "$rbac_output"
