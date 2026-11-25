@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 from unittest.mock import patch
@@ -9,6 +10,19 @@ import pytest
 
 from scripts import supabase_backup as backup
 
+
+
+def test_backup_cli_entrypoint_imports_repository_modules_from_outside_repo(tmp_path):
+    script = Path(backup.__file__).resolve()
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Encrypted logical backup" in result.stdout
 
 @pytest.fixture(autouse=True)
 def mock_ipv4_dns(monkeypatch):

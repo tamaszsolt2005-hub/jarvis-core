@@ -11,3 +11,13 @@ def test_production_backup_workflow_restores_into_disposable_postgres17():
     assert "--target-project-ref local-test" in workflow
     assert "Separate PostgreSQL 17 restore verified" in workflow
     assert "kiutreccucbegskxowek" in workflow
+
+
+def test_backup_workflow_configuration_guard_expands_bash_array_safely():
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github" / "workflows" / "database-backup.yml"
+    ).read_text(encoding="utf-8")
+    assert 'if [[ -n "${missing[*]-}" ]]; then' in workflow
+    assert "\\${missing[*]}" not in workflow
+    assert "\\${#missing[@]}" not in workflow

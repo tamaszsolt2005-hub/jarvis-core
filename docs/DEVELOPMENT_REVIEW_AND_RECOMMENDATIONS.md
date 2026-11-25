@@ -5,7 +5,7 @@
 
 ## 1. Megbízhatóság és biztonság
 
-1. **Backup workflow importhiba javítása.** A merge utáni `45624735241` futás a `scripts/supabase_backup.py` importjánál elbukott: `ModuleNotFoundError: jarvis_errors`. Javítsd az indítási/import útvonalat, adj regressziós tesztet, majd futtasd újra a workflow-t. Ne állíts sikeres backupot, amíg a teljes friss futás nem zöld.
+1. **Backup workflow importhiba javítása.** A merge utáni `45624735241` futás a `scripts/supabase_backup.py` importjánál elbukott: `ModuleNotFoundError: jarvis_errors`. A kivizsgálás két hibát azonosított: közvetlen scriptindításkor a repository gyökere nincs a Python importútvonalán, továbbá a workflow konfigurációellenőrzése escape-elt Bash változókat használt. Mindkettőhöz regressziós teszt szükséges; ezután futtasd újra a workflow-t. Ne állíts sikeres backupot, amíg a teljes friss futás nem zöld.
 2. **Task approval race.** Az egyszer használatos jóváhagyás jelenlegi UI-session kezelése nem garantál atomikus, több processz közötti one-use fogyasztást. Vezess be DB-szintű atomikus consume műveletet, lejáratot, principal- és payload-kötést, konkurens teszteket.
 3. **Teljes műveleti idempotencia.** A task-create kapott stabil operation ID-t és deduplikációt. A task update/close és külső mellékhatások teljes replay/idempotencia védelme hiányos.
 4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
