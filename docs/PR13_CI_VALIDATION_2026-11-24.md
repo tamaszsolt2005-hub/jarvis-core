@@ -197,3 +197,15 @@ A branch head `e6736101405180c220d6b96b5a7a3c1d890813e0` a [45571463053 futásba
 A futás a `e6736101405180c220d6b96b5a7a3c1d890813e0` commitot tesztelte, így igazolja a korábbi 20 teszthiba célzott javítását. Egy másik, azonos headre indított [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) a dokumentáció frissítésekor még futott; a zöld 45571463053 ettől függetlenül teljes és sikeres.
 
 **Fontos korlátok:** ez repository CI és izolált PostgreSQL integráció. Nem production backup, nem AWS/S3 deploy/restore, nem valós Supabase Auth/JWT/RLS teszt, és nem bizonyít SMTP/IMAP/Gemini éles kézbesítést. Production Auth flag OFF marad; production adatbázis nem módosult; PR #13 nyitott és draft.
+
+
+## Második teljes CI-futás ugyanazon a kód-headen
+
+A [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) ugyanazon a `e6736101405180c220d6b96b5a7a3c1d890813e0` commiton szintén teljesen sikeres:
+
+- Python / Streamlit / AppTest / browser job: **success**.
+- Tesztek: **762 passed, 3 skipped**.
+- Line coverage: **96.47%** (3,799 statement, 134 missed).
+- PostgreSQL 17 audit/RBAC + pgTAP és izolált age backup/restore integráció: **success**.
+
+Két egymástól független, azonos kód-headen futó teljes CI tehát azonos teszt- és coverage-eredménnyel zárult. Ez megerősíti a kódszintű javítás stabilitását, de nem változtatja meg a production Auth/RLS, AWS backup és migration reconciliation kapukat.

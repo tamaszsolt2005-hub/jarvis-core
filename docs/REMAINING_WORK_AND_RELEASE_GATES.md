@@ -21,7 +21,7 @@ A dokumentum a repositoryban implementált, CI-ben ellenőrzött, izolált integ
 - PostgreSQL 17 integrációs job: sikeres; audit/RBAC migrációk és pgTAP ellenőrzések lefutottak.
 - Age titkosítású backup/restore round-trip: sikeres, izolált CI PostgreSQL környezetben.
 - Coverage artifact: [15002127458](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053/artifacts/15002127458).
-- A [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) ugyanezen a commiton még folyamatban van az ellenőrzés időpontjában; az első teljesen zöld futás eredményétől független, külön futás.
+- A [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) ugyanezen a commiton szintén teljesen sikeres: 762 passed, 3 skipped, 96.47% coverage; mindkét job zöld.
 
 **A 45571463053 eredménye a 20 korábbi teszthiba javítását igazolja.** Nem bizonyítja a production AWS/S3 mentést, production restore-t, valós Supabase Auth/JWT/RLS viselkedést vagy éles e-mail-kézbesítést.
 
