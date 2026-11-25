@@ -64,3 +64,18 @@ A [45611038183 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/acti
 4. A migrációs eltéréseket külön, csak olvasási ellenőrzéssel és jóváhagyott tervvel kezeld.
 
 **Jelenlegi döntés:** a backup/restore kapu teljesült az igazolt logikai backupra és az izolált restore-próbára. A teljes CI kapu a dátumkezelési javítás újrafuttatásáig nyitott. A production írási kapu nem teljesült, ezért production adatbázis-módosítás nem végezhető.
+
+
+---
+
+## Aktuális státusz-korrekció – 2026-11-25 14:11 CET
+
+A dokumentum korábbi CI-bejegyzései történeti naplóként olvasandók. A jelenlegi, PR #13 headre vonatkozó ellenőrzés:
+
+- PR head: `32aef539c0128c1fedaa9e03768477433e93abe1`.
+- [PR workflow #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): `backup-restore-integration` sikeres; `test` job a felülvizsgálat időpontjában futott.
+- [Push workflow #45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359): sikeres.
+- A korábbi `09bde885...` headhez tartozó #45619101972 zöld futás nem a jelenlegi head bizonyítéka.
+- PR #13 draft és nincs merge-elve; a feature branch 282 commit ahead, 0 behind a `main`-hez képest.
+
+A további státuszhoz és a merge-kritériumokhoz lásd a [fejlesztési áttekintést](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate listát](REMAINING_WORK_AND_RELEASE_GATES.md). A hosszú távú fejlesztési ág a `main`; a PR ág átmeneti.
