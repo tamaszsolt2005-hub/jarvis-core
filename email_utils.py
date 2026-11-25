@@ -6,14 +6,23 @@ import re
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from jarvis_common import env_bool, get_secret, required_secret
+from jarvis_common import env_bool, get_secret, required_secret, get_enforced_user_supabase
+from jarvis_errors import report_error
 
 # Must be explicitly enabled in the server-side environment/secrets.
 EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
 _EMAIL_ADDRESS_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
 
 
-def send_email(recipient: str, subject: str, body: str) -> str:
+def send_email(
+    recipient: str, subject: str, body: str, *,
+    auth_session: dict[str, str] | None = None, approved: bool = False,
+) -> str:
+    enforced = get_enforced_user_supabase(
+        auth_session, "email.send", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None and approved is not True:
+        raise PermissionError("E-mail-küldéshez külön, explicit jóváhagyás szükséges.")
     if not EMAIL_DELIVERY_ENABLED:
         raise RuntimeError("E-mail-küldés letiltva (kódszinten le van tiltva) biztonsági okból.")
     if (
@@ -52,10 +61,17 @@ def send_email(recipient: str, subject: str, body: str) -> str:
     message["Subject"] = subject
     message.set_content(body)
 
-    with smtplib.SMTP(host, port, timeout=30) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(sender, password)
-        server.send_message(message)
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(sender, password)
+            server.send_message(message)
+    except Exception as exc:
+        report_error(
+            exc, module="email_utils", operation="smtp_delivery",
+            severity="critical",
+        )
+        raise
     return str(message.get("Message-ID") or "")

@@ -214,3 +214,95 @@ def test_generate_text_clamps_output_token_budget(monkeypatch):
     client = FakeClient(["válasz"])
     jarvis_common.generate_text("hello", client, max_output_tokens=50000)
     assert client.models.configs[0].max_output_tokens == 8192
+
+
+def test_legacy_dashboard_factory_delegates_only_to_service_factory(monkeypatch):
+    sentinel = object()
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: sentinel)
+    assert jarvis_common.get_legacy_dashboard_supabase() is sentinel
+    assert jarvis_common.get_supabase() is sentinel
+
+
+def test_user_factory_delegates_to_verified_jwt_client(monkeypatch):
+    import jarvis_auth
+
+    sentinel_client = object()
+    refreshed = {"access_token": "new", "refresh_token": "new-refresh"}
+    monkeypatch.setattr(
+        jarvis_auth,
+        "verified_user_client",
+        lambda session, allowed_roles=None: (sentinel_client, refreshed),
+    )
+    client, current_session = jarvis_common.get_user_supabase(
+        {"access_token": "old", "refresh_token": "old-refresh", "user_id": "u1"},
+        allowed_roles={"operator"},
+    )
+    assert client is sentinel_client
+    assert current_session is refreshed
+
+
+
+def test_enforced_user_client_is_disabled_by_default(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: False)
+    assert jarvis_common.get_enforced_user_supabase(
+        None, "leads.write", allowed_roles={"admin", "operator"}
+    ) is None
+
+
+def test_enforced_user_client_denies_missing_session_before_client_creation(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing session must be rejected before client creation"),
+    )
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        jarvis_common.get_enforced_user_supabase(
+            None, "leads.write", allowed_roles={"admin", "operator"}
+        )
+
+
+def test_enforced_user_client_checks_permission_and_refreshes_session(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    client = object()
+    session = {"access_token": "old", "refresh_token": "old-refresh", "user_id": "u1"}
+    refreshed = {
+        "access_token": "new", "refresh_token": "new-refresh",
+        "user_id": "u1", "role": "operator",
+    }
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda supplied, *, allowed_roles: (client, refreshed),
+    )
+    result = jarvis_common.get_enforced_user_supabase(
+        session, "leads.write", allowed_roles={"admin", "operator"}
+    )
+    assert result == (client, refreshed)
+    assert session == refreshed
+
+
+def test_enforced_user_client_denies_role_without_permission(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: (object(), {"role": "reader"}),
+    )
+    with pytest.raises(PermissionError, match="leads.write"):
+        jarvis_common.get_enforced_user_supabase(
+            {"access_token": "a", "refresh_token": "r", "user_id": "u1"},
+            "leads.write", allowed_roles={"admin", "operator", "reader"},
+        )
+
+
+def test_individual_dashboard_login_always_enables_server_side_rbac(monkeypatch):
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED",
+    )
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing Auth session must fail before client creation"),
+    )
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        jarvis_common.get_enforced_user_supabase(
+            None, "email.send", allowed_roles={"admin", "operator"}
+        )

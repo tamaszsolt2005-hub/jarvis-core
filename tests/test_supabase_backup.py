@@ -519,3 +519,103 @@ def test_verify_backup_requires_private_identity_file(monkeypatch, tmp_path):
     with pytest.raises(backup.BackupError, match="AGE_IDENTITY_FILE"):
         backup.verify_backup(tmp_path / "not-a-backup")
 
+
+
+def _make_backup_archive(tmp_path, *, source_ref=None, version=1, member_name="schema.sql"):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    work = tmp_path / "archive-source"
+    work.mkdir()
+    schema = work / "schema.sql"
+    data = work / "data.sql"
+    schema.write_text("SELECT 1;")
+    data.write_text("SELECT 2;")
+    manifest = {
+        "format_version": version,
+        "backup_id": "test-backup",
+        "source_project_ref": source_ref or backup.PRODUCTION_PROJECT_REF,
+        "files": {
+            "schema.sql": {"sha256": backup.sha256_file(schema)},
+            "data.sql": {"sha256": backup.sha256_file(data)},
+        },
+    }
+    (work / "manifest.json").write_text(json.dumps(manifest))
+    archive = tmp_path / "edge.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        for name in ("manifest.json", "schema.sql", "data.sql"):
+            tar.add(work / name, arcname=(member_name if name == "schema.sql" else name))
+    return archive
+
+
+def test_safe_extract_rejects_path_traversal_and_non_regular_members(tmp_path):
+    archive = _make_backup_archive(tmp_path, member_name="../schema.sql")
+    destination = tmp_path / "out"
+    destination.mkdir()
+    with pytest.raises(backup.BackupError):
+        backup._safe_extract(archive, destination)
+
+    symlink_archive = tmp_path / "symlink.tar.gz"
+    with tarfile.open(symlink_archive, "w:gz") as tar:
+        info = tarfile.TarInfo("manifest.json")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "/etc/passwd"
+        tar.addfile(info)
+    with pytest.raises(backup.BackupError, match="fájlkészlet"):
+        backup._safe_extract(symlink_archive, tmp_path / "symlink-out")
+
+
+def test_safe_extract_rejects_unknown_source_and_requires_explicit_local_test(tmp_path):
+    unknown = _make_backup_archive(tmp_path, source_ref="abcdefghijklmnopqrst")
+    out = tmp_path / "unknown-out"
+    out.mkdir()
+    with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
+        backup._safe_extract(unknown, out)
+
+    local = _make_backup_archive(tmp_path / "local", source_ref="local-test")
+    local_out = tmp_path / "local-out"
+    local_out.mkdir()
+    with pytest.raises(backup.BackupError, match="Ismeretlen formátum"):
+        backup._safe_extract(local, local_out)
+    allowed_out = tmp_path / "local-allowed-out"
+    allowed_out.mkdir()
+    manifest = backup._safe_extract(local, allowed_out, allow_local_test=True)
+    assert manifest["source_project_ref"] == "local-test"
+
+
+def test_verify_backup_requires_identity_configuration(monkeypatch, tmp_path):
+    archive = tmp_path / "backup.age"
+    archive.write_bytes(b"ciphertext")
+    monkeypatch.delenv("AGE_IDENTITY_FILE", raising=False)
+    with pytest.raises(backup.BackupError, match="AGE_IDENTITY_FILE szükséges"):
+        backup.verify_backup(archive)
+
+    missing = tmp_path / "missing-identity"
+    monkeypatch.setenv("AGE_IDENTITY_FILE", str(missing))
+    with pytest.raises(backup.BackupError, match="nem található"):
+        backup.verify_backup(archive)
+
+
+def test_restore_requires_configuration_before_any_external_command(monkeypatch, tmp_path):
+    for name in ("JARVIS_RESTORE_DB_URL", "JARVIS_RESTORE_ALLOWED_PROJECT_REF", "AGE_IDENTITY_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    with patch.object(backup, "run_checked") as runner:
+        with pytest.raises(backup.BackupError, match="Hiányzó konfiguráció"):
+            backup.restore_backup(tmp_path / "backup.age", "abcdefghijklmnopqrst", confirmed=True)
+        runner.assert_not_called()
+
+
+def test_main_reports_expected_backup_failure_without_leaking_details(monkeypatch):
+    import sys
+    reports = []
+    monkeypatch.setattr(sys, "argv", ["supabase_backup.py", "backup"])
+    monkeypatch.setattr(
+        backup, "create_backup",
+        lambda _directory: (_ for _ in ()).throw(backup.BackupError("secret-password must not appear")),
+    )
+    monkeypatch.setattr(
+        backup, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+    with pytest.raises(SystemExit) as exc:
+        backup.main()
+    assert exc.value.code == 2
+    assert reports and reports[0][1]["operation"] == "create_backup"

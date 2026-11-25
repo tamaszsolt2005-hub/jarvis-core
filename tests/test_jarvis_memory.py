@@ -237,3 +237,25 @@ def test_memory_command_handles_empty_and_unrecognized_requests():
     assert memory_command("Jegyezd meg") == ("none", "")
     assert memory_command("Felejtsd el") == ("forget", "")
     assert memory_command("Beszéljünk a piacról") == ("none", "")
+
+
+def test_memory_write_paths_deny_missing_auth_session_when_enforced(monkeypatch):
+    import pytest
+    import jarvis_common
+    from jarvis_memory import forget_memories, save_memory
+
+    monkeypatch.setattr(jarvis_common, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda *_args, **_kwargs: pytest.fail("Missing session must be denied before DB access"),
+    )
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("No memory database access is allowed without Auth")
+
+    db = ForbiddenDB()
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        save_memory(db, "A célpiac Németország")
+    with pytest.raises(PermissionError, match="Auth-munkamenet"):
+        forget_memories(db, "Németország")

@@ -1,5 +1,13 @@
 from health_check import REQUIRED_TABLES, run_self_diagnostics
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _legacy_diagnostics_mode(monkeypatch):
+    import health_check
+    monkeypatch.setattr(health_check, "get_enforced_user_supabase", lambda *_args, **_kwargs: None)
+
 
 class FakeResponse:
     text = "OK"
@@ -38,7 +46,7 @@ def test_diagnostics_reports_missing_configuration_without_connecting(monkeypatc
     import health_check
 
     monkeypatch.setattr(health_check, "get_secret", lambda _name: None)
-    monkeypatch.setattr(health_check, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: (_ for _ in ()).throw(AssertionError("must not connect")))
     report = run_self_diagnostics()
     assert "1/18" in report  # Only the hard-coded email safety lock can pass without secrets.
@@ -59,7 +67,7 @@ def test_diagnostics_checks_all_required_tables_and_gemini(monkeypatch):
         "JARVIS_DASHBOARD_PASSWORD": "test-password",
     }
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
-    monkeypatch.setattr(health_check, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: FakeDB())
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: FakeGemini())
     report = run_self_diagnostics()
     assert "18/18" in report
@@ -86,7 +94,7 @@ def test_diagnostics_marks_missing_table_as_attention(monkeypatch):
         "GEMINI_API_KEY": None, "JARVIS_DASHBOARD_PASSWORD": "pw",
     }
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
-    monkeypatch.setattr(health_check, "get_supabase", lambda: BrokenDB())
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: BrokenDB())
     report = run_self_diagnostics()
     assert "Supabase tábla: jarvis_memory | FIGYELMET IGÉNYEL" in report
     assert "Supabase oszlop: leads.website | OK" in report
@@ -106,7 +114,7 @@ def test_diagnostics_reports_supabase_initialization_failure_without_business_wr
     reports = []
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
     monkeypatch.setattr(
-        health_check, "get_supabase",
+        health_check, "get_service_supabase",
         lambda: (_ for _ in ()).throw(RuntimeError("mock connection failure")),
     )
     monkeypatch.setattr(
@@ -147,7 +155,7 @@ def test_diagnostics_flags_missing_structured_audit_migration(monkeypatch):
             return Query(name)
 
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
-    monkeypatch.setattr(health_check, "get_supabase", lambda: DB())
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: DB())
 
     report = run_self_diagnostics()
 
@@ -183,7 +191,7 @@ def test_diagnostics_reports_missing_optional_columns(monkeypatch):
             return Query(name)
 
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
-    monkeypatch.setattr(health_check, "get_supabase", lambda: DB())
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(
         health_check, "report_error",
         lambda error, **kwargs: reports.append((error, kwargs)),
@@ -217,7 +225,7 @@ def test_diagnostics_handles_empty_gemini_response_and_enabled_email_lock(monkey
         models = EmptyModels()
 
     monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
-    monkeypatch.setattr(health_check, "get_supabase", lambda: FakeDB())
+    monkeypatch.setattr(health_check, "get_service_supabase", lambda: FakeDB())
     monkeypatch.setattr(health_check, "get_gemini_client", lambda: EmptyGemini())
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
 
@@ -258,3 +266,77 @@ def test_diagnostics_reports_gemini_transport_failure(monkeypatch):
     assert "Gemini API próbakérés | FIGYELMET IGÉNYEL" in report
     assert reports[0][1]["operation"] == "probe_gemini"
     assert reports[0][1]["severity"] == "warning"
+
+
+
+def test_auth_diagnostics_uses_admin_user_jwt_and_never_service_role(monkeypatch):
+    import health_check
+
+    calls = {}
+    user_db = FakeDB()
+    monkeypatch.setattr(
+        health_check,
+        "get_enforced_user_supabase",
+        lambda session, permission, *, allowed_roles: (
+            calls.update({
+                "session": session,
+                "permission": permission,
+                "allowed_roles": allowed_roles,
+            }) or (user_db, {"role": "admin"})
+        ),
+    )
+    monkeypatch.setattr(
+        health_check, "get_service_supabase",
+        lambda: (_ for _ in ()).throw(AssertionError("Auth diagnostics must not use service role")),
+    )
+    values = {
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+        "SUPABASE_ANON_KEY": None,
+        "SUPABASE_SERVICE_ROLE_KEY": "must-not-be-used",
+        "SUPABASE_KEY": None,
+        "GEMINI_API_KEY": None,
+        "JARVIS_DASHBOARD_PASSWORD": None,
+    }
+    monkeypatch.setattr(health_check, "get_secret", lambda name: values.get(name))
+
+    report = run_self_diagnostics(
+        auth_session={"access_token": "verified", "user_id": "admin-1"}
+    )
+
+    assert calls == {
+        "session": {"access_token": "verified", "user_id": "admin-1"},
+        "permission": "system.diagnostics",
+        "allowed_roles": {"admin"},
+    }
+    assert "ellenőrzött felhasználói kliens" in report
+    assert "Supabase tábla: audit_chain_state" not in report
+    assert "Supabase tábla: jarvis_proactive_state" not in report
+    assert "must-not-be-used" not in report
+
+
+def test_auth_diagnostics_denies_non_admin_before_any_external_probe(monkeypatch):
+    import health_check
+
+    calls = []
+    monkeypatch.setattr(
+        health_check, "get_enforced_user_supabase",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("reader denied")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_service_supabase",
+        lambda: (_ for _ in ()).throw(AssertionError("Denied user must not reach service role")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_gemini_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Denied user must not probe Gemini")),
+    )
+    monkeypatch.setattr(
+        health_check, "get_secret",
+        lambda name: calls.append(name) or None,
+    )
+
+    report = run_self_diagnostics(auth_session={"access_token": "reader", "user_id": "reader-1"})
+
+    assert "kizárólag ellenőrzött admin" in report
+    assert calls == []

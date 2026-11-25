@@ -6,7 +6,7 @@ import lead_gen
 def test_csv_import_reports_database_startup_failure_and_reraises(monkeypatch):
     captured = []
     monkeypatch.setattr(
-        lead_gen, "get_supabase",
+        lead_gen, "get_service_supabase",
         lambda: (_ for _ in ()).throw(RuntimeError("connection failed password=never-log-this")),
     )
     monkeypatch.setattr(

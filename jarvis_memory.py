@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from jarvis_common import get_enforced_user_supabase
+
 SAVE_PREFIXES = (
     "jegyezd meg", "emlékezz arra", "emlékezz rá", "mentsd el emlékként",
     "tartsd észben", "rögzítsd a tanulságot", "jegyezd meg a döntést",
@@ -84,7 +86,15 @@ def _valid_memory(content: str) -> bool:
     return bool(content and len(content) <= 700 and not _SENSITIVE.search(content))
 
 
-def save_memory(db: Any, content: str, category: str = "business_preference") -> bool:
+def save_memory(
+    db: Any, content: str, category: str = "business_preference",
+    *, auth_session: dict[str, str] | None = None,
+) -> bool:
+    enforced = get_enforced_user_supabase(
+        auth_session, "memory.write", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None:
+        db, _ = enforced
     if not _valid_memory(content):
         return False
     if category not in {"business_preference", "decision", "outcome", "lesson"}:
@@ -98,7 +108,7 @@ def save_memory(db: Any, content: str, category: str = "business_preference") ->
     return True
 
 
-def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
+def _get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     rows = db.table("jarvis_memory").select("id,category,content,created_at").eq(
         "active", True
     ).order("created_at", desc=True).limit(min(max(limit, 1), 100)).execute().data or []
@@ -131,14 +141,33 @@ def get_memories(db: Any, question: str = "", limit: int = 100) -> list[dict]:
     return [row for _, _, row in scored[:20]]
 
 
-def forget_memories(db: Any, phrase: str) -> int:
+def get_memories(
+    db: Any, question: str = "", limit: int = 100,
+    *, auth_session: dict[str, str] | None = None,
+) -> list[dict]:
+    enforced = get_enforced_user_supabase(
+        auth_session, "memory.read", allowed_roles={"admin", "operator", "reader"}
+    )
+    if enforced is not None:
+        db, _ = enforced
+    return _get_memories(db, question, limit)
+
+
+def forget_memories(
+    db: Any, phrase: str, *, auth_session: dict[str, str] | None = None
+) -> int:
     """Deactivate exact or fully matching meaningful phrase terms; empty means all."""
+    enforced = get_enforced_user_supabase(
+        auth_session, "memory.write", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None:
+        db, _ = enforced
     query = db.table("jarvis_memory").update({"active": False}).eq("active", True)
     if phrase.strip():
         terms = _tokens(phrase)
         if not terms:
             return 0
-        rows = get_memories(db, phrase, limit=100)
+        rows = _get_memories(db, phrase, limit=100)
         ids = [row["id"] for row in rows if row.get("id") is not None
                and _matches_query(str(row.get("content") or ""), terms)]
         # Use individual id updates for broad PostgREST compatibility.

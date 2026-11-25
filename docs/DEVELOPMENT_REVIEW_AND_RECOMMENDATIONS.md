@@ -10,15 +10,15 @@
 
 | Elem | Ellenőrzött érték |
 |---|---|
-| `main` HEAD | `f49eda731dbfc5792744d128ce2ee6f34fc55465` |
-| PR #13 HEAD | `32aef539c0128c1fedaa9e03768477433e93abe1` |
+| `main` HEAD | `6b22893b650c4a6336adef3b43429ce69e567738` |
+| PR #13 HEAD | az aktuális PR #13 oldalon követhető; main-integráló merge commit létrejött |
 | PR #13 | draft, open, nincs merge-elve |
-| PR és main viszonya | 282 commit ahead, 6 commit behind |
-| PR CI | [#45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894) – sikeres |
-| PR push CI | [#45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359) – sikeres |
+| PR és main viszonya | 0 commit behind; a PR változásai továbbra sincsenek merge-elve |
+| PR CI | a main integrálása utáni új head CI-je ellenőrzendő |
+| PR push CI | a main integrálása utáni új head CI-je ellenőrzendő |
 | Main dokumentációs CI | [#45621572548](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45621572548) – sikeres |
 
-A PR CI a PR saját headjén zöld, de a PR 6 commitnyira lemaradt a jelenlegi main-től. A 282 commitnyi előrehaladás nagy változáscsomagot jelent, ezért a mainbe integrálás előtt a teljes diff és a migrációs történet review-ja szükséges. A CI zöld állapota nem helyettesíti ezt a review-t.
+A korábbi PR CI a korábbi headen zöld volt. A main integrálása után új PR-head jött létre; annak CI-je külön ellenőrzendő. A nagy változáscsomag miatt a teljes diff és a migrációs történet review-ja továbbra is szükséges. A CI zöld állapota nem helyettesíti ezt a review-t.
 
 ## 2. Kódellenőrzés: mi van már implementálva?
 
@@ -57,10 +57,10 @@ Az alábbi lista kizárólag azokat a tételeket tartalmazza, amelyek a fenti k�
 
 ### P0 – merge előtt
 
-1. A PR-t frissíteni kell a jelenlegi `main`-hez; jelenleg 6 commit behind.
+1. A PR ágat a `main`-hez igazítottuk; a friss merge commit CI-je és teljes diff-review-ja szükséges.
 2. A 282 commitnyi teljes változáscsomag diff- és commit-review-ja szükséges, különösen az Auth/JWT/RLS, SQL migrációk, backup workflow és dashboard approval útvonalak tekintetében.
-3. A frissített PR-head teljes kötelező CI-jét újra ellenőrizni kell.
-4. A main és PR eltérő fájlállapotait felül kell vizsgálni; ne kerüljön vissza a mainre már bekerült dokumentációs vagy kódváltozás.
+3. A main integrálása után létrejött PR-head teljes kötelező CI-jét újra ellenőrizni kell.
+4. A main és PR eltérő fájlállapotait a teljes diff-review során felül kell vizsgálni; a main változásai megőrzendők.
 5. A merge stratégia csak a teljes review után választható ki.
 
 ### P1 – biztonság és üzleti logika

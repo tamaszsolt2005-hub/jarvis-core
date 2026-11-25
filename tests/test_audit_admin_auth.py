@@ -91,6 +91,7 @@ def test_verified_client_rechecks_admin_claim_and_refreshes_tokens(monkeypatch):
     verified, session = audit_admin.verified_admin_client({
         "access_token": "access-token",
         "refresh_token": "refresh-token",
+        "user_id": "user-123",
     })
     assert verified is client
     assert session["user_id"] == "user-123"
@@ -104,6 +105,7 @@ def test_verified_client_rejects_non_admin(monkeypatch):
         audit_admin.verified_admin_client({
             "access_token": "access-token",
             "refresh_token": "refresh-token",
+            "user_id": "user-123",
         })
 
 

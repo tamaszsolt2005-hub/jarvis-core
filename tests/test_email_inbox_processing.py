@@ -121,7 +121,7 @@ def _configure(monkeypatch, db, message, *, audit=True):
         lambda name, default=None: {"IMAP_HOST": "imap.example.test", "IMAP_PORT": "993"}.get(name, default),
     )
     monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "mock-credential")
-    monkeypatch.setattr(email_inbox, "get_supabase", lambda: db)
+    monkeypatch.setattr(email_inbox, "get_service_supabase", lambda: db)
     monkeypatch.setattr(email_inbox.imaplib, "IMAP4_SSL", lambda *_args: _Mailbox({b"10": message}))
     monkeypatch.setattr(email_inbox, "audit_event", lambda *_args, **_kwargs: audit)
     monkeypatch.setattr(email_inbox, "log_event", lambda *_args, **_kwargs: None)
@@ -207,7 +207,7 @@ def test_inbox_checkpoint_loader_rejects_non_dictionary_value():
 
 def test_inbox_disabled_and_invalid_port_fail_before_database_access(monkeypatch, capsys):
     monkeypatch.setattr(email_inbox, "env_bool", lambda *_args: False)
-    monkeypatch.setattr(email_inbox, "get_supabase", lambda: pytest.fail("disabled inbox must not connect"))
+    monkeypatch.setattr(email_inbox, "get_service_supabase", lambda: pytest.fail("disabled inbox must not connect"))
     assert email_inbox._run() == 0
     assert "kihagyva" in capsys.readouterr().out
 

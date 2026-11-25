@@ -54,6 +54,7 @@ def _load_authenticated(*, session_state, now, expected_password=None, submitted
         "hmac": hmac,
         "get_secret": lambda _name: expected_password,
         "AUTH_SESSION_TTL_SECONDS": 8 * 60 * 60,
+        "_auth_login_enabled": lambda: False,
     }
     module = ast.Module(body=[function], type_ignores=[])
     exec(compile(module, str(ROOT / "dashboard.py"), "exec"), namespace)
@@ -164,7 +165,8 @@ def test_every_repository_application_table_has_rls_enabled_in_schema():
 
 
 def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
-    assert "execute_task_action(db, task_action, approved=True)" in DASHBOARD_SOURCE
+    assert "execute_task_action(" in DASHBOARD_SOURCE
+    assert "approved=True" in DASHBOARD_SOURCE
 
     task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
     assert "approved: bool = False" in task_source
@@ -177,10 +179,10 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
 def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
     approval_start = DASHBOARD_SOURCE.index('elif q in {"jóváhagyom"')
     consume_index = DASHBOARD_SOURCE.index(
-        'st.session_state.pop("_jarvis_pending_action", None)', approval_start
+        "_consume_pending_action()", approval_start
     )
     execute_index = DASHBOARD_SOURCE.index(
-        "execute_task_action(db, task_action, approved=True)", approval_start
+        "execute_task_action(", approval_start
     )
     assert consume_index < execute_index
 
@@ -196,3 +198,26 @@ def test_new_chat_request_invalidates_previous_pending_approval():
         "requested_task_action = parse_task_command(prompt)", invalidation_comment
     )
     assert invalidation_comment < invalidate_index < parse_index
+
+
+
+def test_audit_csv_export_uses_verified_admin_jwt_and_expires():
+    audit_page = next(
+        node for node in DASHBOARD_TREE.body
+        if isinstance(node, ast.FunctionDef) and node.name == "render_audit_admin_page"
+    )
+    source = ast.unparse(audit_page)
+    assert "verified_admin_client(session)" in source
+    assert "audit_client" in source
+    assert "get_legacy_dashboard_supabase" not in source
+    assert "_audit_export_is_valid" in source
+    assert "time.time()" in source
+
+
+
+def test_dashboard_system_diagnostics_receives_auth_session():
+    assert "run_self_diagnostics(**_auth_session_kwargs())" in DASHBOARD_SOURCE
+    health_source = (ROOT / "health_check.py").read_text(encoding="utf-8")
+    assert '"system.diagnostics"' in health_source
+    assert "allowed_roles={\"admin\"}" in health_source
+    assert "get_enforced_user_supabase(" in health_source

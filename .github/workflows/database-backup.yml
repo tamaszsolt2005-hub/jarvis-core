@@ -21,7 +21,7 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       JARVIS_BACKUP_SOURCE_PROJECT_REF: ${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
@@ -32,7 +32,7 @@ jobs:
       AWS_BACKUP_ROLE_ARN: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check external backup configuration
         id: config
@@ -49,11 +49,15 @@ jobs:
           [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
           [[ -n "$AWS_BACKUP_ROLE_ARN" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
           [[ -n "$BACKUP_AGE_IDENTITY" ]] || missing+=("BACKUP_AGE_IDENTITY secret")
-          if (( ${#missing[@]} )); then
+          if (( \${#missing[@]} )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "## Backup NOT performed" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Missing required configuration: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Backup cannot run; required secrets/variables are missing: ${missing[*]}"
+            echo "- Missing required configuration: \${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Backup cannot run; required secrets/variables are missing: \${missing[*]}"
+            exit 1
+          fi
+          if [[ "$JARVIS_BACKUP_SOURCE_PROJECT_REF" != "kiutreccucbegskxowek" ]]; then
+            echo "::error::Backup source project ref does not match the approved JARVIS production project."
             exit 1
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -101,13 +105,13 @@ jobs:
           pg_restore --version | grep -Eq ' 17\.'
           psql --version | grep -Eq ' 17\.'
 
-      - name: Create encrypted logical backup
+      - name: Create encrypted production logical backup
         if: steps.config.outputs.ready == 'true'
         run: python3 scripts/supabase_backup.py backup --output-dir .private-backups
 
       - name: Configure AWS role through GitHub OIDC
         if: steps.config.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
           aws-region: ${{ vars.BACKUP_AWS_REGION }}
@@ -121,12 +125,13 @@ jobs:
           file="$(find .private-backups -maxdepth 1 -type f -name '*.tar.gz.age' -print -quit)"
           [[ -n "$file" ]]
           key="jarvis/database/$(basename "$file")"
-          aws s3 cp "$file" "s3://${BACKUP_S3_BUCKET}/$key" --sse aws:kms --sse-kms-key-id "$BACKUP_S3_KMS_KEY_ARN" --only-show-errors
+          aws s3 cp "$file" "s3://$BACKUP_S3_BUCKET/$key" --sse aws:kms --sse-kms-key-id "$BACKUP_S3_KMS_KEY_ARN" --only-show-errors
           echo "s3_key=$key" >> "$GITHUB_OUTPUT"
 
-      - name: Verify uploaded S3 object and SSE-KMS encryption
+      - name: Verify uploaded S3 object, KMS encryption and encrypted manifest
         if: steps.config.outputs.ready == 'true'
         shell: bash
+        id: verify
         env:
           BACKUP_S3_KEY: ${{ steps.upload.outputs.s3_key }}
         run: |
@@ -136,25 +141,88 @@ jobs:
           import json, os, sys
           obj = json.load(sys.stdin)
           expected_key = os.environ["BACKUP_S3_KMS_KEY_ARN"]
-          encryption = obj.get("ServerSideEncryption")
-          actual_key = obj.get("SSEKMSKeyId")
-          size = obj.get("ContentLength", 0)
-          if encryption != "aws:kms":
-              raise SystemExit(f"Unexpected server-side encryption: {encryption!r}")
-          if actual_key != expected_key:
-              raise SystemExit(f"Unexpected KMS key: {actual_key!r}")
-          if not isinstance(size, int) or size <= 0:
-              raise SystemExit(f"Invalid object size: {size!r}")
-          print(f"S3 object verified: size={size} bytes; SSE-KMS key matches.")
+          if obj.get("ServerSideEncryption") != "aws:kms":
+              raise SystemExit("S3 object is not SSE-KMS encrypted")
+          if obj.get("SSEKMSKeyId") != expected_key:
+              raise SystemExit("S3 object uses an unexpected KMS key")
+          if not isinstance(obj.get("ContentLength"), int) or obj["ContentLength"] <= 0:
+              raise SystemExit("S3 object size is invalid")
+          print(f"S3 object verified: {obj['ContentLength']} bytes; SSE-KMS key matches.")
           '
           mkdir -p "$RUNNER_TEMP/jarvis-backup-verify"
           downloaded="$RUNNER_TEMP/jarvis-backup-verify/$(basename "$BACKUP_S3_KEY")"
           aws s3 cp "s3://$BACKUP_S3_BUCKET/$BACKUP_S3_KEY" "$downloaded" --only-show-errors
           python3 scripts/supabase_backup.py verify --archive "$downloaded"
-          echo "## Backup verified" >> "$GITHUB_STEP_SUMMARY"
-          echo "- S3 upload and SSE-KMS metadata verified." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Downloaded object decrypted successfully and its manifest hashes matched." >> "$GITHUB_STEP_SUMMARY"
+          echo "## Production backup object verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- S3 object metadata confirms SSE-KMS with the configured key." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Downloaded encrypted object decrypted and its manifest SHA-256 hashes matched." >> "$GITHUB_STEP_SUMMARY"
+          echo "verified_archive=$downloaded" >> "$GITHUB_OUTPUT"
 
-      - name: Remove local backup files
+      - name: Start disposable PostgreSQL 17 restore target
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        env:
+          RESTORE_PASSWORD: jarvis-ci-only-restore-password
+        run: |
+          set -euo pipefail
+          docker run --detach --name jarvis-restore-target \
+            --publish 127.0.0.1:5432:5432 \
+            --env POSTGRES_PASSWORD="$RESTORE_PASSWORD" \
+            --health-cmd="pg_isready -U postgres" \
+            --health-interval=2s --health-timeout=3s --health-retries=30 \
+            postgres:17
+          for attempt in $(seq 1 30); do
+            if docker exec jarvis-restore-target pg_isready -U postgres; then break; fi
+            sleep 2
+          done
+          docker exec jarvis-restore-target psql -U postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;"
+
+      - name: Restore production backup into separate isolated PostgreSQL 17 database
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        env:
+          BACKUP_S3_KEY: ${{ steps.upload.outputs.s3_key }}
+          JARVIS_RESTORE_DB_URL: postgresql://postgres:jarvis-ci-only-restore-password@127.0.0.1:5432/postgres
+          JARVIS_RESTORE_ALLOWED_PROJECT_REF: local-test
+          JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB: "true"
+        run: |
+          set -euo pipefail
+          downloaded="$RUNNER_TEMP/jarvis-backup-verify/$(basename "$BACKUP_S3_KEY")"
+          [[ -s "$downloaded" ]]
+          python3 scripts/supabase_backup.py restore \
+            --archive "$downloaded" \
+            --target-project-ref local-test \
+            --confirm-restore
+          export PGPASSWORD=jarvis-ci-only-restore-password
+          summary="$(psql --no-psqlrc --tuples-only --no-align \
+            --dbname "$JARVIS_RESTORE_DB_URL" \
+            --command "SELECT jsonb_build_object(
+              'tables', (SELECT jsonb_agg(tablename ORDER BY tablename) FROM pg_tables WHERE schemaname='public'),
+              'leads', (SELECT count(*) FROM public.leads),
+              'logs', (SELECT count(*) FROM public.logs),
+              'settings', (SELECT count(*) FROM public.settings)
+            )::text;")"
+          printf '%s\n' "$summary" | python3 -c '
+          import json, sys
+          result = json.loads(sys.stdin.read())
+          expected = {"email_drafts", "jarvis_memory", "jarvis_proactive_state", "leads", "logs", "posts", "settings", "tasks"}
+          actual = set(result.get("tables") or [])
+          if actual != expected:
+              raise SystemExit(f"Restored table inventory mismatch: {sorted(actual)}")
+          for table in ("leads", "logs", "settings"):
+              if not isinstance(result.get(table), int):
+                  raise SystemExit(f"Missing restored row-count check for {table}")
+          print("Separate PostgreSQL 17 restore verified: 8 expected public tables; row counts captured.")
+          '
+          echo "## Separate-database restore drill passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Downloaded the encrypted S3 object, decrypted it, verified manifest hashes, and restored it to a fresh PostgreSQL 17 container." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified the exact eight-table production public-schema inventory and recorded leads/logs/settings row counts." >> "$GITHUB_STEP_SUMMARY"
+          echo "- No production database writes were performed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove local backup files and restore container
         if: always()
-        run: rm -rf .private-backups "$RUNNER_TEMP/jarvis-backup-verify" "$RUNNER_TEMP/jarvis-age-identity.txt"
+        shell: bash
+        run: |
+          rm -rf .private-backups "$RUNNER_TEMP/jarvis-backup-verify" "$RUNNER_TEMP/jarvis-age-identity.txt"
+          docker rm --force jarvis-restore-target >/dev/null 2>&1 || true

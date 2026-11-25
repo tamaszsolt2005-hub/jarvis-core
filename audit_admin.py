@@ -40,7 +40,7 @@ def _client() -> Client:
 
 def _user_from_verified_response(response: Any) -> Any:
     user = getattr(response, "user", None)
-    if user is None:
+    if user is None or not getattr(user, "id", None):
         raise PermissionError("A Supabase Auth nem adott vissza ellenőrzött felhasználót.")
     if not (
         getattr(user, "email_confirmed_at", None)
@@ -92,12 +92,15 @@ def verified_admin_client(session: dict[str, str]) -> tuple[Client, dict[str, st
         raise PermissionError("Hiányzó audit munkamenet.")
     access_token = session.get("access_token")
     refresh_token = session.get("refresh_token")
-    if not access_token or not refresh_token:
+    expected_user_id = session.get("user_id")
+    if not access_token or not refresh_token or not expected_user_id:
         raise PermissionError("Hiányos audit munkamenet.")
 
     client = _client()
     client.auth.set_session(access_token, refresh_token)
     user = _user_from_verified_response(client.auth.get_user())
+    if str(user.id) != str(expected_user_id):
+        raise PermissionError("Az audit munkamenet felhasználója nem egyezik a hitelesített fiókkal.")
     current = client.auth.get_session()
     refreshed = getattr(current, "access_token", None)
     refreshed_refresh = getattr(current, "refresh_token", None)

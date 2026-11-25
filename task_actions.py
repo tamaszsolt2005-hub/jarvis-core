@@ -7,7 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from uuid import uuid4
 
-from jarvis_common import audit_event
+from jarvis_common import audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
 
 
@@ -119,7 +119,8 @@ def _record_success_audit(db: Any, *, action: str, operation_id: str, result: di
 def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
     """Execute a previously parsed action only after the chat approval gate."""
     kind = action.get("type")
-    operation_id = str(uuid4())
+    operation_id = action.get("operation_id") if kind == "create" else None
+    operation_id = operation_id or str(uuid4())
     audit_action = "task_" + str(kind or "unknown")
     if not audit_event(
         db, module="task_actions", action=audit_action, status="pending",
@@ -133,7 +134,33 @@ def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
             "due_at": action.get("due_at"), "notes": action.get("notes") or None,
             "status": "open",
         }
-        result = db.table("tasks").insert(payload).execute()
+        payload["operation_id"] = operation_id
+        try:
+            result = db.table("tasks").insert(payload).execute()
+        except Exception as exc:
+            # A unique operation_id conflict means an earlier retry already
+            # committed this exact approved create operation.
+            code = getattr(exc, "code", None)
+            if isinstance(exc, dict):
+                code = exc.get("code", code)
+            if code != "23505":
+                raise
+            existing = (
+                db.table("tasks").select("id,title").eq("operation_id", operation_id)
+                .limit(1).execute().data or []
+            )
+            if not existing:
+                raise
+            audit_event(
+                db, module="task_actions", action=audit_action, status="blocked",
+                operation_id=operation_id, approved=True,
+                result={"reason": "idempotent_replay", "task_id": existing[0].get("id")},
+            )
+            return (
+                f"A jóváhagyott feladatművelet már végrehajtódott: "
+                f"**{existing[0].get('title') or action['title']}** "
+                f"(azonosító: {existing[0].get('id')}). Nem hoztam létre újabb feladatot."
+            )
         row = (result.data or [{}])[0]
         audit_saved = _record_success_audit(
             db, action=audit_action, operation_id=operation_id,
@@ -194,7 +221,7 @@ def _validate_action(action: Any) -> None:
     if not isinstance(kind, str):
         raise ValueError("Ismeretlen feladatművelet.")
     if kind == "create":
-        if set(action) - {"type", "title", "priority", "due_at", "notes"}:
+        if set(action) - {"type", "title", "priority", "due_at", "notes", "operation_id"}:
             raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
         title = action.get("title")
         priority = action.get("priority")
@@ -205,6 +232,11 @@ def _validate_action(action: Any) -> None:
             raise ValueError("Érvénytelen feladatprioritás.")
         if not isinstance(notes, str) or len(notes) > 1000:
             raise ValueError("A feladat leírása legfeljebb 1000 karakter lehet.")
+        operation_id = action.get("operation_id")
+        if operation_id is not None and (
+            not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id)
+        ):
+            raise ValueError("Érvénytelen műveletazonosító.")
         due_at = action.get("due_at")
         if due_at is not None:
             if not isinstance(due_at, str):
@@ -257,12 +289,25 @@ def _validate_action(action: Any) -> None:
 
 
 def execute_task_action(
-    db: Any, action: dict[str, Any], *, approved: bool = False
+    db: Any,
+    action: dict[str, Any],
+    *,
+    approved: bool = False,
+    auth_session: dict[str, str] | None = None,
 ) -> str:
-    """Execute a task only when the caller confirms the dashboard approval gate."""
+    """Execute an approved task; enforced Auth mode uses only the verified user JWT client."""
     if approved is not True:
         raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
     _validate_action(action)
+
+    # Use the shared enforcement gate so individual Auth login and explicit
+    # RBAC enforcement have identical fail-closed behavior across all modules.
+    enforced = get_enforced_user_supabase(
+        auth_session, "tasks.write", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None:
+        db, _refreshed_session = enforced
+
     try:
         return _execute_task_action(db, action)
     except Exception as exc:

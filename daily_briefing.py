@@ -229,11 +229,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
 
 
 def main() -> None:
-    from jarvis_common import get_supabase
+    from jarvis_common import get_service_supabase
     from pathlib import Path
     from proactive_monitor import run_proactive_monitor
 
-    db = get_supabase()
+    db = get_service_supabase()
     try:
         report = build_daily_briefing(db)
     except Exception as exc:

@@ -70,7 +70,7 @@ def test_chat_request_reuses_session_database_and_records_request_without_prompt
     branch_source = ast.get_source_segment(SOURCE, branch)
     _call_positions(branch_source, [
         'db = st.session_state.get("_jarvis_db")',
-        "db = get_supabase()",
+        "db = _get_dashboard_supabase()",
         'log_event(db, "chat", f"chat_request|request_id={request_id}")',
         "retrieve_context(db, prompt)",
     ])
@@ -84,11 +84,14 @@ def test_memory_mutations_are_routed_through_explicit_memory_commands():
     _call_positions(source, [
         "memory_action, memory_payload = memory_command(prompt)",
         'if memory_action == "save" or memory_action.startswith("save:"):',
-        "save_memory(db, memory_payload",
+        "save_memory(",
+        "db, memory_payload",
         'elif memory_action == "forget":',
-        "forget_memories(db, memory_payload)",
+        "forget_memories(",
+        "db, memory_payload",
     ])
-    assert 'get_memories(db, prompt, limit=100)' in source
+    assert "get_memories(" in source
+    assert "db, prompt, limit=100" in source
 
 
 def test_chat_email_requires_single_explicit_recipient_and_prepares_preview_only():
@@ -98,7 +101,7 @@ def test_chat_email_requires_single_explicit_recipient_and_prepares_preview_only
         "recipient = extract_explicit_recipient(prompt)",
         "if not recipient:",
         "build_chat_email_draft(prompt, generate_text)",
-        'st.session_state["_jarvis_pending_action"] = {',
+        '_stage_pending_action({',
         "Jóváhagyásra váró e-mail-tervezet:",
     ])
     assert "send_email(" not in draft
@@ -110,8 +113,8 @@ def test_chat_email_sending_requires_explicit_approval_and_both_server_switches(
     approval = _approval_branch()
     _call_positions(approval, [
         'elif q in {"jóváhagyom"',
+        '_consume_pending_action()',
         'chat_email = pending_action.get("chat_email")',
-        'st.session_state.pop("_jarvis_pending_action", None)',
         "if chat_email:",
         "if not EMAIL_DELIVERY_ENABLED or not env_bool(\"CHAT_EMAIL_ENABLED\", False):",
         'if not audit_event(db, status="pending", **audit_fields):',
@@ -168,7 +171,8 @@ def test_pending_approval_is_cleared_on_rejection_and_on_any_new_request():
 
 def test_task_database_mutation_is_only_invoked_from_approval_branch():
     approval = _approval_branch()
-    assert "execute_task_action(db, task_action, approved=True)" in approval
+    assert "execute_task_action(" in approval
+    assert "approved=True" in approval
     assert "execute_task_action(db, task_action, approved=True)" not in _chat_email_draft_branch()
     task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
     assert "approved: bool = False" in task_source
@@ -235,7 +239,7 @@ def test_diagnostic_shortcut_returns_without_running_normal_chat_pipeline():
     source = ast.get_source_segment(SOURCE, branch)
     _call_positions(source, [
         'if prompt.strip().casefold() in {',
-        "run_self_diagnostics()",
+        "run_self_diagnostics(**_auth_session_kwargs())",
         'st.session_state.chat.append(("assistant", diagnostic_report))',
         "st.stop()",
         'response_status = st.status(',

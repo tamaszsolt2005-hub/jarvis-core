@@ -1,0 +1,24 @@
+name: JARVIS live Supabase Auth and RLS validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-rls-smoke:
+    runs-on: ubuntu-24.04
+    environment: supabase-integration
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.JARVIS_TEST_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.JARVIS_TEST_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.JARVIS_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_EXPECTED_PROJECT_REF: ${{ vars.JARVIS_TEST_SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run real Auth-issued JWT and PostgREST RLS smoke tests
+        run: python3 scripts/supabase_auth_rls_smoke.py

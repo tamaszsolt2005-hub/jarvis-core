@@ -74,11 +74,66 @@ def env_int(name: str, default: int, minimum: int = 0, maximum: int = 100000) ->
     return max(minimum, min(maximum, value))
 
 
-def get_supabase() -> Client:
-    """Use the server-side service role key; never expose it in client-side code."""
+def get_service_supabase() -> Client:
+    """Create the privileged server-side client for trusted background/ops code only."""
     url = required_secret("SUPABASE_URL")
     key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or required_secret("SUPABASE_KEY")
     return create_client(url, key)
+
+
+def get_legacy_dashboard_supabase() -> Client:
+    """Temporary privileged client for the legacy shared-password dashboard."""
+    return get_service_supabase()
+
+
+def get_user_supabase(
+    session: dict[str, str],
+    *,
+    allowed_roles: set[str] | frozenset[str] | None = None,
+) -> tuple[Client, dict[str, str]]:
+    """Return a public-key client authenticated with a verified user JWT.
+
+    The returned session contains refreshed tokens and must be persisted by the
+    caller. This path never falls back to service-role credentials.
+    """
+    from jarvis_auth import verified_user_client
+
+    return verified_user_client(session, allowed_roles=allowed_roles)
+
+
+def get_enforced_user_supabase(
+    session: dict[str, str] | None,
+    permission: str,
+    *,
+    allowed_roles: set[str] | frozenset[str],
+) -> tuple[Client, dict[str, str]] | None:
+    """Resolve a verified user-JWT client when RBAC enforcement is enabled.
+
+    The default-off flag preserves the legacy dashboard until its Auth session
+    and table policies are ready. Enforced mode always fails closed.
+    """
+    # Enabling the individual dashboard Auth flow also enables enforcement;
+    # otherwise a reader could reach external side effects such as SMTP.
+    enforced = (
+        env_bool("JARVIS_AUTH_RBAC_ENFORCED", False)
+        or env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
+    )
+    if not enforced:
+        return None
+    if not isinstance(session, dict):
+        raise PermissionError("Ehhez a művelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
+
+    db, refreshed_session = get_user_supabase(session, allowed_roles=allowed_roles)
+    from jarvis_auth import require_permission
+
+    require_permission(refreshed_session.get("role"), permission)
+    session.update(refreshed_session)
+    return db, refreshed_session
+
+
+def get_supabase() -> Client:
+    """Deprecated compatibility alias; use an explicitly scoped client factory."""
+    return get_service_supabase()
 
 
 def get_gemini_client() -> genai.Client:

@@ -1,6 +1,6 @@
 import pytest
 
-from task_actions import execute_task_action, parse_task_command
+from task_actions import execute_task_action, parse_task_command, _validate_action
 
 
 TASK_ID = "123e4567-e89b-42d3-a456-426614174000"
@@ -167,6 +167,56 @@ def test_invalid_task_payload_is_rejected_before_database_or_audit_access(monkey
     for action in invalid_actions:
         with pytest.raises(ValueError):
             execute_task_action(ForbiddenDB(), action, approved=True)
+
+
+def test_create_operation_id_is_stored_and_reused_on_unique_conflict(monkeypatch):
+    import task_actions
+
+    operation_id = "123e4567-e89b-42d3-a456-426614174001"
+    class UniqueViolation(Exception):
+        code = "23505"
+
+    class IdempotentQuery(Query):
+        def execute(self):
+            if self.payload and self.payload.get("status") == "open":
+                raise UniqueViolation("duplicate operation_id")
+            if self.filters.get("operation_id") == operation_id:
+                return Result([{"id": TASK_ID, "title": "Már létrehozott"}])
+            return Result([])
+
+    class IdempotentDB(FakeDB):
+        def table(self, name):
+            return AuditOnlyQuery() if name == "logs" else IdempotentQuery(self)
+
+    class AuditOnlyQuery:
+        def insert(self, _payload):
+            return self
+        def execute(self):
+            return Result([])
+
+    db = IdempotentDB()
+    events = []
+    monkeypatch.setattr(
+        task_actions, "audit_event",
+        lambda _db, **kwargs: events.append(kwargs) or True,
+    )
+    message = execute_task_action(
+        db,
+        {"type": "create", "title": "Már létrehozott", "priority": "normal",
+         "operation_id": operation_id},
+        approved=True,
+    )
+
+    assert "már végrehajtódott" in message
+    assert any(event.get("result", {}).get("reason") == "idempotent_replay" for event in events)
+
+
+def test_create_operation_id_must_be_a_uuid():
+    with pytest.raises(ValueError, match="műveletazonosító"):
+        _validate_action({
+            "type": "create", "title": "Teszt", "priority": "normal",
+            "operation_id": "not-a-uuid",
+        })
 
 
 def test_truthy_non_boolean_approval_does_not_authorize_task_mutation():
@@ -427,3 +477,86 @@ def test_task_success_audit_failure_is_reported_without_hiding_completed_action(
     assert details["module"] == "task_actions"
     assert details["operation"] == f"audit_success:task_{action['type']}"
     assert details["severity"] == "critical"
+
+def test_auth_enforcement_denies_missing_session_before_any_database_access(monkeypatch):
+    import task_actions
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("No database access is allowed without a verified Auth session")
+
+    calls = []
+
+    def enforce(session, permission, *, allowed_roles):
+        calls.append((session, permission, allowed_roles))
+        raise PermissionError("A feladatművelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
+
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
+    with pytest.raises(PermissionError, match="Supabase Auth-munkamenet"):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Tiltott", "priority": "normal"},
+            approved=True,
+        )
+
+    assert calls == [(None, "tasks.write", {"admin", "operator"})]
+
+
+def test_auth_enforcement_denies_reader_before_database_access(monkeypatch):
+    import task_actions
+
+    class ForbiddenDB:
+        def table(self, _name):
+            pytest.fail("A reader must not reach task tables")
+
+    def enforce(session, permission, *, allowed_roles):
+        assert session["user_id"] == "reader-id"
+        assert permission == "tasks.write"
+        assert allowed_roles == {"admin", "operator"}
+        raise PermissionError("Permission denied: tasks.write")
+
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
+    session = {"access_token": "old", "refresh_token": "old-refresh", "user_id": "reader-id"}
+    with pytest.raises(PermissionError, match="tasks.write"):
+        execute_task_action(
+            ForbiddenDB(),
+            {"type": "create", "title": "Tiltott", "priority": "normal"},
+            approved=True,
+            auth_session=session,
+        )
+
+
+def test_auth_enforcement_uses_verified_user_client_not_legacy_client(monkeypatch):
+    import task_actions
+
+    legacy_db = FakeDB()
+    user_db = FakeDB()
+    calls = []
+
+    def enforce(session, permission, *, allowed_roles):
+        calls.append((session, permission, allowed_roles))
+        assert permission == "tasks.write"
+        assert allowed_roles == {"admin", "operator"}
+        return user_db, {
+            "access_token": "new-access", "refresh_token": "new-refresh",
+            "user_id": "operator-id", "role": "operator",
+        }
+
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
+    monkeypatch.setattr(task_actions, "audit_event", lambda *_args, **_kwargs: True)
+    session = {
+        "access_token": "old-access", "refresh_token": "old-refresh",
+        "user_id": "operator-id", "role": "operator",
+    }
+
+    result = execute_task_action(
+        legacy_db,
+        {"type": "create", "title": "RBAC teszt", "priority": "normal"},
+        approved=True,
+        auth_session=session,
+    )
+
+    assert "létrehozva" in result
+    assert legacy_db.created is None
+    assert user_db.created["title"] == "RBAC teszt"
+    assert calls == [(session, "tasks.write", {"admin", "operator"})]

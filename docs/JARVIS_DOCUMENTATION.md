@@ -1,7 +1,8 @@
 # JARVIS – teljes projekt- és műszaki dokumentáció
 
 > **Felülvizsgálat:** 2026-11-25  
-> **Vizsgált main commit:** `5f6045069ea875997a896bb3ac83e83869da7e97`  
+> **Vizsgált main commit:** `0b1afaf7e18e9a292e0ef3e38ac63953697edff6`  
+> **Pull request:** [#13 – aktuális head és ellenőrzések](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)  
 > **Repository:** `tamaszsolt2005-hub/jarvis-core`
 
 Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A forráskód, a Supabase-migrációk és a GitHub Actions workflow-k az elsődleges technikai bizonyítékok. A dokumentum külön választja a kódban létező funkciót, a tesztelt működést és az éles környezetben ténylegesen igazolt állapotot.
@@ -20,6 +21,16 @@ Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A for
 10. [Tesztelés és bizonyítékok](#10-tesztelés-és-bizonyítékok)
 11. [Ismert hibák és blokkolók](#11-ismert-hibák-és-blokkolók)
 12. [Fejlesztési sorrend](#12-fejlesztési-sorrend)
+
+
+
+## Aktuális állapot és bizonyítékok – 2026-11-25
+
+A `e6736101405180c220d6b96b5a7a3c1d890813e0` commiton mért [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) történeti baseline: **762 passed, 3 skipped, 96.47% Python line coverage**. A main későbbi, [45617334463 CI-futása](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45617334463) mindkét jobbal sikeres. A PR #13 négy közös fájljának main/PR összevezetése után új PR CI indult; annak eredményét külön kell megvárni, ezért a korábbi tesztszám nem tulajdonítható az új headnek.
+
+A production age-titkosított logikai backup 2026-11-25-én sikeresen S3-ba került, majd a letöltött objektum visszafejtése és manifest-hash ellenőrzése is sikerült ([45611038142](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038142)). Az izolált PostgreSQL 17 CI restore-round-trip a [45617334463](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45617334463) futásban sikeres. Ez nem teljes Supabase-platform/Storage backup, és nem production Auth/JWT/RLS bizonyíték. A production állapot ismert read-only vizsgálata szerint RLS policy és Auth user még nincs telepítve; a production Auth flag ezért OFF marad. A PR #13 nyitott és draft.
+
+A végrehajtandó feladatok, felelősségi területek és elfogadási kritériumok a [fennmaradó feladatok és release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak. A dokumentum a CI-ben igazolt állapotot elkülöníti a productionben még nem bizonyított képességektől.
 
 ## 1. Projektáttekintés
 
@@ -376,10 +387,95 @@ A production `posts` tábla legacy/árva objektumnak tűnik, de a repo-hivatkoz�
 **Állapot:** a dokumentum a 2026-11-25-i repository-, CI- és backup-futási bizonyítékokat, valamint a 2026-11-24-i csak olvasási production-auditot rögzíti. A sikeres mentés nem jelent production migrációs, Auth/RBAC- vagy külső integrációs jóváhagyást.
 
 
----
+## Dokumentációs kiegészítés – 2026-11-24
 
-## Dokumentációs státuszforrás – 2026-11-25
+A PR #13 dashboard Auth helper tesztjeinek új állapota, valamint a CI
+bizonyítékok és korlátok a
+[`PR13_CI_VALIDATION_2026-11-24.md`](PR13_CI_VALIDATION_2026-11-24.md)
+fájlban szerepelnek. A teljes, prioritásos hiánylista és production release
+gate a [`REMAINING_WORK_AND_RELEASE_GATES.md`](REMAINING_WORK_AND_RELEASE_GATES.md)
+dokumentumban található.
 
-A korábbi, dátumozott állapotblokkok történeti naplóbejegyzések; nem szabad őket aktuális státuszként idézni. A felülvizsgálatkor érvényes PR-head, CI-állapot, prioritások és merge-kritériumok egyetlen összefoglalója: [Fejlesztési áttekintés és javaslatok](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md). A nyitott feladatok irányadó listája: [Hátralévő feladatok és release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md).
+A legutóbbi CI run `45462249173` PostgreSQL 17 integrációs jobja sikeres;
+a Python/AppTest/browser tesztlépés a dokumentáció frissítésekor még futott,
+ezért az új Auth helper tesztek végleges tesztszáma és coverage értéke nincs
+igazolva. A korábbi `45460581824` 93.57%-os coverage értéke nem vetíthető
+automatikusan az új kódra.
 
-A munkafolyamat célja egyetlen tartós `main` ág. A PR #13 jelenleg átmeneti integrációs javaslat; 282 commit ahead / 5 behind (a dokumentációs main-commitok után ellenőrizve), draft és nincs merge-elve. A 2026-11-25 14:11 CET ellenőrzéskor a PR #13 head `32aef539c0128c1fedaa9e03768477433e93abe1`; a [45620672894 CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894) backup-restore jobja sikeres, a test job még futott. A korábbi headek zöld CI-je nem helyettesíti ezt az ellenőrzést.
+A jelenlegi tesztdupla a dashboard Auth helper útvonalát vizsgálja; nem
+helyettesíti a valós Supabase Auth/JWT/RLS integrációt. A CI-ben futó
+PostgreSQL/age backup-restore izolált lokális teszt, nem production mentés.
+
+
+## 2026-11-24 friss állapot – CI és biztonsági javítások
+
+A korábbi, még futó/megszakított CI állapotot a későbbi teljes zöld futás
+felülírja: [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568)
+718 passed, 3 skipped, 93.78% line coverage eredményt adott. A PostgreSQL 17
+audit/RBAC pgTAP és titkosított local age backup/restore integráció sikeres.
+Ez CI-bizonyíték, nem production backup vagy valós Supabase Auth-teszt.
+
+A legutóbbi, külön read-only production ellenőrzés 2026-11-24 18:51 UTC-kor
+megerősítette, hogy productionben 8 public tábla van RLS-sel, de 0 RLS policy;
+az `auth.users` üres; az audit hash-chain tábla és a strukturált audit
+mezők hiányoznak; a remote migration ledger öt Gitből hiányzó történeti
+migrációt tartalmaz. Részletes pillanatkép:
+[`PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md`](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+
+A chatműveletek pending jóváhagyása most öt perc után lejár, egyszer
+használható és az aktuális felhasználóhoz kötött. Az audit-admin session
+refresh ellenőrzi a user ID folytonosságát. Az audit CSV export eseményei
+ellenőrzött admin user-JWT kliensen keresztül íródnak, és az export-jóváhagyás
+is lejáró, adminhoz kötött. Az új regressziós tesztek a korábbi zöld CI után
+kerültek be; ezek végleges CI-eredménye még ellenőrzendő.
+
+A teljes, prioritásos blokkolólista:
+[`REMAINING_WORK_AND_RELEASE_GATES.md`](REMAINING_WORK_AND_RELEASE_GATES.md).
+
+## 2026-11-24 – aktuális teljes CI és kódszintű javítások
+
+A 2026-11-24-i teljesen zöld PR #13 baseline CI-futás:
+[45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381)
+— 734 passed, 3 skipped, 93.67% line coverage egy korábbi commiton. Ez nem a jelenlegi PR head validációja. A PostgreSQL 17 integrációs
+job a két repo-only 20261117 migrációt, az öt visszanyert történeti SQL-t,
+majd az audit/hash-chain/RBAC migrációkat is sikeresen futtatta a lokális
+production-shape fixture-en. Az encrypted age backup/restore körút is sikeres.
+
+A repository további biztonsági javításai:
+- audit-admin session user-ID folytonosság ellenőrzése;
+- ötperces, egyszer fogyasztható, felhasználóhoz kötött chat-jóváhagyás;
+- user-JWT alapú, lejáró és adminhoz kötött audit CSV export;
+- admin-only rendszerdiagnosztika user-JWT-vel, service-role fallback nélkül;
+- production-compatible settings identity és posts tábla a schema bootstrapban;
+- coverage és UI screenshot artifact retention 14/7 napra korlátozva.
+
+A remote ledgerből visszanyert öt migrációs forrás repositoryban van.
+A teljes production migration drift azonban még nem zárt: a két 20261117
+repo-verzió hiányzik a remote ledgerből, az audit/RBAC migrációk pedig még
+nincsenek productionben alkalmazva.
+
+Friss production read-only leltár:
+[PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
+Prioritásos hátralévő feladatok:
+[REMAINING_WORK_AND_RELEASE_GATES.md](REMAINING_WORK_AND_RELEASE_GATES.md).
+
+
+## Ellenőrzési pontosítás – 2026-11-25
+
+A korábbi zöld CI eredmény történeti baseline, nem a jelenlegi PR head validációja.
+A legutóbbi branch head `a14fca757e2dd6cb73e4e00243ff9fde34635e6b`.
+A korábbi audit UI tesztfutás 751 passed, 11 failed, 3 skipped eredményt
+adott; a 11 hiba a `tests/test_dashboard_audit_ui.py` fájlban jelentkezett.
+Az ezt követő kódjavítások után a jelenlegi head CI-je újraindult.
+
+A jelenlegi push futás [45509971875](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509971875)
+ellenőrzésekor a PostgreSQL 17 audit/RBAC pgTAP és titkosított lokális
+age backup/restore job sikeres volt. A Python jobban a függőségtelepítés és
+a CloudFormation-validáció sikeres, a Playwright telepítés még futott;
+a compileall és a teljes unit/AppTest/browser tesztlépés még nem kezdődött el.
+Végleges tesztszám és coverage nincs. A PR esemény futása is külön ellenőrzendő.
+
+Ezért a jelenlegi kódállapot még nem minősíthető teljesen CI-validáltnak.
+A PostgreSQL/age eredmény izolált CI-környezetből származik, nem production
+backup vagy valós Supabase Auth/JWT/RLS bizonyíték. A production Auth flag
+maradjon OFF; nincs production migrációs vagy adatbázis-módosítási engedély.

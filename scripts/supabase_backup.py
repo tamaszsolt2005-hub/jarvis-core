@@ -14,7 +14,6 @@ import os
 import re
 import shutil
 import socket
-import sys
 import subprocess
 import tarfile
 import tempfile
@@ -22,9 +21,6 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlsplit, urlunsplit
-
-# Executed as `python scripts/supabase_backup.py`; expose repository-root modules.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from jarvis_errors import report_error, sanitize_log_text
 

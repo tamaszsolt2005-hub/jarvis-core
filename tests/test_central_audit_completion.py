@@ -15,7 +15,7 @@ def test_lead_csv_import_stops_before_database_writes_when_pending_audit_fails(t
             raise AssertionError("lead DB access must not happen without pending audit")
 
     events = []
-    monkeypatch.setattr(lead_gen, "get_supabase", lambda: DB())
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(lead_gen, "audit_event", lambda _db, **kwargs: events.append(kwargs) or False)
     monkeypatch.setattr(lead_gen, "report_error", lambda *_args, **_kwargs: None)
 
@@ -31,7 +31,7 @@ def test_global_research_automation_stops_when_pending_audit_fails(monkeypatch):
     import global_lead_research_job as job
 
     events = []
-    monkeypatch.setattr(job, "get_supabase", lambda: object())
+    monkeypatch.setattr(job, "get_service_supabase", lambda: object())
     monkeypatch.setattr(job, "audit_event", lambda _db, **kwargs: events.append(kwargs) or False)
     monkeypatch.setattr(job, "research_global_companies", lambda *_args, **_kwargs: pytest.fail("research must not start"))
     monkeypatch.setattr(job, "report_error", lambda *_args, **_kwargs: None)
@@ -120,7 +120,7 @@ def test_inbound_email_does_not_change_lead_when_pending_audit_fails(monkeypatch
     monkeypatch.setattr(email_inbox, "env_bool", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(email_inbox, "get_secret", lambda _name, default=None: default)
     monkeypatch.setattr(email_inbox, "required_secret", lambda _name: "test-only")
-    monkeypatch.setattr(email_inbox, "get_supabase", lambda: DB())
+    monkeypatch.setattr(email_inbox, "get_service_supabase", lambda: DB())
     monkeypatch.setattr(email_inbox.imaplib, "IMAP4_SSL", lambda *_args: Mailbox())
     monkeypatch.setattr(email_inbox, "audit_event", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(email_inbox, "report_error", lambda *_args, **_kwargs: None)
@@ -188,7 +188,7 @@ def test_individual_lead_insert_stops_when_its_own_pending_audit_fails(tmp_path,
         audits.append(kwargs)
         return kwargs["action"] != "create_reviewed_lead"
 
-    monkeypatch.setattr(lead_gen, "get_supabase", lambda: db)
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: db)
     monkeypatch.setattr(lead_gen, "audit_event", audit)
     monkeypatch.setattr(lead_gen, "report_error", lambda *_args, **_kwargs: None)
 

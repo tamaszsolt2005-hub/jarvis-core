@@ -10,7 +10,10 @@ from safe_http import safe_get, close_response
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "dashboard.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-_NAMESPACE = {"Any": Any, "pd": pd, "safe_get": safe_get, "close_response": close_response}
+_NAMESPACE = {
+    "Any": Any, "pd": pd, "safe_get": safe_get, "close_response": close_response,
+    "_auth_session_kwargs": lambda: {},
+}
 
 
 def _load_function(name):

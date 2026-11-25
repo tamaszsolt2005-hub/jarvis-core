@@ -97,7 +97,7 @@ def _configure_run(monkeypatch, db, *, send=None, draft=None, audit=None):
     monkeypatch.setattr(follow_up, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(follow_up, "env_bool", lambda _name, default=False: True)
     monkeypatch.setattr(follow_up, "env_int", lambda _name, default, *_args: default)
-    monkeypatch.setattr(follow_up, "get_supabase", lambda: db)
+    monkeypatch.setattr(follow_up, "get_service_supabase", lambda: db)
     monkeypatch.setattr(
         follow_up, "generate_text",
         lambda _prompt: "mock follow-up body" if draft is None else draft(),
@@ -179,7 +179,7 @@ def test_pending_audit_failure_prevents_smtp_and_restores_status(monkeypatch):
 def test_follow_up_feature_gate_skips_database_access(monkeypatch, capsys):
     monkeypatch.setattr(follow_up, "EMAIL_DELIVERY_ENABLED", False)
     monkeypatch.setattr(
-        follow_up, "get_supabase",
+        follow_up, "get_service_supabase",
         lambda: pytest.fail("disabled follow-up must not initialize the database"),
     )
     follow_up._run()
