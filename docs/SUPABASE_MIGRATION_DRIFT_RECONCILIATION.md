@@ -247,3 +247,14 @@ is changed. Production Auth remains OFF.
 CI runs for this commit are pending at the time of this documentation update:
 - Push: https://github.com/tamaszsolt2005-hub/jarvis-core/actions
 - PR: https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13
+
+
+## Partial-file recovery and legacy sequence assertions (2026-11-25)
+
+Commit `1ca6e679507339f13885a86d8c56e1acc9f88170` extends the isolated PostgreSQL 17 drift fixture:
+
+- Before replaying the full audit-expansion migration, CI now commits a prefix of its DDL separately: the first three audit columns and the `logs_created_at_desc_idx` index. It then replays the complete migration twice. This exercises recovery from a partially applied migration file, not merely interruption between migration files.
+- The postconditions verify all nine audit-expansion columns and the pre-created index exist after recovery.
+- The legacy `settings.id` check now calls `nextval(pg_get_serial_sequence(...))` and asserts the generated value advances beyond the existing maximum ID. This verifies the sequence remains operational, not just attached.
+
+All of this runs in the disposable local PostgreSQL 17 CI database. It does not change or repair the live Supabase migration ledger and does not authorize production DDL. The exact Supabase CLI migration-repair semantics remain unverified unless a local CLI executable is explicitly exercised; no production repair is performed.
