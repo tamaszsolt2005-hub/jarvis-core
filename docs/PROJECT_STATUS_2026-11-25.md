@@ -34,7 +34,7 @@ Hivatkozások: [Main CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actio
 
 | # | Terület | Állapot |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Kódjavítások és CI zöld; production backup+restore igazolt. Külső SMTP szolgáltatói idempotencia és teljes audit fail-closed lefedettség még nem igazolt. |
+| 1 | Megbízhatóság és biztonság | SMTP hard-disable mainbe merge-elve; production read-only audit megismételve; provider API idempotencia/outbox és live E2E még hiányzik. |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve. Production drift friss read-only felmérése, migrációs rendezés, SQL review, deploy utáni RPC smoke és Auth/RLS validáció hátra van. |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva. Leadkutatás, scoring, proaktív monitor és javaslati alapok vannak; minőségi mérés és éles működés nincs lezárva. |
 | 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva. Task és approval építőelemek vannak; teljes lead→eredménymérés E2E folyamat és üzleti KPI-k hiányoznak. |
@@ -59,7 +59,7 @@ A legfrissebb coverage a PR #23 head commitján futó sikeres push CI-ből szár
 | Prioritás | Feladat | Állapot | Következő bizonyíték |
 |---|---|---|---|
 | P0 | Production backup és restore | **Kész** | Run #45655512387 |
-| P0 | Friss production schema + migration ledger read-only snapshot | Hátra / frissítendő | Új schema és remote ledger snapshot |
+| P0 | Friss production schema + migration ledger read-only snapshot | **Kész – 2026-11-25 17:06 UTC** | 8 tábla, RLS/grants, 5 migration ledger bejegyzés, hiányzó private schema/RPC igazolva |
 | P0 | 20261117 ledger drift rendezési terv | Hátra | A tényleges postcondition és a két verzió eredetének egyeztetése |
 | P0 | Teljes migration lánc production-shape PG17 replay + adatmegőrzés | Részben kész | Friss, teljes lánc teszt és független SQL review |
 | P0 | Audit/RBAC/idempotencia/approval production migrációs terv | Hátra | Pontos SQL review és külön production engedély |
@@ -71,21 +71,23 @@ A legfrissebb coverage a PR #23 head commitján futó sikeres push CI-ből szár
 | P2 | Alacsony coverage modulok célzott tesztjei | Hátra | Új coverage artifact és célzott tesztek |
 | P2 | Main branch protection / required checks | Ellenőrizendő | GitHub ruleset/branch protection read-only állapot |
 
-## 6. Production Supabase – ismert korábbi állapot
+## 6. Production Supabase – friss read-only audit, 2026-11-25 17:06 UTC
 
-A legutóbbi dokumentált read-only auditban:
+A közvetlen SELECT audit eredménye:
 - projekt `ACTIVE_HEALTHY`, PostgreSQL 17.11.0.019, régió `eu-west-1`;
-- remote migration ledger öt visszanyert verziót tartalmazott;
+- remote migration ledger pontosan 5 verziót tartalmaz (mind 20261119-es);
 - a két `20261117` migráció hatása látszott a sémában, de verzióik hiányoztak a ledgerből;
-- 8 public tábla RLS-e engedélyezett volt, 0 policy-t talált a lekérdezés;
+- 8 public tábla RLS-e engedélyezett, 0 policy; anon/authenticated közvetlen SELECT/INSERT/UPDATE/DELETE jog nélkül mind a 8 táblán; service_role mind a 8 táblán teljes DML joggal rendelkezik;
 - `auth.users` üres volt;
-- audit/hash-chain/RBAC/approval migrációk production alkalmazása nem volt igazolt.
+- `private` schema, `public.audit_chain_state`, `private.task_approvals`, `private.task_action_operations`, `private.execute_approved_task_action(...)` hiányzik; `tasks.operation_id` hiányzik.
+- `leads.website`: text nullable; `logs.level`: text NOT NULL default `'info'`; `auth.users` 0 sor.
+- Security Advisor: 8 INFO `rls_enabled_no_policy` finding.
 
-**Fontos:** ez a 2026-11-25-i korábbi snapshot, nem friss ellenőrzés a backup után. Production módosítás előtt újra kell kérdezni.
+**Korlát:** ez read-only megfigyelési bizonyíték. A hiányzó production objektumok létrehozása, migration ledger javítása, GRANT/REVOKE és deploy nem történt; ezek külön SQL review és explicit jóváhagyás után végezhetők.
 
 ## 7. Production tiltások és sorrend
 
-Továbbra sem történt production DDL/DML, `supabase db push`, migration repair, ledger átírás, GRANT/REVOKE, RLS policy változtatás, Auth user provisioning vagy deploy. Auth/RBAC flag OFF.
+Továbbra sem történt production DDL/DML, `supabase db push`, migration repair, ledger átírás, GRANT/REVOKE, RLS policy változtatás, Auth user provisioning vagy deploy. Auth/RBAC flag OFF. A PR #23 SMTP hard-disable mainben van, de a futó production alkalmazás frissítéséhez külön deploy kellene; ilyen deploy nem történt.
 
 Kötelező sorrend:
 1. Backup+restore – **teljesült**.
@@ -156,3 +158,6 @@ A PR #23 hard-disable-je csak a PR ágban él: a main/production SMTP állapotá
 **Következtetés:** a public Data API szerepkörök közvetlen DML hozzáférése tiltott, de a policy nélküli RLS táblák csak akkor biztonságosak, ha a grantszintű tiltás fennmarad. A service_role továbbra is közvetlen task DML joggal rendelkezik; a végleges privilege lockdown migrációt nem futtattuk. A private approval/RPC rendszer nincs productionben. Migration ledger drift nyitott; semmilyen production DDL/DML, ledger repair, GRANT/REVOKE, Auth provisioning vagy deploy nem történt.
 
 A production audit megfigyelési bizonyíték, nem a hiányzó production migrációk vagy RPC-k működési bizonyítéka. Ezek rendezése külön SQL review és explicit production jóváhagyás után történhet.
+
+
+**Main frissítés:** PR #23 squash merge `c1364e8aaf0741ba2c8ef33360799c744bf1b688`; merge utáni CI run `45661201562` a dokumentum frissítésekor még futott.
