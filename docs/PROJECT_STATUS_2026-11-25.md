@@ -219,3 +219,11 @@ A hét feladatot egy közös auditkörben ellenőriztem. Ez read-only vizsgálat
 
 A PR #26 CI `45665466795` futásában a `backup-restore-integration` job sikeres; a `test` job eredménye a dokumentum frissítésekor még futott.
 
+## További előrelépés – coverage célzás
+
+A sikeres CI coverage artifactja (run `45666323123`) összesített **90,75% line coverage**-et mutatott (3729/4109 sor). A releváns gyenge pontok:
+- `task_actions.py`: **81,4%** (136/167 sor).
+- `scripts/supabase_auth_rls_smoke.py`: **17,3%** (42/243 sor); ez élő Supabase/Auth smoke CLI, amelynek nagy része külső környezethez és credentialshez kötött, ezért nem szabad vakon unit coverage célként kezelni.
+
+A `tests/test_task_actions.py` fájlhoz további parser, payload-validáció, approval, hibás RPC-válasz és auth enforcement edge teszteket adtam hozzá. Az új PR-head CI eredménye még ellenőrzés alatt áll; a coverage javulását csak az új artifact alapján lehet kijelenteni.
+
