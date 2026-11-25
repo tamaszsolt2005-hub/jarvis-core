@@ -215,4 +215,4 @@ A provider adapter implementációja nem jelenti a küldés engedélyezését. A
 
 ## Legfrissebb CI bizonyíték – 2026-11-25
 
-A be2a1fe commit push és PR workflow-ja minden jobbal sikeres: Python/AppTest/browser tesztek 805 passed, 3 skipped, 91,19% coverage; PostgreSQL 17 migration drift, audit/approval security, privilege postcondition és encrypted backup/restore job sikeres. [Push run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692241435) · [PR run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692250485). A következő kódváltozás után új CI szükséges.
+A d83b016 commit push és PR workflow-ja minden jobbal sikeres: Python/AppTest/browser tesztek 806 passed, 3 skipped, 91,19% coverage; PostgreSQL 17 migration drift, audit/approval security, privilege postcondition és encrypted backup/restore job sikeres. [Push run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692894757) · [PR run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692878860).

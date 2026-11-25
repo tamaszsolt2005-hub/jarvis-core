@@ -267,4 +267,4 @@ A kódcommit (1cd45b89e2acb05da773aa19f8d8a884a450b11f) CI-je 805 passed, 3 skip
 A Resend idempotenciakulcsok 24 órás megőrzése korlátozza a deduplikációt. A send_unknown / followup_unknown állapot nem automatikusan újrapróbálható; kézi beavatkozás előtt provider-oldali egyeztetés kell. A secret/domain és live E2E még nyitott.
 
 
-A dokumentációs headen (be2a1fe) mind a push, mind a PR workflow zöld. A provider hard-disable külön regressziós tesztje a következő CI futásban kerül ellenőrzésre.
+A legfrissebb headen (d83b016) mind a push, mind a PR workflow minden jobja sikeres: 806 passed, 3 skipped, 91,19% line coverage; a PostgreSQL 17 backup/restore/security job is zöld. [Push CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692894757) · [PR CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692878860). A Resend provider hard-disable külön regressziós tesztje is sikeres.
