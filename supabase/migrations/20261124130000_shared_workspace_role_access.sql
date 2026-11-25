@@ -185,3 +185,14 @@ FROM anon;
 
 COMMENT ON POLICY leads_shared_read ON public.leads IS
   'Single shared workspace: admin/operator/reader can read; this is not tenant isolation.';
+
+ 
+-- Harden objects created by the Supabase-managed owner as well. The live
+-- catalog showed inherited anon/authenticated default grants for objects
+-- created by supabase_admin; fixing postgres defaults alone is insufficient.
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+  REVOKE ALL ON TABLES FROM anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+  REVOKE ALL ON SEQUENCES FROM anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+  REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated;
