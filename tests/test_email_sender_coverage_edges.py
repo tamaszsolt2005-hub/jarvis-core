@@ -144,13 +144,36 @@ def test_email_sender_smtp_failure_is_reported_and_not_marked_as_sent(monkeypatc
         audit_statuses.append(kwargs["status"])
         return True
     def fail_send(*_args):
-        raise OSError("mock SMTP failure")
+        raise email_sender.EmailDeliveryOutcomeUnknown("mock SMTP DATA outcome unknown")
     _configure(monkeypatch, db, send=fail_send, audit=audit)
     monkeypatch.setattr(email_sender, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
 
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
     assert db.rows[0]["status"] == "send_unknown"
     assert audit_statuses == ["pending", "unknown"]
+    assert isinstance(reports[0][0], OSError)
+
+
+def test_email_sender_known_preflight_failure_is_not_classified_as_delivery_unknown(monkeypatch):
+    db = _DB([_lead()])
+    reports, audit_statuses = [], []
+
+    def audit(*_args, **kwargs):
+        audit_statuses.append(kwargs["status"])
+        return True
+
+    def fail_before_smtp(*_args):
+        raise OSError("mock SMTP connection/authentication failure")
+
+    _configure(monkeypatch, db, send=fail_before_smtp, audit=audit)
+    monkeypatch.setattr(
+        email_sender, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
+    assert db.rows[0]["status"] == "send_error"
+    assert audit_statuses == ["pending", "failed"]
     assert isinstance(reports[0][0], OSError)
 
 
