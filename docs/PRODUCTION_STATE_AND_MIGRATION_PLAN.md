@@ -117,3 +117,10 @@ Egyik ellenőrzés sem változtatott production adatbázison, alkalmazáson, sec
 A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
 
 **Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
+
+
+## 2026-11-25 – alkalmazás-host felderítés
+
+A GitHub repository metadata alapján nincs homepage URL és GitHub Pages sincs engedélyezve. A repository Streamlit `dashboard.py` alkalmazást tartalmaz, de nem tartalmaz igazolt Streamlit Cloud/Railway/Render/Fly/Vercel deployment hivatkozást. A hozzáférhető Railway accountban csak a `VolleyForm` projekt (`volleyform-api` szolgáltatás, `volleyform-api-production.up.railway.app` domain) látható; ez nem JARVIS és nem szabad JARVIS production hostként kezelni. A Supabase projekt URL adatbázis/API végpont, nem alkalmazás-host.
+
+A production host/URL ezért továbbra is **ismeretlen**. A következő lépéshez a tulajdonosnak meg kell adnia a tényleges hostot vagy annak dashboard linkjét. Eddig semmilyen új deploy, domain/DNS, secrets vagy infrastruktúra-módosítás nem történt.
