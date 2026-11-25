@@ -186,3 +186,19 @@ A PR #26-ban a korábban nyitott biztonsági munka több kódbeli és tesztelés
 **Production továbbra is változatlan:** a korábbi read-only snapshot szerint a két 20261117 ledger-egyeztetés után hét történeti verzió szerepel a ledgerben; hat újabb migráció (köztük az audit/RBAC/task approval és végső privilege lock) nincs alkalmazva. Az új PR-kód/izolált teszt nem bizonyít production telepítést. A JARVIS host továbbra sincs igazolva; a hozzáférhető Railway projekt nem JARVIS. Nincs production deploy, migráció, GRANT/REVOKE, Auth flag aktiválás vagy PR merge.
 
 **Az első terület állapota:** a megbízhatósági és biztonsági kódmunka nagyrészt implementálva, de a CI végső eredménye, production RPC/app rollout, provider-oldali email idempotencia és runtime SMTP hard-disable proof még hiányzik. Ezért az 1. terület még nem zárható le, és a teljes JARVIS sem minősíthető késznek.
+
+
+## Aktuális ellenőrzött állapot – 2026-11-25, PR #26
+
+A korábbi PR #26 állapotbekezdések a friss ellenőrzés előtti pillanatképek; az alábbi állapot az irányadó.
+
+- **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), nyitott, nem merge-ölt.
+- **Ellenőrzött head:** `7c8e6970a733884f4423821cddf3731f58e5b392`.
+- **JARVIS CI:** a `test` és `backup-restore-integration` job sikeres.
+- **CodeQL:** az `Analyze Python` job és annak elemzési lépése sikeres.
+- **Függőség-audit:** a `pip-audit` sikeres a `requirements-test.txt` fájlon, amely a runtime függőségeket is behúzza.
+- **Dependabot:** heti Python- és GitHub Actions-frissítési konfiguráció bekerült a repóba.
+
+**E-mail állapot:** a kiválasztott provider Gmail SMTP (`EMAIL_PROVIDER=smtp`); a secretnevek meglétét ellenőrizték, de a credential értékek és az SMTP kapcsolat nincsenek validálva. A küldés továbbra is hard-disabled. A Resend adapter alternatívaként a kódban marad, nem az aktív küldési út.
+
+**Az öt fejlesztési terület státusza nem változik attól, hogy a CI zöld:** a megbízhatósági és biztonsági kódmunka jelentősen előrehaladt, de production RPC/app rollout, migration drift rendezés, jogosultság- és Auth/RLS-validáció, valamint a termékfolyamatok E2E bizonyítása nyitott. Production módosítás nem történt.
