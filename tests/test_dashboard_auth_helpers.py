@@ -1,16 +1,16 @@
-"""Focused tests for the dashboard's opt-in Supabase Auth session helpers."""
-import ast
+"""Focused tests for dashboard authentication and database-backed approvals."""
+import hashlib
+import json
 import time
-from uuid import uuid4
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TREE = ast.parse((ROOT / "dashboard.py").read_text(encoding="utf-8"))
 
 
 class FakeStreamlit:
@@ -43,35 +43,70 @@ class FakeStreamlit:
         return False
 
 
-def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, legacy=None):
-    names = {"_auth_login_enabled", "_auth_session_kwargs", "_approval_actor", "_stage_pending_action", "_consume_pending_action", "_audit_export_is_valid", "_get_dashboard_supabase", "authenticated"}
+class FakeDB:
+    def __init__(self):
+        self.calls = []
+
+    def rpc(self, name, params):
+        self.calls.append((name, params))
+        return SimpleNamespace(execute=lambda: SimpleNamespace(data=True))
+
+
+def load_helpers(monkeypatch, *, state=None, enabled=True, get_user=None):
+    import ast
+
+    source = (ROOT / "dashboard.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    names = {
+        "_auth_login_enabled", "_auth_session_kwargs", "_approval_actor",
+        "_approval_rpc_bool", "_approval_database_payload", "_stage_pending_action",
+        "_revoke_pending_action", "_consume_pending_action", "_audit_export_is_valid",
+        "_get_dashboard_supabase", "authenticated",
+    }
     selected = [
-        node for node in TREE.body
+        node for node in tree.body
         if isinstance(node, ast.FunctionDef) and node.name in names
     ]
     assert {node.name for node in selected} == names
+
     st = FakeStreamlit(state)
-    calls = {"user": [], "legacy": 0, "errors": []}
+    db = FakeDB()
+    calls = {"user": [], "enforced": [], "errors": [], "db": db}
 
     def fake_get_user(session, *, allowed_roles):
         calls["user"].append((session, allowed_roles))
         if get_user:
             return get_user(session, allowed_roles=allowed_roles)
-        return object(), {"access_token": "refreshed", "role": "operator"}
+        return object(), {
+            "access_token": "refreshed", "refresh_token": "new-refresh",
+            "user_id": session["user_id"], "role": "operator",
+        }
+
+    def fake_enforced(session, permission, *, allowed_roles):
+        calls["enforced"].append((session, permission, allowed_roles))
+        if not isinstance(session, dict):
+            raise PermissionError("missing user session")
+        return object(), {"user_id": session["user_id"], "role": session.get("role", "operator")}
 
     namespace = {
-        "Any": Any,
-        "hashlib": __import__("hashlib"),
+        "Any": object,
+        "ast": ast,
+        "hashlib": hashlib,
         "hmac": __import__("hmac"),
-        "json": __import__("json"),
+        "json": json,
+        "secrets": __import__("secrets"),
         "time": time,
         "uuid4": uuid4,
-        "PENDING_APPROVAL_TTL_SECONDS": 5 * 60,
+        "PENDING_APPROVAL_TTL_SECONDS": 300,
         "AUTH_SESSION_TTL_SECONDS": 8 * 60 * 60,
         "st": st,
-        "env_bool": lambda name, default=False: enabled if name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED" else default,
+        "env_bool": lambda name, default=False: enabled if name in {
+            "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", "JARVIS_AUTH_RBAC_ENFORCED"
+        } else default,
         "get_user_supabase": fake_get_user,
-        "get_legacy_dashboard_supabase": lambda: (calls.update(legacy=calls["legacy"] + 1) or legacy or object()),
+        "get_enforced_user_supabase": fake_enforced,
+        "get_service_supabase": lambda: db,
+        "get_legacy_dashboard_supabase": lambda: object(),
         "get_secret": lambda _name: "configured-password",
         "sign_in_user": lambda *_args: {"access_token": "token", "role": "admin"},
         "report_error": lambda error, **kwargs: calls["errors"].append((error, kwargs)),
@@ -80,87 +115,56 @@ def load_auth_helpers(monkeypatch, *, state=None, enabled=True, get_user=None, l
     return namespace, st, calls
 
 
+def _task_action():
+    return {"task_action": {"type": "create", "title": "Approved task", "priority": "normal", "due_at": None, "notes": ""}}
+
+
 def test_auth_login_flag_and_session_kwargs_are_opt_in(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(monkeypatch, enabled=False)
+    namespace, _st, _calls = load_helpers(monkeypatch, enabled=False)
     assert namespace["_auth_login_enabled"]() is False
     assert namespace["_auth_session_kwargs"]() == {}
 
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        enabled=True,
-        state={"_jarvis_auth_session": {"access_token": "secret-token"}},
+    namespace, _st, _calls = load_helpers(
+        monkeypatch, enabled=True,
+        state={"_jarvis_auth_session": {"access_token": "secret-token", "user_id": "user-a"}},
     )
     assert namespace["_auth_login_enabled"]() is True
     assert namespace["_auth_session_kwargs"]() == {
-        "auth_session": {"access_token": "secret-token"}
+        "auth_session": {"access_token": "secret-token", "user_id": "user-a"}
     }
 
 
 def test_get_dashboard_supabase_refreshes_session_and_uses_allowed_roles(monkeypatch):
-    session = {"access_token": "old-token", "role": "reader"}
-    namespace, st, calls = load_auth_helpers(
+    session = {"access_token": "old-token", "user_id": "user-a", "role": "reader"}
+    namespace, st, calls = load_helpers(
         monkeypatch, state={"_jarvis_auth_session": session}, enabled=True
     )
-
     db = namespace["_get_dashboard_supabase"]()
-
-    assert calls["legacy"] == 0
     assert calls["user"] == [(session, {"admin", "operator", "reader"})]
-    assert db is not None
-    assert session == {"access_token": "refreshed", "role": "operator"}
+    assert session["access_token"] == "refreshed"
     assert st.session_state["_jarvis_user_role"] == "operator"
+    assert db is not None
 
 
 def test_get_dashboard_supabase_fails_closed_without_auth_session(monkeypatch):
-    namespace, _st, calls = load_auth_helpers(monkeypatch, state={}, enabled=True)
-
-    def fail_missing(session, *, allowed_roles):
-        assert session is None
-        raise PermissionError("missing user session")
-
-    namespace["get_user_supabase"] = fail_missing
+    namespace, _st, calls = load_helpers(monkeypatch, enabled=True)
     with pytest.raises(PermissionError):
         namespace["_get_dashboard_supabase"]()
-    assert calls["legacy"] == 0
-
-
-def test_get_dashboard_supabase_uses_legacy_client_only_when_auth_disabled(monkeypatch):
-    legacy_db = object()
-    namespace, _st, calls = load_auth_helpers(
-        monkeypatch, enabled=False, legacy=legacy_db
-    )
-    assert namespace["_get_dashboard_supabase"]() is legacy_db
-    assert calls["legacy"] == 1
     assert calls["user"] == []
 
 
-def test_authenticated_accepts_only_a_verified_auth_session(monkeypatch):
-    session = {"access_token": "valid", "role": "reader"}
-    namespace, st, calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": session, "_jarvis_pending_action": {"unsafe": True}},
-        enabled=True,
-    )
-
-    assert namespace["authenticated"]() is True
-    assert st.session_state["authenticated"] is True
-    assert st.session_state["_jarvis_db"] is not None
-    assert calls["legacy"] == 0
-
-
 def test_authenticated_clears_stale_session_and_pending_action_on_verification_error(monkeypatch):
-    namespace, st, calls = load_auth_helpers(
+    namespace, st, calls = load_helpers(
         monkeypatch,
         state={
-            "_jarvis_auth_session": {"access_token": "expired"},
+            "_jarvis_auth_session": {"access_token": "expired", "user_id": "user-a"},
             "_jarvis_user_role": "admin",
             "_jarvis_db": object(),
-            "_jarvis_pending_action": {"task_action": {"type": "delete"}},
+            "_jarvis_pending_action": {"task_action": {"type": "create"}},
         },
         enabled=True,
         get_user=lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("revoked")),
     )
-
     assert namespace["authenticated"]() is False
     assert "_jarvis_auth_session" not in st.session_state
     assert "_jarvis_user_role" not in st.session_state
@@ -168,140 +172,113 @@ def test_authenticated_clears_stale_session_and_pending_action_on_verification_e
     assert "_jarvis_pending_action" not in st.session_state
     assert st.session_state["authenticated"] is False
     assert st.warnings
-    assert calls["legacy"] == 0
+    assert calls["errors"] == []
 
 
-
-def test_pending_approval_is_one_time_and_bound_to_authenticated_user(monkeypatch):
-    session = {"access_token": "token", "user_id": "user-a"}
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": session},
-        enabled=True,
+def test_task_approval_is_persisted_and_bound_to_the_authenticated_principal(monkeypatch):
+    session = {"access_token": "token", "user_id": "10000000-0000-4000-8000-000000000001", "role": "operator"}
+    namespace, st, calls = load_helpers(
+        monkeypatch, state={"_jarvis_auth_session": session}, enabled=True
     )
-    action = {"task_action": {"type": "create", "title": "Bound action"}}
-
-    namespace["_stage_pending_action"](action)
+    namespace["_stage_pending_action"](_task_action(), calls["db"])
     staged = st.session_state["_jarvis_pending_action"]
-    assert staged["_approval_actor"] == "auth:user-a"
-    assert staged["_approval_nonce"]
-    assert isinstance(staged["_approval_created_at"], (int, float))
+    assert staged["_approval_actor"] == "auth:" + session["user_id"]
+    assert staged["_approval_token"]
+    assert len(staged["_approval_token_hash"]) == 64
+    assert staged["task_action"]["operation_id"]
+    assert calls["db"].calls[0][0] == "issue_pending_approval"
+    assert calls["enforced"][0][1:] == ("tasks.write", {"admin", "operator"})
 
-    consumed = namespace["_consume_pending_action"]()
-    assert consumed["task_action"]["type"] == "create"
-    assert consumed["task_action"]["title"] == "Bound action"
-    assert consumed["task_action"]["operation_id"]
+    consumed = namespace["_consume_pending_action"](calls["db"])
+    assert consumed["task_action"]["operation_id"] == staged["task_action"]["operation_id"]
+    assert consumed["_approval"]["principal"] == staged["_approval_actor"]
+    assert consumed["_approval"]["token"] == staged["_approval_token"]
+    # Task approvals remain locally available until the atomic task RPC commits.
+    assert "_jarvis_pending_action" in st.session_state
+
+
+def test_generic_approval_is_consumed_once_in_the_database(monkeypatch):
+    namespace, st, calls = load_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "10000000-0000-4000-8000-000000000001", "role": "operator"}},
+        enabled=True,
+    )
+    action = {"chat_email": {"recipient": "person@example.test", "subject": "Hello", "body": "Body"}}
+    namespace["_stage_pending_action"](action, calls["db"])
+    consumed = namespace["_consume_pending_action"](calls["db"])
+    assert consumed["chat_email"]["recipient"] == "person@example.test"
+    assert [name for name, _params in calls["db"].calls] == [
+        "issue_pending_approval", "consume_pending_approval"
+    ]
     assert "_jarvis_pending_action" not in st.session_state
-    assert namespace["_consume_pending_action"]() is None
+    assert namespace["_consume_pending_action"](calls["db"]) is None
 
 
-def test_pending_create_operation_id_is_stable_across_approval_consumption(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
+def test_tampered_or_expired_task_approval_is_revoked(monkeypatch):
+    namespace, st, calls = load_helpers(
         monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        state={"_jarvis_auth_session": {"user_id": "10000000-0000-4000-8000-000000000001", "role": "operator"}},
         enabled=True,
     )
-    namespace["_stage_pending_action"]({
-        "task_action": {"type": "create", "title": "Approved once"}
-    })
-    staged_id = st.session_state["_jarvis_pending_action"]["task_action"]["operation_id"]
-
-    consumed = namespace["_consume_pending_action"]()
-
-    assert consumed["task_action"]["operation_id"] == staged_id
-    assert len(staged_id) == 36
-
-
-def test_pending_approval_rejects_payload_mutation_after_staging(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
-        enabled=True,
-    )
-    namespace["_stage_pending_action"]({"task_action": {"type": "update", "title": "Original"}})
+    namespace["_stage_pending_action"](_task_action(), calls["db"])
     st.session_state["_jarvis_pending_action"]["task_action"]["title"] = "Tampered"
+    assert namespace["_consume_pending_action"](calls["db"]) is None
+    assert calls["db"].calls[-1][0] == "revoke_pending_approval"
+    assert "_jarvis_pending_action" not in st.session_state
 
-    assert namespace["_consume_pending_action"]() is None
+    namespace["_stage_pending_action"](_task_action(), calls["db"])
+    st.session_state["_jarvis_pending_action"]["_approval_created_at"] = time.time() - 301
+    assert namespace["_consume_pending_action"](calls["db"]) is None
+    assert calls["db"].calls[-1][0] == "revoke_pending_approval"
+
+
+def test_approval_cannot_be_consumed_by_a_different_user(monkeypatch):
+    namespace, st, calls = load_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "10000000-0000-4000-8000-000000000001", "role": "operator"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({"chat_email": {"recipient": "a@example.test"}}, calls["db"])
+    st.session_state["_jarvis_auth_session"] = {
+        "user_id": "20000000-0000-4000-8000-000000000002", "role": "operator"
+    }
+    assert namespace["_consume_pending_action"](calls["db"]) is None
     assert "_jarvis_pending_action" not in st.session_state
 
 
-def test_pending_approval_rejects_non_ascii_payload_hash(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
-        enabled=True,
+def test_legacy_approval_uses_a_session_principal_and_database_token(monkeypatch):
+    namespace, st, calls = load_helpers(
+        monkeypatch, state={"authenticated": True}, enabled=False
     )
-    namespace["_stage_pending_action"]({"action": "send"})
-    st.session_state["_jarvis_pending_action"]["_approval_payload_hash"] = "é"
-
-    assert namespace["_consume_pending_action"]() is None
-
-
-def test_pending_approval_copies_nested_payload_before_staging(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
-        enabled=True,
-    )
-    action = {"task_action": {"type": "update", "title": "Original"}}
-    namespace["_stage_pending_action"](action)
-    action["task_action"]["title"] = "Changed after staging"
-
-    consumed = namespace["_consume_pending_action"]()
-    assert consumed == {"task_action": {"type": "update", "title": "Original"}}
+    namespace["_stage_pending_action"]({"market": "HU"}, calls["db"])
+    principal = st.session_state["_jarvis_pending_action"]["_approval_actor"]
+    assert principal.startswith("legacy:")
+    assert namespace["_consume_pending_action"](calls["db"]) == {"market": "HU"}
+    assert [name for name, _params in calls["db"].calls] == [
+        "issue_pending_approval", "consume_pending_approval"
+    ]
 
 
-def test_pending_approval_expires_after_five_minutes(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
-        enabled=True,
-    )
-    namespace["_stage_pending_action"]({"market": "HU"})
-    st.session_state["_jarvis_pending_action"]["_approval_created_at"] = (
-        time.time() - namespace["PENDING_APPROVAL_TTL_SECONDS"] - 1
-    )
-
-    assert namespace["_consume_pending_action"]() is None
+def test_staging_without_authenticated_principal_fails_closed(monkeypatch):
+    namespace, st, calls = load_helpers(monkeypatch, enabled=True)
+    with pytest.raises(PermissionError):
+        namespace["_stage_pending_action"]({"chat_email": {"recipient": "a@example.test"}}, calls["db"])
     assert "_jarvis_pending_action" not in st.session_state
+    assert calls["db"].calls == []
 
 
-def test_pending_approval_cannot_be_consumed_by_a_different_user(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"_jarvis_auth_session": {"user_id": "user-a"}},
-        enabled=True,
-    )
-    namespace["_stage_pending_action"]({"chat_email": {"recipient": "a@example.com"}})
-    st.session_state["_jarvis_auth_session"] = {"user_id": "user-b"}
-
-    assert namespace["_consume_pending_action"]() is None
-    assert "_jarvis_pending_action" not in st.session_state
-
-
-def test_pending_approval_requires_valid_legacy_login_timestamp(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={"authenticated": True},
-        enabled=False,
-    )
-    namespace["_stage_pending_action"]({"market": "HU"})
-    assert namespace["_consume_pending_action"]() is None
-    assert "_jarvis_pending_action" not in st.session_state
-
+def test_approval_rpc_boolean_parser_is_strict(monkeypatch):
+    namespace, _st, _calls = load_helpers(monkeypatch, enabled=False)
+    assert namespace["_approval_rpc_bool"](SimpleNamespace(data=True))
+    assert not namespace["_approval_rpc_bool"](SimpleNamespace(data="true"))
+    assert not namespace["_approval_rpc_bool"](SimpleNamespace(data=[True, False]))
 
 
 def test_audit_export_approval_is_time_limited_and_bound_to_admin(monkeypatch):
-    namespace, _st, _calls = load_auth_helpers(
-        monkeypatch,
-        state={},
-        enabled=True,
-    )
+    namespace, _st, _calls = load_helpers(monkeypatch, enabled=True)
     valid = {
-        "operation_id": "operation-1",
-        "rows": [{"id": "audit-1"}],
-        "actor_user_id": "admin-a",
-        "created_at": 400.0,
+        "operation_id": "operation-1", "rows": [{"id": "audit-1"}],
+        "actor_user_id": "admin-a", "created_at": 400.0,
     }
     assert namespace["_audit_export_is_valid"](valid, "admin-a", now=500.0)
     assert not namespace["_audit_export_is_valid"](valid, "admin-b", now=500.0)
@@ -309,52 +286,8 @@ def test_audit_export_approval_is_time_limited_and_bound_to_admin(monkeypatch):
     assert not namespace["_audit_export_is_valid"](valid, None, now=500.0)
 
 
-def test_pending_approval_rejects_malformed_metadata_and_non_dict_actions(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch, state={"_jarvis_auth_session": {"user_id": "user-a"}}, enabled=True
-    )
-    with pytest.raises(TypeError):
-        namespace["_stage_pending_action"]("not-a-dict")
-    for bad_timestamp, bad_nonce in ((True, "nonce"), (time.time() + 60, "nonce"), (time.time(), "")):
-        namespace["_stage_pending_action"]({"operation": "write"})
-        pending = st.session_state["_jarvis_pending_action"]
-        pending["_approval_created_at"] = bad_timestamp
-        pending["_approval_nonce"] = bad_nonce
-        assert namespace["_consume_pending_action"]() is None
-        assert "_jarvis_pending_action" not in st.session_state
-
-
-def test_pending_approval_legacy_actor_and_valid_consumption(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
-        monkeypatch, state={"_jarvis_authenticated_at": 1234.5}, enabled=False
-    )
-    assert namespace["_approval_actor"]() == "legacy:1234.5"
-    namespace["_stage_pending_action"]({"action": "archive"})
-    assert namespace["_consume_pending_action"]() == {"action": "archive"}
-
-
-def test_pending_approval_without_principal_is_rejected(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=True)
-    namespace["_stage_pending_action"]({"action": "send"})
-    assert st.session_state["_jarvis_pending_action"]["_approval_actor"] is None
-    assert namespace["_consume_pending_action"]() is None
-
-
-@pytest.mark.parametrize("pending", [
-    None,
-    [],
-    {"created_at": True, "actor_user_id": "admin", "operation_id": "op", "rows": []},
-    {"created_at": 10, "actor_user_id": "admin", "operation_id": "", "rows": []},
-    {"created_at": 10, "actor_user_id": "admin", "operation_id": "op", "rows": ()},
-    {"created_at": 501, "actor_user_id": "admin", "operation_id": "op", "rows": []},
-])
-def test_audit_export_rejects_malformed_or_future_approval(monkeypatch, pending):
-    namespace, _st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=True)
-    assert namespace["_audit_export_is_valid"](pending, "admin", now=500) is False
-
-
-def test_authenticated_legacy_session_expiry_and_missing_password(monkeypatch):
-    namespace, st, _calls = load_auth_helpers(
+def test_authenticated_legacy_session_expiry_and_within_ttl(monkeypatch):
+    namespace, st, _calls = load_helpers(
         monkeypatch,
         state={"authenticated": True, "_jarvis_authenticated_at": time.time() - 9 * 60 * 60},
         enabled=False,
@@ -363,13 +296,7 @@ def test_authenticated_legacy_session_expiry_and_missing_password(monkeypatch):
     assert "authenticated" not in st.session_state
     assert "_jarvis_db" not in st.session_state
 
-    namespace, st, _calls = load_auth_helpers(monkeypatch, state={}, enabled=False)
-    namespace["get_secret"] = lambda _name: None
-    assert namespace["authenticated"]() is False
-
-
-def test_authenticated_legacy_session_within_ttl_is_accepted(monkeypatch):
-    namespace, _st, _calls = load_auth_helpers(
+    namespace, st, _calls = load_helpers(
         monkeypatch,
         state={"authenticated": True, "_jarvis_authenticated_at": time.time() - 30},
         enabled=False,

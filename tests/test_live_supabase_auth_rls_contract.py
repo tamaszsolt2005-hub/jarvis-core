@@ -47,3 +47,34 @@ def test_live_auth_workflow_requires_isolated_environment_and_secret_key():
     assert "environment: supabase-integration" in workflow
     assert "JARVIS_TEST_SUPABASE_SERVICE_ROLE_KEY" in workflow
     assert "JARVIS_TEST_SUPABASE_PROJECT_REF" in workflow
+
+
+
+def test_live_smoke_uses_the_policy_designated_market_key_and_cleans_fixtures():
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "supabase_auth_rls_smoke.py").read_text()
+    assert 'market_key = "lead_research_market"' in source
+    assert 'market_key = marker + "_market"' not in source
+    assert "def _cleanup(" in source
+    assert "finally:" in source
+    assert "self._cleanup(lead_name, secret_key, market_created)" in source
+    assert "/auth/v1/admin/users/" in source
+    assert "/rest/v1/leads?company_name=eq." in source
+
+
+def test_live_smoke_exercises_database_backed_approval_rpcs_and_role_denial():
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "supabase_auth_rls_smoke.py").read_text()
+    assert '"rpc/issue_pending_approval"' in source
+    assert '"rpc/consume_pending_approval"' in source
+    assert '"Operator direct approval issuance denial"' in source
+    assert '"Server-only approval issuance"' in source
+    assert '"Reader task approval denial"' in source
+    assert 'prefer="return=representation"' in source
+    workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "supabase-auth-rls-live.yml").read_text()
+    assert "cancel-in-progress: false" in workflow
+
+
+def test_live_smoke_cleanup_preserves_existing_market_setting_and_only_removes_test_owned_rows():
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "supabase_auth_rls_smoke.py").read_text()
+    assert "market_created = not (isinstance(existing_market, list) and existing_market)" in source
+    assert "if market_created:" in source
+    assert 'quote(secret_key, safe="")' in source

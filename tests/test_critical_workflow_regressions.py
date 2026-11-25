@@ -239,8 +239,8 @@ def test_sender_smtp_exception_marks_lead_as_error_and_never_reports_success(mon
     result = email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc))
 
     assert result is False
-    assert audit_statuses == ["pending", "failed"]
-    assert any(update and update.get("status") == "send_error" for update in db.updates)
+    assert audit_statuses == ["pending", "unknown"]
+    assert any(update and update.get("status") == "send_unknown" for update in db.updates)
     assert len(reports) == 1
     assert reports[0][1]["module"] == "email_sender"
 

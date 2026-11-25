@@ -30,9 +30,15 @@ FROM PUBLIC, anon, authenticated;
 -- The authenticated role receives only the operations that RLS further
 -- constrains. Reader writes are rejected by policies, not by UI convention.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
-  public.leads, public.tasks, public.email_drafts, public.jarvis_memory,
+  public.leads, public.email_drafts, public.jarvis_memory,
   public.posts, public.settings
 TO authenticated;
+
+-- Task mutations are exclusively performed by the atomic approval RPC.
+-- Authenticated users may read tasks, but cannot bypass the one-use approval
+-- by calling PostgREST table INSERT/UPDATE/DELETE directly.
+REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.tasks TO authenticated, service_role;
 
 GRANT SELECT ON TABLE public.logs, public.audit_chain_state TO authenticated;
 
@@ -120,7 +126,7 @@ CREATE OR REPLACE FUNCTION public.set_logs_audit_hash_chain()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public, extensions
+SET search_path = pg_catalog
 AS $rbac$
 DECLARE
   prior_hash text;
