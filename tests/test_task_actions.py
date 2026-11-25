@@ -303,3 +303,24 @@ def test_execution_uses_enforced_client_when_auth_helper_returns_client(monkeypa
     assert legacy_db.calls == []
     assert len(enforced_db.calls) == 1
 
+
+
+@pytest.mark.parametrize("command", [
+    "Új feladat: Teszt;; prioritás=high",
+    "Új feladat: Teszt; ; prioritás=high",
+    "Új feladat: Teszt; prioritás=normal; prioritas=urgent",
+    "Új feladat: Teszt; cím=Másik; cim=Harmadik",
+])
+def test_create_parser_rejects_empty_segments_and_duplicate_fields(command):
+    parsed = task_actions.parse_task_command(command)
+    assert "error" in parsed
+
+
+@pytest.mark.parametrize("command", [
+    f"Módosítsd a feladatot: {TASK_ID}; prioritás=high;; cím=Teszt",
+    f"Módosítsd a feladatot: {TASK_ID}; prioritás=normal; prioritas=urgent",
+    f"Módosítsd a feladatot: {TASK_ID}; cím=Első; cim=Második",
+])
+def test_update_parser_rejects_empty_segments_and_duplicate_fields(command):
+    parsed = task_actions.parse_task_command(command)
+    assert "error" in parsed
