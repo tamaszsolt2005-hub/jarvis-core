@@ -11,7 +11,15 @@ from jarvis_errors import report_error
 
 # Deliberately not environment-controlled: enabling SMTP requires a reviewed code change.
 EMAIL_DELIVERY_ENABLED = False
-_EMAIL_ADDRESS_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
+_EMAIL_ADDRESS_RE = re.compile(r"^[^\\s@,;<>]+@[^\\s@,;<>]+\\.[^\\s@,;<>]+$")
+
+
+class EmailDeliveryOutcomeUnknown(RuntimeError):
+    """SMTP may have accepted the message, but the client did not receive confirmation.
+
+    Callers must not automatically retry this outcome because doing so could send
+    a duplicate message. Failures before send_message remain known non-deliveries.
+    """
 
 
 def send_email(
@@ -36,8 +44,8 @@ def send_email(
     if (
         not isinstance(subject, str)
         or not subject.strip()
-        or "\r" in subject
-        or "\n" in subject
+        or "\\r" in subject
+        or "\\n" in subject
         or len(subject) > 200
     ):
         raise ValueError("Érvénytelen e-mail tárgy.")
@@ -49,7 +57,7 @@ def send_email(
     if not _EMAIL_ADDRESS_RE.fullmatch(sender):
         raise ValueError("Az EMAIL_USER nem érvényes e-mail-cím.")
     from_name = get_secret("EMAIL_FROM_NAME", "JARVIS") or "JARVIS"
-    if "\r" in from_name or "\n" in from_name:
+    if "\\r" in from_name or "\\n" in from_name:
         raise ValueError("Érvénytelen feladó név.")
     host = get_secret("SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com"
     port = int(get_secret("SMTP_PORT", "587") or "587")
@@ -69,7 +77,13 @@ def send_email(
             server.starttls()
             server.ehlo()
             server.login(sender, password)
-            server.send_message(message)
+            try:
+                server.send_message(message)
+            except Exception as exc:
+                # The server may have accepted DATA before the connection failed.
+                raise EmailDeliveryOutcomeUnknown(
+                    "Az SMTP-kézbesítés kimenetele bizonytalan; automatikus újraküldés tilos."
+                ) from exc
     except Exception as exc:
         report_error(
             exc, module="email_utils", operation="smtp_delivery",
