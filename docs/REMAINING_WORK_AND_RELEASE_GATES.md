@@ -216,3 +216,32 @@ A provider adapter implementációja nem jelenti a küldés engedélyezését. A
 ## Legfrissebb CI bizonyíték – 2026-11-25
 
 A d83b016 commit push és PR workflow-ja minden jobbal sikeres: Python/AppTest/browser tesztek 806 passed, 3 skipped, 91,19% coverage; PostgreSQL 17 migration drift, audit/approval security, privilege postcondition és encrypted backup/restore job sikeres. [Push run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692894757) · [PR run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692878860).
+
+
+## Állapotkorrekció – PR #26 aktuális head, 2026-11-25
+
+Ez a friss szakasz felülírja a dokumentum korábbi PR #26 CI-pillanatképeit és a Resendet aktív providerként megjelölő elavult checklistet.
+
+**Aktuális PR-bizonyíték**
+- PR #26: [nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26).
+- Head: `7c8e6970a733884f4423821cddf3731f58e5b392`.
+- JARVIS CI [45697839295](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839295): `test` + `backup-restore-integration` sikeres.
+- CodeQL [45697839266](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839266): Python Analyze sikeres.
+- pip-audit [45697839307](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839307): sikeres a `requirements-test.txt` (runtime + test) csomaglistán.
+- Dependabot heti Python és GitHub Actions update konfiguráció bekerült.
+
+**E-mail provider helyesbítése**
+- Aktív konfigurációs választás: Gmail SMTP, `EMAIL_PROVIDER=smtp`, `smtp.gmail.com:587` STARTTLS.
+- A GitHub workflow `EMAIL_USER` és `EMAIL_PASSWORD` secretet használ; a secretnevek meglétét ellenőrizték, de a titkos értékek és a tényleges SMTP kapcsolat nem validált.
+- A Resend adapter kódban marad alternatíva; nem aktív provider. A korábbi Resend secret/domain/live E2E checklist nem alkalmazandó a jelenlegi Gmail SMTP választásra.
+- Kimenő küldés továbbra is tiltott: `EMAIL_DELIVERY_ENABLED = False`, outbound workflow step `if: false`. Nincs SMTP kapcsolatpróba vagy live küldés.
+
+**Továbbra is nyitott release gate-ek**
+- Production app host/URL azonosítása és runtime ellenőrzés.
+- Friss, read-only Supabase schema + migration ledger snapshot; a korábbi dokumentált snapshot nem tekinthető frissnek.
+- Migration drift reconciliation, teljes PostgreSQL 17 replay és független SQL review.
+- Production audit/approval/RPC objektumok és RPC app path deployja külön jóváhagyás után; utána service_role task DML lockdown.
+- Auth/JWT/RLS smoke és production release/rollback bizonyíték.
+- CodeQL/Dependabot egyedi riasztáslisták áttekintése külön Security áttekintésben; a sikeres workflow nem egyenlő a riasztásmentesség bizonyításával.
+
+**Biztonsági határ:** production DB/app változtatás, secrets módosítása, Auth/RBAC aktiválás, GRANT/REVOKE, SMTP-küldés és PR merge továbbra sem történt; ezekhez külön, konkrét jóváhagyás kell.
