@@ -122,3 +122,38 @@ Skála: **1 = könnyű, 10 = nagyon nehéz**; becslés, nem időígéret. Az **5
 
 **Közös, 5/10 alatti munkacsomag:** host/URL felderítés, SMTP kódbeli és workflow ellenőrzés (deploy külön jóváhagyással), SQL review előkészítő ellenőrzőlista, backup scope felmérés, branch protection audit és indokolt célzott coverage. A migrációs replay, DB security és provider-integráció nem kerül ebbe az összevont csomagba, mert nagyobb kockázatú és függőségei vannak.
 
+## Frissített állapot a 2026-11-25-i összevont alacsony-nehezségű audit után
+
+A 7 feladatból több csak részben zárható le: a kódszintű ellenőrzés és izolált teszt nem helyettesíti a production deployt vagy a production jogosultságváltozást.
+
+### Lezárt ellenőrzések
+- [x] SMTP hard-disable kódbeli és workflow-szintű ellenőrzése: konstans `False`, korai fail-closed guard, outbound workflow step letiltva.
+- [x] Service-role task jogosultsági teszt izolált PostgreSQL 17 + pgTAP CI-ben: sikeres.
+- [x] RLS/grant read-only felülvizsgálat: 8/8 public tábla RLS-enabled; 0 policy; service_role DML true; anon/authenticated DML tiltás igazolt.
+- [x] Ismert build/secret/health-check adatok dokumentálása: Python 3.11, Streamlit indítóparancs, health self-diagnostics és secretnevek (értékek nélkül).
+- [x] GitHub main branch protection audit: `protected=false`, required checks enforcement `off`, repository rulesets nincs.
+
+### Továbbra is nyitott feladatok
+- [ ] A valódi JARVIS production host/URL azonosítása; hosthoz kötött környezeti konfiguráció és futó példány ellenőrzése.
+- [ ] SMTP hard-disable deploy a tényleges production appba és runtime bizonyíték.
+- [ ] Független SQL review, migrációs pre/post-checkek és rollback/recovery terv jóváhagyása.
+- [ ] Két 20261117 migration-ledger eltérés reconciliation terve és jóváhagyása.
+- [ ] Teljes production-shape PostgreSQL 17 migration replay, adatmegőrzés és migrációs postconditionök.
+- [ ] Productionben hiányzó private schema, audit/hash-chain, approval/operation táblák és RPC-k migrációs csomagjának véglegesítése.
+- [ ] Audit fail-closed útvonal-leltár és minden érzékeny művelet negatív tesztje.
+- [ ] Task RPC write path alkalmazás deployja és smoke tesztje; csak utána külön jóváhagyott service_role task DML lockdown.
+- [ ] Lockdown után production negatív direct-DML és pozitív RPC teszt; jelenleg productionben service_role DML még engedélyezett.
+- [ ] Live Auth/JWT/session/RLS/role smoke engedélyezett izolált Supabase környezetben.
+- [ ] Production migrációk szakaszos alkalmazása külön konkrét jóváhagyás után.
+- [ ] Production app deploy, health check, DB/RPC/task/approval/audit smoke és rollback ellenőrzés.
+- [ ] Storage/Auth/Realtime/platform backup scope tisztázása a már sikeres PostgreSQL backup/restore mellett.
+- [ ] Main branch protection és required checks beállítása, majd újraellenőrzése.
+- [ ] Külső e-mail provider kiválasztása és idempotens API-integráció E2E tesztekkel; SMTP maradjon hard-disabled.
+- [ ] Proaktív lead/üzleti monitor forrás-, minőség-, bizonytalanság- és duplikációmérése.
+- [ ] Leadkutatás→minősítés→stratégia→task→approval→utánkövetés→eredménymérés E2E workflow.
+- [ ] Forrásolt, jogosultságkezelt memória: frissesség, bizonytalanság, retention/deletion és tény/következtetés elkülönítése.
+- [ ] Jóváhagyás nélküli külső/üzleti hatású végrehajtás kizárásának negatív tesztjei.
+- [ ] Kockázat alapján célzott coverage javítás.
+
+A hét feladat közül az URL felderítése továbbra sem sikerült, az SMTP csak kódszinten igazolt, a SQL review elő van készítve, a service-role teszt csak izolált CI-ben zöld, a branch protection audit eredménye pedig azt mutatja, hogy a main jelenleg nincs védve.
+
