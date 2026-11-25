@@ -52,11 +52,11 @@ Források:
 
 ## Gmail SMTP ellenőrzési lista (küldés továbbra is tiltva)
 
-- [ ] Ellenőrizni a GitHub Actions repository secret-ek meglétét: `EMAIL_USER` és `EMAIL_PASSWORD`. A secret értékei nem olvashatók ki; csak a repo tulajdonosa tudja ellenőrizni vagy beállítani őket.
+- [x] A GitHub Actions repository `EMAIL_USER` és `EMAIL_PASSWORD` secretneveinek meglétét a repo tulajdonosa ellenőrizte. Ez nem igazolja a secretértékek helyességét vagy a Gmail SMTP-kapcsolat működését.
 - [ ] A `EMAIL_USER` a JARVIS-ban használt Gmail-cím legyen.
 - [ ] Ha a Google-fiók megköveteli, külön Google App Password legyen létrehozva, és annak értéke kerüljön az `EMAIL_PASSWORD` secretbe. Ne használd a normál Google-fiók jelszavát, és ne oszd meg a titkot chatben.
 - [ ] Inbound IMAP-hoz ellenőrizni az `IMAP_HOST`, `IMAP_PORT` és `EMAIL_INBOX_MONITOR_ENABLED` beállításokat; ez a küldéstől független.
 - [ ] Külön, jóváhagyott tesztkörnyezetben ellenőrizni a Gmail SMTP hitelesítést és a küldés eredményét, mielőtt bármilyen éles küldési kapcsoló feloldására sor kerülne.
 - [ ] Külön security review és konkrét jóváhagyás szükséges a kódbeli hard-disable, majd külön az outbound workflow step feloldásához.
 
-A jelenlegi módosítás csak a workflow provider-választását és a dokumentációt igazítja Gmail SMTP-re. Nem engedélyez küldést, nem módosít secretet, nem deployol, és nem végez Supabase migrációt vagy jogosultságváltoztatást.
+A workflow provider-választása és a dokumentáció Gmail SMTP-re van igazítva. A secretnevek megléte ellenőrzött, de a titkos értékeket nem olvastuk ki, nem módosítottuk, és SMTP-kapcsolatpróba/live küldés nem történt. A `EMAIL_DELIVERY_ENABLED = False` hard-disable és az outbound workflow `if: false` feltétel változatlan. Nem történt deploy, Supabase migráció vagy jogosultságváltoztatás.
