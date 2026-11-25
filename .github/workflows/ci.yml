@@ -461,6 +461,27 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_email_uniqueness.test.sql
+          # Prove duplicate legacy rows stop the migration without modifying data.
+          preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
+          PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
+          PGPASSWORD=postgres psql "$preflight_url" --set ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.leads (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            company_name text NOT NULL,
+            email text
+          );
+          INSERT INTO public.leads (company_name, email) VALUES
+            ('legacy duplicate one', 'same@example.invalid'),
+            ('legacy duplicate two', ' SAME@example.invalid ');
+          SQL
+          if PGPASSWORD=postgres psql "$preflight_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql; then
+            echo "Duplicate legacy emails unexpectedly passed migration preflight."
+            exit 1
+          fi
+          remaining="$(PGPASSWORD=postgres psql "$preflight_url" --no-psqlrc --tuples-only --no-align --command "SELECT count(*) FROM public.leads")"
+          test "$remaining" = "2"
+          index_count="$(PGPASSWORD=postgres psql "$preflight_url" --no-psqlrc --tuples-only --no-align --command "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='leads' AND indexname='leads_email_normalized_uidx'")"
+          test "$index_count" = "0"
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |
