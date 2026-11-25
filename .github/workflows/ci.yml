@@ -457,6 +457,10 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_audit_fail_closed.sql
           # Verify approval replay returns the stored result and revoke blocks execution.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_replay_revoke.test.sql
+          # Add normalized email uniqueness only after a locked, non-destructive duplicate preflight.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_email_uniqueness.test.sql
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |
