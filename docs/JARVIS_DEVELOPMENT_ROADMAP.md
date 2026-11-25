@@ -112,3 +112,10 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 
 
 **Kimenő e-mail biztonsági állapot:** a PR #23 kódszintű `EMAIL_DELIVERY_ENABLED = False` tiltást vezet be, amely a runtime környezeti kapcsolóktól független. A scheduled outbound küldési lépés le van tiltva; a bejövő IMAP monitor külön marad. A kimenő e-mail csak külön biztonsági felülvizsgálat, provider idempotencia-igazolás és E2E teszt után engedélyezhető újra.
+
+
+## Megbízhatóság és biztonság – 2026-11-25 frissítés
+
+- SMTP hard-disable mainbe integrálva PR #23 squash merge-dzsel (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`). Production deploy nem történt.
+- Production read-only audit: 8/8 public tábla RLS enabled, 0 policy; anon/authenticated DML tiltva; service_role teljes DML engedélyezett. Private schema/task approval RPC hiányzik; ledger csak 5 20261119-es migrációt tartalmaz.
+- Külső e-mail idempotencia továbbra sincs. SMTP nem hordoz natív idempotency key-t; ehhez API provider, stabil event-key és változatlan request body szükséges. Resend dokumentáltan támogat `Idempotency-Key` fejlécet azonos payload mellett 24 órán keresztül; a provider kiválasztása és hitelesítő adat/domain beállítása még hiányzik.
