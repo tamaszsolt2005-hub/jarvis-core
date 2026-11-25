@@ -1,6 +1,6 @@
 # Production állapot és migrációs terv
 
-**Állapot dátuma:** 2026-11-25. A séma/ledger tényállás az utolsó dokumentált read-only auditból származik; a production backup/restore ezt követően sikeresen lefutott, production séma módosítás nélkül.
+**Állapot dátuma:** 2026-11-25. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
 **Production adatbázis:** Supabase PostgreSQL 17, project ref: `kiutreccucbegskxowek`.
 
 ## 1. Rövid állapot
@@ -80,3 +80,22 @@ A sikeres logikai dump sem teljes Supabase platform-mentés: nem tekinthető a S
 - új Supabase projekt vagy branch létrehozása.
 
 A sikeres backup nem oldja meg a migration driftet, és nem engedélyez production DDL-t. A részletes release-engedélyezési feltételek a [release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak.
+
+
+## 7. Friss production read-only snapshot – 2026-11-25, PR #21 után
+
+A PR #21 merge után ismételt, read-only Supabase audit pontosította a korábbi megfigyeléseket:
+
+- A productionben csak a `public` schema létezik a vizsgált alkalmazási sémák közül; a `private` schema **nem létezik**.
+- A nyolc public tábla mindegyikén RLS enabled, de a policy-k száma nulla.
+- A remote migration ledger továbbra is öt verzió: `20261119191911`, `20261119192040`, `20261119192145`, `20261119192412`, `20261119192559`.
+- A `leads.website` és `logs.level` oszlopok jelen vannak, de a `20261117090000` és `20261117100000` ledger-bejegyzések hiányoznak. A `20261119192040` migráció nem tartalmazza ezek létrehozását.
+- A `logs` csak legacy mezőket tartalmaz; strukturált audit- és hash-chain mezők nincsenek. A `tasks.operation_id`, `public.audit_chain_state`, a private approval táblák és a kapcsolódó RPC-k hiányoznak.
+- `anon` és `authenticated` közvetlen DML-jogosultságai vissza vannak vonva; a `service_role` teljes táblajogosultság-készlettel rendelkezik legalább a `tasks` és `logs` táblákon.
+- Security Advisor: 8 INFO RLS-policy jelzés; Performance Advisor: 7 INFO unused-index jelzés; Health Advisor: nincs találat.
+
+A CI #45656372633 és #45656331519 sikeresen futtatta a 20261117 drift fixture, az audit/RBAC pgTAP, katalógus-postcondition és backup–restore ellenőrzéseket. Ez izolált PG17 teszt, nem production ledger repair vagy migráció.
+
+**Következmény:** a repositoryban előkészített audit/approval/task RPC migrációs lánc productionben nincs telepítve. Az alkalmazás RPC útvonala és az éles auditírás ezért még nem tekinthető productionben igazoltnak. A `20261125170000_enforce_atomic_task_write_privileges.sql` csak RPC-alapú app deploy és sikeres smoke teszt után alkalmazható.
+
+Az audit nem módosította a production adatbázist. Ne futtass `supabase db push`-t, `migration repair`-t, DDL/DML-t vagy GRANT/REVOKE műveletet a drift független egyeztetése és külön jóváhagyás nélkül.

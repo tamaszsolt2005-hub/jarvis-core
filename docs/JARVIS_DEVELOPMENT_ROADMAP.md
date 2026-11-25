@@ -73,7 +73,7 @@ Cél: olyan tartós üzleti tudásréteg kialakítása, amely összekapcsolja a 
 
 ## Haladáskövetés
 
-**Frissítve:** 2026-11-25, `main` commit `2e2a97e`. A PR #20 javította az S3 ellenőrző Python-blokk behúzását. A main CI (`45655131500`) sikeres. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+**Frissítve:** 2026-11-25, `main` commit `71d6a1c` (PR #21 merge). A PR #20 javította az S3 ellenőrző Python-blokk behúzását. A main CI (`45655131500`) sikeres. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
 
 
 
@@ -81,7 +81,7 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 
 | Sorrend | Terület | Státusz |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Kód és CI kész; friss production backup+restore sikeres. Külső SMTP-idempotencia és teljes audit fail-closed bizonyítás még hátra van |
+| 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – proaktív monitor/lead és javaslati modulok vannak; minőségi és production bizonyíték hiányzik |
 | 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva – task/approval alapok megvannak; teljes E2E folyamat és üzleti mérés hátra van |
@@ -104,3 +104,8 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 - [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md)
 - [Fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md)
 - [Production/release kapuk](REMAINING_WORK_AND_RELEASE_GATES.md)
+
+
+**Friss audit – 2026-11-25, PR #21 után:** PR #21 merge commit `71d6a1c`; mindkét PR workflow minden jobja zöld. A production read-only snapshot továbbra is 5 ledger verziót, hiányzó 20261117 ledger-bejegyzéseket, nem létező `private` sémát, 8 policy nélküli RLS-es public táblát, legacy `logs` sémát, hiányzó `tasks.operation_id` mezőt és hiányzó audit/approval RPC objektumokat mutat. A CI izolált PostgreSQL 17-en ellenőrzi a migrációs láncot, de nem változtatja meg a production állapotot.
+
+**Terület 1 – Megbízhatóság és biztonság friss minősítése:** a kódbeli approval/idempotencia, audit fail-closed és SMTP unknown-state megoldások regressziós/CI tesztekkel alátámasztottak; a production backup+restore sikeres. A terület még nem zárható le: production audit/approval RPC-k nincsenek telepítve, a production structured audit mezők hiányoznak, az SMTP-küldés környezeti kapcsolókkal aktiválható és a provider oldali idempotencia nincs bizonyítva. E-mailküldés maradjon tiltva a külön validációig.

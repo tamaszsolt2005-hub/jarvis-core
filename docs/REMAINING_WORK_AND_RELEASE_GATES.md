@@ -6,7 +6,7 @@ Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás va
 
 **Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
-A `main` aktuális commitja `2e2a97e182687c9b9d018da99b87095b75a21054` (PR #20 squash merge). A main CI `45655131500` sikeres. Ez kódintegráció, nem production release.
+A `main` aktuális commitja `71d6a1cdc755607a9598bf9b2c19c50730f5e036` (PR #21 squash merge). A PR #21 két workflow minden jobja sikeres. Ez kódintegráció, nem production release.
 
 ## Kötelező kapuk
 
@@ -47,3 +47,15 @@ A `main` aktuális commitja `2e2a97e182687c9b9d018da99b87095b75a21054` (PR #20 s
 - Új Supabase projekt vagy branch létrehozása.
 
 A backup sikeres, de ez nem jelenti a Supabase migration drift vagy az élesítés lezárását. A production állapot részletes, időponthoz kötött tényállása: [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).
+
+
+## Friss audit és CI állapot – 2026-11-25
+
+- PR #21 squash merge-elve: main commit `71d6a1cdc755607a9598bf9b2c19c50730f5e036`.
+- Mindkét PR #21 workflow minden jobja sikeres: [45656372633](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656372633), [45656331519](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656331519).
+- A production read-only audit szerint a `private` schema, a structured logs mezők, a `tasks.operation_id`, az audit-chain state, a private approval táblák és a task/approval RPC-k hiányoznak. Nyolc public tábla RLS-enabled, de policy nélküli; a remote ledger 5 migrációt tartalmaz, a két 20261117 verzió hiányzik.
+- A két 20261117 migráció sémabeli hatása látható (`leads.website`, `logs.level`), de a ledger eltérése nincs rendezve. A CI fixture ezt modellezi és teszteli, nem javítja a production ledgert.
+- Az e-mailküldés környezeti kapcsolókkal vezérelt, nem feltétel nélkül hard-disabled. A GitHub secret állapot ismeretlen; SMTP provider idempotencia/live E2E bizonyíték nincs.
+- A production DDL/DML, migration repair, grants, RLS, Auth provisioning és deploy továbbra is tiltott külön jóváhagyás nélkül.
+
+A release gate-ek **nem teljesültek** pusztán attól, hogy a PR CI zöld: előbb drift-egyeztetés, teljes PG17 replay, SQL review, külön production jóváhagyás, majd deploy és RPC smoke szükséges.

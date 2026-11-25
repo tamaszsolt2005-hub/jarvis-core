@@ -2,7 +2,7 @@
 
 **Állapotfelvétel:** 2026-11-25 (frissítve a PR #20 merge és backup/restore után)  
 **Repository:** `tamaszsolt2005-hub/jarvis-core`  
-**Main:** `2e2a97e182687c9b9d018da99b87095b75a21054`  
+**Main:** `71d6a1cdc755607a9598bf9b2c19c50730f5e036` (PR #21 squash merge)  
 **Production Supabase:** `kiutreccucbegskxowek` (PostgreSQL 17.11)
 
 > Ez a jelentés külön kezeli a kódbeli implementációt, CI-t, production backupot, production sémamódosítást és deployt. A sikeres backup/restore nem jelent production migrációt vagy deployt.
@@ -94,3 +94,27 @@ Kötelező sorrend:
 6. Csak utána a végső service-role task DML lockdown.
 7. Auth/RBAC bekapcsolás külön döntéssel.
 
+
+
+## 8. Frissített ellenőrzési eredmények – 2026-11-25, PR #21 után
+
+**Main:** PR #21 squash merge-elve; aktuális commit: `71d6a1cdc755607a9598bf9b2c19c50730f5e036`. A PR #21 mindkét workflow-futásában mindkét job sikeres: [run 45656372633](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656372633) és [run 45656331519](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656331519). A backup/restore job a 20261117 drift fixture-t, az audit/RBAC pgTAP- és katalógus-ellenőrzéseket, valamint a titkosított backup–restore kört is lefuttatta. Ezek izolált PostgreSQL 17 tesztek, nem production migrációk.
+
+**Production read-only snapshot (2026-11-25, 16:44 UTC körüli lekérdezések):**
+- A projekt elérhető; a public sémában 8 tábla található, mindegyiknél RLS enabled, de 0 RLS policy.
+- A `private` séma nem létezik (nem pusztán üres).
+- A remote migration ledger továbbra is pontosan 5 verziót tartalmaz: `20261119191911`, `20261119192040`, `20261119192145`, `20261119192412`, `20261119192559`.
+- A `leads.website` és `logs.level` oszlop létezik, de a két `20261117` migráció verziója nincs a ledgerben. A `20261119192040_complete_jarvis_runtime_schema.sql` nem hozza létre ezeket az oszlopokat.
+- A `public.logs` továbbra is legacy oszlopkészletű (`id`, `module`, `message`, `created_at`, `level`); hiányoznak a strukturált auditmezők és a hash-chain mezők.
+- A `public.tasks.operation_id` hiányzik; a `public.audit_chain_state` tábla nincs jelen.
+- A `private.task_approvals`, `private.task_action_operations` táblák és az approval/task RPC-k productionben nem találhatók.
+- A közvetlen `anon` és `authenticated` DML-jogok a public táblákon vissza vannak vonva; a `service_role` a `tasks` és `logs` táblákon teljes DML/DDL-jellegű táblajogokat tartalmazó grantkészlettel rendelkezik (SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER).
+- Security Advisor: 8 INFO jelzés, mind RLS policy nélküli táblákra. Performance Advisor: 7 használatlan indexre vonatkozó INFO jelzés. Health Advisor: nincs találat.
+
+**Kód- és működési következtetések:**
+- A `task_actions.py` egyetlen `execute_approved_task_action` RPC-t hív; mivel ez a RPC productionben hiányzik, a kód jelenlegi production adatbázissal nem tekinthető élesben működőképesnek. A végső `20261125170000` service-role task DML-lockdown migráció továbbra is blokkolt.
+- Az `audit_event` strukturált mezőket ír a `logs` táblába, és hiba esetén `False`-t ad. A jelenlegi production oszlopkészlet ezeket nem tartalmazza, ezért az auditot előfeltételként használó érzékeny műveleteknek fail-closed módon meg kell állniuk; az éles RPC/audit működés ettől még nincs bizonyítva.
+- Az e-mailküldés nem hard-coded tiltás: az `EMAIL_DELIVERY_ENABLED` és chatből a `CHAT_EMAIL_ENABLED` kapcsolók, illetve a scheduled e-mail workflow konfigurációja szabályozza. A GitHub secret értékeihez nem történt és nem is történt hozzáférés. A `send_unknown` állapot és az automatikus retry tiltása kódban tesztelt; a külső SMTP-szolgáltató idempotenciája és a live end-to-end küldés nem igazolt. A roadmapben az e-mailküldés maradjon tiltva, amíg ezeket külön nem validáltuk.
+- A fail-closed audit és SMTP-állapotkezelés regressziós tesztjei léteznek, de ezek izolált unit/CI tesztek; nem helyettesítik a production schema és a külső szolgáltató validálását.
+
+**Változtatási határ:** az audit során nem történt production DDL/DML, migration repair, GRANT/REVOKE, RLS-módosítás, Auth provisioning vagy deploy. A következő lépés kizárólag drift-egyeztetés, SQL review és production-shape migrációs replay; éles módosítás külön jóváhagyás nélkül továbbra sem végezhető.
