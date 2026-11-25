@@ -1,4 +1,4 @@
-"""SMTP delivery helper with a disabled-by-default safety gate."""
+"""SMTP delivery helper. Outbound delivery is hard-disabled pending security review."""
 from __future__ import annotations
 
 import smtplib
@@ -6,11 +6,11 @@ import re
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from jarvis_common import env_bool, get_secret, required_secret, get_enforced_user_supabase
+from jarvis_common import get_secret, required_secret, get_enforced_user_supabase
 from jarvis_errors import report_error
 
-# Must be explicitly enabled in the server-side environment/secrets.
-EMAIL_DELIVERY_ENABLED = env_bool("EMAIL_DELIVERY_ENABLED", False)
+# Deliberately not environment-controlled: enabling SMTP requires a reviewed code change.
+EMAIL_DELIVERY_ENABLED = False
 _EMAIL_ADDRESS_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
 
 
@@ -18,13 +18,15 @@ def send_email(
     recipient: str, subject: str, body: str, *,
     auth_session: dict[str, str] | None = None, approved: bool = False,
 ) -> str:
+    # Fail before auth/database/secret access: no runtime flag or approval can enable SMTP.
+    if not EMAIL_DELIVERY_ENABLED:
+        raise RuntimeError("Kimenő e-mailküldés kódszinten letiltva; külön felülvizsgált kódmódosítás szükséges.")
+
     enforced = get_enforced_user_supabase(
         auth_session, "email.send", allowed_roles={"admin", "operator"}
     )
     if enforced is not None and approved is not True:
         raise PermissionError("E-mail-küldéshez külön, explicit jóváhagyás szükséges.")
-    if not EMAIL_DELIVERY_ENABLED:
-        raise RuntimeError("E-mail-küldés letiltva (kódszinten le van tiltva) biztonsági okból.")
     if (
         not isinstance(recipient, str)
         or recipient.strip() != recipient

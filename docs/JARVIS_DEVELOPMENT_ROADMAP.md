@@ -81,7 +81,7 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 
 | Sorrend | Terület | Státusz |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
+| 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; kimenő SMTP hard-disabled; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – proaktív monitor/lead és javaslati modulok vannak; minőségi és production bizonyíték hiányzik |
 | 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva – task/approval alapok megvannak; teljes E2E folyamat és üzleti mérés hátra van |
@@ -108,4 +108,7 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 
 **Friss audit – 2026-11-25, PR #21 után:** PR #21 merge commit `71d6a1c`; mindkét PR workflow minden jobja zöld. A production read-only snapshot továbbra is 5 ledger verziót, hiányzó 20261117 ledger-bejegyzéseket, nem létező `private` sémát, 8 policy nélküli RLS-es public táblát, legacy `logs` sémát, hiányzó `tasks.operation_id` mezőt és hiányzó audit/approval RPC objektumokat mutat. A CI izolált PostgreSQL 17-en ellenőrzi a migrációs láncot, de nem változtatja meg a production állapotot.
 
-**Terület 1 – Megbízhatóság és biztonság friss minősítése:** a kódbeli approval/idempotencia, audit fail-closed és SMTP unknown-state megoldások regressziós/CI tesztekkel alátámasztottak; a production backup+restore sikeres. A terület még nem zárható le: production audit/approval RPC-k nincsenek telepítve, a production structured audit mezők hiányoznak, az SMTP-küldés környezeti kapcsolókkal aktiválható és a provider oldali idempotencia nincs bizonyítva. E-mailküldés maradjon tiltva a külön validációig.
+**Terület 1 – Megbízhatóság és biztonság friss minősítése:** a kódbeli approval/idempotencia, audit fail-closed és SMTP unknown-state megoldások regressziós/CI tesztekkel alátámasztottak; a production backup+restore sikeres. A terület még nem zárható le: production audit/approval RPC-k nincsenek telepítve, a production structured audit mezők hiányoznak, az SMTP-küldés PR #23-ban kódszinten és workflow-szinten letiltásra kerül; a provider oldali idempotencia nincs bizonyítva. E-mailküldés maradjon tiltva a külön validációig.
+
+
+**Kimenő e-mail biztonsági állapot:** a PR #23 kódszintű `EMAIL_DELIVERY_ENABLED = False` tiltást vezet be, amely a runtime környezeti kapcsolóktól független. A scheduled outbound küldési lépés le van tiltva; a bejövő IMAP monitor külön marad. A kimenő e-mail csak külön biztonsági felülvizsgálat, provider idempotencia-igazolás és E2E teszt után engedélyezhető újra.

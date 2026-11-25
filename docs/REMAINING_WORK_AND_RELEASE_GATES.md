@@ -55,7 +55,10 @@ A backup sikeres, de ez nem jelenti a Supabase migration drift vagy az élesít�
 - Mindkét PR #21 workflow minden jobja sikeres: [45656372633](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656372633), [45656331519](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45656331519).
 - A production read-only audit szerint a `private` schema, a structured logs mezők, a `tasks.operation_id`, az audit-chain state, a private approval táblák és a task/approval RPC-k hiányoznak. Nyolc public tábla RLS-enabled, de policy nélküli; a remote ledger 5 migrációt tartalmaz, a két 20261117 verzió hiányzik.
 - A két 20261117 migráció sémabeli hatása látható (`leads.website`, `logs.level`), de a ledger eltérése nincs rendezve. A CI fixture ezt modellezi és teszteli, nem javítja a production ledgert.
-- Az e-mailküldés környezeti kapcsolókkal vezérelt, nem feltétel nélkül hard-disabled. A GitHub secret állapot ismeretlen; SMTP provider idempotencia/live E2E bizonyíték nincs.
+- A kimenő SMTP-küldés a PR #23 kódmódosításával hard-disabled: az `EMAIL_DELIVERY_ENABLED` konstans `False`, nem környezeti változóból származik; a közvetlen küldő API Auth/DB/secret elérés előtt leáll, a scheduled outbound workflow-lépés `if: false`. A bejövő IMAP monitor külön működhet. SMTP provider idempotencia és live E2E továbbra sincs igazolva; újraengedélyezés külön review-hoz kötött.
 - A production DDL/DML, migration repair, grants, RLS, Auth provisioning és deploy továbbra is tiltott külön jóváhagyás nélkül.
 
 A release gate-ek **nem teljesültek** pusztán attól, hogy a PR CI zöld: előbb drift-egyeztetés, teljes PG17 replay, SQL review, külön production jóváhagyás, majd deploy és RPC smoke szükséges.
+
+
+A PR #23 kimenő e-mailt letiltó kódmódosítása után az SMTP-küldés nem aktiválható GitHub secret vagy runtime környezeti változó átállításával. Ez csak a PR merge és a CI sikeres lezárása után tekinthető a main ágban érvényesnek.
