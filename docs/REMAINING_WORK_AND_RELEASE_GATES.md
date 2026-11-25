@@ -70,3 +70,32 @@ A PR #23 kimenő e-mailt letiltó kódmódosítása után az SMTP-küldés nem a
 - Production read-only: 8/8 public táblán RLS enabled, 0 policy; anon/authenticated közvetlen DML jog false; service_role teljes DML true. Private schema, audit chain state, approval táblák és task RPC hiányoznak; tasks.operation_id hiányzik; migration ledger 5 (20261119). Advisor 8 INFO policy nélküli RLS miatt.
 - SMTP main kódban hard-disabled, de production runtime deploy nem történt. Secrets nem módosultak, e-mail nem ment ki.
 - Production migráció, ledger repair, GRANT/REVOKE, Auth provisioning és deploy továbbra is blokkolt külön jóváhagyásig.
+
+## ÚJ FUNKCIÓK ELŐTTI KÉSZÜLTSÉGI KAPU – 2026-11-25
+
+A dokumentum célja egyértelmű: mi az a véges, ellenőrizhető munka, amely nélkül új JARVIS funkció nem kezdhető. A PR #25 utáni `main` commit: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1`; a main CI `45663296144` mindkét jobja sikeres.
+
+### Kötelező P0/P1 lista
+- [ ] **Production célpont:** a tényleges JARVIS app host és URL azonosítása. Repo-ban nincs deploy workflow/app URL; a hozzáférhető Railway projekt VolleyForm, nem JARVIS. Ismeretlen célpontra deploy tilos.
+- [ ] **SMTP hard-disable élesítése:** mainből a valós production appba deploy, majd runtime bizonyíték, hogy semmilyen outbound SMTP útvonal nem küld. Addig a kimenő küldés tiltott.
+- [ ] **Production schema/ledger drift:** a két 20261117 hiányzó ledger bejegyzés reconciliációja; teljes migration lánc PG17 replay és adatmegőrzés; productionben hiányzó audit/approval objektumok migrációs csomagja.
+- [ ] **SQL review és engedélyezés:** független review, pre/post-check és rollback terv; production DDL/DML/ledger/grants/RLS/Auth művelet kizárólag külön konkrét jóváhagyás után.
+- [ ] **Audit és approval:** structured audit/hash chain, `private.task_approvals`, `private.task_action_operations`, `tasks.operation_id`, `execute_approved_task_action` és kapcsolódó RPC-k production működése; audit hiba fail-closed minden érzékeny útvonalon.
+- [ ] **Task jogosultság:** RPC-alapú alkalmazás deploy + smoke; csak utána a `20261125170000` service_role közvetlen task DML lockdown; utána pozitív RPC és negatív direkt DML teszt.
+- [ ] **Auth/JWT/RLS:** live smoke már létező, engedélyezett izolált Supabase környezetben; expired/invalid JWT, session refresh és role negatív esetek. Production Auth/RBAC külön jóváhagyás.
+- [ ] **Provider idempotencia:** külső provider kiválasztása (még nincs döntés), stabil idempotency key, request payload stabilitás, provider ID mentés, `unknown` kezelés, retry határ és E2E. SMTP hard-disable marad.
+- [ ] **Production alkalmazás ellenőrzés:** deploy után health check, DB/RPC/audit/task/approval smoke és rollback útvonal.
+
+### P2 – nem blokkolja önmagában az új funkciók specifikációját
+- [ ] Storage/Auth/Realtime és projektkonfiguráció backup scope tisztázása a már sikeres PostgreSQL logikai backupon túl.
+- [ ] Main branch protection / required checks állapotának ellenőrzése.
+- [ ] Alacsony coverage modulok célzott tesztjei, csak ahol a kockázat indokolja.
+
+### Jelenlegi production tényállás
+- 8/8 public tábla RLS-enabled, 0 policy; anon/authenticated DML grant tiltása igazolt; service_role teljes DML joga megvan.
+- `private` schema, audit-chain state, approval/operation táblák, `tasks.operation_id` és task RPC hiányzik.
+- Migration ledger 5 darab 20261119-es bejegyzést tartalmaz; a két 20261117 sémahatás jelen van, ledger bejegyzés hiányzik.
+- Production deploy, DDL/DML, ledger repair, GRANT/REVOKE és Auth provisioning nem történt.
+- Backup+restore sikeres; ez nem pótolja a migration/release kapukat.
+
+**Nem szabad összekeverni:** a zöld CI, a mainben lévő kód, a production DB séma és a futó production app négy külön állapot. Mindegyikhez saját bizonyíték szükséges.
