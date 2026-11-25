@@ -99,3 +99,16 @@ A CI #45656372633 és #45656331519 sikeresen futtatta a 20261117 drift fixture, 
 **Következmény:** a repositoryban előkészített audit/approval/task RPC migrációs lánc productionben nincs telepítve. Az alkalmazás RPC útvonala és az éles auditírás ezért még nem tekinthető productionben igazoltnak. A `20261125170000_enforce_atomic_task_write_privileges.sql` csak RPC-alapú app deploy és sikeres smoke teszt után alkalmazható.
 
 Az audit nem módosította a production adatbázist. Ne futtass `supabase db push`-t, `migration repair`-t, DDL/DML-t vagy GRANT/REVOKE műveletet a drift független egyeztetése és külön jóváhagyás nélkül.
+
+## 2026-11-25 – alacsony nehézségű auditcsomag eredménye
+
+- **JARVIS app host:** a README Streamlit alkalmazást és `streamlit run dashboard.py --server.port 8501` indítást dokumentál; production URL/host nincs a repo-ban igazolva. A hozzáférhető Railway szolgáltatás nem JARVIS, ezért nem használható JARVIS URL-ként.
+- **Build/runtime:** Python 3.11; fő függőségek a `requirements.txt` fájlban. A Streamlit secrets példa kulcsnevei: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `JARVIS_DASHBOARD_PASSWORD`, e-mail fiókhoz `EMAIL_USER` és `EMAIL_PASSWORD`; titokértékek nem kerültek kiolvasásra vagy dokumentálásra.
+- **Health check:** a repository `health_check.run_self_diagnostics()` read-only diagnosztikát ad, beleértve Supabase táblák/oszlopok, Gemini konfiguráció és SMTP biztonsági zár vizsgálatát. Ez nem igazolja a production host futó példányát.
+- **SMTP:** a `email_utils.py` hard-disable konstansa `False`; a `send_email()` az Auth/DB/secret/SMTP hívások előtt RuntimeErrorral leáll. Az `.github/workflows/email-automation.yml` kimenő küldési lépése `if: ${{ false }}`. Ez kód- és workflow-bizonyíték, nem production runtime-bizonyíték.
+- **Production Supabase read-only állapot:** 8 public tábla RLS-enabled, policy nincs; `service_role` INSERT/UPDATE/DELETE jog mind a nyolcon true. Security Advisor: 8 INFO `rls_enabled_no_policy`. A `service_role` production task DML negatív tesztjét ezért nem futtattam éles adatírással.
+- **Izolált jogosultsági teszt:** a PR #26 CI `backup-restore-integration` jobja PostgreSQL 17 + pgTAP környezetben sikeres; benne a structured audit/RBAC katalógus- és task service-role tesztek lefutottak.
+- **GitHub main védelem:** `main.protected=false`; required checks enforcement `off`, üres checklista; repository rulesets üres. A branch protection beállítása még szükséges.
+
+Egyik ellenőrzés sem változtatott production adatbázison, alkalmazáson, secrets értéken vagy GitHub branch protection beállításon.
+
