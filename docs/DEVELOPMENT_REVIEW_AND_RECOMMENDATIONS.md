@@ -122,3 +122,7 @@ Az alábbi pontok a jelenlegi tényleges állapotot tükrözik; a már kész kó
 
 A fenti vizsgálatok során production DB-írás, GRANT/REVOKE, deploy, secrets-módosítás és PR merge nem történt.
 
+## Coverage-vezérelt következő javítás
+
+A sikeres CI coverage artifact 90,75%-os összesített line coverage-et mutatott. A `task_actions.py` 81,4%-a indokolta a célzott edge tesztek hozzáadását a PR-hoz. A `scripts/supabase_auth_rls_smoke.py` 17,3%-a külön kezelendő, mert élő Auth/Supabase smoke script; a hiányzó sorok nagy része környezetfüggő, ezért izolált fake-client tesztelés szükséges. Az új task-actions tesztek CI eredménye még nincs igazolva.
+
