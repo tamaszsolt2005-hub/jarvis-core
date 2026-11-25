@@ -186,3 +186,8 @@ A [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejleszté
 A korábbi production snapshot a két `20261117` ledger gap reconciliation után hét migrációs ledger bejegyzést rögzít, míg hat későbbi migráció továbbra is unapplied. A `20261125160000_atomic_task_approvals_and_operations.sql` és `20261125170000_enforce_atomic_task_write_privileges.sql` nem tekinthető productionben telepítettnek. A CI PostgreSQL 17 fixture tesztje nem ír a Supabase production adatbázisba.
 
 **Végrehajtási sorrend változatlan:** független SQL review és teljes izolált PG17 CI siker → a tényleges app host azonosítása → külön jóváhagyott app/RPC rollout és smoke → külön jóváhagyott production migráció/ellenőrzés → csak ezt követően a végső service-role task DML revoke. A production Auth/RBAC flag OFF marad. Sem migration push/repair, sem GRANT/REVOKE, sem deploy nem történt a PR #26 dokumentációs frissítésével.
+
+
+## Email provider státusz – 2026-11-25
+
+A Resend API adapter a PR #26 branchben van, de productionben nincs aktiválva. A GitHub email workflow a RESEND_API_KEY secretet várja és EMAIL_PROVIDER=resend értéket ad át, miközben a küldési lépés if: false és a kódbeli EMAIL_DELIVERY_ENABLED konstans False. Nem történt API-hívás, secretmódosítás vagy levélküldés. A Resend 24 órás idempotencia-retenciója miatt az unknown küldéseket provider-oldalon kell egyeztetni; a hard-disable feloldása külön jóváhagyás nélkül tilos.

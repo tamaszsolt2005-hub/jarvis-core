@@ -198,3 +198,16 @@ A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések.
 **CI pillanatkép:** a `38693f2` commiton két workflow run (`45689264377`, `45689247826`) futott a dokumentáció frissítésekor. Amíg mindkettő be nem fejeződik sikeresen, a CI kapu nyitott. [Run 1](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689264377) · [Run 2](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689247826).
 
 **Kiadási döntés:** a megbízhatósági és biztonsági munkacsomag még nem minősíthető lezártnak. A PR merge, production migration, service-role GRANT/REVOKE, Auth/RBAC aktiválás, app deploy és SMTP engedélyezés nem része az automatikusan végrehajtható CI munkának; ezek külön döntési kapuk maradnak.
+
+
+## Email provider idempotencia – 2026-11-25, PR #26
+
+- [x] Resend HTTPS API adapter a branchben; a meglévő requests csomagot használja, új SDK vagy külön alkalmazás nem került a repóba.
+- [x] Stabil lead + sequence operation ID az első kapcsolat és a follow-up küldésnél is az Idempotency-Key fejlécben.
+- [x] 409/429/5xx, hálózati exception és hiányzó provider message ID esetén unknown állapot; automatikus retry nincs.
+- [x] A GitHub email workflow Resend providerre és RESEND_API_KEY secretre előkészítve; a kimenő lépés if: false, a kód hard-disable aktív.
+- [ ] GitHub Actions RESEND_API_KEY secret tényleges meglétének ellenőrzése és feladói domain Resend-verifikációja.
+- [ ] Kontrollált staging/live E2E a provider válaszazonosítóval és idempotencia-replayjel.
+- [ ] Payload-azonosság és 24 órán túli unknown reconciliation runbook véglegesítése. A Resend idempotenciakulcsai 24 óráig érvényesek; utána a provider nem garantál deduplikációt.
+
+A provider adapter implementációja nem jelenti a küldés engedélyezését. Az EMAIL_DELIVERY_ENABLED=False és a workflow outbound step if: false marad, amíg külön review és konkrét engedély nincs.

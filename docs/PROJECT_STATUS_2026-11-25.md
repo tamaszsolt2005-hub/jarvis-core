@@ -256,3 +256,12 @@ Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
 A branchben lévő változtatások nincsenek productionbe telepítve. A legutóbbi dokumentált production read-only snapshot változatlan kiindulópont; a későbbi audit/approval/RPC és privilege-lock migrációk nincsenek alkalmazva. A JARVIS app host nem azonosított; a csatlakoztatott Railway projekt VolleyForm, nem JARVIS. Nincs production DDL/DML, ledger repair, GRANT/REVOKE, Auth flag aktiválás, app deploy vagy PR merge.
 
 **Aktuális értékelés:** a megbízhatóság/biztonság munkacsomag jelentős kódbeli része elkészült, de CI-véglegesítés, provider oldali e-mail idempotencia, production host/deploy és production DB integráció hiányában nem zárható le. A teljes JARVIS projekt nem kész.
+
+
+## Resend adapter és legutóbbi CI – 2026-11-25
+
+A PR #26 branchben elkészült a Resend HTTPS API adapter. A stabil lead + sequence operation ID az Idempotency-Key fejlécben kerül átadásra mind az első kapcsolat, mind a follow-up küldés során. A workflow EMAIL_PROVIDER=resend és RESEND_API_KEY secret bindinggal elő van készítve. A kimenő küldés továbbra is hard-disabled; live provider hitelesítés és küldés nem történt.
+
+A javított kódcommit (1cd45b89e2acb05da773aa19f8d8a884a450b11f) CI-je sikeres: 805 passed, 3 skipped; 91,20% line coverage. A PostgreSQL 17 backup/restore/security job is sikeres. [Push CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45691280663) · [PR CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45691262217). A PR CI teszt jobja a dokumentáció frissítésekor még futott, a push CI teljesen zöld.
+
+A Resend idempotenciakulcsok 24 órás megőrzése korlátozza a deduplikációt. A send_unknown / followup_unknown állapot nem automatikusan újrapróbálható; kézi beavatkozás előtt provider-oldali egyeztetés kell. A secret/domain és live E2E még nyitott.
