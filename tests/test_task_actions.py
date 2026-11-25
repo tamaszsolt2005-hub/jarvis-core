@@ -435,17 +435,21 @@ def test_auth_enforcement_denies_missing_session_before_any_database_access(monk
         def table(self, _name):
             pytest.fail("No database access is allowed without a verified Auth session")
 
-    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(
-        task_actions, "get_user_supabase",
-        lambda *_args, **_kwargs: pytest.fail("A missing session must be rejected first"),
-    )
+    calls = []
+
+    def enforce(session, permission, *, allowed_roles):
+        calls.append((session, permission, allowed_roles))
+        raise PermissionError("A feladatművelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
+
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
     with pytest.raises(PermissionError, match="Supabase Auth-munkamenet"):
         execute_task_action(
             ForbiddenDB(),
             {"type": "create", "title": "Tiltott", "priority": "normal"},
             approved=True,
         )
+
+    assert calls == [(None, "tasks.write", {"admin", "operator"})]
 
 
 def test_auth_enforcement_denies_reader_before_database_access(monkeypatch):
@@ -455,14 +459,13 @@ def test_auth_enforcement_denies_reader_before_database_access(monkeypatch):
         def table(self, _name):
             pytest.fail("A reader must not reach task tables")
 
-    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(
-        task_actions, "get_user_supabase",
-        lambda *_args, **_kwargs: (ForbiddenDB(), {
-            "access_token": "verified-access", "refresh_token": "verified-refresh",
-            "user_id": "reader-id", "role": "reader",
-        }),
-    )
+    def enforce(session, permission, *, allowed_roles):
+        assert session["user_id"] == "reader-id"
+        assert permission == "tasks.write"
+        assert allowed_roles == {"admin", "operator"}
+        raise PermissionError("Permission denied: tasks.write")
+
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
     session = {"access_token": "old", "refresh_token": "old-refresh", "user_id": "reader-id"}
     with pytest.raises(PermissionError, match="tasks.write"):
         execute_task_action(
@@ -478,16 +481,18 @@ def test_auth_enforcement_uses_verified_user_client_not_legacy_client(monkeypatc
 
     legacy_db = FakeDB()
     user_db = FakeDB()
-    monkeypatch.setattr(task_actions, "env_bool", lambda *_args, **_kwargs: True)
+    calls = []
 
-    def verified_client(session, *, allowed_roles):
+    def enforce(session, permission, *, allowed_roles):
+        calls.append((session, permission, allowed_roles))
+        assert permission == "tasks.write"
         assert allowed_roles == {"admin", "operator"}
         return user_db, {
             "access_token": "new-access", "refresh_token": "new-refresh",
             "user_id": "operator-id", "role": "operator",
         }
 
-    monkeypatch.setattr(task_actions, "get_user_supabase", verified_client)
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", enforce)
     monkeypatch.setattr(task_actions, "audit_event", lambda *_args, **_kwargs: True)
     session = {
         "access_token": "old-access", "refresh_token": "old-refresh",
@@ -504,5 +509,4 @@ def test_auth_enforcement_uses_verified_user_client_not_legacy_client(monkeypatc
     assert "létrehozva" in result
     assert legacy_db.created is None
     assert user_db.created["title"] == "RBAC teszt"
-    assert session["access_token"] == "new-access"
-    assert session["refresh_token"] == "new-refresh"
+    assert calls == [(session, "tasks.write", {"admin", "operator"})]
