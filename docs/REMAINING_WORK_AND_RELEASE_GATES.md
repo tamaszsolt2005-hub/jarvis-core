@@ -324,3 +324,19 @@ futó teljes CI siker után jelölhetők bizonyítottnak. Addig a CLI-repair és
 `pending` marad. A production Supabase továbbra is kizárólag read-only; nem történt
 `db push`, migration repair, ledger edit, DDL/DML, policy/Auth módosítás vagy flag
 aktiválás. PR #13 draft marad, merge nem történt.
+
+
+### CI failure analysis and correction — 2026-11-25
+
+The first run containing the CLI/catalog steps (`45591909723`) exposed a test-harness
+assertion issue, not a production or migration failure. Supabase CLI 3.4.0 successfully
+executed `migration repair 20261117 --status applied` against the localhost-only PostgreSQL
+fixture. The following `psql -t` boolean assertion was too strict: aligned tuple output
+contains leading whitespace, so `grep -qx t` returned non-zero. The assertion now adds
+`--no-align` to make the expected scalar output deterministic.
+
+The separate Python/unit/AppTest/browser job completed its test step successfully in
+`45591909723`; artifact upload was still running at the time of inspection. The database
+job stopped before the structured audit pgTAP, catalog postconditions and backup/restore
+steps, so those results remain unverified. A new CI run for the assertion fix is required
+before closing any of the first three gates.
