@@ -111,6 +111,10 @@ jobs:
           container_id="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -n1)"
           test -n "$container_id"
           docker exec -u root "$container_id" bash -lc 'apt-get update && apt-get install --yes postgresql-17-pgtap postgresql-contrib-17'
+      - name: Install pinned Supabase CLI for isolated migration-history tests
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.4.0
       - name: Validate 20261117 migration drift and legacy data preservation
         shell: bash
         run: |
@@ -192,6 +196,52 @@ jobs:
             END IF;
           END $migration_check$;
           SQL
+          # Exercise the real Supabase CLI v3 repair command against this
+          # disposable PostgreSQL database only. The command changes the
+          # migration ledger, not the schema; never point this at production.
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA supabase_migrations;
+          CREATE TABLE supabase_migrations.schema_migrations (
+            version text PRIMARY KEY,
+            statements text[],
+            name text
+          );
+          INSERT INTO supabase_migrations.schema_migrations(version) VALUES
+            ('20261119191911'), ('20261119192040'), ('20261119192145'),
+            ('20261119192412'), ('20261119192559');
+          SQL
+          cli_dir="$RUNNER_TEMP/jarvis-supabase-cli-fixture"
+          mkdir -p "$cli_dir/supabase"
+          cat > "$cli_dir/supabase/config.toml" <<'TOML'
+          project_id = "jarvis-cli-migration-fixture"
+          TOML
+          (
+            cd "$cli_dir"
+            supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+              --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
+            # Reverted removes the version row; applied inserts it. Reapply so
+            # the fixture ends in the intended reconciled state.
+            supabase migration repair 20261117 --status reverted --remote="$drift_url" --yes
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+              --command "SELECT count(*) = 5 FROM supabase_migrations.schema_migrations" | grep -qx t
+            supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+              --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
+          )
+          # Repair is history-only: the already-existing effects and legacy
+          # data remain untouched in this isolated fixture.
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --command \
+            "DO \$cli_repair_check\$ BEGIN
+               IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema='public' AND table_name='leads' AND column_name='website')
+                  OR NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema='public' AND table_name='logs' AND column_name='level')
+                  OR (SELECT count(*) FROM public.leads WHERE id='80000000-0000-0000-0000-000000000011') <> 1
+                  OR (SELECT count(*) FROM public.logs WHERE id='80000000-0000-0000-0000-000000000012') <> 1 THEN
+                 RAISE EXCEPTION 'CLI migration repair changed schema effects or legacy data';
+               END IF;
+             END \$cli_repair_check\$";
       - name: Run structured audit migrations and pgTAP security tests
         shell: bash
         run: |
@@ -357,6 +407,14 @@ jobs:
             exit 1
           fi
           grep -q '1..32' <<< "$rbac_output"
+      - name: Verify audit and RBAC catalog postconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          catalog_url="postgresql://postgres:postgres@127.0.0.1:5432/audit_test"
+          PGPASSWORD=postgres psql "$catalog_url" --set ON_ERROR_STOP=1 \
+            --file supabase/tests/catalog_postconditions.test.sql
       - name: Run real encrypted backup and restore roundtrip
         run: python -m pytest -q tests/test_backup_restore_integration.py
       - name: Remove test age identity
