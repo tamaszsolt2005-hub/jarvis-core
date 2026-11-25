@@ -119,3 +119,17 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 - SMTP hard-disable mainbe integrálva PR #23 squash merge-dzsel (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`). Production deploy nem történt.
 - Production read-only audit: 8/8 public tábla RLS enabled, 0 policy; anon/authenticated DML tiltva; service_role teljes DML engedélyezett. Private schema/task approval RPC hiányzik; ledger csak 5 20261119-es migrációt tartalmaz.
 - Külső e-mail idempotencia továbbra sincs. SMTP nem hordoz natív idempotency key-t; ehhez API provider, stabil event-key és változatlan request body szükséges. Resend dokumentáltan támogat `Idempotency-Key` fejlécet azonos payload mellett 24 órán keresztül; a provider kiválasztása és hitelesítő adat/domain beállítása még hiányzik.
+
+## ÚJ FUNKCIÓK ELŐTTI KÖTELEZŐ KAPU – 2026-11-25
+
+A következő lista a roadmap sorrendjét egészíti ki. Új funkció csak akkor kezdhető, ha a P0/P1 biztonsági és production működési kapuk teljesültek. A PR #25 utáni main: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1`; main CI `45663296144` mindkét jobja sikeres.
+
+1. **Production app azonosítás és deploy:** az app URL/host jelenleg nem ismert; a repo nem tartalmaz deploy workflow-t, az elérhető Railway projekt nem JARVIS. Előbb a valódi Streamlit/egyéb hostot kell megtalálni, majd a main SMTP hard-disable változását oda deployolni és runtime-ban ellenőrizni.
+2. **Migration drift és DB biztonság:** rendezni kell a két 20261117 ledger eltérést; teljes PG17 replay és adatmegőrzés; audit/approval/private schema/RPC hiányzó objektumok migrációja; SQL review, pre/post-check és rollback terv.
+3. **Task atomicity és jogosultság:** RPC app deploy + smoke, majd a service_role közvetlen task DML tiltása; pozitív RPC és negatív direkt DML ellenőrzés.
+4. **Audit fail-closed és Auth/RLS:** minden érzékeny útvonal audit-hibára álljon le; JWT/session/role/RLS tesztek izolált, engedélyezett környezetben. Production Auth/RBAC külön jóváhagyás.
+5. **Külső hatások idempotenciája:** e-mail provider kiválasztása után stabil idempotency key, tartós payload és provider ID, bizonytalan válasz és retry teszt. SMTP addig hard-disabled.
+6. **App release bizonyíték:** production health check, DB/RPC/task/approval/audit smoke és rollback ellenőrzés.
+7. **Alapvető termékfolyamatok:** lead→minősítés→stratégia→task→approval→follow-up→eredménymérés E2E; proaktív javaslatok forrás/uncertainty/duplikáció minőségmérése; jogosultságkezelt, forrásolt memória és adat-életciklus.
+
+A nem blokkoló P2 feladatok (platform backup scope, branch protection felülvizsgálat, alacsony kockázatú coverage bővítés) maradhatnak a backlogban. Ne adjunk hozzá újabb ellenőrzéseket, ha a fenti elfogadási feltételek teljesültek.
