@@ -200,17 +200,14 @@ A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések.
 **Kiadási döntés:** a megbízhatósági és biztonsági munkacsomag még nem minősíthető lezártnak. A PR merge, production migration, service-role GRANT/REVOKE, Auth/RBAC aktiválás, app deploy és SMTP engedélyezés nem része az automatikusan végrehajtható CI munkának; ezek külön döntési kapuk maradnak.
 
 
-## Email provider idempotencia – 2026-11-25, PR #26
+## E-mail provider és idempotencia – történeti Resend-terv / aktuális Gmail SMTP
 
-- [x] Resend HTTPS API adapter a branchben; a meglévő requests csomagot használja, új SDK vagy külön alkalmazás nem került a repóba.
-- [x] Stabil lead + sequence operation ID az első kapcsolat és a follow-up küldésnél is az Idempotency-Key fejlécben.
-- [x] 409/429/5xx, hálózati exception és hiányzó provider message ID esetén unknown állapot; automatikus retry nincs.
-- [x] A GitHub email workflow Resend providerre és RESEND_API_KEY secretre előkészítve; a kimenő lépés if: false, a kód hard-disable aktív.
-- [ ] GitHub Actions RESEND_API_KEY secret tényleges meglétének ellenőrzése és feladói domain Resend-verifikációja.
-- [ ] Kontrollált staging/live E2E a provider válaszazonosítóval és idempotencia-replayjel.
-- [ ] Payload-azonosság és 24 órán túli unknown reconciliation runbook véglegesítése. A Resend idempotenciakulcsai 24 óráig érvényesek; utána a provider nem garantál deduplikációt.
+A korábbi Resend adapter- és secret-checklist a kódban megmaradt alternatív adapterhez tartozik, nem a jelenlegi aktív konfigurációhoz. A kiválasztott út Gmail SMTP (`EMAIL_PROVIDER=smtp`), `smtp.gmail.com:587` STARTTLS-szel. A GitHub workflow az `EMAIL_USER` és `EMAIL_PASSWORD` secretneveket használja; a nevek meglétét ellenőrizték, a secretértékek és az SMTP kapcsolat nem validált.
 
-A provider adapter implementációja nem jelenti a küldés engedélyezését. Az EMAIL_DELIVERY_ENABLED=False és a workflow outbound step if: false marad, amíg külön review és konkrét engedély nincs.
+A belső lead+sequence operation ID és az unknown állapotkezelés implementált. Ez önmagában nem ad provider-oldali deduplikációt a Gmail SMTP-hez. A `send_unknown` / `followup_unknown` állapot automatikusan nem retry-zható; kézi egyeztetés szükséges.
+
+A kimenő küldés hard-disabled marad: `EMAIL_DELIVERY_ENABLED = False`, a workflow outbound lépése `if: false`. Nincs valódi SMTP-kapcsolatpróba vagy live küldés. Feloldás csak külön security review és konkrét jóváhagyás után történhet.
+
 
 
 ## Legfrissebb CI bizonyíték – 2026-11-25
