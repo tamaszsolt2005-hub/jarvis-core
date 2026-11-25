@@ -216,7 +216,7 @@ jobs:
           project_id = "jarvis-cli-migration-fixture"
           TOML
           mkdir -p "$cli_dir/supabase/migrations"
-          cp supabase/migrations/20261117_*.sql "$cli_dir/supabase/migrations/"
+          cp supabase/migrations/20261117_add_leads_website.sql "$cli_dir/supabase/migrations/"
           (
             cd "$cli_dir"
             supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
@@ -231,7 +231,9 @@ jobs:
             PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
           )
-          # Both historical files currently share the same 8-digit CLI version.
+          # Add the second same-version file only for the migration-list
+          # diagnostic. Both files currently share the 20261117 version.
+          cp supabase/migrations/20261117_add_logs_level.sql "$cli_dir/supabase/migrations/"
           # Capture the pinned CLI's actual list behavior instead of assuming
           # that one ledger row can distinguish two separate SQL files.
           set +e
