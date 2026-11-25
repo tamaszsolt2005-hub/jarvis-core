@@ -168,3 +168,10 @@ A `scripts/supabase_auth_rls_smoke.py` 17,3%-os coverage-e nem tekinthető önma
 A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
 
 **Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
+
+
+## 2026-11-25 – produkciós host felderítés eredménye
+
+A repository Streamlit appot dokumentál, de a GitHub repo homepage üres, Pages nincs bekapcsolva, és a repo konfigurációjában nem található ellenőrizhető JARVIS deployment URL. A hozzáférhető Railway workspace kizárólag a `VolleyForm` projektet és annak `volleyform-api` szolgáltatását tartalmazza; ez nem JARVIS, ezért domainje nem használható JARVIS production URL-ként. A Supabase URL adatbázis/API, nem dashboard host.
+
+**Nyitott / külső input szükséges:** add meg a tényleges alkalmazás-host szolgáltatóját/projektjét vagy annak dashboard URL-jét. Addig production app deploy, runtime SMTP ellenőrzés és host-specifikus health check nem végezhető el biztonságosan.
