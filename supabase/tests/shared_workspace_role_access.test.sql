@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(34);
+SELECT plan(36);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -27,6 +27,7 @@ INSERT INTO public.settings (key,value) VALUES
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"},"user_metadata":{"role":"admin"}}',true);
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='RBAC fixture'),1::bigint,'reader can read shared leads');
+SELECT is((SELECT count(*) FROM public.tasks WHERE id='b0000000-0000-4000-8000-000000000001'),1::bigint,'reader can read shared tasks');
 SELECT throws_ok(
   $reader$INSERT INTO public.leads (company_name) VALUES ('reader denied')$reader$,
   '42501', NULL, 'reader cannot insert leads'
@@ -47,6 +48,7 @@ SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'reader cann
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
 INSERT INTO public.leads (company_name) VALUES ('operator allowed');
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='operator allowed'),1::bigint,'operator can insert leads');
+SELECT is((SELECT count(*) FROM public.tasks WHERE id='b0000000-0000-4000-8000-000000000001'),1::bigint,'operator can read shared tasks');
 SELECT throws_ok(
   $operator$INSERT INTO public.tasks (title) VALUES ('operator approval bypass')$operator$,
   '42501', NULL, 'operator cannot bypass atomic task approval with direct INSERT'
