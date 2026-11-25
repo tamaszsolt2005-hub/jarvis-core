@@ -179,15 +179,15 @@ A repository Streamlit appot dokumentál, de a GitHub repo homepage üres, Pages
 
 ## Aktuális release állapot – PR #26, 2026-11-25
 
-A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`38693f2f93b790608aef37a33f190a86e611ff0d`); a PR nyitott és nem merge-ölt.
+A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`eaad5428311d86590f03c744f7f5b0e02da45064`); a PR nyitott és nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 | Kapu | Jelenlegi állapot | Bizonyíték / hiány |
 |---|---|---|
 | SMTP hard-disable kód | Implementálva | `EMAIL_DELIVERY_ENABLED = False`; production runtime/deploy nem igazolt |
-| SMTP bizonytalan kimenetel | Implementálva, tesztek hozzáadva | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; CI végső eredménye még függőben |
+| SMTP bizonytalan kimenetel | Implementálva, tesztek hozzáadva | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; a `38693f2` kódcommit CI-je mindkét jobbal sikeres (`45689264377`); az aktuális docs head CI-je még nem zárult le |
 | Belső email operation ID | Implementálva | Stabil lead+sequence kulcs; SMTP provider oldali deduplikációt nem biztosít |
 | Approval + task RPC | Implementálva a branchben | DB approval, principal/payload binding, expiry, atomic consume és operation replay; production migráció/deploy nincs |
-| Audit fail-closed | SQL regressziós teszt hozzáadva | Audit insert hiba esetén tranzakció rollback; CI futás még nem zárult le |
+| Audit fail-closed | SQL regressziós teszt hozzáadva | Audit insert hiba esetén tranzakció rollback; a `38693f2` kódcommit CI-je sikeres; az aktuális docs head CI-je még nem zárult le |
 | Approval replay/revoke | SQL teszt hozzáadva | Replay és revoke viselkedés; CI futás még nem zárult le |
 | Párhuzamos approval végrehajtás | Két-session SQL teszt hozzáadva | Azonos operation ID-ra egy task/egy műveleti eredmény elvárás; CI futás még nem zárult le |
 | Migration drift | Izolált CI fixture bővítve | A két korábbi ledger gap reconciliation már megtörtént; hat későbbi migration productionben nincs alkalmazva |
