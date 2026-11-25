@@ -9,7 +9,7 @@
 2. **Task approval race – kódoldali megoldás kész, productionre nem telepített.** A DB-szintű atomikus consume, expiry, principal/payload kötés, replay védelem és concurrency tesztek implementálva vannak a migrációban/RPC-ben. A production private schema és RPC-k hiányoznak; deploy és live smoke külön release gate.
 3. **Teljes műveleti idempotencia.** A task approval/execute RPC operation ID-val és concurrency-védelemmel implementált és tesztelt. A task update/close teljes műveleti lefedettségét és a külső szolgáltatók idempotenciáját még külön igazolni kell.
 4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
-5. **Külső e-mail integritás.** PR #23-ban a kimenő SMTP hard-disable kódszinten elkészült (fix false flag, azonnali RuntimeError, workflow sender step letiltva), de a PR még nem merge-elt; a main/production státusz ettől még nem változott. SMTP provider idempotencia és live E2E továbbra sincs bizonyítva.
+5. **Külső e-mail integritás.** PR #23 hard-disable mainbe merge-elve (`c1364e8`); production deploy nem történt. SMTP nem kínál natív idempotency key-t. Provider API szükséges; Resend API dokumentáltan támogat `Idempotency-Key` fejlécet azonos request body-hoz 24 órás ablakban. Stabil event-key, változatlan payload/outbox és 24 órán túli automatikus retry tiltása szükséges. Provider-választás és secret/domain setup még hiányzik.
 
 ## 2. Supabase és jogosultságkezelés
 
@@ -61,3 +61,10 @@ A PR #23 head push CI (`45658587888`) 759 passed / 3 skipped és 90.75% line cov
 3. `scripts/supabase_backup.py`: 93% (253/273) és `dashboard.py`: 94% (867/927) – hibakezelés, rollback/unknown kimenetek, külső szolgáltatás-határok.
 
 A 90.75% line coverage jó általános alap, de nem helyettesíti az ág-lefedettséget, a live integration teszteket vagy a production smoke-ot.
+
+
+## Production audit evidence – 2026-11-25 17:06 UTC
+
+Read-only audit eredmény: PostgreSQL 17.11; 8 public tábla, 8 RLS enabled, 0 policy; anon és authenticated közvetlen SELECT/INSERT/UPDATE/DELETE jogosultság false minden public táblán; service_role teljes DML jogosultság true. `private` schema és task approval/operation táblák, `public.audit_chain_state`, execute RPC hiányzik; `tasks.operation_id` hiányzik. Migration ledger 5 bejegyzés (20261119). Advisor 8 INFO policy nélküli RLS táblák miatt. Nem történt production írás.
+
+A külső provider idempotencia implementációjához dönteni kell a provider/API-ról. Resend jelenleg dokumentált `Idempotency-Key` támogatást ad a POST /emails végponton; azonos kulcs + azonos payload 24 órán belül ugyanazt az eredményt adja, más payload 409-et eredményez. Hivatkozás: https://resend.com/blog/engineering-idempotency-keys. SMTP maradjon hard-disabled, amíg a provider adapter, tartós idempotens outbox, tesztek, provider secret és ellenőrzött feladói domain nincs validálva.
