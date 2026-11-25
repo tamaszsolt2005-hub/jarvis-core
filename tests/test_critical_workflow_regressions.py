@@ -233,7 +233,7 @@ def test_sender_smtp_exception_marks_lead_as_error_and_never_reports_success(mon
     )
     monkeypatch.setattr(
         email_sender, "send_email",
-        lambda *_args: (_ for _ in ()).throw(OSError("mock SMTP failure")),
+        lambda *_args: (_ for _ in ()).throw(email_sender.EmailDeliveryOutcomeUnknown("mock SMTP DATA outcome unknown")),
     )
     monkeypatch.setattr(
         email_sender, "report_error",
