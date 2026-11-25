@@ -126,3 +126,8 @@ A fenti vizsgálatok során production DB-írás, GRANT/REVOKE, deploy, secrets-
 
 A sikeres CI coverage artifact 90,75%-os összesített line coverage-et mutatott. A `task_actions.py` 81,4%-a indokolta a célzott edge tesztek hozzáadását a PR-hoz. A `scripts/supabase_auth_rls_smoke.py` 17,3%-a külön kezelendő, mert élő Auth/Supabase smoke script; a hiányzó sorok nagy része környezetfüggő, ezért izolált fake-client tesztelés szükséges. Az új task-actions tesztek CI eredménye még nincs igazolva.
 
+## SQL migrációs kód előzetes statikus áttekintése
+
+A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
+
+**Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
