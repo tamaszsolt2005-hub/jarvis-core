@@ -158,6 +158,10 @@ def test_global_research_skips_missing_and_ungrounded_company_urls_without_inser
             return self
         def limit(self, *_args):
             return self
+        def order(self, *_args):
+            return self
+        def range(self, *_args):
+            return self
         def execute(self):
             return SimpleNamespace(data=[])
         def insert(self, _payload):
