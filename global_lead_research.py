@@ -14,6 +14,7 @@ from jarvis_errors import report_error
 
 
 MAX_RESULTS = 15
+EXISTING_LEAD_PAGE_SIZE = 1000
 DEFAULT_MARKET = "Hungary"
 MARKET_ALIASES = {
     "magyarország": "Hungary", "magyarorszag": "Hungary", "magyar": "Hungary", "hungary": "Hungary",
@@ -83,6 +84,33 @@ def _valid_http_url(value: Any) -> str | None:
 
 def _domain(url: str) -> str:
     return (urlparse(url).hostname or "").lower().removeprefix("www.")
+
+
+def _load_existing_company_keys(db: Any) -> tuple[set[str], set[str]]:
+    """Load every existing lead key in bounded pages; never silently cap dedupe."""
+    names: set[str] = set()
+    sites: set[str] = set()
+    offset = 0
+    while True:
+        rows = (
+            db.table("leads")
+            .select("company_name,website")
+            .range(offset, offset + EXISTING_LEAD_PAGE_SIZE - 1)
+            .execute()
+            .data
+            or []
+        )
+        for row in rows:
+            name = str(row.get("company_name") or "").strip().casefold()
+            if name:
+                names.add(name)
+            website = _valid_http_url(row.get("website"))
+            if website:
+                sites.add(_domain(website))
+        if len(rows) < EXISTING_LEAD_PAGE_SIZE:
+            break
+        offset += EXISTING_LEAD_PAGE_SIZE
+    return names, sites
 
 
 def _parse_companies(text: str) -> list[dict[str, Any]]:
@@ -232,9 +260,7 @@ def research_global_companies(
     if not grounded_domains:
         raise RuntimeError("A Google Search nem adott ellenőrizhető forráshivatkozásokat; lead nem került mentésre.")
 
-    existing = db.table("leads").select("company_name,website").limit(5000).execute().data or []
-    known_names = {str(row.get("company_name") or "").strip().casefold() for row in existing}
-    known_sites = {_domain(url) for row in existing if (url := _valid_http_url(row.get("website")))}
+    known_names, known_sites = _load_existing_company_keys(db)
     inserted, skipped = [], 0
 
     for item in companies[:max(1, min(int(max_results), MAX_RESULTS))]:
