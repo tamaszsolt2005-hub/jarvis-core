@@ -135,9 +135,9 @@ A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20
 
 ## PR #26 – frissített feladatállapot, 2026-11-25
 
-A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és nem a main ágra. [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), commit `38693f2f93b790608aef37a33f190a86e611ff0d`.
+A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és nem a main ágra. [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), aktuális PR-head `eaad5428311d86590f03c744f7f5b0e02da45064`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
-1. **Approval race – kód és teszt beépítve, CI eredmény függőben.** A DB-szintű approval hash, principal/payload binding, expiry, atomikus consume és operation-ID lock/replay implementálva. Két párhuzamos PostgreSQL session teszteli az azonos operation ID-t.
+1. **Approval race – kód és teszt beépítve, CI a `38693f2` kódcommiton sikeres; az aktuális dokumentációs head teljes CI-je még nincs igazolva.** A DB-szintű approval hash, principal/payload binding, expiry, atomikus consume és operation-ID lock/replay implementálva. Két párhuzamos PostgreSQL session teszteli az azonos operation ID-t.
 2. **Task idempotencia – részben implementált.** A create/update/close műveletek RPC útvonalon futnak; az operation ledger a lezárt művelet eredményét tárolja. Külső szolgáltatók idempotenciája ettől külön feladat.
 3. **Audit fail-closed – SQL teszt beépítve, CI eredmény függőben.** A végső audit append hibáját injektáló teszt azt várja el, hogy task, operation ledger és approval consume egy tranzakcióban rollbackelődjön.
 4. **SMTP biztonság – kódban hard-disabled.** A DATA utáni bizonytalan kimenetel `send_unknown`, automatikus retry nem engedélyezett; a preflight/connect/auth hibák külön, ismert hibaként kezeltek. Production runtime proof nincs.
@@ -145,4 +145,4 @@ A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és
 6. **Migration drift – részben rendezett.** A két 20261117 ledger bejegyzés korábban egyeztetve; a 13 migration file-ból hét ledgerben, hat későbbi migration továbbra sincs productionben alkalmazva. A PG17 CI fixture teljes/replay és postcondition ellenőrzést tartalmaz.
 7. **Service-role privilege lock – szándékosan blokkolt productionben.** A `20261125170000_enforce_atomic_task_write_privileges.sql` csak az RPC app deploy és sikeres production smoke után alkalmazható.
 
-A dokumentáció frissítésekor a teljes CI két futása (`45689264377`, `45689247826`) még `in_progress` volt. A teszt státusza függőben; nem állítható, hogy zöld. A JARVIS host továbbra sem azonosított, a production adatbázis/deploy változatlan.
+A `38693f2` kódcommiton a `45689264377` mindkét jobja sikeres; a párhuzamos `45689247826` futás megszakadt. Az aktuális dokumentációs PR-head külön CI-je még nincs zöldként igazolva. A JARVIS host továbbra sem azonosított, a production adatbázis/deploy változatlan.
