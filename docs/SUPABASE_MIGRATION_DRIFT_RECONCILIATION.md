@@ -263,3 +263,42 @@ All of this runs in the disposable local PostgreSQL 17 CI database. It does not 
 ## JWT role spoofing and fail-closed RBAC assertions (2026-11-25)
 
 The shared-workspace pgTAP suite now includes an explicit trust-boundary check: a token with `user_metadata.role = admin` but `app_metadata.role = reader` remains a reader, and an unknown `app_metadata.role` remains denied even when user metadata claims admin. The assertion plan is now 32 and the CI output guard was updated accordingly. These checks run only in the isolated PostgreSQL 17 fixture.
+
+
+## CLI repair and catalog postcondition regression coverage (2026-11-25)
+
+The PR branch now adds two CI-only checks; they run against the existing GitHub Actions
+PostgreSQL 17 service and never connect to the Jarvis Supabase project:
+
+- `supabase/tests/catalog_postconditions.test.sql` verifies the post-migration catalog:
+  nine expected table owners and RLS flags, the 15-policy set, absence of
+  `user_metadata` authorization, anon/authenticated table grants, settings sequence
+  privileges, audit function owners and SECURITY DEFINER/INVOKER boundaries, function
+  EXECUTE ACLs, three enabled audit triggers, four valid audit indexes, and owner-specific
+  default ACLs.
+- CI installs Supabase CLI `3.4.0` and runs the real `supabase migration repair`
+  command only against the disposable `migration_drift_test` PostgreSQL database.
+  The test verifies `--status applied` inserts the version row and `--status reverted`
+  removes it, then re-applies it and checks that the command did not alter the existing
+  schema effects or legacy rows. It uses CLI v3's explicit `--remote=<database-url>`
+  target and never links to or addresses production.
+
+Important versioning detail: both legacy files
+`20261117_add_leads_website.sql` and `20261117_add_logs_level.sql` share the same
+8-digit migration version, `20261117`. The CLI migration history is keyed by version and
+`migration list` compares timestamps, so a single ledger row cannot independently
+identify which of those two SQL files was applied. CI therefore also captures the pinned
+CLI's `migration list` behavior when both same-version files are present. The exact
+output must be reviewed before any reconciliation recommendation is made. This is a
+repository/history ambiguity, not permission to mark either version applied in production.
+
+Supabase CLI v3 is local-target by default; a hosted target requires explicit `--remote`
+and a hosted repair confirmation. In this CI test the explicit remote URL points only to
+localhost, with `--yes` used for non-interactive execution. The repair operation changes
+migration history only; it does not execute or reverse SQL. See the official
+[CLI migration repair reference](https://supabase.com/docs/reference/cli/config) and
+[CLI v3 breaking-change notice](https://supabase.com/changelog?tags=cli).
+
+**Status at commit time:** CI implementation added; do not mark the new catalog or CLI
+checks passed until the workflow run for the resulting PR head completes successfully.
+No production ledger, schema, Auth user, policy, or feature flag was changed.
