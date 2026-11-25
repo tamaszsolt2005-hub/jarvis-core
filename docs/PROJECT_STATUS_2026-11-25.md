@@ -168,3 +168,36 @@ Kötelező sorrend:
 **Fontos határ:** production DDL/DML, migration push/repair, ledger módosítás, GRANT/REVOKE, RLS/Auth változtatás és production deploy csak külön, konkrét jóváhagyás után végezhető. A jelenlegi felhatalmazás nem helyettesíti ezt. Külső provider kiválasztását sem szabad feltételezni.
 
 **Új funkciók indításának kapuja:** az A–C blokk valamennyi P0/P1 pontja zöld és bizonyítékkal lezárt; a D blokkhoz tartozó alapvető biztonsági és E2E kapuk teljesülnek. A nem kritikus P2 üzemeltetési fejlesztések külön backlogban maradhatnak, nem szabad végtelen tesztelési listává bővíteni a kaput. A fenti pontok lezárása után új funkciók behozhatók.
+
+
+### Nehézségi becslés és párhuzamos végrehajtási szabály
+
+Skála: **1 = nagyon könnyű, 10 = nagyon nehéz**. A pontszám a várható mérnöki munkát, bizonytalanságot és integrációs kockázatot becsüli; nem naptári idő. A **5/10 alatti** feladatokat egy közös, összehangolt munkacsomagban végzem el, amennyiben nincs köztük biztonsági vagy függőségi akadály. Az 5/10-es és afeletti feladatokat a szükséges sorrendben, külön ellenőrzési pontokkal végzem. Production művelethez ettől függetlenül továbbra is külön konkrét jóváhagyás kell.
+
+| # | Feladat röviden | Nehézség |
+|---:|---|:---:|
+| 1 | Production app host/URL felderítése | **3/10** |
+| 2 | SMTP hard-disable deploy és runtime bizonyíték | **4/10** |
+| 3 | Audit fail-closed útvonal-leltár | **5/10** |
+| 4 | DB migrációs készlet, PG17 replay, SQL review | **7/10** |
+| 5 | Provider idempotencia és E2E | **8/10** |
+| 6 | Két 20261117 ledger eltérés rendezési terve | **5/10** |
+| 7 | Teljes migrációs lánc PG17 replay/adatmegőrzés | **6/10** |
+| 8 | Hiányzó production audit/approval objektumok migrációs terve | **5/10** |
+| 9 | SQL review, pre/post-check és rollback terv | **4/10** |
+| 10 | Production migrációk szakaszos alkalmazása | **8/10** |
+| 11 | RPC write path deploy és smoke | **7/10** |
+| 12 | Service-role direkt DML negatív és RPC pozitív teszt | **4/10** |
+| 13 | Auth/JWT/session/RLS/role smoke | **6/10** |
+| 14 | RLS/grant állapot felülvizsgálata | **3/10** |
+| 15 | Host/build/health/env/secret dokumentáció | **3/10** |
+| 16 | Production app deploy és teljes smoke | **6/10** |
+| 17 | Rollback/restore és üzemeltetési felelősség | **5/10** |
+| 18 | Branch protection/required checks ellenőrzése | **2/10** |
+| 19 | Proaktív üzleti monitor minőségmérése | **6/10** |
+| 20 | Jóváhagyás nélküli végrehajtás kizárása | **6/10** |
+| 21 | Lead→eredmény workflow E2E | **7/10** |
+| 22 | Forrásolt és jogosultságkezelt memória | **7/10** |
+
+**Együtt végzendő, 5/10 alatti csomag:** 1, 2, 9, 12, 14, 15, 18. Ezeket egy menetben készítem el, de a 2. pont éles deploy része csak a host igazolása és külön jóváhagyás után történhet. A 9. pont review-ja nem helyettesíti a production módosítás jóváhagyását.
+
