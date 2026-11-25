@@ -565,6 +565,15 @@ def _stage_pending_action(action: dict[str, Any]) -> None:
     except (TypeError, ValueError) as exc:
         raise TypeError("A függő jóváhagyás csak JSON-kompatibilis műveletet tartalmazhat.") from exc
     pending = json.loads(serialized_action)
+    task_action = pending.get("task_action")
+    if isinstance(task_action, dict) and task_action.get("type") == "create":
+        task_action.setdefault("operation_id", str(uuid4()))
+    # Include the stable operation ID in the signed payload.
+    serialized_action = json.dumps(
+        {key: value for key, value in pending.items()},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+    pending = json.loads(serialized_action)
     pending["_approval_created_at"] = time.time()
     pending["_approval_actor"] = _approval_actor()
     pending["_approval_nonce"] = uuid4().hex
