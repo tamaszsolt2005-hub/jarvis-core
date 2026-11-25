@@ -16,6 +16,11 @@ def _truth(value):
     return str(value).strip().lower() in {"true", "1", "yes", "igen"}
 
 
+def _escape_like_literal(value: str) -> str:
+    """Escape SQL LIKE metacharacters so an email is matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _validated_import_row(row):
     company = str(row.get("company_name") or "").strip()
     address = str(row.get("email") or "").strip().lower()
@@ -80,7 +85,7 @@ def run(path="data/leads.csv"):
                 if record is None:
                     skipped += 1
                     continue
-                exists = db.table("leads").select("id").ilike("email", record["email"]).limit(1).execute().data
+                exists = db.table("leads").select("id").ilike("email", _escape_like_literal(record["email"])).limit(1).execute().data
                 if exists:
                     skipped += 1
                     continue
