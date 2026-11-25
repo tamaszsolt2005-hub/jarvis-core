@@ -6,7 +6,9 @@ prospect records. Chat-initiated email is sent only after an explicit approval a
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import time
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -556,10 +558,17 @@ def _stage_pending_action(action: dict[str, Any]) -> None:
     """Stage a one-use action approval with a short expiry and principal binding."""
     if not isinstance(action, dict):
         raise TypeError("A függő jóváhagyásnak objektumnak kell lennie.")
-    pending = dict(action)
+    try:
+        serialized_action = json.dumps(
+            action, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+    except (TypeError, ValueError) as exc:
+        raise TypeError("A függő jóváhagyás csak JSON-kompatibilis műveletet tartalmazhat.") from exc
+    pending = json.loads(serialized_action)
     pending["_approval_created_at"] = time.time()
     pending["_approval_actor"] = _approval_actor()
     pending["_approval_nonce"] = uuid4().hex
+    pending["_approval_payload_hash"] = hashlib.sha256(serialized_action.encode("utf-8")).hexdigest()
     st.session_state["_jarvis_pending_action"] = pending
 
 
@@ -571,9 +580,23 @@ def _consume_pending_action() -> dict[str, Any] | None:
     created_at = pending.get("_approval_created_at")
     actor = _approval_actor()
     nonce = pending.get("_approval_nonce")
+    payload_hash = pending.get("_approval_payload_hash")
+    action = {
+        key: value for key, value in pending.items()
+        if not key.startswith("_approval_")
+    }
+    try:
+        serialized_action = json.dumps(
+            action, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+        expected_payload_hash = hashlib.sha256(serialized_action.encode("utf-8")).hexdigest()
+    except (TypeError, ValueError):
+        return None
     now = time.time()
     if (
-        not isinstance(created_at, (int, float))
+        not isinstance(payload_hash, str)
+        or not hmac.compare_digest(payload_hash, expected_payload_hash)
+        or not isinstance(created_at, (int, float))
         or isinstance(created_at, bool)
         or created_at <= 0
         or created_at > now
@@ -584,10 +607,7 @@ def _consume_pending_action() -> dict[str, Any] | None:
         or pending.get("_approval_actor") != actor
     ):
         return None
-    return {
-        key: value for key, value in pending.items()
-        if not key.startswith("_approval_")
-    }
+    return action
 
 
 def _audit_export_is_valid(pending: Any, actor_user_id: str | None, *, now: float | None = None) -> bool:
