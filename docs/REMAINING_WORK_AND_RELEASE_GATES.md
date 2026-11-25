@@ -1,61 +1,59 @@
-# JARVIS – hátralévő feladatok és release gate-ek
+# JARVIS – merge és production release gate-ek
 
-> **Állapotfrissítés:** 2026-11-25 14:11 CET  
-> **Elsődleges munkavégzési ág:** `main`  
-> **Részletes fejlesztési áttekintés:** [DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md)
+**Felülvizsgálat:** 2026-11-25  
+**Tartós fejlesztési ág:** `main`
 
-Ez a dokumentum a korábbi checklisták státuszait a fenti felülvizsgálati időpontban ellenőrzött GitHub-adatokhoz igazítja. A történeti bejegyzések nem aktuális állapotjelentések; a jelen fejezet az irányadó.
+> **A fejlesztési javaslatok és azok implementációs státuszának egyetlen forrása:** [Fejlesztési áttekintés, ellenőrzött állapot és javaslatok](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md). Ez a dokumentum szándékosan nem ismétli meg az ott felsorolt fejlesztési feladatokat; kizárólag a merge és production kiadás döntési kapuit tartalmazza.
 
-## Aktuális repository állapot
+## 1. Aktuális GitHub-állapot
 
-- `main`: `2fb9081f80741692a05d08f805c04d0a23ad1350`
-- PR #13 head: `32aef539c0128c1fedaa9e03768477433e93abe1`
-- PR #13: draft, open, not merged.
-- Branch összehasonlítás: 282 commit ahead, 5 behind (a dokumentációs main-commitok után ellenőrizve).
-- [PR push CI #45620664359](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620664359): sikeres.
-- [PR CI #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): backup-restore-integration sikeres, test job a felülvizsgálatkor futott.
-- A korábbi `09bde885...` head sikeres CI-je nem bizonyítja az újabb `32aef539...` head teljes CI-jét.
+- Main HEAD: `f49eda731dbfc5792744d128ce2ee6f34fc55465`.
+- PR #13 head: `32aef539c0128c1fedaa9e03768477433e93abe1`.
+- PR #13: draft, nyitott, nincs merge-elve.
+- PR #13: 282 commit ahead, 6 commit behind a mainhez képest.
+- [PR CI #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): sikeres a PR akkori headjén.
+- [Main CI #45621572548](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45621572548): sikeres a `f49eda7` main headen.
 
-## P0 – merge előtti feladatok
+A CI eredmények csak a megadott commitokra érvényesek. A main és a PR frissítése után a legújabb headeken újra kell ellenőrizni őket.
 
-- [ ] Várd meg a `32aef539...` head teljes PR CI-jének sikerét.
-- [ ] Review-zd a teljes PR diffet és a 282 commitnyi történetet.
-- [ ] Ellenőrizd a migrációs fájlokat, RLS/GRANT szabályokat, Auth trust boundary-t, backup workflow-t és approval/idempotencia útvonalakat.
-- [ ] Zárd le a dokumentációs ellentmondásokat; a fejlesztési review dokumentum legyen az összefoglaló státuszforrás.
-- [ ] Ellenőrizd újra a mergeability-t közvetlenül a merge döntés előtt.
-- [ ] Merge csak külön, kifejezett döntés után; utána a további munka `main`-en folytatódjon.
+## 2. PR merge gate
 
-## P1 – alkalmazáskód és integrációk
+- [ ] A PR frissítése a legújabb mainre; a behind érték 0.
+- [ ] A teljes PR diff és commit-történet review-ja lezárult.
+- [ ] A migrációk, RLS/GRANT, Auth trust boundary, backup workflow és approval/idempotencia útvonalak review-ja lezárult.
+- [ ] A PR legfrissebb headjén minden kötelező CI-job sikeres.
+- [ ] A GitHub mergeability és branch protection közvetlenül a döntés előtt ellenőrizve.
+- [ ] A dokumentáció és a kód állapota egyezik; nincs elavult CI/head vagy egymásnak ellentmondó checklist.
+- [ ] A fennmaradó, nem blokkoló fejlesztési adósságok elfogadása és ütemezése dokumentált.
+- [ ] Külön, kifejezett döntés született a merge-ről.
 
-- [ ] Több worker/process között atomikus, one-use approval consumption és párhuzamos race tesztek.
-- [ ] Általános replay/idempotencia védelem a task- és külső mellékhatásokat végző műveletekhez.
-- [ ] E-mail kézbesítési idempotencia, bizonytalan SMTP-kimenetel és retry-kezelés.
-- [ ] Gemini/SMTP/IMAP kontrollált integrációs tesztek: timeout, retry, rate limit, részleges hiba és titokredakció.
-- [ ] Audit fail-closed tesztek minden érzékeny műveleti útvonalra.
-- [ ] Független kód- és SQL-review.
+**Merge-döntés:** a CI-zöldség önmagában nem elég. A PR jelenlegi mérete (282 commit ahead) miatt teljes review szükséges. A merge nem automatikus.
 
-## P1 – Supabase / Auth / migráció
+## 3. Production release gate
 
-- [ ] Két 20261117 remote migration-ledger eltérés pontos CLI-kompatibilis reconciliation terve és független review-ja.
-- [ ] Teljes catalog postcondition egyezés: owner, grant, policy, function ACL, SECURITY DEFINER, trigger, index és default privileges.
-- [ ] Valós Auth-issued JWT/PostgREST smoke teszt, kizárólag már létező és kifejezetten engedélyezett izolált környezetben.
-- [ ] A live smoke workflow szükséges titkainak és változóinak ellenőrzése, majd a futás bizonyítékának archiválása – csak ha az izolált környezet ténylegesen rendelkezésre áll.
+A production bevezetés a PR merge-től külön döntés. A következő bizonyítékok nélkül a production Supabase maradjon read-only, az Auth/RBAC flag pedig OFF:
 
-## P1 – backup / recovery / operáció
+- [ ] A konkrét production backup archívum visszaállítása külön, izolált adatbázisba.
+- [ ] Post-restore ellenőrzés és jegyzőkönyv: séma, rekordok, kritikus táblák, indexek, jogosultságok és alkalmazás-kompatibilitás.
+- [ ] Production preflight és migrációs ledger eltérés dokumentált, felülvizsgált rendezési terve.
+- [ ] Valós Auth-issued JWT/PostgREST/RLS teszt kizárólag már létező és kifejezetten engedélyezett izolált Supabase környezetben.
+- [ ] Minden production változtatáshoz külön jóváhagyott terv, rollback és megfigyelési/ellenőrzési lépések.
+- [ ] Backup/recovery, retention, kulcskezelés és incidenskezelés üzemeltetési feltételei elfogadva.
 
-- [ ] A konkrét production backup archívum külön adatbázisba való visszaállítása és post-restore jegyzőkönyv.
-- [ ] AWS stack és OIDC trust aktuális státuszának ellenőrzése.
-- [ ] Retention, riasztások, RPO/RTO, kulcsrotáció, incidenskezelés és restore runbook.
-- [ ] A public-schema logikai backupon kívüli Supabase platform- és Storage mentési igények tisztázása.
+## 4. Tiltott műveletek külön jóváhagyás nélkül
 
-## Production korlátozások
+- Production DDL/DML.
+- `supabase db push`, `supabase migration repair`, migration ledger kézi módosítása.
+- GRANT/REVOKE vagy RLS policy módosítás productionben.
+- Production Auth-user provisioning vagy Auth/RBAC aktiválás.
+- AWS production stack deploy.
+- Új Supabase account, projekt vagy branch létrehozása.
+- PR merge.
 
-- Production Supabase read-only.
-- Auth/RBAC production flag OFF.
-- Tilos a külön jóváhagyás nélküli production DDL/DML, `supabase db push`, `supabase migration repair`, ledger edit, GRANT/REVOKE, RLS policy módosítás, Auth-user provisioning és AWS deploy.
-- Új Supabase projekt vagy branch nem hozható létre.
-- A GitHub Actions PostgreSQL 17 fixture a migrációs replay és recovery tesztek engedélyezett helye ebben a fázisban.
+## 5. Döntési állapot
 
-## Release döntés
+**PR #13:** merge előtt frissíteni kell a mainre, majd a teljes változáscsomagot review-zni és a friss head CI-jét ellenőrizni.
 
-**Jelen állapot: merge döntés függőben.** A PR legfrissebb CI-je a dokumentum készítésekor még nem zárult le teljesen, és a 282 commitnyi változáscsomag review-ja is szükséges. A production aktiválás ettől független, későbbi kapu.
+**Production:** nem release-ready, amíg a konkrét production backup restore, preflight és az izolált élő Auth/JWT/RLS bizonyítékok nem állnak rendelkezésre, és a production változtatási terv nincs külön jóváhagyva.
+
+**Munkaszervezés:** a cél egyetlen tartós `main` ág. Az átmeneti PR ág csak a jelenlegi integrációs folyamat miatt létezik; a további munka a merge után a mainen folytatódik.
