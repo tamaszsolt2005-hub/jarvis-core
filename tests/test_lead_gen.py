@@ -318,3 +318,65 @@ def test_csv_duplicate_lookup_passes_escaped_email_to_ilike(tmp_path, monkeypatc
 
     assert db.patterns == [r"first\_last@example.com"]
     assert len(db.inserted) == 1
+
+
+def test_csv_run_treats_database_unique_violation_as_safe_duplicate_skip(tmp_path, monkeypatch, capsys):
+    import csv
+    import lead_gen
+
+    source = tmp_path / "leads.csv"
+    row = _row(email="race@example.com")
+    with source.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+
+    class UniqueViolation(Exception):
+        code = "23505"
+
+    class Result:
+        data = []
+
+    class Query:
+        def __init__(self):
+            self.payload = None
+
+        def select(self, _columns):
+            return self
+
+        def ilike(self, *_args):
+            return self
+
+        def limit(self, _limit):
+            return self
+
+        def insert(self, payload):
+            self.payload = payload
+            return self
+
+        def execute(self):
+            if self.payload is not None:
+                raise UniqueViolation("duplicate key value violates unique constraint")
+            return Result()
+
+    class DB:
+        def table(self, _name):
+            return Query()
+
+    audits = []
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: DB())
+    monkeypatch.setattr(
+        lead_gen, "audit_event",
+        lambda *_args, **kwargs: audits.append(kwargs) or True,
+    )
+    monkeypatch.setattr(lead_gen, "log_event", lambda *_args, **_kwargs: None)
+
+    lead_gen.run(str(source))
+
+    lead_events = [event for event in audits if event["action"] == "create_reviewed_lead"]
+    assert [event["status"] for event in lead_events] == ["pending", "failed"]
+    assert lead_events[0]["operation_id"] == lead_events[1]["operation_id"]
+    assert [event["status"] for event in audits if event["action"] == "import_reviewed_csv"] == [
+        "pending", "success"
+    ]
+    assert "0 új, 1 kihagyott rekord" in capsys.readouterr().out
