@@ -13,12 +13,19 @@ class Query:
         self.db = db
         self.row = None
         self.selected_columns = None
+        self.start = 0
+        self.end = None
 
     def select(self, columns):
         self.selected_columns = columns
         return self
 
     def limit(self, _limit):
+        return self
+
+    def range(self, start, end):
+        self.start = start
+        self.end = end
         return self
 
     def insert(self, row):
@@ -31,7 +38,8 @@ class Query:
             if self.db.lose_insert_response or self.selected_columns != "id":
                 return Result([])
             return Result([{"id": "inserted-lead-id"}])
-        return Result(self.db.existing)
+        rows = self.db.existing[self.start:self.end + 1] if self.end is not None else self.db.existing
+        return Result(rows)
 
 
 class FakeDB:
@@ -363,3 +371,38 @@ def test_global_research_marks_insert_without_database_confirmation_unknown(monk
     insert_events = [event for event in events if event["action"] == "save_researched_company"]
     assert [event["status"] for event in insert_events] == ["pending", "unknown"]
     assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
+
+
+def test_global_research_deduplicates_company_beyond_first_database_page(monkeypatch):
+    company = {
+        "company_name": "Acme Systems",
+        "website": "https://acme.example",
+        "source_url": "https://acme.example/about",
+    }
+    response = {
+        "text": json.dumps({"companies": [company]}),
+        "candidates": [{
+            "grounding_metadata": {
+                "grounding_chunks": [{"web": {"uri": "https://acme.example/about"}}]
+            }
+        }],
+    }
+    monkeypatch.setattr(research.types, "GenerateContentConfig", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "Tool", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
+    monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(research, "audit_event", lambda *_args, **_kwargs: True)
+
+    existing = [
+        {"company_name": "Existing Company %s" % index, "website": "https://existing-%s.example" % index}
+        for index in range(research.EXISTING_LEAD_PAGE_SIZE)
+    ]
+    existing.append({"company_name": "Acme Systems", "website": "https://acme.example"})
+    db = FakeDB(existing=existing)
+
+    result = research.research_global_companies(db, "globális cégek", FakeClient(response))
+
+    assert result["saved_count"] == 0
+    assert result["skipped_count"] == 1
+    assert db.inserted == []
