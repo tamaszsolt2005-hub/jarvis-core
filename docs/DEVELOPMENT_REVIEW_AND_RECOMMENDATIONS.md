@@ -135,7 +135,7 @@ A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20
 
 ## PR #26 – frissített feladatállapot, 2026-11-25
 
-A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és nem a main ágra. [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), aktuális PR-head `eaad5428311d86590f03c744f7f5b0e02da45064`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
+A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és nem a main ágra. [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 1. **Approval race – kód és teszt beépítve, CI a `38693f2` kódcommiton sikeres; az aktuális dokumentációs head teljes CI-je még nincs igazolva.** A DB-szintű approval hash, principal/payload binding, expiry, atomikus consume és operation-ID lock/replay implementálva. Két párhuzamos PostgreSQL session teszteli az azonos operation ID-t.
 2. **Task idempotencia – részben implementált.** A create/update/close műveletek RPC útvonalon futnak; az operation ledger a lezárt művelet eredményét tárolja. Külső szolgáltatók idempotenciája ettől külön feladat.
