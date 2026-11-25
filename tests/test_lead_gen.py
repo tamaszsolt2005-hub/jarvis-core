@@ -187,3 +187,56 @@ def test_csv_run_reports_and_reraises_insert_failure(tmp_path, monkeypatch):
     assert reports[0][0] is database_error
     assert reports[0][1]["module"] == "lead_gen"
     assert reports[0][1]["severity"] == "error"
+
+
+
+def test_csv_run_does_not_audit_success_without_returned_lead_id(tmp_path, monkeypatch):
+    import csv
+    import pytest
+    import lead_gen
+
+    source = tmp_path / "leads.csv"
+    row = _row(email="new@example.com")
+    with source.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+
+    class Result:
+        data = []
+
+    class Query:
+        def select(self, _columns):
+            return self
+
+        def ilike(self, *_args):
+            return self
+
+        def limit(self, _limit):
+            return self
+
+        def insert(self, _payload):
+            return self
+
+        def execute(self):
+            return Result()
+
+    class DB:
+        def table(self, _name):
+            return Query()
+
+    audits = []
+    monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: DB())
+    monkeypatch.setattr(
+        lead_gen, "audit_event",
+        lambda *_args, **kwargs: audits.append(kwargs) or True,
+    )
+    monkeypatch.setattr(lead_gen, "report_error", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="nem igazolta vissza"):
+        lead_gen.run(str(source))
+
+    lead_events = [event for event in audits if event["action"] == "create_reviewed_lead"]
+    assert [event["status"] for event in lead_events] == ["pending", "unknown"]
+    assert lead_events[0]["operation_id"] == lead_events[1]["operation_id"]
+    assert all(event["status"] != "success" for event in lead_events)
