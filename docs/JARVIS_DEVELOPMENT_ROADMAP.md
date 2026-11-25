@@ -133,3 +133,26 @@ A következő lista a roadmap sorrendjét egészíti ki. Új funkció csak akkor
 7. **Alapvető termékfolyamatok:** lead→minősítés→stratégia→task→approval→follow-up→eredménymérés E2E; proaktív javaslatok forrás/uncertainty/duplikáció minőségmérése; jogosultságkezelt, forrásolt memória és adat-életciklus.
 
 A nem blokkoló P2 feladatok (platform backup scope, branch protection felülvizsgálat, alacsony kockázatú coverage bővítés) maradhatnak a backlogban. Ne adjunk hozzá újabb ellenőrzéseket, ha a fenti elfogadási feltételek teljesültek.
+
+
+## Nehézségi becslés a nyitott előfeltételekre
+
+A skála 1–10: 1 könnyű, 10 nagyon nehéz. Az 5/10 alatti feladatokat közös munkacsomagban végzem; az összetettebbeket külön, függőségi sorrendben.
+
+| Előfeltétel | Nehézség |
+|---|:---:|
+| Production host/URL felderítése | **3/10** |
+| SMTP hard-disable élesítése és runtime igazolása | **4/10** |
+| Migration drift és teljes PG17 replay | **6/10** |
+| SQL review és rollback terv | **4/10** |
+| Audit/approval/private schema/RPC production integráció | **7/10** |
+| Task RPC deploy és service_role lockdown | **7/10** |
+| Auth/JWT/session/RLS tesztek | **6/10** |
+| Provider idempotencia és E2E | **8/10** |
+| Production app release és smoke | **6/10** |
+| Üzleti workflow és E2E | **7/10** |
+| Forrásolt memória és adat-életciklus | **7/10** |
+| Branch protection és backup scope felmérése | **2–5/10** |
+
+Az alacsonyabb nehézségű feladatokat összevonom, de az éles deployt, jogosultságmódosítást és adatbázis-migrációt nem hajtom végre pusztán azért, mert a becsült nehézség alacsony.
+
