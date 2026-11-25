@@ -168,3 +168,14 @@ még nincs közölve. A PR-futás eredményét is külön ellenőrizni kell.
 CI-eredménye továbbra sem production backup, és nem igazolja a valós
 Supabase Auth/JWT/RLS működést. PR #13 nyitott és draft; merge és production
 módosítás nem történt.
+
+
+## Targeted repair after CI run 45510214369 — 2026-11-25
+
+The run on PR head `3997f938cd3d3be497e62b9bed9bd4042372d85b` completed with **742 passed, 20 failed, 3 skipped** and **94.04%** line coverage. All 20 failures were grouped into three causes:
+
+1. **Audit UI (11 tests):** the AppTest setup seeded an audit session and immediately reran the page before replacing the verified-session client. That setup rerun attempted real environment-backed Supabase validation and cleared the test session. The tests also selected the last generic button, which was a sidebar navigation control rather than the audit login form submit. The fixture now installs an isolated verified-client stub before its setup rerun, and login tests select the submit button by its label. Production authentication behavior is unchanged.
+2. **Chat email audit-flow (3 tests):** source-contract tests and existing patch seams expect dashboard-level `audit_event` and `report_error` names. The dashboard now exposes small compatibility delegates that resolve the shared modules at call time, preserving monkeypatchability and the centralized implementation. All dashboard call sites use those delegates; pending-audit fail-closed ordering and the explicit approval / server-switch gates remain intact.
+3. **Dashboard helpers (6 tests):** helper tests patch `dashboard.report_error`, but the module-level seam had been removed during the module-namespace refactor. The compatibility delegate restores that supported seam for safe database reads and website-profile transport/parser reporting, including when the reporter itself raises.
+
+The changes are test-isolation and dependency-seam repairs; they do not weaken audit authorization, export expiry, logout cleanup, email approval, or fail-closed behavior. A new CI run on the resulting commit is required before these fixes can be called verified. No production Supabase data or configuration was changed.

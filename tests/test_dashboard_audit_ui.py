@@ -51,6 +51,12 @@ def _prepare_audit_app(monkeypatch, *, admin_session=True):
     app.session_state["jarvis_page"] = "audit"
     if admin_session:
         app.session_state["_jarvis_audit_admin_session"] = dict(_ADMIN_SESSION)
+        # Validate through an isolated verified client before returning the AppTest.
+        # Without this seam the setup rerun consumes the seeded session against real env.
+        monkeypatch.setattr(
+            audit_admin, "verified_admin_client",
+            lambda _session: (object(), dict(_REFRESHED_SESSION)),
+        )
     app.run()
     return app
 
@@ -105,7 +111,7 @@ def test_audit_admin_login_validation_error_is_shown_without_reporter(monkeypatc
     app.run()
     app.text_input[0].set_value("")
     app.text_input[1].set_value("")
-    app.button[-1].click().run()
+    next(button for button in app.button if button.label == "Admin belépés").click().run()
 
     assert not app.exception
     assert any("missing credentials" in item.value for item in app.error)
@@ -127,7 +133,7 @@ def test_audit_admin_login_unexpected_error_is_reported(monkeypatch):
     app.run()
     app.text_input[0].set_value("admin@example.test")
     app.text_input[1].set_value("secret")
-    app.button[-1].click().run()
+    next(button for button in app.button if button.label == "Admin belépés").click().run()
 
     assert not app.exception
     assert reports and reports[0][1]["operation"] == "audit_admin_sign_in"
@@ -141,7 +147,7 @@ def test_audit_admin_successful_login_opens_verified_read_only_view(monkeypatch)
     app.run()
     app.text_input[0].set_value("admin@example.test")
     app.text_input[1].set_value("secret")
-    app.button[-1].click().run()
+    next(button for button in app.button if button.label == "Admin belépés").click().run()
 
     assert not app.exception
     assert app.session_state["_jarvis_audit_admin_session"]["user_id"] == "admin-1"
