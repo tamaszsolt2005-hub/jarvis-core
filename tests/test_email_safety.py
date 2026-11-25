@@ -57,8 +57,7 @@ def test_first_contact_rejects_timezone_naive_consent_timestamp():
     })
 
 
-
-def test_email_jobs_remain_disabled_even_if_environment_flag_is_true(monkeypatch, capsys):
+def test_email_jobs_remain_disabled_even_if_environment_flags_are_true(monkeypatch, capsys):
     monkeypatch.setattr(email_sender, "env_bool", lambda name, default=False: True)
     monkeypatch.setattr(follow_up, "env_bool", lambda name, default=False: True)
     monkeypatch.setattr(
@@ -75,16 +74,27 @@ def test_email_jobs_remain_disabled_even_if_environment_flag_is_true(monkeypatch
     assert "nem kerül kiküldésre" in output
 
 
-def test_smtp_transport_rejects_direct_send_even_with_credentials(monkeypatch):
+def test_smtp_transport_is_hard_disabled_even_when_environment_flag_is_true(monkeypatch):
     import email_utils
-    monkeypatch.setattr(email_utils, "required_secret", lambda name: "test-secret")
+
+    monkeypatch.setenv("EMAIL_DELIVERY_ENABLED", "true")
+    monkeypatch.setattr(
+        email_utils, "get_enforced_user_supabase",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("Auth/database must not be accessed")),
+    )
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("SMTP credentials must not be read")),
+    )
     monkeypatch.setattr(
         email_utils.smtplib, "SMTP",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("SMTP must not be opened")),
     )
+
+    assert email_utils.EMAIL_DELIVERY_ENABLED is False
     try:
-        email_utils.send_email("person@example.com", "Test", "Test")
+        email_utils.send_email("person@example.com", "Test", "Test", approved=True)
     except RuntimeError as exc:
-        assert "kódszinten le van tiltva" in str(exc)
+        assert "kódszinten letiltva" in str(exc)
     else:
         raise AssertionError("Direct SMTP call must be blocked")
