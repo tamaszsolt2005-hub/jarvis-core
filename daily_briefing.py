@@ -1,7 +1,7 @@
 """Read-only daily executive briefing from existing JARVIS records."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 import re
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -78,7 +78,6 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due_date == today:
             due_today.append(item)
 
-    now_utc = datetime.now(timezone.utc)
     overdue_followups = []
     for lead in leads:
         due_date = _local_date(lead.get("next_follow_up_at"))
@@ -99,7 +98,9 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
             and consent_at.tzinfo is not None
             and consent_at.utcoffset() is not None
-            and consent_at <= now_utc
+            # Use the report's reference date, not wall-clock time, so historical
+            # reports and tests do not treat later consent as already granted.
+            and consent_at.astimezone(LOCAL_TZ).date() <= today
             and 0 <= follow_up_count < 1
             and due_date is not None
             and due_date < today
