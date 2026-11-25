@@ -125,11 +125,11 @@ jobs:
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/tests/migration_drift_recovery.test.sql
           # Replaying both missing-ledger migrations is safe only because the
           # fixture proves their effects already exist and the SQL is additive.
-          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
-          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117090000_add_leads_website.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117100000_add_logs_level.sql
           # Repeat to prove idempotence against an already-upgraded schema.
-          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
-          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117090000_add_leads_website.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117100000_add_logs_level.sql
           # Model a migration process stopping after a committed prefix of the
           # audit expansion file: several columns and one index already exist.
           # Replay the complete file and verify IF NOT EXISTS recovers cleanly.
@@ -216,33 +216,41 @@ jobs:
           project_id = "jarvis-cli-migration-fixture"
           TOML
           mkdir -p "$cli_dir/supabase/migrations"
-          cp supabase/migrations/20261117_add_leads_website.sql "$cli_dir/supabase/migrations/"
+          cp supabase/migrations/20261117090000_add_leads_website.sql "$cli_dir/supabase/migrations/"
+          cp supabase/migrations/20261117100000_add_logs_level.sql "$cli_dir/supabase/migrations/"
           (
             cd "$cli_dir"
-            supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
+            # Both pre-existing schema effects are already present in this fixture.
+            # Repair each distinct version independently; never execute the SQL here.
+            supabase migration repair 20261117090000 --status applied --remote="$drift_url" --yes
             PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
-            # Reverted removes the version row; applied inserts it. Reapply so
-            # the fixture ends in the intended reconciled state.
-            supabase migration repair 20261117 --status reverted --remote="$drift_url" --yes
+            supabase migration repair 20261117100000 --status applied --remote="$drift_url" --yes
             PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
-              --command "SELECT count(*) = 5 FROM supabase_migrations.schema_migrations" | grep -qx t
-            supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
+              --command "SELECT count(*) = 7 FROM supabase_migrations.schema_migrations" | grep -qx t
+            # Exercise reverting/reapplying each ledger entry without touching schema.
+            supabase migration repair 20261117090000 --status reverted --remote="$drift_url" --yes
             PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
+            supabase migration repair 20261117090000 --status applied --remote="$drift_url" --yes
+            supabase migration repair 20261117100000 --status reverted --remote="$drift_url" --yes
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
+              --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
+            supabase migration repair 20261117100000 --status applied --remote="$drift_url" --yes
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
+              --command "SELECT count(*) = 7 FROM supabase_migrations.schema_migrations" | grep -qx t
           )
-          # Add the second same-version file only for the migration-list
-          # diagnostic. Both files currently share the 20261117 version.
-          cp supabase/migrations/20261117_add_logs_level.sql "$cli_dir/supabase/migrations/"
-          # Capture the pinned CLI's actual list behavior instead of assuming
-          # that one ledger row can distinguish two separate SQL files.
+          # The local and remote histories must now show both unique versions.
           set +e
           (cd "$cli_dir" && supabase migration list --remote="$drift_url") \
             > "$RUNNER_TEMP/jarvis-migration-list.txt" 2>&1
           list_status=$?
           set -e
-          echo "Supabase CLI migration list exit code for duplicate 20261117 local versions: $list_status"
+          echo "Supabase CLI migration list exit code with unique legacy versions: $list_status"
           cat "$RUNNER_TEMP/jarvis-migration-list.txt"
+          test "$list_status" -eq 0
+          grep -F "20261117090000" "$RUNNER_TEMP/jarvis-migration-list.txt"
+          grep -F "20261117100000" "$RUNNER_TEMP/jarvis-migration-list.txt"
           # Repair is history-only: the already-existing effects and legacy
           # data remain untouched in this isolated fixture.
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --command \
@@ -377,8 +385,8 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file "$RUNNER_TEMP/audit-test-setup.sql"
           # Replay the repository's historical, idempotent schema migrations
           # against the production-shape fixture before the audit/RBAC chain.
-          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
-          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117090000_add_leads_website.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117100000_add_logs_level.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119191911_create_jarvis_memory_and_fk_indexes.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192040_complete_jarvis_runtime_schema.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261119192145_enable_rls_on_legacy_posts.sql
