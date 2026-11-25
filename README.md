@@ -44,6 +44,10 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
+## Fejlesztési áttekintés és prioritások
+
+A jelenlegi fejlesztési állapot, a PR #13 ellenőrzése, a merge-kritériumok és a javasolt javítási sorrend egy helyen: [Fejlesztési áttekintés és javaslatok](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md). A nyitott feladatok és release gate-ek: [Hátralévő feladatok és release gate-ek](docs/REMAINING_WORK_AND_RELEASE_GATES.md). A hosszú távú fejlesztési alap a `main` ág; a PR ágak átmenetiek.
+
 ## Teljes dokumentáció
 
 A projekt architektúrája, funkcióinak állapota, adatmodellje, automatizmusai, biztonsági határai, auditja, mentési terve, tesztjei és nyitott blokkolói egyetlen központi dokumentumban találhatók:
