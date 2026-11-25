@@ -268,3 +268,22 @@ A Resend idempotenciakulcsok 24 órás megőrzése korlátozza a deduplikációt
 
 
 A legfrissebb headen (d83b016) mind a push, mind a PR workflow minden jobja sikeres: 806 passed, 3 skipped, 91,19% line coverage; a PostgreSQL 17 backup/restore/security job is zöld. [Push CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692894757) · [PR CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692878860). A Resend provider hard-disable külön regressziós tesztje is sikeres.
+
+
+## Frissített állapot – 2026-11-25, PR #26 aktuális head
+
+Ez a szakasz felülírja a dokumentum korábbi, PR #26-ra vonatkozó „CI még fut / aktuális head ismeretlen” mondatait. A korábbi időbélyeges production snapshotok történeti bizonyítékok maradnak, nem friss production auditok.
+
+- PR #26: [GitHub](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), állapot: open, `merged=false`.
+- Branch: `docs/pre-feature-readiness-gates`.
+- Ellenőrzött head: `7c8e6970a733884f4423821cddf3731f58e5b392`.
+- JARVIS CI run [45697839295](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839295): `test` és `backup-restore-integration` sikeres.
+- CodeQL run [45697839266](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839266): `Analyze Python` sikeres, az Initialize és Analyze lépések is sikeresen befejeződtek.
+- Dependency audit run [45697839307](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839307): `pip-audit` sikeres a `requirements-test.txt` alapján, runtime és tesztfüggőségekre.
+- A Dependabot heti Python- és GitHub Actions-frissítési konfigurációja bekerült a branchbe.
+
+**Értelmezés:** a három workflow és mind a négy job sikeres. Ez a repo/CI állapotot igazolja; nem bizonyítja, hogy nincs mindenféle biztonsági kockázat, és nem helyettesít CodeQL/Dependabot riasztáslista-áttekintést.
+
+**E-mail:** a GitHub workflow `EMAIL_PROVIDER=smtp` beállítással a meglévő Gmail SMTP utat választja. Az `EMAIL_USER` és `EMAIL_PASSWORD` secretnevek meglétét a repo tulajdonosa ellenőrizte; értékük és az SMTP hitelesítés nem lett ellenőrizve. A küldés kódszinten hard-disabled, az outbound workflow-lépés tiltott. Resend adapter csak alternatív kódútvonal.
+
+**Production:** továbbra sincs igazolt JARVIS app host/URL. Production deploy, migráció, ledger repair, DDL/DML, GRANT/REVOKE, Auth/RBAC változtatás és live e-mail-küldés nem történt. A korábban dokumentált Supabase snapshot időponthoz kötött, read-only történeti állapot; friss lekérdezés nélkül nem szabad aktuálisnak tekinteni.
