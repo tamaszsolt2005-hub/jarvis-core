@@ -243,7 +243,7 @@ def test_pending_approval_copies_nested_payload_before_staging(monkeypatch):
         state={"_jarvis_auth_session": {"user_id": "user-a"}},
         enabled=True,
     )
-    action = {"task_action": {"type": "create", "title": "Original"}}
+    action = {"task_action": {"type": "update", "title": "Original"}}
     namespace["_stage_pending_action"](action)
     action["task_action"]["title"] = "Changed after staging"
 
