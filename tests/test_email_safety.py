@@ -166,3 +166,26 @@ def test_smtp_connection_failure_is_not_misclassified_as_delivery_unknown(monkey
         assert "connection refused" in str(exc)
     else:
         raise AssertionError("The simulated SMTP connection must fail")
+
+
+def test_email_idempotency_key_is_stable_for_the_same_delivery_sequence():
+    lead = {"id": "lead-123", "follow_up_count": 0}
+
+    first = email_sender.email_idempotency_key(lead, follow_up=False)
+    assert first == email_sender.email_idempotency_key(lead, follow_up=False)
+    assert first != email_sender.email_idempotency_key(lead, follow_up=True)
+
+    follow_up_one = email_sender.email_idempotency_key(lead, follow_up=True)
+    lead["follow_up_count"] = 1
+    follow_up_two = email_sender.email_idempotency_key(lead, follow_up=True)
+    assert follow_up_one != follow_up_two
+    assert follow_up_two == email_sender.email_idempotency_key(lead, follow_up=True)
+
+
+def test_email_idempotency_key_requires_a_stable_lead_id():
+    try:
+        email_sender.email_idempotency_key({"follow_up_count": 0}, follow_up=False)
+    except ValueError as exc:
+        assert "lead-azonosító" in str(exc)
+    else:
+        raise AssertionError("A delivery without a stable lead ID must be rejected")

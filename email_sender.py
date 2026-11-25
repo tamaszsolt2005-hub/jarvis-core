@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 from email_utils import EMAIL_DELIVERY_ENABLED, EmailDeliveryOutcomeUnknown, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_service_supabase, log_event, audit_event
 from jarvis_errors import report_error
@@ -63,6 +63,29 @@ def _draft(lead: dict, follow_up: bool = False) -> tuple[str, str]:
         "\n\nHa nem szeretne több megkeresést kapni, válaszoljon erre az e-mailre a LEIRATKOZOM szóval."
     )
     return subject, body
+
+
+def email_idempotency_key(lead: dict, follow_up: bool) -> str:
+    """Return a stable operation key for one lead and one delivery sequence.
+
+    A future provider adapter must send this exact value as its idempotency key.
+    SMTP itself does not provide provider-side idempotency; the key is currently
+    persisted in the audit record to keep retries/reconciliation correlated.
+    """
+    lead_id = str(lead.get("id") or "").strip()
+    if not lead_id:
+        raise ValueError("E-mail idempotenciához stabil lead-azonosító szükséges.")
+    if follow_up:
+        try:
+            sequence = int(lead.get("follow_up_count") or 0) + 1
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Érvénytelen utánkövetési sorszám.") from exc
+        if sequence < 1:
+            raise ValueError("Érvénytelen utánkövetési sorszám.")
+        kind = f"follow-up:{sequence}"
+    else:
+        kind = "first-contact:1"
+    return str(uuid5(NAMESPACE_URL, f"jarvis:email:{lead_id}:{kind}"))
 
 
 def _due_follow_up(lead: dict, now: datetime) -> bool:
@@ -133,7 +156,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 }).eq("id", lead["id"]).eq("status", claim_status).execute()
             log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warning")
             return False
-        operation_id = str(uuid4())
+        operation_id = email_idempotency_key(lead, follow_up)
         audit_fields = {
             "module": "email_sender",
             "action": "send_follow_up_email" if follow_up else "send_first_contact_email",
