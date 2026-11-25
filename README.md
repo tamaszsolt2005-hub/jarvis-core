@@ -59,3 +59,6 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 ## Aktuális fejlesztési állapot – 2026-11-25
 
 A jelenlegi munka a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) ágon folyik (`docs/pre-feature-readiness-gates`). A PR nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d` (mindkét job sikeres a `45689264377` futásban). A dokumentációs frissítések utáni PR-head: `a PR oldalon látható aktuális head`; erre a headre új teljes CI-eredmény még nincs. A production migráció, deploy és jogosultságmódosítás továbbra sincs végrehajtva.
+
+
+- E-mail provider/idempotencia terv: [docs/EMAIL_PROVIDER_IDEMPOTENCY.md](docs/EMAIL_PROVIDER_IDEMPOTENCY.md). A Resend adapter előkészített, de a kimenő küldés továbbra is hard-disabled.

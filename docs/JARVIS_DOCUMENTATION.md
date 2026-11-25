@@ -94,7 +94,14 @@ A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzíte
 - **Approval:** a DB tárolja a token hashét, a principal/payload kötést és lejáratot; az egyszeri fogyasztás a végrehajtó tranzakció része. A replay/revoke SQL-tesztek hozzáadva.
 - **Task műveletek:** az `execute_approved_task_action` RPC operation ID alapján sorosítja az azonos műveletet; a már lezárt művelet eredményét adja vissza. A párhuzamos kettős végrehajtás ellenőrzésére két-session CI teszt van.
 - **Audit:** a kritikus task művelet auditírási hibájára rollback-teszt került be, amely ellenőrzi a task, operation ledger és approval állapotát is.
-- **SMTP:** `EMAIL_DELIVERY_ENABLED = False` marad. A DATA-küldés utáni bizonytalan eredmény `EmailDeliveryOutcomeUnknown` / `send_unknown`; automatikus retry tiltott. A csatlakozási/auth/preflight hiba ismert, nem-kézbesített hibaként kezelendő. Belső stabil operation ID nem egyenlő provider oldali deduplikációval.
+- **SMTP:** `EMAIL_DELIVERY_ENABLED = False` marad. A DATA-küldés utáni bizonytalan eredmény `EmailDeliveryOutcomeUnknown` / `send_unknown`; automatikus retry tiltott. A csatlakozási/auth/preflight hiba ismert, nem-kézbesített hibaként kezelendő. Belső stabil operation ID a Resend adapterben Idempotency-Key fejlécben továbbítódik; SMTP-nél nincs provider-oldali deduplikáció.
 - **Service role:** a végső közvetlen task DML revoke migráció csak az RPC write path deployja és élő smoke-ja után alkalmazható. A CI fixture-ben való lefutása nem jogosít production módosításra.
 
 A `38693f2` kódcommiton a `45689264377` mindkét CI jobja sikeres; a párhuzamos `45689247826` futás megszakadt. A dokumentációs commitok utáni PR-head (`eaad542`) külön CI-je még nem zárult le sikeresen. Production Auth/RLS, migration, deploy és provider integráció nincs igazolva.
+
+
+## Resend provider adapter – 2026-11-25
+
+A Resend HTTPS API adapter elkészült. A stabil lead + sequence operation ID az API Idempotency-Key fejlécébe kerül; a legacy follow_up.py útvonal is ugyanazt a kulcsot használja. A workflow EMAIL_PROVIDER=resend és RESEND_API_KEY secret bindinggal elő van készítve. A globális EMAIL_DELIVERY_ENABLED=False és az outbound workflow if: false változatlan, tehát a provider nem küldhet levelet.
+
+A Resend 24 órán át őrzi az idempotenciakulcsot. A hálózati hiba, 409, 429 és 5xx bizonytalan eredmény; automatikus retry nincs. A send_unknown / followup_unknown állapotot tilos automatikusan visszaállítani küldhető állapotba. Live API-kulcs, ellenőrzött feladói domain és provider E2E még nincs igazolva. Részletek: [Email provider idempotency](EMAIL_PROVIDER_IDEMPOTENCY.md).
