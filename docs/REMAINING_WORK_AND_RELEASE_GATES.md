@@ -221,8 +221,7 @@ Ez a friss szakasz felülírja a dokumentum korábbi PR #26 CI-pillanatképeit �
 
 **Aktuális PR-bizonyíték**
 - PR #26: [nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26).
-- Legutóbbi dokumentációs head: `4e53eb19acb1d4859a7e0964a8d0e10cdc0f6322`.
-- Teljesen ellenőrzött CI/CodeQL/audit head: `7c8e6970a733884f4423821cddf3731f58e5b392`; az azóta következő commitok dokumentációs módosítások, ezekre új futás még nincs visszaigazolva.
+- Teljesen ellenőrzött CI/CodeQL/audit commit: `7c8e6970a733884f4423821cddf3731f58e5b392`; az azóta következő commitok dokumentációs módosítások, ezekre új futás még nincs visszaigazolva. A mindenkori PR-head a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) oldalon látható.
 - JARVIS CI [45697839295](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839295): `test` + `backup-restore-integration` sikeres.
 - CodeQL [45697839266](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839266): Python Analyze sikeres.
 - pip-audit [45697839307](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839307): sikeres a `requirements-test.txt` (runtime + test) csomaglistán.
