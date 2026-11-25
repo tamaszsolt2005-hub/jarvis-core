@@ -131,3 +131,18 @@ A sikeres CI coverage artifact 90,75%-os összesített line coverage-et mutatott
 A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
 
 **Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
+
+
+## PR #26 – frissített feladatállapot, 2026-11-25
+
+A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és nem a main ágra. [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), commit `38693f2f93b790608aef37a33f190a86e611ff0d`.
+
+1. **Approval race – kód és teszt beépítve, CI eredmény függőben.** A DB-szintű approval hash, principal/payload binding, expiry, atomikus consume és operation-ID lock/replay implementálva. Két párhuzamos PostgreSQL session teszteli az azonos operation ID-t.
+2. **Task idempotencia – részben implementált.** A create/update/close műveletek RPC útvonalon futnak; az operation ledger a lezárt művelet eredményét tárolja. Külső szolgáltatók idempotenciája ettől külön feladat.
+3. **Audit fail-closed – SQL teszt beépítve, CI eredmény függőben.** A végső audit append hibáját injektáló teszt azt várja el, hogy task, operation ledger és approval consume egy tranzakcióban rollbackelődjön.
+4. **SMTP biztonság – kódban hard-disabled.** A DATA utáni bizonytalan kimenetel `send_unknown`, automatikus retry nem engedélyezett; a preflight/connect/auth hibák külön, ismert hibaként kezeltek. Production runtime proof nincs.
+5. **Email idempotencia – belső kulcs megvan, provider garancia nincs.** Stabil lead+sequence operation ID kerül a küldési auditba; Gmail SMTP nem garantál provider oldali idempotency-t. API provider kiválasztása és E2E integráció nyitott.
+6. **Migration drift – részben rendezett.** A két 20261117 ledger bejegyzés korábban egyeztetve; a 13 migration file-ból hét ledgerben, hat későbbi migration továbbra sincs productionben alkalmazva. A PG17 CI fixture teljes/replay és postcondition ellenőrzést tartalmaz.
+7. **Service-role privilege lock – szándékosan blokkolt productionben.** A `20261125170000_enforce_atomic_task_write_privileges.sql` csak az RPC app deploy és sikeres production smoke után alkalmazható.
+
+A dokumentáció frissítésekor a teljes CI két futása (`45689264377`, `45689247826`) még `in_progress` volt. A teszt státusza függőben; nem állítható, hogy zöld. A JARVIS host továbbra sem azonosított, a production adatbázis/deploy változatlan.
