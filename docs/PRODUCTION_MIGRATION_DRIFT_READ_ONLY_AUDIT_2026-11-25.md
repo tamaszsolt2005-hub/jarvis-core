@@ -26,17 +26,17 @@ These five entries match the five corresponding repository migration filenames.
 
 ## 2. Confirmed drift: two migrations have effects but no ledger entries
 
-The repository contains two earlier migrations whose version prefixes are eight digits:
+The two original files shared the same eight-digit version prefix, `20261117`, which made their histories ambiguous: Supabase stores one unique ledger row per version and cannot distinguish two SQL files with the same version. The PR branch has now renamed them to distinct 14-digit versions:
 
-- `20261117_add_leads_website.sql`
-- `20261117_add_logs_level.sql`
+- `20261117090000_add_leads_website.sql`
+- `20261117100000_add_logs_level.sql`
 
-Neither `20261117` entry is present in the production migration ledger. However, live catalog inspection confirms both intended effects exist:
+Neither new version is present in the production migration ledger. However, live catalog inspection confirms both intended effects exist:
 
 - `public.leads.website text` exists.
 - `public.logs.level text NOT NULL DEFAULT 'info'` exists.
 
-This is consistent with **schema changes applied outside tracked migration history**. It is not safe to re-run these files merely to repair history. The intended next action, after approval and a final preflight, is a ledger-only reconciliation marking version `20261117` as applied, without executing the SQL again. Before doing so, confirm that the CLI accepts the eight-digit version as-is and that the existing CI migration-repair fixture covers the exact operation.
+This is consistent with **schema changes applied outside tracked migration history**. It is not safe to re-run these files merely to repair history. The intended next action, after the renamed migration files pass the updated isolated CI checks and after explicit approval, is a ledger-only reconciliation marking versions `20261117090000` and `20261117100000` as applied, without executing either SQL file again. The CI workflow has been updated to test each distinct version, applied/reverted/applied behavior, migration-list visibility, and unchanged schema/data in its disposable PostgreSQL fixture. That new CI run is still required before production repair.
 
 ## 3. Confirmed pending repository migrations
 
@@ -70,11 +70,12 @@ The default-privilege catalog currently shows restrictive defaults for role `pos
 
 ## 5. Recommended reconciliation sequence
 
-1. **Ledger-only repair for `20261117`:** verify the exact eight-digit version handling in the pinned Supabase CLI and the repo's isolated CI fixture. If supported, add the two missing history entries as applied without rerunning their SQL. Verify the ledger afterwards.
-2. **Production backup gate:** before any schema/policy migration, verify the production backup destination, encryption/key access, and a separate restore test. A local CI age round-trip is not a substitute.
-3. **Review pending migrations:** inspect SQL and role ownership/default privileges, especially the audit trigger's narrowly scoped `SECURITY DEFINER` function and the RBAC grants/policies. Confirm the live `settings` legacy sequence assumptions.
-4. **Apply pending migrations in order:** only after the backup gate and explicit approval. Apply one migration at a time, verify catalog postconditions and security tests, and stop on any unexpected drift.
-5. **Keep Auth disabled:** do not provision users or enable the application Auth flag as part of this schema reconciliation. Real Auth/JWT/RLS validation remains a separate gate.
+1. **Repository version normalization:** the two duplicate `20261117` files have been renamed to `20261117090000` and `20261117100000`; wait for the updated isolated CI migration-repair test to pass.
+2. **Ledger-only production repair:** after CI success and explicit approval, mark those two distinct versions as applied without rerunning SQL, then verify the ledger and schema postconditions.
+3. **Production backup gate:** before any schema/policy migration, verify the production backup destination, encryption/key access, and a separate restore test. A local CI age round-trip is not a substitute.
+4. **Review pending migrations:** inspect SQL and role ownership/default privileges, especially the audit trigger's narrowly scoped `SECURITY DEFINER` function and the RBAC grants/policies. Confirm the live `settings` legacy sequence assumptions.
+5. **Apply pending migrations in order:** only after the backup gate and explicit approval. Apply one migration at a time, verify catalog postconditions and security tests, and stop on any unexpected drift.
+6. **Keep Auth disabled:** do not provision users or enable the application Auth flag as part of this schema reconciliation. Real Auth/JWT/RLS validation remains a separate gate.
 
 ## 6. Approval boundary and status
 
