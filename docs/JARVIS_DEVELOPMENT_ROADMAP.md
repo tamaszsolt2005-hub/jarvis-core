@@ -156,3 +156,15 @@ A skála 1–10: 1 könnyű, 10 nagyon nehéz. Az 5/10 alatti feladatokat közö
 
 Az alacsonyabb nehézségű feladatokat összevonom, de az éles deployt, jogosultságmódosítást és adatbázis-migrációt nem hajtom végre pusztán azért, mert a becsült nehézség alacsony.
 
+## 2026-11-25 – az összevont alacsony nehézségű ellenőrzési kör eredménye
+
+A következő ellenőrzések közös munkacsomagban lefutottak:
+- SMTP hard-disable: kódban és workflow-ban ellenőrizve; production deploy/runtime bizonyíték hiányzik.
+- Service-role negatív teszt: izolált PostgreSQL 17 + pgTAP CI sikeres; productionben a közvetlen task DML jog továbbra is aktív, ezért éles negatív DML teszt csak lockdown után.
+- RLS/grant: 8 public tábla RLS-enabled, 0 policy; service_role DML engedélyezett, anon/authenticated DML tiltott.
+- Build/health/secrets: Python 3.11, Streamlit indítási parancs és `health_check.run_self_diagnostics()` dokumentálva; production host ismeretlen.
+- GitHub branch protection: main nem védett, required checks enforcement off, rulesets nincs.
+- SQL review: előfeltétel- és ellenőrzőlista előkészítve, független review még szükséges.
+
+**Következő sorrend:** JARVIS host azonosítása → SMTP deploy bizonyítéka → SQL/migrációs review és PG17 replay → audit/approval RPC és task write path deploy → csak utána production task DML lockdown → production smoke. A main branch protection beállítása külön, alacsony kockázatú üzemeltetési javítás, de a tényleges beállítás előtt ellenőrizni kell a required workflow check neveket.
+
