@@ -108,3 +108,19 @@ A production read-only állapotfelméréskor a projektben 8 public tábla volt, 
 ## 6. Következtetés
 
 A PR jelentős Auth/RBAC, audit, jóváhagyás-védelem és task-create idempotencia fejlesztéseket tartalmaz, de ezek nem azonosak az éles Jarvisban már telepített és bekapcsolt funkciókkal. A task idempotencia migráció és a többi adatbázis-módosítás productionre történő alkalmazása külön jóváhagyást, drift-rendezést és ellenőrzött mentést igényel. A következő mérföldkő az aktuális PR-head teljes CI-jének lezárása, majd a P0 release gate-ek külön-külön történő bizonyítása.
+
+
+## Aktuális ellenőrzés – 2026-11-25 (a korábbi CI-státuszt felülírja)
+
+A legfrissebb ellenőrzött PR-head `09bde885407643146238ecc77811eded1ad8aef8`.
+A [JARVIS CI #45619101972](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45619101972)
+mindkét jobja sikeres: a `test` és a `backup-restore-integration` is zöld; a commiton 4/4 GitHub check sikeres.
+A PostgreSQL 17 job a teljes migrációs/pgTAP/catalog ellenőrzést és az izolált CI backup/restore körutat futtatta. Ez nem production archive restore és nem valós Supabase Auth/JWT/RLS bizonyíték.
+
+GitHub jelenlegi állapota: `mergeable=true`, `mergeable_state=clean`, 0 commit behind `main`. A PR továbbra is draft, unmerged. A PR merge és a production release külön döntés; production Auth/RBAC flag maradjon OFF.
+
+A még nyitott, kifejezetten dokumentált fejlesztési hiányok:
+- több worker/process közötti adatbázis-atomikus approval consumption;
+- nem-create műveletek általános replay/idempotencia védelme és e-mail delivery idempotencia;
+- Gemini/SMTP/IMAP valós integrációs tesztek;
+- production backup külön adatbázisba restore-ja, migration history rendezése és valós Auth/JWT/RLS validáció – ezek production release gate-ek, nem bizonyított CI-eredmények.
