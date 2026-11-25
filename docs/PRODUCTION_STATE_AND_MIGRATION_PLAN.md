@@ -177,3 +177,12 @@ A follow-up static review confirmed that the shared-workspace policy-generation 
 The test suite did not explicitly prove that task rows are visible to reader and operator roles. Added two behavioral assertions to `supabase/tests/shared_workspace_role_access.test.sql` and a catalog postcondition requiring the `tasks_shared_read` SELECT policy. The pgTAP plan was increased from 34 to 36 assertions.
 
 No production changes were made. No CI or database tests were run, in accordance with the agreed batch-testing sequence; the tests remain queued for the consolidated run after the full implementation/review batch.
+
+
+## Branch és production állapot szétválasztása – 2026-11-25, PR #26
+
+A [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán új audit/approval/task RPC migrációk, privilege-lock SQL és hozzájuk tartozó tesztek szerepelnek. Ezek **repository/branch állapotúak**, nem production állapotúak. A legutóbbi ismert branch commit `38693f2f93b790608aef37a33f190a86e611ff0d`; a PR nincs merge-ölve.
+
+A korábbi production snapshot a két `20261117` ledger gap reconciliation után hét migrációs ledger bejegyzést rögzít, míg hat későbbi migráció továbbra is unapplied. A `20261125160000_atomic_task_approvals_and_operations.sql` és `20261125170000_enforce_atomic_task_write_privileges.sql` nem tekinthető productionben telepítettnek. A CI PostgreSQL 17 fixture tesztje nem ír a Supabase production adatbázisba.
+
+**Végrehajtási sorrend változatlan:** független SQL review és teljes izolált PG17 CI siker → a tényleges app host azonosítása → külön jóváhagyott app/RPC rollout és smoke → külön jóváhagyott production migráció/ellenőrzés → csak ezt követően a végső service-role task DML revoke. A production Auth/RBAC flag OFF marad. Sem migration push/repair, sem GRANT/REVOKE, sem deploy nem történt a PR #26 dokumentációs frissítésével.
