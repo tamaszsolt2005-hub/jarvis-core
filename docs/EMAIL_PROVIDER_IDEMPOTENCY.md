@@ -1,13 +1,18 @@
 # JARVIS – e-mail provider és idempotencia
 
-## Állapot
+## Állapot és kiválasztott küldési út
 
-A Resend HTTPS API adapter implementálva van a PR #26 branchben. Ez **nem** jelenti a kimenő e-mail engedélyezését.
+A JARVIS meglévő Gmail-fiókját használjuk a kimenő levelek feladójaként, a már implementált Gmail SMTP útvonalon. Saját domain és Resend-fiók nem szükséges ehhez a megoldáshoz.
 
-- EMAIL_DELIVERY_ENABLED = False – kódszintű, környezeti változóval nem feloldható tiltás.
-- .github/workflows/email-automation.yml – az outbound step továbbra is if: false.
-- EMAIL_PROVIDER=resend és RESEND_API_KEY env/secret mapping előkészítve.
-- Nem történt Resend API-hívás, live küldés, secretmódosítás vagy feladói domain-ellenőrzés.
+- A `.github/workflows/email-automation.yml` workflow `EMAIL_PROVIDER=smtp` értéket állít be.
+- A küldő kód alapértelmezett SMTP-végpontja `smtp.gmail.com:587`; STARTTLS-t használ.
+- Szükséges GitHub Actions repository secret nevek: `EMAIL_USER` (a JARVIS-ban már megadott Gmail-cím) és `EMAIL_PASSWORD` (a Gmail-fiókhoz generált alkalmazásjelszó, ha a Google-fiók beállításai ezt támogatják/megkövetelik). Az értékeket soha ne tedd kódba vagy chatbe.
+- Opcionális SMTP felülírások: `SMTP_HOST`, `SMTP_PORT`; Gmailhez az alapértelmezések megfelelőek.
+- A bejövő IMAP monitor külön konfigurációt használhat (`IMAP_HOST`, `IMAP_PORT`).
+- A Resend adapter a kódban megmarad alternatívaként, de a JARVIS jelenlegi küldési útvonalának nem része; domainhitelesítést és `RESEND_API_KEY`-t nem kérünk ehhez a Gmail-megoldáshoz.
+- `EMAIL_DELIVERY_ENABLED = False` – kódszintű, környezeti változóval nem feloldható tiltás.
+- Az outbound workflow-lépés továbbra is `if: false`.
+- Nem történt valódi SMTP-kapcsolat, live küldés vagy GitHub secretmódosítás.
 
 ## Működés
 
@@ -45,12 +50,13 @@ Források:
 - [Resend – Idempotency Keys](https://resend.com/changelog/idempotency-keys)
 - [Resend – API OpenAPI definition](https://github.com/resend/resend-openapi/blob/main/resend.yaml)
 
-## Aktiválás előfeltételei
+## Gmail SMTP ellenőrzési lista (küldés továbbra is tiltva)
 
-- [ ] GitHub Actions RESEND_API_KEY secret tényleges beállítása (az értéket ne tedd commitba vagy chatbe).
-- [ ] Az EMAIL_USER feladói domain ellenőrzése a Resend fiókban.
-- [ ] Kontrollált staging/live E2E: sikeres küldés, ugyanazon kulcs/payload replay, eltérő payload 409, timeout/unknown kezelés.
-- [ ] Audit és lead állapot egyeztetés bizonyítása.
-- [ ] Külön security review és konkrét jóváhagyás a kódbeli hard-disable, majd külön az outbound workflow step feloldására.
+- [ ] Ellenőrizni a GitHub Actions repository secret-ek meglétét: `EMAIL_USER` és `EMAIL_PASSWORD`. A secret értékei nem olvashatók ki; csak a repo tulajdonosa tudja ellenőrizni vagy beállítani őket.
+- [ ] A `EMAIL_USER` a JARVIS-ban használt Gmail-cím legyen.
+- [ ] Ha a Google-fiók megköveteli, külön Google App Password legyen létrehozva, és annak értéke kerüljön az `EMAIL_PASSWORD` secretbe. Ne használd a normál Google-fiók jelszavát, és ne oszd meg a titkot chatben.
+- [ ] Inbound IMAP-hoz ellenőrizni az `IMAP_HOST`, `IMAP_PORT` és `EMAIL_INBOX_MONITOR_ENABLED` beállításokat; ez a küldéstől független.
+- [ ] Külön, jóváhagyott tesztkörnyezetben ellenőrizni a Gmail SMTP hitelesítést és a küldés eredményét, mielőtt bármilyen éles küldési kapcsoló feloldására sor kerülne.
+- [ ] Külön security review és konkrét jóváhagyás szükséges a kódbeli hard-disable, majd külön az outbound workflow step feloldásához.
 
-Egyik előfeltétel sem teljesül automatikusan a PR merge-étől. Production deploy, Supabase migráció, Auth/RLS vagy GRANT/REVOKE módosítás nem része ennek a provider adapternek.
+A jelenlegi módosítás csak a workflow provider-választását és a dokumentációt igazítja Gmail SMTP-re. Nem engedélyez küldést, nem módosít secretet, nem deployol, és nem végez Supabase migrációt vagy jogosultságváltoztatást.
