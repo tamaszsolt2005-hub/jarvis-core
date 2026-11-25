@@ -215,6 +215,8 @@ jobs:
           cat > "$cli_dir/supabase/config.toml" <<'TOML'
           project_id = "jarvis-cli-migration-fixture"
           TOML
+          mkdir -p "$cli_dir/supabase/migrations"
+          cp supabase/migrations/20261117_*.sql "$cli_dir/supabase/migrations/"
           (
             cd "$cli_dir"
             supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
@@ -229,6 +231,16 @@ jobs:
             PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
           )
+          # Both historical files currently share the same 8-digit CLI version.
+          # Capture the pinned CLI's actual list behavior instead of assuming
+          # that one ledger row can distinguish two separate SQL files.
+          set +e
+          (cd "$cli_dir" && supabase migration list --remote="$drift_url") \
+            > "$RUNNER_TEMP/jarvis-migration-list.txt" 2>&1
+          list_status=$?
+          set -e
+          echo "Supabase CLI migration list exit code for duplicate 20261117 local versions: $list_status"
+          cat "$RUNNER_TEMP/jarvis-migration-list.txt"
           # Repair is history-only: the already-existing effects and legacy
           # data remain untouched in this isolated fixture.
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --command \
