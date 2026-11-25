@@ -147,7 +147,9 @@ def test_research_inserts_only_grounded_new_company_without_contact_permission(m
     assert saved["approved_to_contact"] is False
     assert saved["consent_basis"] is None
     assert saved["opted_out"] is False
-    assert audits[0]["action"] == "research_companies"
+    # The per-company write is audited before insertion; the summary audit is last.
+    assert audits[0]["action"] == "save_researched_company"
+    assert audits[-1]["action"] == "research_companies"
     assert events
 
 
