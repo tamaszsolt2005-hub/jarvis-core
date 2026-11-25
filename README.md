@@ -11,7 +11,7 @@ A JARVIS egy magyar nyelvű, Streamlit-alapú B2B üzleti intelligencia-assziszt
 - Jóváhagyott chat e-mail-küldési kísérlet, valamint hozzájárulás-ellenőrzött háttér e-mail- és inbox-folyamatok.
 - Proaktív lead- és feladatváltozás-figyelés, rendszerdiagnosztika és auditfunkciók.
 
-**Fontos:** a repositoryban implementált funkció nem feltétlenül jelent aktív, éles integrációt. A Supabase production séma jelenleg eltér a repository migrációs állapotától; az auditmigráció és a teljes üzleti RBAC production bevezetése blokkolt. A valós e-mail-kézbesítés és az adatbázis-mentés/visszaállítás sincs igazolva.
+**Fontos:** a repositoryban implementált funkció nem feltétlenül jelent aktív, éles integrációt. A Supabase production séma jelenleg eltér a repository migrációs állapotától; az auditmigráció és a teljes üzleti RBAC production bevezetése blokkolt. Az éles, age-titkosított adatbázis-logikai mentés és S3-feltöltés 2026-11-25-én sikeresen ellenőrizve lett; a CI izolált PostgreSQL restore-tesztje is sikeres. A teljes CI-ben egy napi briefing dátumkezelési regresszió javítása után újrafuttatás szükséges.
 
 ## Technológia
 
@@ -49,5 +49,7 @@ python -m pytest -q
 A projekt architektúrája, funkcióinak állapota, adatmodellje, automatizmusai, biztonsági határai, auditja, mentési terve, tesztjei és nyitott blokkolói egyetlen központi dokumentumban találhatók:
 
 **[JARVIS – teljes projekt- és műszaki dokumentáció](docs/JARVIS_DOCUMENTATION.md)**
+
+A legfrissebb hibák, célzott javítások, CI-állapot és biztonsági kapuk összefoglalója: **[CI és üzemeltetési javítási napló](docs/ci-remediation-status.md)**.
 
 A dokumentációban a kódban implementált, automatikusan tesztelt, integrációsan igazolt és productionben ténylegesen működő állapot külön van kezelve.
