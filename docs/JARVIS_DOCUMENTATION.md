@@ -85,3 +85,16 @@ A CI PostgreSQL 17 izolált környezetben migrációs replayt, pgTAP teszteket, 
 A következő legfontosabb lépés nem újabb funkció, hanem megbízható működés: task approval race és idempotencia, külső szolgáltatások hibatűrése, e-mail-küldés biztonsága, migration drift rendezése, Auth/RLS izolált élő validációja, majd production release csak külön engedélyezett terv alapján.
 
 A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) tartalmazzák.
+
+
+## Aktuális implementációs állapot – PR #26, 2026-11-25
+
+A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; legutóbbi ismert commit `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
+
+- **Approval:** a DB tárolja a token hashét, a principal/payload kötést és lejáratot; az egyszeri fogyasztás a végrehajtó tranzakció része. A replay/revoke SQL-tesztek hozzáadva.
+- **Task műveletek:** az `execute_approved_task_action` RPC operation ID alapján sorosítja az azonos műveletet; a már lezárt művelet eredményét adja vissza. A párhuzamos kettős végrehajtás ellenőrzésére két-session CI teszt van.
+- **Audit:** a kritikus task művelet auditírási hibájára rollback-teszt került be, amely ellenőrzi a task, operation ledger és approval állapotát is.
+- **SMTP:** `EMAIL_DELIVERY_ENABLED = False` marad. A DATA-küldés utáni bizonytalan eredmény `EmailDeliveryOutcomeUnknown` / `send_unknown`; automatikus retry tiltott. A csatlakozási/auth/preflight hiba ismert, nem-kézbesített hibaként kezelendő. Belső stabil operation ID nem egyenlő provider oldali deduplikációval.
+- **Service role:** a végső közvetlen task DML revoke migráció csak az RPC write path deployja és élő smoke-ja után alkalmazható. A CI fixture-ben való lefutása nem jogosít production módosításra.
+
+A dokumentáció frissítésekor a két CI run (`45689264377` és `45689247826`) még futott a `38693f2` commiton. Az izolált PostgreSQL 17 tesztek eredménye csak a run sikeres befejezése után állítható zöldnek. Production Auth/RLS, migration, deploy és provider integráció nincs igazolva.
