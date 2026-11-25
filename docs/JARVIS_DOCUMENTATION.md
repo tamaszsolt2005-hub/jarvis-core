@@ -1,7 +1,7 @@
 # JARVIS – teljes projekt- és műszaki dokumentáció
 
-> **Felülvizsgálat:** 2026-11-23  
-> **Vizsgált main commit:** `8650ce6b22fc7669c58cb3241730a0ab49b55342`  
+> **Felülvizsgálat:** 2026-11-25  
+> **Vizsgált main commit:** `5f6045069ea875997a896bb3ac83e83869da7e97`  
 > **Repository:** `tamaszsolt2005-hub/jarvis-core`
 
 Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A forráskód, a Supabase-migrációk és a GitHub Actions workflow-k az elsődleges technikai bizonyítékok. A dokumentum külön választja a kódban létező funkciót, a tesztelt működést és az éles környezetben ténylegesen igazolt állapotot.
@@ -72,7 +72,7 @@ A kód jelenléte önmagában nem bizonyít külső integrációt vagy productio
 | Központi hibajelentés | Implementált és regressziós teszttel ellenőrzött | Hiányzó `logs.error` oszlopnál a hibaesemény a legacy `module/level/message/created_at` oszlopokkal is menthető. A production írási útvonal teljes működését külön éles ellenőrzés igazolja. |
 | Strukturált audit + admin auditoldal | Kódban és migrációban előkészített | A production `logs` táblából hiányzik minden strukturált auditmező, az auditlánc-tábla, a trigger és a policy; az éles audit továbbra is blokkolt a migráció jóváhagyott alkalmazásáig. |
 | Teljes admin/operator/reader RBAC | Nem aktív | Részleges Auth-alapok PR #13-ban, de nem merge-elt / nem aktivált. |
-| Titkosított DB backup | Kód és automatikus round-trip CI-teszt | A CI valós PostgreSQL 17 + age mentés/visszaállítási kört tesztel. Az éles S3 mentés a GitHub/AWS konfiguráció hiányában még nem igazolt. |
+| Titkosított DB backup | Éles S3-feltöltés és CI restore-round-trip igazolt | A 2026-11-25-i [45611038142 backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038142) sikeresen létrehozta, feltöltötte, letöltötte, visszafejtette és hash-ellenőrizte az éles logikai mentést; a [45611038183 CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038183) izolált PostgreSQL 17 restore-round-tripje is sikeres. Ez nem teljes Supabase-platform- vagy Storage-mentés. |
 | Lokális restore-próba | CI-ben automatizált | Elkülönített, ideiglenes PostgreSQL 17 adatbázisba valódi visszaállítás történik; Supabase tesztprojektet továbbra sem hozunk létre. |
 
 ### Működési alapelvek
@@ -260,7 +260,7 @@ A napi 02:15 UTC workflow rövid életű GitHub OIDC AWS role-t, privát S3 buck
 
 **Szükséges Actions változók:** `JARVIS_BACKUP_SOURCE_PROJECT_REF`, `BACKUP_AGE_RECIPIENT`, `BACKUP_AWS_REGION`, `BACKUP_S3_BUCKET`, `BACKUP_S3_KMS_KEY_ARN`.
 
-Az éles mentés és S3-feltöltés csak a GitHub Actions secret-ek/változók és az AWS stack telepítése után igazolható. A `verify` parancs a letöltött objektumot dekódolja, ellenőrzi az archívum fájlkészletét és SHA-256 hash-eit. A CI külön, ideiglenes PostgreSQL 17 adatbázisban valódi titkosított backup/restore round-tripet futtat. A nem éles Supabase restore továbbra is csak külön, üres, allowlistelt projektbe engedhető; új Supabase tesztprojektet nem hozunk létre.
+**Éles mentés igazolva:** a [2026-11-25-i backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038142) minden lépése sikeres volt: age identity előkészítése, PostgreSQL dump, age titkosítás, AWS OIDC, S3-feltöltés SSE-KMS-sel, S3-metaadat ellenőrzés, visszatöltés, visszafejtés és manifest-hash ellenőrzés. A `verify` lépés a fájl visszafejtését és integritását bizonyítja; a külön CI-job ideiglenes PostgreSQL 17 adatbázisba való tényleges restore-round-tripet is futtat. A [45611038183 CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038183) restore integrációs jobja sikeres volt. A nem éles Supabase restore továbbra is csak külön, üres, allowlistelt projektbe engedhető; új Supabase tesztprojektet nem hozunk létre.
 
 A public dump nem tartalmazza a Supabase által kezelt `auth`, `storage`, `realtime` sémák teljes tartalmát, Storage bináris objektumokat, projektbeállításokat, API-kulcsokat, Vault root kulcsot vagy custom role jelszavakat. Auth/Storage használat előtt külön platform- és objektummentési terv és restore-próba szükséges.
 
@@ -309,7 +309,9 @@ Dátumhoz kötött bizonyítékok:
 
 - **2026-11-23 – történeti coverage baseline:** a [45132352299 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45132352299) PR #9 headjén 594 sikeres, 2 kihagyott, 0 hibás tesztet és 97,70% statement coverage-et mutatott. Ez nem a jelenlegi main tesztszáma.
 - **2026-11-23 – PR #13 CI:** a [45251071690 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45251071690) sikeres volt compileall, CloudFormation, Playwright telepítés, unit/AppTest/browser tesztek és artifact-lépések tekintetében. Ez draft PR head; nem igazolja az Auth/RLS production integrációt.
-- **2026-11-23 – production leadkutatás:** a [45252422431 workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45252422431) a hiányzó `logs.action` mező miatt sikertelen volt; a `pending` audit hibája megállította a kutatás indítását. A központi hibajelentés külön fallbacket kapott a legacy logs-sémához, de ez nem helyettesíti a strukturált auditmigrációt.
+- **2026-11-25 – éles titkosított backup:** a [45611038142 workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038142) sikeresen feltöltötte az age-titkosított logikai dumpot az S3 bucketbe SSE-KMS titkosítással, majd visszatöltötte, dekódolta és ellenőrizte a manifest hash-eit.
+- **2026-11-25 – restore integráció:** a [45611038183 CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038183) PostgreSQL 17 + age izolált backup/restore jobja sikeres; ugyanennek a commitnak a teljes CI-je egy napi briefing regressziós teszten még elbukott.
+- **2026-11-25 – napi briefing dátumkezelés:** a [45611038183 CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45611038183) egyetlen hibája az volt, hogy a `build_daily_briefing(today=...)` a hozzájárulás dátumát a gép aktuális idejéhez, nem a riport referencia-dátumához mérte. A javítás a `5f6045069ea875997a896bb3ac83e83869da7e97` commitban a `consent_confirmed_at` budapesti dátumát a riport `today` értékéhez viszonyítja. Az új CI-futás még folyamatban van: [45617159105](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45617159105).
 
 Tesztbiztonsági határok:
 
@@ -340,7 +342,7 @@ Tesztbiztonsági határok:
 
 ### Üzemeltetés / külső kapcsolatok
 
-- Az AWS backup stack telepítése, a GitHub backup secret-ek/változók megléte, az éles Supabase dump és az S3-feltöltés még nem igazolt; hiányzó konfigurációval a workflow most hibás állapotot jelez. A lokális backup/restore round-tripet a CI külön jobban ellenőrzi.
+- Az éles titkosított logikai backup és S3-feltöltés 2026-11-25-én igazolt; a letöltött objektum visszafejtése és hash-ellenőrzése, valamint a CI izolált PostgreSQL restore-round-tripje sikeres. Az AWS CloudFormation stack önálló telepítési státusza és a teljes Supabase-platform/Storage mentés továbbra sem igazolt.
 - A Gemini/SMTP/IMAP külső integrációk és az e-mail-kézbesítés sikeres üzemi működése nincs bizonyítva mockolt tesztekkel.
 - A proaktív monitor napi workflow kódban létezik, de a sikeres éles futás külön igazolandó.
 
@@ -371,4 +373,4 @@ A production `posts` tábla legacy/árva objektumnak tűnik, de a repo-hivatkoz�
 
 ---
 
-**Állapot:** a dokumentum a 2026-11-23-i repository- és csak olvasási production-audit bizonyítékokra épül. Nem jelent production migrációs, backup-, Auth/RBAC- vagy külső integrációs jóváhagyást.
+**Állapot:** a dokumentum a 2026-11-25-i repository-, CI- és backup-futási bizonyítékokat, valamint a 2026-11-24-i csak olvasási production-auditot rögzíti. A sikeres mentés nem jelent production migrációs, Auth/RBAC- vagy külső integrációs jóváhagyást.
