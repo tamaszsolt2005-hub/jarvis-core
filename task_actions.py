@@ -29,7 +29,10 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
 
     if lower.startswith(("hozz létre feladat:", "hozz letre feladat:", "új feladat:", "uj feladat:")):
         payload = text.split(":", 1)[1].strip()
-        parts = [part.strip() for part in payload.split(";") if part.strip()]
+        raw_parts = payload.split(";")
+        if any(not part.strip() for part in raw_parts):
+            return {"error": "A parancs üres mezőt tartalmaz; távolítsd el a felesleges pontosvesszőt."}
+        parts = [part.strip() for part in raw_parts]
         if not parts:
             return {"error": "A feladat címét add meg."}
         fields: dict[str, str] = {"title": parts[0]}
@@ -45,6 +48,8 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
             normalized = aliases.get(key.strip().casefold())
             if not normalized or not value.strip():
                 return {"error": f"Ismeretlen vagy üres mező: {key.strip()}."}
+            if normalized in fields:
+                return {"error": f"A(z) {key.strip()} mező többször szerepel."}
             fields[normalized] = value.strip()
         if not fields["title"] or len(fields["title"]) > 180:
             return {"error": "A feladat címe 1–180 karakter lehet."}
@@ -77,11 +82,22 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
         if not _UUID.fullmatch(task_id):
             return {"error": "Érvénytelen feladatazonosító."}
         updates: dict[str, Any] = {}
-        for part in payload.split(";"):
+        update_parts = payload.split(";")
+        if any(not part.strip() for part in update_parts):
+            return {"error": "A módosítás üres mezőt tartalmaz; távolítsd el a felesleges pontosvesszőt."}
+        for part in update_parts:
             if "=" not in part:
                 return {"error": f"Nem értelmezhető mező: {part.strip()}."}
             key, value = part.split("=", 1)
             key, value = key.strip().casefold(), value.strip()
+            normalized_key = (
+                "priority" if key in {"prioritás", "prioritas"}
+                else "due_at" if key in {"határidő", "hatarido"}
+                else "title" if key in {"cím", "cim"}
+                else None
+            )
+            if normalized_key and normalized_key in updates:
+                return {"error": f"A(z) {key} mező többször szerepel."}
             if key in {"prioritás", "prioritas"} and value.casefold() in _PRIORITIES:
                 updates["priority"] = value.casefold()
             elif key in {"határidő", "hatarido"} and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
