@@ -8,12 +8,12 @@
 
 A dokumentum a repositoryban implementált, CI-ben ellenőrzött, izolált integrációs környezetben igazolt és productionben bizonyított állapotokat külön kezeli. Egy zöld CI nem jelent production-ready Auth/RBAC-ot.
 
-## 1. Aktuális, bizonyítékkal alátámasztott állapot
+## 1. Korábbi CI-baseline és aktuális release-gate állapot
 
 ### PR és CI
 
 - PR #13 nyitott és draft; nincs merge.
-- A branch head `e6736101405180c220d6b96b5a7a3c1d890813e0`.
+- A `e6736101405180c220d6b96b5a7a3c1d890813e0` egy korábbi, teljesen tesztelt baseline; nem a jelenlegi PR head. A friss branch head és CI a [PR #13 oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13) követhető.
 - A [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) ezen a headen teljesen sikeres.
 - Python / Streamlit / AppTest / browser tesztek: **762 passed, 3 skipped**.
 - Python line coverage: **96.47%** (3,799 statement; 134 missed).
@@ -25,7 +25,7 @@ A dokumentum a repositoryban implementált, CI-ben ellenőrzött, izolált integ
 
 **A 45571463053 eredménye a 20 korábbi teszthiba javítását igazolja.** Nem bizonyítja a production AWS/S3 mentést, production restore-t, valós Supabase Auth/JWT/RLS viselkedést vagy éles e-mail-kézbesítést.
 
-### Kód- és tesztjavítások a jelenlegi headen
+### Kód- és tesztjavítások az e673 korábbi CI-baseline-ban
 
 - A dashboard kompatibilitási `audit_event` és `report_error` delegate-jei megőrzik a központi modulimplementációt és a monkeypatchelhető tesztfelületet.
 - Az audit UI AppTest fixture a hitelesített admin kliens izolált stubját a rerun előtt telepíti; a login tesztek címke alapján választják a submit gombot.
@@ -129,7 +129,7 @@ Feladatok:
 
 ## 5. Tesztelési és release kapuk
 
-- [x] Aktuális head teljes Python/AppTest/browser CI: 762 passed, 3 skipped.
+- [x] Korábbi e673 CI-baseline teljes Python/AppTest/browser CI: 762 passed, 3 skipped (nem a jelenlegi PR head).
 - [x] Aktuális head line coverage: 96.47%, 80% küszöb felett.
 - [x] PostgreSQL 17 + pgTAP integráció és lokális age backup/restore round-trip.
 - [ ] Valós Supabase Auth/JWT/RLS integráció engedélyezett izolált környezetben.
