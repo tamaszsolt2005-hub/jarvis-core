@@ -214,3 +214,12 @@ Ezért a jelenlegi kódállapot még nem minősíthető teljesen CI-validáltnak
 A PostgreSQL/age eredmény izolált CI-környezetből származik, nem production
 backup vagy valós Supabase Auth/JWT/RLS bizonyíték. A production Auth flag
 maradjon OFF; nincs production migrációs vagy adatbázis-módosítási engedély.
+
+
+## Aktuális PR-validáció – 2026-11-25
+
+A PR #13 aktuális ellenőrzött headje `09bde885407643146238ecc77811eded1ad8aef8`.
+A [JARVIS CI #45619101972](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45619101972)
+mindkét jobja sikeres (`test`, `backup-restore-integration`), a headen 4/4 check sikeres. A PostgreSQL 17/pgTAP/catalog és izolált CI backup/restore ellenőrzés sikeres.
+
+Ez kizárólag repository/CI bizonyíték. A production archívum külön adatbázisba restore-ja és a valós Supabase Auth/JWT/RLS teszt továbbra sem történt meg. Production migráció, Auth-user provisioning és feature flag aktiválás nem engedélyezett; az Auth/RBAC flag maradjon OFF.
