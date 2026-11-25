@@ -239,3 +239,20 @@ Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
 - Nyilvános webes keresés sem adott ellenőrizhető JARVIS production URL-t.
 
 **Eredmény: a host/URL nem azonosítható a jelenleg hozzáférhető bizonyítékokból.** Nem próbáltam a JARVIS-t a VolleyForm Railway szolgáltatásra telepíteni, nem hoztam létre új szolgáltatást, nem módosítottam DNS-t, változókat vagy secrets értékeket. A feladat blokkoló bemenete: a tényleges host/projekt megnevezése vagy a szolgáltatóhoz tartozó dashboard/deployment hivatkozás megadása.
+
+
+## Legfrissebb állapot – PR #26, 2026-11-25
+
+**Aktív fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) (open, not merged) · **commit:** `38693f2f93b790608aef37a33f190a86e611ff0d`.
+
+### Kód és tesztállapot
+- SMTP hard-disable és bizonytalan kézbesítési kimenetel kezelése a branchben; az unknown státusz automatikus retry-ja tiltott.
+- DB approval, atomikus task RPC/operation ID, replay/revoke és audit fail-closed SQL regressziós tesztek hozzáadva.
+- Két-session concurrency teszt bekerült a PostgreSQL 17 audit/security CI lépésbe.
+- Migration drift fixture, service-role negatív DML teszt és végső privilege-lock migráció a branchben; a privilege lock productionre blokkolt.
+- A dokumentáció frissítésekor a `45689264377` és `45689247826` workflow run még `in_progress` volt; végleges CI eredmény nem áll rendelkezésre.
+
+### Production állapot
+A branchben lévő változtatások nincsenek productionbe telepítve. A legutóbbi dokumentált production read-only snapshot változatlan kiindulópont; a későbbi audit/approval/RPC és privilege-lock migrációk nincsenek alkalmazva. A JARVIS app host nem azonosított; a csatlakoztatott Railway projekt VolleyForm, nem JARVIS. Nincs production DDL/DML, ledger repair, GRANT/REVOKE, Auth flag aktiválás, app deploy vagy PR merge.
+
+**Aktuális értékelés:** a megbízhatóság/biztonság munkacsomag jelentős kódbeli része elkészült, de CI-véglegesítés, provider oldali e-mail idempotencia, production host/deploy és production DB integráció hiányában nem zárható le. A teljes JARVIS projekt nem kész.
