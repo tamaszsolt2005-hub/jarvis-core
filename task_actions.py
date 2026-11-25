@@ -197,7 +197,7 @@ def execute_task_action(
     principal = approval.get("principal")
     if not isinstance(token, str) or len(token) < 32:
         raise PermissionError("A jóváhagyási token hiányzik vagy érvénytelen.")
-    if not isinstance(principal, str) or len(principal) > 100:
+    if not isinstance(principal, str) or not principal.strip() or len(principal) > 100:
         raise PermissionError("A jóváhagyás felhasználói kötése hiányzik vagy érvénytelen.")
 
     # The enforcement helper swaps the legacy service client for a verified
