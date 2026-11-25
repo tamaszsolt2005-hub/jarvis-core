@@ -130,3 +130,41 @@ Kötelező sorrend:
 **Production read-only audit:** PostgreSQL 17.11; 8 public tábla, mind a 8 RLS enabled, 0 policy. `anon` és `authenticated` SELECT/INSERT/UPDATE/DELETE jogosultsága mind a 8 táblán false; `service_role` mind a 8 táblán teljes DML jogosultsággal rendelkezik. `private` schema, `public.audit_chain_state`, `private.task_approvals`, `private.task_action_operations`, `private.execute_approved_task_action(...)` hiányzik. `tasks.operation_id` hiányzik. `auth.users` 0 sor. Migration ledger pontosan 5 bejegyzést tartalmaz, mind 20261119-es. `leads.website` text nullable; `logs.level` text NOT NULL default `'info'`. Security Advisor: 8 INFO `rls_enabled_no_policy` finding.
 
 **Értékelés:** a public Data API szerepkörök közvetlen DML hozzáférése tiltott; a policy nélküli RLS táblák biztonsága a grantszintű tiltáson alapul. A service_role továbbra is közvetlen task DML-joggal rendelkezik. Az audit/hash-chain és task approval RPC-k production működése nem bizonyított, mert az objektumok hiányoznak. Production DDL/DML, migration repair, GRANT/REVOKE, Auth provisioning és deploy nem történt.
+
+## 10. ÚJ FUNKCIÓK ELŐTTI KÖTELEZŐ KÉSZÜLTSÉGI ÁLLAPOT – 2026-11-25
+
+**Döntés: JARVIS új üzleti funkcióinak fejlesztése még nem kezdhető el biztonságosan.** A következő lista a jelenlegi repo-, CI-, Supabase- és deploy-felmérés alapján készült. A `main` legutóbbi igazolt commitja: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1` (PR #25); a PR #25 utáni main CI `45663296144` mindkét jobja sikeres.
+
+### A. Megbízhatóság és biztonság – lezárandó
+1. [ ] A JARVIS tényleges production alkalmazás-hostjának és URL-jének azonosítása. A GitHub repo nem tartalmazott deploy workflow-t vagy app URL-t; az elérhető Railway-fiókban csak a nem JARVIS VolleyForm található. A Streamlit Cloud / más külső host még nincs igazolva.
+2. [ ] A main SMTP hard-disable változásának deployja a valódi production appba, majd futó runtime-bizonyíték, hogy outbound SMTP küldés nem lehetséges. A main kód és workflow tiltása önmagában nem bizonyítja a production runtime állapotát.
+3. [ ] Az audit fail-closed működés teljes érzékeny műveleti útvonal-leltárának lezárása: minden kritikus task/approval/módosító útvonalnál auditírási hiba esetén a művelet álljon le.
+4. [ ] Az atomikus task/approval és audit DB objektumok production-ready migrációs készletének véglegesítése, izolált PostgreSQL 17 replay és független SQL review.
+5. [ ] Külső e-mail idempotencia megoldása csak választott providerrel. Stabil event idempotency key, változatlan request body, provider response ID tartós mentése, bizonytalan kimenetel `unknown`, automatikus retry tiltása a provider idempotenciaablak után, E2E teszt. Provider még nincs kiválasztva; SMTP maradjon tiltva.
+
+### B. Supabase, migrációk és jogosultságok – lezárandó
+6. [ ] A production migration ledgerben hiányzó két `20261117` bejegyzés eredetének és pontos postconditionjeinek egyeztetése; csak dokumentált, review-zott reconciliation tervvel.
+7. [ ] A teljes repository migration lánc production-shape PostgreSQL 17 replay-je, meglévő adatok megőrzésének ellenőrzésével.
+8. [ ] A productionben hiányzó `private` schema, structured audit mezők, `audit_chain_state`, `tasks.operation_id`, approval/operation táblák és RPC-k pontos migrációs tervének ellenőrzése.
+9. [ ] A production SQL-készlet független review-ja, előre definiált pre/post-checkekkel és rollback/recovery tervvel.
+10. [ ] Külön, konkrét jóváhagyás után a production migrációk szakaszos alkalmazása; remote ledger és katalógus utóellenőrzése.
+11. [ ] Az alkalmazás RPC-alapú task write pathjának deployja és smoke tesztje; csak ennek sikere után a `20261125170000_enforce_atomic_task_write_privileges.sql` végső service_role közvetlen task DML tiltás.
+12. [ ] A service_role közvetlen task DML tiltásának negatív tesztje, az atomikus RPC engedélyezett működésének és a régi write path kizárásának bizonyítása.
+13. [ ] Live Auth/JWT/session refresh/RLS/role smoke egy már létező, külön engedélyezett izolált Supabase környezetben; invalid/expired token és admin/operator/reader negatív jogosultsági esetekkel. Production Auth/RBAC csak külön döntésre kapcsolható be.
+14. [ ] A jelenlegi RLS állapot felülvizsgálata: 8 public tábla RLS-enabled, de 0 policy; anon/authenticated DML grant tiltása igazolt, ezt ne lazítsuk fel policy és teszt nélkül.
+
+### C. Alkalmazás kiadhatósága és üzemeltetés
+15. [ ] A valódi app host, build/start parancs, health check, környezeti változók és titokkezelés dokumentálása; secret értékek nem kerülhetnek a repo-ba vagy logba.
+16. [ ] Production app deploy és smoke: indulás, DB kapcsolat, alap dashboard oldalak, task/approval RPC, audit, hibakezelés; SMTP tiltás runtime bizonyítéka.
+17. [ ] Rollback/restore eljárás és üzemeltetési felelősség ellenőrzése. A PostgreSQL logikai backup és izolált PG17 restore már sikeres; Storage/Auth/Realtime/platform konfiguráció mentési scope-ja még tisztázandó.
+18. [ ] GitHub main branch protection / required checks tényleges állapotának ellenőrzése és szükséges minimum beállítása.
+
+### D. Funkcionális termékterületek – új funkciók előtt minimálisan szükséges lezárás
+19. [ ] Önálló üzleti asszisztens: a proaktív lead- és üzletiváltozás-figyelés minőségének, forrásainak, bizonytalansági jelzésének és duplikációmentességének mérése.
+20. [ ] Jóváhagyás nélkül ne legyen külső vagy üzleti hatású végrehajtás – ezt a fő útvonalakon negatív tesztek igazolják.
+21. [ ] Üzleti munkafolyamat: Leadkutatás → minősítés → stratégia → task → approval → utánkövetés → eredménymérés állapotmodellje; megszakítás/folytatás/idempotencia és E2E bizonyíték.
+22. [ ] Tudás/memória: forrásolt és jogosultságkezelt üzleti kontextus, frissesség/bizonytalanság, megőrzés/törlés, valamint tény és modellkövetkeztetés elkülönítése.
+
+**Fontos határ:** production DDL/DML, migration push/repair, ledger módosítás, GRANT/REVOKE, RLS/Auth változtatás és production deploy csak külön, konkrét jóváhagyás után végezhető. A jelenlegi felhatalmazás nem helyettesíti ezt. Külső provider kiválasztását sem szabad feltételezni.
+
+**Új funkciók indításának kapuja:** az A–C blokk valamennyi P0/P1 pontja zöld és bizonyítékkal lezárt; a D blokkhoz tartozó alapvető biztonsági és E2E kapuk teljesülnek. A nem kritikus P2 üzemeltetési fejlesztések külön backlogban maradhatnak, nem szabad végtelen tesztelési listává bővíteni a kaput. A fenti pontok lezárása után új funkciók behozhatók.
