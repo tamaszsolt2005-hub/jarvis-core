@@ -449,6 +449,10 @@ jobs:
           wait "$race_pid_2"
           cat "$RUNNER_TEMP/task-approval-race-1.log" "$RUNNER_TEMP/task-approval-race-2.log"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_concurrency_verify.sql
+          # Lock down the legacy service_role table-write path only after the RPC path exists.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_service_role.test.sql
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |

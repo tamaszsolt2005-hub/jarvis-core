@@ -96,3 +96,12 @@ def test_task_create_payload_accepts_explicit_null_due_at_and_replay_is_serializ
     assert "if v_stored_result is not null then return v_stored_result" in execution
     assert "update private.task_approvals" in execution
     assert "consumed_at is null" in execution
+
+
+
+def test_final_task_privilege_lockdown_is_separate_for_zero_downtime_rollout():
+    migration = (ROOT / "supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql").read_text()
+    normalized = " ".join(migration.lower().split())
+    assert "revoke insert, update, delete, truncate, references, trigger on table public.tasks" in normalized
+    assert "from public, anon, authenticated, service_role" in normalized
+    assert "grant select on table public.tasks to authenticated, service_role" in normalized

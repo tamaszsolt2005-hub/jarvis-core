@@ -34,10 +34,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.posts, public.settings
 TO authenticated;
 
--- Task mutations are exclusively performed by the atomic approval RPC.
--- Authenticated users may read tasks, but cannot bypass the one-use approval
--- by calling PostgREST table INSERT/UPDATE/DELETE directly.
-REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated, service_role;
+-- Authenticated users may read tasks but cannot bypass the one-use approval
+-- by calling PostgREST table INSERT/UPDATE/DELETE directly. The service_role
+-- write grant is retained only for a rolling deploy and removed by
+-- 20261125170000 after the RPC-enabled application version is deployed.
+REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.tasks TO authenticated, service_role;
 
 GRANT SELECT ON TABLE public.logs, public.audit_chain_state TO authenticated;

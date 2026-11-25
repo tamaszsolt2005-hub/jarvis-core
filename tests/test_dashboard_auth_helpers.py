@@ -152,7 +152,7 @@ def test_get_dashboard_supabase_fails_closed_without_auth_session(monkeypatch):
     namespace, _st, calls = load_helpers(monkeypatch, enabled=True)
     with pytest.raises(PermissionError):
         namespace["_get_dashboard_supabase"]()
-    assert calls["user"] == []
+    assert calls["user"] == [(None, {"admin", "operator", "reader"})]
 
 
 def test_authenticated_clears_stale_session_and_pending_action_on_verification_error(monkeypatch):

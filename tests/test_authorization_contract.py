@@ -238,8 +238,11 @@ def test_task_table_writes_are_restricted_to_the_atomic_approval_rpc():
     grant_end = migration.index("TO authenticated;", grant_start)
     grants = migration[grant_start:grant_end]
     assert "public.tasks" not in grants
-    assert "REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated, service_role;" in migration
+    assert "REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated;" in migration
     assert "GRANT SELECT ON TABLE public.tasks TO authenticated, service_role;" in migration
+    final_lockdown = (ROOT / "supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql").read_text()
+    assert "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" in final_lockdown
+    assert "FROM PUBLIC, anon, authenticated, service_role" in final_lockdown
     assert "execute_approved_task_action" in (
         ROOT / "supabase/migrations/20261125160000_atomic_task_approvals_and_operations.sql"
     ).read_text()
