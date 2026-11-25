@@ -1,5 +1,7 @@
 # PR #13 – aktuális ellenőrzési és hátralévő feladatjelentés
 
+> **Frissítési megjegyzés (2026-11-25):** ez a jelentés a korábbi `7fc8875` állapotot rögzíti, ezért a későbbi Auth/approval/task-idempotency módosítások és a Jarvis productiontől való eltérések teljes, aktuális leltárához lásd: [PR #13 – branch-only változások és éles Jarvis hiányok](PR13_BRANCH_ONLY_CHANGES_AND_LIVE_GAPS_2026-11-25.md). A régi CI-eredmény nem igazolja az újabb commitok tesztjeit.
+
 **Dátum:** 2026-11-25  
 **Branch:** `feat/supabase-auth-rbac-foundation`  
 **Ellenőrzött head:** `7fc8875b111a481bd95efbb386e034386dcecdb5`  
