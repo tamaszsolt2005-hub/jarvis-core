@@ -77,7 +77,15 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install --yes postgresql-client-17 age awscli
+          sudo apt-get install --yes postgresql-client-17 age
+          # Ubuntu 24.04 runner images may not expose an apt candidate for awscli.
+          # Install the official AWS CLI v2 bundle instead of relying on Ubuntu's package index.
+          curl --fail --silent --show-error --location \
+            "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+            --output "$RUNNER_TEMP/awscliv2.zip"
+          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP"
+          sudo "$RUNNER_TEMP/aws/install" --update
+          aws --version
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
           export PATH="/usr/lib/postgresql/17/bin:$PATH"
           pg_dump --version | grep -Eq ' 17\.'
