@@ -190,8 +190,11 @@ def research_global_companies(
     if enforced is not None:
         db, _ = enforced
 
+    market_country = get_research_market(db) if market_country is None else market_country
+    if not isinstance(market_country, str) or market_country not in set(MARKET_ALIASES.values()):
+        raise ValueError("Nem támogatott vagy nem ismert célország.")
+
     client = client or get_gemini_client()
-    market_country = market_country or get_research_market(db)
     market_instruction = (
         "Focus ONLY on companies operating in " + market_country + ". Prioritize companies headquartered there "
         "or with substantial operations there. Do not return unrelated countries."
