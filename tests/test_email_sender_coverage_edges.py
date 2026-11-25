@@ -182,7 +182,7 @@ def test_email_sender_success_records_delivery_and_followup_schedule(monkeypatch
     sent, audits = [], []
     _configure(
         monkeypatch, db,
-        send=lambda *args: sent.append(args) or "smtp-id",
+        send=lambda *args: sent.append(args) or "provider-id",
         audit=lambda *args, **kwargs: audits.append(kwargs) or True,
     )
     now = datetime.now(timezone.utc)

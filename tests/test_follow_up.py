@@ -136,11 +136,11 @@ def test_follow_up_does_not_send_without_consent(monkeypatch):
     assert db.rows[0]["status"] == "sent"
 
 
-def test_uncertain_smtp_failure_is_not_reset_to_sendable_status(monkeypatch):
+def test_uncertain_provider_failure_is_not_reset_to_sendable_status(monkeypatch):
     db = _DB([_lead()])
 
     def fail_send(*_args):
-        raise OSError("mock SMTP outcome unknown")
+        raise follow_up.EmailDeliveryOutcomeUnknown("mock provider outcome unknown")
 
     _configure_run(monkeypatch, db, send=fail_send)
     follow_up._run()
