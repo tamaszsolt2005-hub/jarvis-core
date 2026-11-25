@@ -196,7 +196,15 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 "last_message_id": message_id,
             }
             label = "Első levél elküldve"
-        db.table("leads").update(values).eq("id", lead["id"]).eq("status", claim_status).execute()
+        persisted = (
+            db.table("leads").update(values).eq("id", lead["id"])
+            .eq("status", claim_status).select("id").execute()
+        )
+        if not persisted.data:
+            raise RuntimeError(
+                "A szolgáltató átvette a levelet, de a lead kézbesítési állapota nem menthető; "
+                "a duplikált küldés elkerülése érdekében ellenőrzést igényel."
+            )
         if not audit_event(
             db, status="success", delivery_id=message_id or None,
             result={"provider_accepted": True, "follow_up": follow_up},
