@@ -50,3 +50,39 @@ BEGIN
   END IF;
 END
 $$;
+
+
+-- Prove actual service_role statements fail, not only that catalog ACLs look safe.
+SET ROLE service_role;
+DO $direct_dml_denied$
+DECLARE
+  insert_denied boolean := false;
+  update_denied boolean := false;
+  delete_denied boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO public.tasks (title) VALUES ('Direct service-role insert must fail');
+  EXCEPTION WHEN insufficient_privilege THEN
+    insert_denied := true;
+  END;
+  BEGIN
+    UPDATE public.tasks
+       SET title = 'Direct service-role update must fail'
+     WHERE operation_id = '40000000-0000-4000-8000-000000000004'::uuid;
+  EXCEPTION WHEN insufficient_privilege THEN
+    update_denied := true;
+  END;
+  BEGIN
+    DELETE FROM public.tasks
+     WHERE operation_id = '40000000-0000-4000-8000-000000000004'::uuid;
+  EXCEPTION WHEN insufficient_privilege THEN
+    delete_denied := true;
+  END;
+
+  IF NOT insert_denied OR NOT update_denied OR NOT delete_denied THEN
+    RAISE EXCEPTION 'Direct service_role DML was not fully blocked: insert %, update %, delete %',
+      insert_denied, update_denied, delete_denied;
+  END IF;
+END
+$direct_dml_denied$;
+RESET ROLE;
