@@ -595,6 +595,7 @@ def _consume_pending_action() -> dict[str, Any] | None:
     now = time.time()
     if (
         not isinstance(payload_hash, str)
+        or not payload_hash.isascii()
         or not hmac.compare_digest(payload_hash, expected_payload_hash)
         or not isinstance(created_at, (int, float))
         or isinstance(created_at, bool)
