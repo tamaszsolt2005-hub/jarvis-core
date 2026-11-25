@@ -1540,7 +1540,7 @@ if prompt:
                 if chat_email:
                     stage = "Jóváhagyott chatből indított e-mail"
                     if not EMAIL_DELIVERY_ENABLED or not env_bool("CHAT_EMAIL_ENABLED", False):
-                        approval_notice = "A tervezetet jóváhagytad, de e-mail nem ment ki: a szerveroldali EMAIL_DELIVERY_ENABLED és CHAT_EMAIL_ENABLED beállítás nincs bekapcsolva."
+                        approval_notice = "A tervezetet jóváhagytad, de kimenő e-mail nem ment ki: az SMTP-küldés kódszinten le van tiltva a külön biztonsági felülvizsgálatig."
                     else:
                         email_operation_id = chat_email.get('operation_id') or str(uuid4())
                         audit_fields = {
