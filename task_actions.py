@@ -29,6 +29,8 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
 
     if lower.startswith(("hozz létre feladat:", "hozz letre feladat:", "új feladat:", "uj feladat:")):
         payload = text.split(":", 1)[1].strip()
+        if not payload:
+            return {"error": "A feladat címét add meg."}
         raw_parts = payload.split(";")
         if any(not part.strip() for part in raw_parts):
             return {"error": "A parancs üres mezőt tartalmaz; távolítsd el a felesleges pontosvesszőt."}
@@ -36,6 +38,7 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
         if not parts:
             return {"error": "A feladat címét add meg."}
         fields: dict[str, str] = {"title": parts[0]}
+        explicit_fields: set[str] = set()
         aliases = {
             "cím": "title", "cim": "title", "határidő": "due_date",
             "hatarido": "due_date", "prioritás": "priority", "prioritas": "priority",
@@ -48,8 +51,9 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
             normalized = aliases.get(key.strip().casefold())
             if not normalized or not value.strip():
                 return {"error": f"Ismeretlen vagy üres mező: {key.strip()}."}
-            if normalized in fields:
+            if normalized in explicit_fields:
                 return {"error": f"A(z) {key.strip()} mező többször szerepel."}
+            explicit_fields.add(normalized)
             fields[normalized] = value.strip()
         if not fields["title"] or len(fields["title"]) > 180:
             return {"error": "A feladat címe 1–180 karakter lehet."}
