@@ -121,3 +121,12 @@ Kötelező sorrend:
 
 
 **Kimenő e-mail biztonsági kapu – PR #23:** a kimenő SMTP-küldés kódszinten letiltva, a környezeti `EMAIL_DELIVERY_ENABLED` érték nem képes aktiválni. A scheduled küldési lépés workflow-szinten is tiltott; az inbound IMAP monitor külön maradt. Újraengedélyezés kizárólag külön security review, szolgáltatói idempotencia-bizonyíték és célzott E2E tesztek után történhet.
+
+
+## 9. Friss biztonsági állapot – 2026-11-25 17:06 UTC
+
+**Main / SMTP:** PR #23 squash merge-elve (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`). A `send_email()` hard-disabled, az outbound workflow sender step letiltott. A merge utáni main CI `45661201562`: backup–restore sikeres, test job a frissítéskor futott. Production alkalmazásdeploy nem történt, ezért a main kódbeli állapot nem azonos a futó production runtime-mal.
+
+**Production read-only audit:** PostgreSQL 17.11; 8 public tábla, mind a 8 RLS enabled, 0 policy. `anon` és `authenticated` SELECT/INSERT/UPDATE/DELETE jogosultsága mind a 8 táblán false; `service_role` mind a 8 táblán teljes DML jogosultsággal rendelkezik. `private` schema, `public.audit_chain_state`, `private.task_approvals`, `private.task_action_operations`, `private.execute_approved_task_action(...)` hiányzik. `tasks.operation_id` hiányzik. `auth.users` 0 sor. Migration ledger pontosan 5 bejegyzést tartalmaz, mind 20261119-es. `leads.website` text nullable; `logs.level` text NOT NULL default `'info'`. Security Advisor: 8 INFO `rls_enabled_no_policy` finding.
+
+**Értékelés:** a public Data API szerepkörök közvetlen DML hozzáférése tiltott; a policy nélküli RLS táblák biztonsága a grantszintű tiltáson alapul. A service_role továbbra is közvetlen task DML-joggal rendelkezik. Az audit/hash-chain és task approval RPC-k production működése nem bizonyított, mert az objektumok hiányoznak. Production DDL/DML, migration repair, GRANT/REVOKE, Auth provisioning és deploy nem történt.
