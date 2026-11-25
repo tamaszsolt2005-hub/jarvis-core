@@ -229,3 +229,19 @@ PostgreSQL 17 production-shape fixture. Do not create a Supabase project/branch 
 run production migrations or migration repair. The existing Jarvis project is read-only
 for this phase. The 20261117 ledger discrepancy remains open until local fixture tests
 prove the exact CLI-compatible reconciliation operation. Production Auth stays OFF.
+
+### Migration drift progress update — 2026-11-25
+
+Added local-only regression coverage:
+- `supabase/tests/migration_drift_recovery.test.sql` seeds the five observed remote
+  migration versions and represents both existing 20261117 schema effects.
+- CI now creates a dedicated PostgreSQL 17 fixture, replays both 20261117 additive
+  migrations twice, and checks preservation of lead/log/settings/posts rows and the
+  integer sequence-backed settings ID.
+
+Commit: `d995fe5e577e7bdc455aec67083c6fd894f982c4`.
+
+Status: implementation committed; CI result pending at documentation time. This test
+does not repair or modify the remote ledger. The exact CLI-compatible resolution of
+the two missing versions and failure-injection recovery for later audit/RBAC migrations
+remain open. Production stays read-only and Auth stays OFF.
