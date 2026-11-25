@@ -1,6 +1,6 @@
 # JARVIS – képességek és műszaki áttekintés
 
-**Aktuális alap:** `main` – a PR #13 squash merge-je: `bb5788e94b60a11185c45502b45d351ab2b2189b` (2026-11-25).
+**Aktuális alap:** `main` – PR #20 squash merge: `2e2a97e182687c9b9d018da99b87095b75a21054` (2026-11-25).
 **Célközönség:** fejlesztők és AI-kódoló ügynökök. Ez a dokumentum a jelenlegi kódszerkezetet és a funkciók tényleges korlátait írja le.
 
 ## 1. Mi a JARVIS?
@@ -16,7 +16,7 @@ A JARVIS magyar nyelvű, Streamlit-alapú B2B üzleti asszisztens. A felhasznál
 | Leadértékelés | Lead scoring, prioritás és utánkövetési javaslat | Üzleti döntést támogató becslés, nem garantált eredmény |
 | Üzleti memória | Explicit üzleti információk tárolása és későbbi felhasználása | Nem korlátlan vagy automatikusan teljes tudásbázis |
 | Stratégia és döntéstámogatás | Üzleti tanulságok, stratégiai összefoglalók, analitika | A kimenet a rendelkezésre álló adatok minőségétől függ |
-| Feladatkezelés | Task létrehozás, módosítás, lezárás és jóváhagyásos végrehajtás | Az egyszer használatos approval több processz közötti atomikus fogyasztása és az összes művelet idempotenciája még nem teljes |
+| Feladatkezelés | Task létrehozás, módosítás, lezárás és DB-szintű jóváhagyásos végrehajtás | Az approval consume és task+audit+operation RPC atomikus; az összes update/close és külső mellékhatás teljes idempotenciája még nem bizonyított |
 | Audit és hibakezelés | Műveleti napló, auditállapotok, hibák redakciója | A hash chain nem WORM, és nem véd adatbázis-tulajdonossal szemben |
 | Napi briefing és utánkövetés | Vezetői összefoglaló, lejárt feladatok és follow-up jelzések | A tényleges futtatás ütemező- és környezetfüggő |
 | Proaktív monitor | Lead- és feladatváltozások figyelése, állapotfrissítés | A monitor kód megléte nem bizonyítja, hogy production scheduler fut |
@@ -67,6 +67,10 @@ A JARVIS magyar nyelvű, Streamlit-alapú B2B üzleti asszisztens. A felhasznál
 7. Ne kapcsold be productionben az Auth/RBAC-ot, amíg a migration drift és az éles tesztelés nincs rendezve.
 
 ## 6. Fejlesztés és tesztelés
+
+**Aktuális ellenőrzés (2026-11-25):** main commit `2e2a97e`; main CI `45655131500` sikeres. A production backup workflow `45655512387` sikeresen végrehajtotta a titkosított dumpot, S3 SSE-KMS ellenőrzést, letöltés/visszafejtés/hash ellenőrzést és külön PostgreSQL 17 restore-t. Ez nem jelent production migrációt vagy deployt. [Backup/restore futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+
+
 
 ```bash
 python -m pip install -r requirements-test.txt
