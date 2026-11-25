@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(31);
+SELECT plan(32);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -23,7 +23,7 @@ INSERT INTO public.settings (key,value) VALUES
 ('smtp_password','{"value":"must stay admin-only"}'::jsonb);
 
 SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"}}',true);
+SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"},"user_metadata":{"role":"admin"}}',true);
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='RBAC fixture'),1::bigint,'reader can read shared leads');
 SELECT throws_ok(
   $reader$INSERT INTO public.leads (company_name) VALUES ('reader denied')$reader$,
@@ -32,6 +32,9 @@ SELECT throws_ok(
 UPDATE public.leads SET company_name='reader changed' WHERE company_name='RBAC fixture';
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='reader changed'),0::bigint,'reader cannot update leads');
 SELECT is((SELECT count(*) FROM public.settings),0::bigint,'reader cannot read settings');
+SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"unknown"},"user_metadata":{"role":"admin"}}',true);
+SELECT is((SELECT count(*) FROM public.leads),0::bigint,'unknown role fails closed even when user_metadata claims admin');
+SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"},"user_metadata":{"role":"admin"}}',true);
 SELECT is((SELECT count(*) FROM public.logs),0::bigint,'reader cannot read audit events');
 SELECT throws_ok(
   $reader$INSERT INTO public.logs (module,message,level,action,status) VALUES ('reader_test','reader event','info','test','success')$reader$,
