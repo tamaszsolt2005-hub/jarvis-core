@@ -5,13 +5,15 @@
 
 ## 1. Megbízhatóság és biztonság
 
-1. **Backup workflow importhiba javítása.** A merge utáni `45624735241` futás a `scripts/supabase_backup.py` importjánál elbukott: `ModuleNotFoundError: jarvis_errors`. A kivizsgálás két hibát azonosított: közvetlen scriptindításkor a repository gyökere nincs a Python importútvonalán, továbbá a workflow konfigurációellenőrzése escape-elt Bash változókat használt. Mindkettőhöz regressziós teszt szükséges; ezután futtasd újra a workflow-t. Ne állíts sikeres backupot, amíg a teljes friss futás nem zöld.
+1. **Backup workflow javítása és igazolása – KÉSZ.** A CLI importútvonal, S3 shell quoting és Python indentation hibák javítva PR #18–#20-ban. A `main` CI `45655131500` sikeres. A production backup workflow `45655512387` minden lépése sikeres: titkosított dump, S3/SSE-KMS feltöltés és ellenőrzés, letöltés/visszafejtés/hash, külön PostgreSQL 17 restore és táblainventár/rekordszám ellenőrzés. Ez a backup gate teljesült.
 2. **Task approval race.** Az egyszer használatos jóváhagyás jelenlegi UI-session kezelése nem garantál atomikus, több processz közötti one-use fogyasztást. Vezess be DB-szintű atomikus consume műveletet, lejáratot, principal- és payload-kötést, konkurens teszteket.
-3. **Teljes műveleti idempotencia.** A task-create kapott stabil operation ID-t és deduplikációt. A task update/close és külső mellékhatások teljes replay/idempotencia védelme hiányos.
+3. **Teljes műveleti idempotencia.** A task approval/execute RPC operation ID-val és concurrency-védelemmel implementált és tesztelt. A task update/close teljes műveleti lefedettségét és a külső szolgáltatók idempotenciáját még külön igazolni kell.
 4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
 5. **Külső e-mail integritás.** SMTP unknown kimenetel után nincs bizonyított szolgáltatói idempotencia; az automatikus retry duplikált küldést okozhat. Kimenő küldés maradjon tiltott, amíg a deduplikáció és a végponttól végpontig tesztek nincsenek készen.
 
 ## 2. Supabase és jogosultságkezelés
+
+**Aktuális állapot:** a production backup/restore gate teljesült (`45655512387`), de a schema/ledger drift továbbra is nyitott. A következő feladat friss read-only snapshot, nem migrációfuttatás.
 
 - A két 20261117 migration ledger eltérés rendezési tervének bizonyítása.
 - Production-shape PostgreSQL 17 migrációs replay és adatmegőrzési ellenőrzés.
@@ -19,7 +21,7 @@
 - Auth/RLS live smoke teszt meglévő, engedélyezett izolált Supabase környezetben.
 - Auth session refresh, szerepkörváltozás, invalid/lejárt JWT, reader/operator/admin negatív tesztjei.
 - Különválasztani és dokumentálni a user-JWT dashboard klienst és a háttérfolyamat service-role kliensét; a service-role kulcs soha ne kerüljön felhasználói kliensbe.
-- A production logikai backup tényleges külön adatbázisba restore-jának igazolása.
+- [KÉSZ] A production logikai backup tényleges külön PostgreSQL 17 adatbázisba restore-ja igazolt (`45655512387`).
 - A Supabase platformon kívüli mentési igények (Storage objektumok, Auth/Realtime és konfiguráció) tisztázása.
 
 ## 3. Önállóbb üzleti asszisztens
