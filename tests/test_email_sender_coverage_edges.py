@@ -245,7 +245,7 @@ def test_email_sender_rechecks_followup_due_state_after_claim(monkeypatch):
 def test_email_sender_followup_limit_disables_next_schedule(monkeypatch):
     db = _DB([_lead(status="follow_up_sent", follow_up_count=1)])
     audits = []
-    monkeypatch.setattr(email_sender, "env_int", lambda name, default, *_args: 1 if name == "MAX_FOLLOW_UPS" else default)
+    monkeypatch.setattr(email_sender, "env_int", lambda name, default, *_args: 2 if name == "MAX_FOLLOW_UPS" else default)
     _configure(
         monkeypatch, db,
         audit=lambda *args, **kwargs: audits.append(kwargs) or True,
