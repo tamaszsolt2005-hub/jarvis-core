@@ -67,8 +67,14 @@ jobs:
           set -euo pipefail
           identity="$RUNNER_TEMP/jarvis-age-identity.txt"
           printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$identity"
-          if ! grep -Eq '^[[:space:]]*AGE-SECRET-KEY-1[0-9A-Z]+[[:space:]]*
+          if ! grep -Eq '^[[:space:]]*AGE-SECRET-KEY-1[0-9A-Z]+[[:space:]]*$' "$identity"; then
+            echo "::error::BACKUP_AGE_IDENTITY must contain the private age identity (AGE-SECRET-KEY-1...), not the public age1 recipient or a JSON/quoted value."
+            exit 1
+          fi
+          chmod 600 "$identity"
+          echo "AGE_IDENTITY_FILE=$identity" >> "$GITHUB_ENV"
 
+      - name: Install PostgreSQL 17 client, age and AWS CLI
       - name: Install PostgreSQL 17 client, age and AWS CLI
         if: steps.config.outputs.ready == 'true'
         shell: bash
