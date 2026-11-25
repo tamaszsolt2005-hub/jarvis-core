@@ -258,3 +258,8 @@ Commit `1ca6e679507339f13885a86d8c56e1acc9f88170` extends the isolated PostgreSQ
 - The legacy `settings.id` check now calls `nextval(pg_get_serial_sequence(...))` and asserts the generated value advances beyond the existing maximum ID. This verifies the sequence remains operational, not just attached.
 
 All of this runs in the disposable local PostgreSQL 17 CI database. It does not change or repair the live Supabase migration ledger and does not authorize production DDL. The exact Supabase CLI migration-repair semantics remain unverified unless a local CLI executable is explicitly exercised; no production repair is performed.
+
+
+## JWT role spoofing and fail-closed RBAC assertions (2026-11-25)
+
+The shared-workspace pgTAP suite now includes an explicit trust-boundary check: a token with `user_metadata.role = admin` but `app_metadata.role = reader` remains a reader, and an unknown `app_metadata.role` remains denied even when user metadata claims admin. The assertion plan is now 32 and the CI output guard was updated accordingly. These checks run only in the isolated PostgreSQL 17 fixture.
