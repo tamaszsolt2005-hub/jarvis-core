@@ -55,7 +55,7 @@ class SenderQuery:
                 "last_inbound_message_id": None,
             }])
         self.db.updates.append(self.payload)
-        if self.payload and self.payload.get("status") == "sending":
+        if self.payload and self.payload.get("status") in {"sending", "sent", "follow_up_sent"}:
             return Result([{"id": "lead-1"}])
         return Result([])
 
