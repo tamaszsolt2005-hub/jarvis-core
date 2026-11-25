@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL }}
-      JARVIS_BACKUP_SOURCE_PROJECT_REF: \${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
-      BACKUP_AGE_RECIPIENT: \${{ vars.BACKUP_AGE_RECIPIENT }}
-      BACKUP_S3_BUCKET: \${{ vars.BACKUP_S3_BUCKET }}
-      BACKUP_S3_KMS_KEY_ARN: \${{ vars.BACKUP_S3_KMS_KEY_ARN }}
-      AWS_DEFAULT_REGION: \${{ vars.BACKUP_AWS_REGION }}
-      AWS_BACKUP_ROLE_ARN: \${{ secrets.AWS_BACKUP_ROLE_ARN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      JARVIS_BACKUP_SOURCE_PROJECT_REF: ${{ vars.JARVIS_BACKUP_SOURCE_PROJECT_REF }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      BACKUP_S3_KMS_KEY_ARN: ${{ vars.BACKUP_S3_KMS_KEY_ARN }}
+      AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+      AWS_BACKUP_ROLE_ARN: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -33,7 +33,7 @@ jobs:
         id: config
         shell: bash
         env:
-          BACKUP_AGE_IDENTITY: \${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
         run: |
           missing=()
           [[ -n "$SUPABASE_DB_URL" ]] || missing+=("SUPABASE_DB_URL secret")
@@ -61,7 +61,7 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         shell: bash
         env:
-          BACKUP_AGE_IDENTITY: \${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
         run: |
           set -euo pipefail
           identity="$RUNNER_TEMP/jarvis-age-identity.txt"
@@ -96,8 +96,8 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: \${{ secrets.AWS_BACKUP_ROLE_ARN }}
-          aws-region: \${{ vars.BACKUP_AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_BACKUP_ROLE_ARN }}
+          aws-region: ${{ vars.BACKUP_AWS_REGION }}
 
       - name: Upload encrypted backup to private S3 bucket
         if: steps.config.outputs.ready == 'true'
@@ -116,7 +116,7 @@ jobs:
         shell: bash
         id: verify
         env:
-          BACKUP_S3_KEY: \${{ steps.upload.outputs.s3_key }}
+          BACKUP_S3_KEY: ${{ steps.upload.outputs.s3_key }}
         run: |
           set -euo pipefail
           head_json="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$BACKUP_S3_KEY")"
@@ -165,7 +165,7 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         shell: bash
         env:
-          BACKUP_S3_KEY: \${{ steps.upload.outputs.s3_key }}
+          BACKUP_S3_KEY: ${{ steps.upload.outputs.s3_key }}
           JARVIS_RESTORE_DB_URL: postgresql://postgres:jarvis-ci-only-restore-password@127.0.0.1:5432/postgres
           JARVIS_RESTORE_ALLOWED_PROJECT_REF: local-test
           JARVIS_RESTORE_ALLOW_LOCAL_TEST_DB: "true"

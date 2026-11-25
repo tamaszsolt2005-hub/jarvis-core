@@ -12,10 +12,10 @@ jobs:
     environment: supabase-integration
     timeout-minutes: 20
     env:
-      SUPABASE_URL: \${{ secrets.JARVIS_TEST_SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: \${{ secrets.JARVIS_TEST_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.JARVIS_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_EXPECTED_PROJECT_REF: \${{ vars.JARVIS_TEST_SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ secrets.JARVIS_TEST_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.JARVIS_TEST_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.JARVIS_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_EXPECTED_PROJECT_REF: ${{ vars.JARVIS_TEST_SUPABASE_PROJECT_REF }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

@@ -200,16 +200,16 @@ The latest read-only evidence and implementation artifacts are now recorded:
 - [x] Workflow extended to verify S3 SSE-KMS metadata, download/decrypt/hash-check the object, then restore into a separate disposable PostgreSQL 17 container.
 - [ ] Configure/verify the required GitHub secrets and variables.
 - [ ] Deploy/verify the AWS CloudFormation stack and main-branch GitHub OIDC trust.
-- [ ] Run the production backup workflow from trusted \`main\`.
+- [ ] Run the production backup workflow from trusted `main`.
 - [ ] Capture S3 object key/version, KMS metadata, manifest hashes, restored table inventory, and row-count evidence.
 
-The backup archive covers JARVIS \`public\` schema only; Supabase-managed schemas and Storage object binaries are excluded. This limitation is explicit in the recovery plan.
+The backup archive covers JARVIS `public` schema only; Supabase-managed schemas and Storage object binaries are excluded. This limitation is explicit in the recovery plan.
 
 ### P0.3 – Real Supabase Auth/JWT/RLS
 
-- [x] Live test harness creates temporary Auth users with server-managed \`app_metadata.role\`.
+- [x] Live test harness creates temporary Auth users with server-managed `app_metadata.role`.
 - [x] Harness exercises real Auth-issued JWTs through PostgREST, including admin/operator/reader permissions, user_metadata spoof rejection, audit append/read separation, role refresh and logout.
-- [x] Manual GitHub workflow uses a dedicated \`supabase-integration\` environment and test-only credentials.
+- [x] Manual GitHub workflow uses a dedicated `supabase-integration` environment and test-only credentials.
 - [ ] Create/approve disposable Supabase branch (quoted compute cost: **$0.01344/hour**).
 - [ ] Add branch-only URL, publishable key, service-role key and project ref to the protected GitHub environment.
 - [ ] Execute live Auth/RLS workflow and archive evidence.
