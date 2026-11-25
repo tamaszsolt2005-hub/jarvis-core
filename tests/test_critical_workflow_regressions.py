@@ -3,6 +3,7 @@
 These tests deliberately avoid live Supabase, IMAP, SMTP, and production records.
 """
 from datetime import datetime, timezone
+import smtplib
 
 import pytest
 
@@ -411,7 +412,7 @@ def test_sender_treats_smtp_recipient_refusal_as_known_failure(monkeypatch):
     monkeypatch.setattr(
         email_sender, "send_email",
         lambda *_args: (_ for _ in ()).throw(
-            email_sender.smtplib.SMTPRecipientsRefused({
+            smtplib.SMTPRecipientsRefused({
                 "person@example.test": (550, b"mailbox unavailable")
             })
         ),
