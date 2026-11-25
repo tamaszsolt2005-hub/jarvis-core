@@ -102,3 +102,79 @@ The proposed isolated sequence is:
 7. Only after the branch tests pass, prepare a production migration-history reconciliation proposal and obtain explicit approval for the exact production operation.
 
 No production migration, migration repair, DDL/DML, Auth user provisioning, or feature flag change was performed during this revalidation.
+
+## Execution constraint update (2026-11-25): existing Jarvis project only
+
+The operator explicitly prohibited creating a new Supabase test account or a new Supabase
+development branch. This instruction supersedes the earlier branch-based proposal above.
+
+The only connected Supabase project discovered for this account is the existing Jarvis
+project `kiutreccucbegskxowek` (PostgreSQL 17.11, `ACTIVE_HEALTHY`). Its development
+branch list is empty. No second Supabase project or pre-existing branch was found.
+
+Accordingly, migration validation must use the existing repository CI's isolated local
+PostgreSQL 17 service and production-shape fixture. Do not call Supabase branch creation,
+project creation, branch reset/rebase/merge, `supabase db push`, `supabase migration repair`,
+or any production DDL/DML as part of this work.
+
+### Current read-only recheck
+
+A fresh read-only Supabase inspection on 2026-11-25 reconfirmed:
+
+- Remote ledger: exactly five versions:
+  `20261119191911`, `20261119192040`, `20261119192145`,
+  `20261119192412`, `20261119192559`.
+- No development branches exist.
+- The eight public tables still exist with RLS enabled.
+- `leads.website` and `logs.level` are present.
+- `logs` still has only its five legacy columns; the structured audit/hash-chain
+  columns and `audit_chain_state` are absent.
+- The live schema still has the legacy integer-ID `settings` table and `posts`.
+- Current row counts returned by the table inventory include 11 leads, 29 logs,
+  one settings row, one proactive-state row, and zero posts/tasks/email drafts/memory.
+  Counts are observational and can change as the application runs.
+
+No production migration, ledger edit, DDL/DML, policy change, Auth provisioning, or
+feature-flag change was performed.
+
+### Required local-only validation sequence
+
+The existing `.github/workflows/ci.yml` PostgreSQL 17 integration job already creates
+an isolated production-shape fixture and replays, in order:
+
+1. `20261117_add_leads_website.sql`
+2. `20261117_add_logs_level.sql`
+3. the five recovered historical migrations in timestamp order
+4. `20261120090000_expand_logs_audit_fields.sql`
+5. `20261123093000_admin_audit_access_and_hash_chain.sql`
+6. `20261124130000_shared_workspace_role_access.sql`
+
+It then runs the audit and shared-workspace pgTAP suites. This proves schema replay
+against the fixture; it does **not** reconcile the live Supabase migration ledger.
+
+Before declaring migration drift resolved, extend the local-only validation to cover:
+
+- a production-like ledger fixture seeded with the five observed remote versions;
+- a separate representation of the two 20261117 repository-only versions whose
+  schema effects already exist;
+- exact Supabase CLI migration-version/repair semantics documented without invoking
+  repair against the live project;
+- idempotent replay of the two additive 20261117 statements against a fixture where
+  their columns already exist;
+- preservation assertions for pre-existing leads/logs/settings/posts rows and legacy
+  settings primary-key/sequence shape;
+- failure injection between each audit/RBAC migration and a rerun/forward-recovery
+  assertion proving the next safe action;
+- postconditions for policies, grants, function ACLs, triggers, owners and indexes.
+
+The 20261117 ledger discrepancy must remain classified as **unresolved** until the
+exact CLI-compatible reconciliation action is proven using local fixture evidence.
+Do not infer that the two migration versions can safely be marked applied solely
+because their columns exist.
+
+### Decision boundary
+
+This repository work may prepare and test the exact reconciliation proposal. It may
+not execute that proposal against the existing Jarvis Supabase project. Any future
+production ledger repair or schema migration requires a separate approval naming
+the exact operation and SQL. Production Auth remains OFF.
