@@ -193,7 +193,7 @@ A PR #26-ban a korábban nyitott biztonsági munka több kódbeli és tesztelés
 A korábbi PR #26 állapotbekezdések a friss ellenőrzés előtti pillanatképek; az alábbi állapot az irányadó.
 
 - **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), nyitott, nem merge-ölt.
-- **Legutóbbi dokumentációs head:** `4e53eb19acb1d4859a7e0964a8d0e10cdc0f6322`. **Teljesen ellenőrzött CI/CodeQL/audit head:** `7c8e6970a733884f4423821cddf3731f58e5b392`. Az ezt követő commitok dokumentációs javítások; új workflow-eredmény még nincs visszaigazolva.
+- **Teljesen ellenőrzött CI/CodeQL/audit commit:** `7c8e6970a733884f4423821cddf3731f58e5b392`. Az ezt követő commitok dokumentációs javítások; új workflow-eredmény még nincs visszaigazolva. A PR mindenkori headje a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) oldalon látható.
 - **JARVIS CI:** a `test` és `backup-restore-integration` job sikeres.
 - **CodeQL:** az `Analyze Python` job és annak elemzési lépése sikeres.
 - **Függőség-audit:** a `pip-audit` sikeres a `requirements-test.txt` fájlon, amely a runtime függőségeket is behúzza.
