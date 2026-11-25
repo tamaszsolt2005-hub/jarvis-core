@@ -92,3 +92,29 @@ def test_resend_4xx_rejection_is_known_non_delivery(monkeypatch):
         email_utils.send_email(
             "recipient@example.test", "Subject", "Body", "stable-operation-id", approved=True
         )
+
+
+def test_resend_provider_is_blocked_by_global_hard_disable(monkeypatch):
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", False)
+    monkeypatch.setattr(
+        email_utils, "get_enforced_user_supabase",
+        lambda *_a, **_k: pytest.fail("Hard-disable must run before auth access"),
+    )
+    monkeypatch.setattr(
+        email_utils, "get_secret",
+        lambda name, default=None: "resend" if name == "EMAIL_PROVIDER" else default,
+    )
+    monkeypatch.setattr(
+        email_utils, "required_secret",
+        lambda _name: pytest.fail("Hard-disable must run before secret access"),
+    )
+    monkeypatch.setattr(
+        email_utils.requests, "post",
+        lambda *_a, **_k: pytest.fail("Hard-disable must block Resend HTTP calls"),
+    )
+
+    with pytest.raises(RuntimeError, match="kódszinten letiltva"):
+        email_utils.send_email(
+            "recipient@example.test", "Subject", "Body",
+            "stable-operation-id", approved=True,
+        )

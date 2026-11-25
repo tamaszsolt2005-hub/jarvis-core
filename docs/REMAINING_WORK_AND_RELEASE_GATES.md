@@ -211,3 +211,8 @@ A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések.
 - [ ] Payload-azonosság és 24 órán túli unknown reconciliation runbook véglegesítése. A Resend idempotenciakulcsai 24 óráig érvényesek; utána a provider nem garantál deduplikációt.
 
 A provider adapter implementációja nem jelenti a küldés engedélyezését. Az EMAIL_DELIVERY_ENABLED=False és a workflow outbound step if: false marad, amíg külön review és konkrét engedély nincs.
+
+
+## Legfrissebb CI bizonyíték – 2026-11-25
+
+A be2a1fe commit push és PR workflow-ja minden jobbal sikeres: Python/AppTest/browser tesztek 805 passed, 3 skipped, 91,19% coverage; PostgreSQL 17 migration drift, audit/approval security, privilege postcondition és encrypted backup/restore job sikeres. [Push run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692241435) · [PR run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692250485). A következő kódváltozás után új CI szükséges.
