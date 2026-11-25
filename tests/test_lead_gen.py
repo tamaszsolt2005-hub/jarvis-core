@@ -1,3 +1,5 @@
+import pytest
+
 from lead_gen import _validated_import_row
 
 
@@ -248,7 +250,7 @@ def test_csv_run_does_not_audit_success_without_returned_lead_id(tmp_path, monke
         ("plain@example.com", "plain@example.com"),
         ("first_last@example.com", "first\\_last@example.com"),
         ("first%last@example.com", "first\\%last@example.com"),
-        (String.raw`first\\last@example.com`, String.raw`first\\\\last@example.com`),
+        (r"first\\last@example.com", r"first\\\\last@example.com"),
     ],
 )
 def test_csv_duplicate_lookup_escapes_like_pattern_metacharacters(email, expected):
