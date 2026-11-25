@@ -114,6 +114,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     allowed_statuses = FOLLOW_UP_STATUSES if follow_up else {"new"}
     if (
         current_status not in allowed_statuses
+        or (follow_up and not _due_follow_up(lead, now))
         or not _valid_consent(lead)
         or not EMAIL_RE.fullmatch(str(lead.get("email") or ""))
         or lead.get("reply_category")
