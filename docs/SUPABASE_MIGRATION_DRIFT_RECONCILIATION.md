@@ -219,3 +219,31 @@ Do not mark the new regression test as passed until these runs complete successf
 - Add failure-injection/forward-recovery coverage for the audit and RBAC migrations.
 - Add catalog assertions for grants, function ACLs, owners, policies and trigger state.
 - Keep production read-only, do not create Supabase projects/branches, and keep Auth OFF.
+
+
+## Forward-recovery failure-injection coverage (2026-11-25)
+
+Commit `cb77420b9686935a0554cc8ded3eb8bf7f1c7b83` extends the isolated PostgreSQL 17
+integration workflow with two deliberate interruption points in the audit/RBAC chain:
+
+1. Apply `20261120090000_expand_logs_audit_fields.sql`, force a separate psql
+   statement to fail (`SELECT 1/0`), then replay the expansion migration before
+   continuing.
+2. Apply `20261123093000_admin_audit_access_and_hash_chain.sql`, force the same
+   interruption before RBAC, then replay the hash-chain migration before continuing.
+3. Apply `20261124130000_shared_workspace_role_access.sql` and replay it once more.
+4. Run the existing audit and shared-workspace pgTAP assertions after recovery.
+
+The injected failures are expected and caught by the workflow; an unexpected
+successful failpoint causes the job to fail. The test verifies recovery when the
+process stops **between committed migration files**, plus idempotent reapplication
+of each migration. It does not simulate interruption halfway through an individual
+migration file, nor does it establish Supabase CLI migration-repair semantics.
+
+The workflow uses only its disposable PostgreSQL 17 CI service. No Supabase project,
+branch, production database, Auth user, migration ledger, or production feature flag
+is changed. Production Auth remains OFF.
+
+CI runs for this commit are pending at the time of this documentation update:
+- Push: https://github.com/tamaszsolt2005-hub/jarvis-core/actions
+- PR: https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13
