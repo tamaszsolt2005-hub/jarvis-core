@@ -73,7 +73,7 @@ Cél: olyan tartós üzleti tudásréteg kialakítása, amely összekapcsolja a 
 
 ## Haladáskövetés
 
-**Frissítve:** 2026-11-25, `main` commit `71d6a1c` (PR #21 merge). A PR #20 javította az S3 ellenőrző Python-blokk behúzását. A main CI (`45655131500`) sikeres. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+**Frissítve:** 2026-11-25, `main` commit `1f401d0` (PR #22 merge); PR #23 head `58d9e33` még nyitott. A PR #23 push CI (`45658587888`) minden jobja sikeres; a PR-triggerelt CI (`45658617612`) test jobja az utolsó ellenőrzéskor még futott. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
 
 
 
@@ -81,8 +81,8 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 
 | Sorrend | Terület | Státusz |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
-| 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
+| 1 | Megbízhatóság és biztonság | Approval/idempotencia és backup–restore CI igazolt; SMTP hard-disable PR #23-ban kész, de még nem main; production audit és provider idempotencia nincs igazolva |
+| 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift rendezés, migrációs review, deploy és live smoke hátra van; éles adatbázis változatlan |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – proaktív monitor/lead és javaslati modulok vannak; minőségi és production bizonyíték hiányzik |
 | 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva – task/approval alapok megvannak; teljes E2E folyamat és üzleti mérés hátra van |
 | 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
@@ -109,3 +109,18 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 **Friss audit – 2026-11-25, PR #21 után:** PR #21 merge commit `71d6a1c`; mindkét PR workflow minden jobja zöld. A production read-only snapshot továbbra is 5 ledger verziót, hiányzó 20261117 ledger-bejegyzéseket, nem létező `private` sémát, 8 policy nélküli RLS-es public táblát, legacy `logs` sémát, hiányzó `tasks.operation_id` mezőt és hiányzó audit/approval RPC objektumokat mutat. A CI izolált PostgreSQL 17-en ellenőrzi a migrációs láncot, de nem változtatja meg a production állapotot.
 
 **Terület 1 – Megbízhatóság és biztonság friss minősítése:** a kódbeli approval/idempotencia, audit fail-closed és SMTP unknown-state megoldások regressziós/CI tesztekkel alátámasztottak; a production backup+restore sikeres. A terület még nem zárható le: production audit/approval RPC-k nincsenek telepítve, a production structured audit mezők hiányoznak, az SMTP-küldés környezeti kapcsolókkal aktiválható és a provider oldali idempotencia nincs bizonyítva. E-mailküldés maradjon tiltva a külön validációig.
+
+
+## Friss mérési állapot – 2026-11-25 (PR #23 head)
+
+A [push CI 45658587888](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888) a `58d9e33` commiton minden jobbal sikeres: 759 teszt sikeres, 3 kihagyott; line coverage 90.75% (3 729/4 109), 80%-os gate felett 10.75 százalékponttal. Branch coverage nincs mérve. A [coverage artifact](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888/artifacts/15043089238) a PR #23 headhez tartozik, nem a main commitra vonatkozó új mérés.
+
+A legnagyobb lefedettségi rés a `scripts/supabase_auth_rls_smoke.py` (17%, 42/243 sor); következő cél a `task_actions.py` (81%, 136/167), majd a backup és dashboard fennmaradó hibakezelési ágai. A line coverage önmagában nem igazolja a production Auth/RLS vagy RPC működését.
+
+| # | Terület | 2026-11-25 minősítés | Fő következő kapu |
+|---|---|---|---|
+| 1 | Megbízhatóság és biztonság | Kódbeli alapok és CI igazolt; SMTP hard-disable PR #23-ban, még nem main; külső provider és production audit nem bizonyított | PR #23 teljes PR CI zárása, merge; később SMTP provider idempotencia és production audit bizonyítása |
+| 2 | Supabase és jogosultságkezelés | Migráció/RPC kódban és izolált PG17 CI-ben előkészítve; production schema drift és hiányzó RPC-k miatt élesítés blokkolt | Drift rendezési terv + SQL review + külön production jóváhagyás, majd deploy/RPC smoke |
+| 3 | Önállóbb üzleti asszisztens | Leadkutatás, scoring, proaktív monitor és javaslatok részben implementáltak | Forrásolt minőségi benchmark, pontosság/hasznosság visszamérése és production pilot |
+| 4 | Üzleti munkafolyamatok automatizálása | Task/approval alapok implementáltak és teszteltek; teljes E2E folyamat nincs lezárva | Lead→minősítés→jóváhagyás→utánkövetés→eredménymérés E2E és KPI-k |
+| 5 | Tudás és hosszú távú memória | Tartós memória/analitika alapjai implementáltak; minőségi tudásréteg nincs igazolva | Forrásolt, jogosultságkezelt, lifecycle-kezelt tudás és retrieval quality tesztek |
