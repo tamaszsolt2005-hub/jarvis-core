@@ -297,3 +297,30 @@ A d76e8e859bca9021a4d5d491e49e04591dc5a26f headhez tartozó legutóbbi futások 
 - Production Auth/RBAC feature flag OFF marad.
 - A GitHub Actions PostgreSQL 17 fixture a migrációs replay/failure-recovery bizonyíték egyetlen engedélyezett helye ebben a fázisban.
 - Bármely production adatbázis-módosításhoz külön, konkrét műveletre és SQL/migrációs készletre szóló jóváhagyás szükséges.
+
+## 2026-11-25 – első három release-gate AI/CI munkája
+
+A következő, kizárólag repository/CI scope-ú változtatások kerültek a PR #13 branch-re:
+
+1. **Aktuális CI ellenőrzés:** a `118c27a15cd65aa0f8aea1cb3de5701f5e68c4fa` head PR CI futása
+   sikeres volt (`45590107707`). Az új regression step-eket tartalmazó frissebb head
+   CI eredményét külön kell megvárni; a régi zöld futás nem bizonyítja az új teszteket.
+2. **Katalógus-postcondition review:** új
+   `supabase/tests/catalog_postconditions.test.sql` teszt került be. Ellenőrzi a
+   táblatulajdonosokat, RLS-t, 15 policy-t, a trusted `app_metadata` boundary-t, a
+   táblajogosultságokat, sequence grantet, audit function owner/ACL/SECURITY DEFINER
+   határt, három trigger állapotát, négy audit indexet és a `postgres` default ACL-eket.
+   A CI a teljes audit/RBAC migrációs replay után futtatja.
+3. **Supabase CLI repair szemantika:** a CI rögzített Supabase CLI `3.4.0` verziót
+   telepít, és a valódi `migration repair` parancsot kizárólag az izolált PostgreSQL 17
+   fixture URL-jére futtatja. Ellenőrzi az `applied` beszúrást, a `reverted` törlést,
+   majd az újraalkalmazást, valamint azt, hogy a repair nem változtatja meg a sémát vagy
+   a legacy rekordokat. A két 20261117 fájl azonos 8 jegyű verziót használ; a CI külön
+   rögzíti a `migration list` kimenetét is, hogy a verzióütközés tényleges CLI-viselkedése
+   ne feltételezésből legyen megítélve.
+
+**CI státusz:** az új workflow-ellenőrzések implementálva, de csak a friss PR-headhez
+futó teljes CI siker után jelölhetők bizonyítottnak. Addig a CLI-repair és katalóguskapu
+`pending` marad. A production Supabase továbbra is kizárólag read-only; nem történt
+`db push`, migration repair, ledger edit, DDL/DML, policy/Auth módosítás vagy flag
+aktiválás. PR #13 draft marad, merge nem történt.
