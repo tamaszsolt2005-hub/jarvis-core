@@ -45,6 +45,17 @@ BEGIN
     RAISE EXCEPTION 'expected 15 public RBAC policies, found %', object_count;
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename = 'tasks'
+       AND policyname = 'tasks_shared_read'
+       AND cmd = 'SELECT'
+       AND roles @> ARRAY['authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'authenticated shared-workspace task read policy is missing';
+  END IF;
+
   SELECT count(*) INTO bad_count
     FROM pg_policies
    WHERE schemaname = 'public'
@@ -227,6 +238,6 @@ BEGIN
     RAISE EXCEPTION 'internal approval principal validator is executable by an API role';
   END IF;
 
-  RAISE NOTICE 'Catalog postconditions passed: ownership, RLS, 15 policies, API grants, audit triggers and private atomic-approval RPC ACLs.';
+  RAISE NOTICE 'Catalog postconditions passed: ownership, RLS, task read policy, 15 policies, API grants, audit triggers and private atomic-approval RPC ACLs.';
 END
 $catalog_postconditions$;
