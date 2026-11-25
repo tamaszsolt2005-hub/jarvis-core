@@ -276,8 +276,7 @@ Ez a szakasz felülírja a dokumentum korábbi, PR #26-ra vonatkozó „CI még 
 
 - PR #26: [GitHub](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), állapot: open, `merged=false`.
 - Branch: `docs/pre-feature-readiness-gates`.
-- Legutóbbi dokumentációs head: `4e53eb19acb1d4859a7e0964a8d0e10cdc0f6322`.
-- Teljesen ellenőrzött CI/CodeQL/dependency-audit head: `7c8e6970a733884f4423821cddf3731f58e5b392`; az ezt követő commitok dokumentációs javítások, új workflow-eredmény még nincs visszaigazolva.
+- Teljesen ellenőrzött CI/CodeQL/dependency-audit commit: `7c8e6970a733884f4423821cddf3731f58e5b392`; az ezt követő commitok dokumentációs javítások, új workflow-eredmény még nincs visszaigazolva. A mindenkori PR-head a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) oldalon látható.
 - JARVIS CI run [45697839295](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839295): `test` és `backup-restore-integration` sikeres.
 - CodeQL run [45697839266](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839266): `Analyze Python` sikeres, az Initialize és Analyze lépések is sikeresen befejeződtek.
 - Dependency audit run [45697839307](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839307): `pip-audit` sikeres a `requirements-test.txt` alapján, runtime és tesztfüggőségekre.
