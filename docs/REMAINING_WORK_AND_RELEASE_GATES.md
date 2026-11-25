@@ -157,3 +157,9 @@ A 7 feladatból több csak részben zárható le: a kódszintű ellenőrzés és
 
 A hét feladat közül az URL felderítése továbbra sem sikerült, az SMTP csak kódszinten igazolt, a SQL review elő van készítve, a service-role teszt csak izolált CI-ben zöld, a branch protection audit eredménye pedig azt mutatja, hogy a main jelenleg nincs védve.
 
+## Új coverage ellenőrzési eredmény
+
+A CI coverage artifact összesített line coverage-e 90,75% (3729/4109). A `task_actions.py` 81,4%-on állt, ezért célzott edge tesztek kerültek a PR-ba: hibás parser bemenetek, tiltott payload mezők, approval validáció, hibás RPC válaszok és singleton lista válasz. Az új tesztek CI-eredménye még függőben van.
+
+A `scripts/supabase_auth_rls_smoke.py` 17,3%-os coverage-e nem tekinthető önmagában kódminőségi hibának: ez élő Supabase/Auth integrációs smoke script, amelyhez elkülönített tesztprojekt és érvényes Auth konfiguráció szükséges. Később izolált fake-client/contract tesztekkel érdemes lefedni, nem production hívásokkal.
+
