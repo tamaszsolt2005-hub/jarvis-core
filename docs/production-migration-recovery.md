@@ -522,3 +522,68 @@ Do not run supabase db push, migration repair or production DDL/DML until a
 fresh encrypted production backup has been independently verified and the
 two 20261117 ledger discrepancies plus exact migration order have a reviewed
 forward-only plan.
+
+
+## Fresh production schema snapshot and migration reconciliation (2026-11-25 09:13 UTC)
+
+The latest read-only snapshot is maintained separately in [PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md](PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md). It supersedes earlier row-count and column-inventory notes in this document.
+
+Current confirmed facts:
+- PostgreSQL 17.11; project \`ACTIVE_HEALTHY\`.
+- Eight public tables, all owned by \`postgres\`; RLS enabled on all eight, FORCE RLS disabled.
+- Zero public RLS policies, triggers, or functions.
+- Zero Auth users.
+- Eight Security Advisor \`rls_enabled_no_policy\` findings.
+- Five remote migration versions: \`20261119191911\`, \`20261119192040\`, \`20261119192145\`, \`20261119192412\`, \`20261119192559\`.
+- Two \`20261117\` repository migration effects are present in production, but their versions are absent from the remote ledger.
+- Audit-field, hash-chain/admin-access, and shared-workspace RBAC migrations remain repository-only and unapplied.
+- Production \`logs\` remains the five-column legacy table; \`audit_chain_state\` is absent.
+- Production \`settings\` is integer-sequence-backed and \`posts\` is a live legacy table; both must be preserved.
+- \`postgres\` default ACLs in \`public\` are restricted to \`postgres\` and \`service_role\`. Platform-managed \`supabase_admin\` defaults must not be changed by project migrations.
+
+### Production migration order proposal
+
+This order is for the disposable test branch first; it is not authorization to execute in production:
+
+1. Preserve the snapshot and complete a fresh encrypted production backup.
+2. On the disposable branch, verify/replay the two idempotent 20261117 column migrations and observe the branch ledger behavior.
+3. Apply \`20261120090000_expand_logs_audit_fields.sql\`.
+4. Apply \`20261123093000_admin_audit_access_and_hash_chain.sql\`.
+5. Apply \`20261124130000_shared_workspace_role_access.sql\`.
+6. Verify all schema postconditions, owner/ACL state, policies, triggers, audit append and hash chain, plus admin/operator/reader JWT allow/deny behavior.
+7. Only after review, prepare an exact production ledger reconciliation. Do not run \`supabase migration repair\` or \`supabase db push\` without separate explicit approval of the exact command and expected postconditions.
+
+### Recovery semantics
+
+The five historical migrations in the remote ledger have no stored rollback SQL. Treat them as forward-only history. For the three new audit/RBAC migrations, rollback is not assumed to be safe: dropping columns/tables or policies may lose audit evidence or reopen access. Prefer forward-fix migrations. A failed migration in the disposable branch should be discarded/recreated; production recovery must use the verified backup plus a separately reviewed forward-recovery plan.
+
+### Live Auth/RLS test harness
+
+Added:
+- \`scripts/supabase_auth_rls_smoke.py\` – creates temporary Auth users in a non-production project, obtains real signed JWTs, and tests PostgREST policies.
+- \`.github/workflows/supabase-auth-rls-live.yml\` – manual workflow bound to the \`supabase-integration\` GitHub Environment.
+- Required environment secrets: \`JARVIS_TEST_SUPABASE_URL\`, \`JARVIS_TEST_SUPABASE_PUBLISHABLE_KEY\`, \`JARVIS_TEST_SUPABASE_SERVICE_ROLE_KEY\`.
+- Required environment variable: \`JARVIS_TEST_SUPABASE_PROJECT_REF\`, which must not equal production project ref \`kiutreccucbegskxowek\`.
+
+The test checks admin/operator/reader roles, rejects user_metadata role spoofing, checks shared-workspace lead access and settings visibility, operator audit append/actor binding, admin-only audit/hash-state reads, role change after token refresh, logout refresh-token revocation, and invalid JWT rejection. The workflow must only be run against a disposable Supabase branch/project. It creates Auth users and append-only audit rows; delete the test branch after evidence is captured.
+
+### Production backup workflow enhancement
+
+The backup workflow now includes a second verification stage: download the uploaded encrypted S3 object, verify/decrypt it, restore it into a fresh PostgreSQL 17 container, and assert the exact eight-table public schema inventory while recording lead/log/settings row counts. The workflow still requires the production GitHub secrets/variables and AWS OIDC role to be configured. It is manually dispatched or scheduled from the trusted \`main\` branch; the OIDC trust policy is intentionally restricted to \`main\`.
+
+**Scope limitation:** \`scripts/supabase_backup.py\` backs up the JARVIS \`public\` schema. It does not include Supabase-managed \`auth\`, \`storage\`, \`realtime\` schemas or Storage object binaries. This is adequate for the current application-data snapshot, but is not a full Supabase platform backup. The current production Auth user count is zero; Storage object backup remains a separate operational requirement if the project begins using Storage.
+
+### Current execution status
+
+- [x] Fresh read-only schema/catalog snapshot captured.
+- [x] Exact current remote migration ledger captured.
+- [x] Production Security Advisor findings captured.
+- [x] Restore-to-separate-PostgreSQL-17 workflow step implemented.
+- [x] Real JWT/Auth/PostgREST smoke-test harness and manual workflow implemented.
+- [ ] Disposable Supabase branch created and migrations replayed (cost confirmation required).
+- [ ] Live Auth/RLS smoke test executed with branch-only credentials.
+- [ ] Production backup workflow executed successfully from trusted \`main\` and S3 object/restore evidence captured.
+- [ ] Production migration ledger reconciliation approved and applied (separate approval required).
+- [ ] Production audit/RBAC migrations approved and applied (separate approval required).
+
+No production schema or Auth changes were performed.

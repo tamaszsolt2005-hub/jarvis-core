@@ -71,3 +71,34 @@ This is test-fixture evidence only. It is not a production backup, S3 upload, pr
 - No production Auth/RBAC feature flag activation.
 
 The five-source recovery gap is closed in the repository. The remaining blockers are the two 20261117 ledger discrepancies, production backup, unapplied audit/RBAC migrations and real Auth/RLS validation.
+
+
+## Fresh production catalog revalidation (2026-11-25 09:13 UTC)
+
+The Jarvis project \`kiutreccucbegskxowek\` was re-inspected through read-only Supabase catalog tools. The full object/column/index/constraint snapshot is in [PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md](PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md).
+
+Confirmed:
+- PostgreSQL 17.11, project \`ACTIVE_HEALTHY\`, region \`eu-west-1\`.
+- Exactly eight public tables, all owned by \`postgres\`; RLS enabled on all eight, FORCE RLS disabled.
+- Zero public policies, triggers and functions; \`auth.users\` contains zero users.
+- Security Advisor at 2026-11-25 09:17:56 UTC reports eight \`rls_enabled_no_policy\` findings.
+- The live migration ledger contains exactly five versions: \`20261119191911\`, \`20261119192040\`, \`20261119192145\`, \`20261119192412\`, \`20261119192559\`.
+- \`leads.website\` and \`logs.level\` are present; the two \`20261117\` repository migration filenames remain absent from the remote ledger.
+- The three later repository-only migrations remain unapplied: audit-field expansion, audit hash-chain/admin access, and shared-workspace RBAC.
+- \`settings\` remains integer-ID/sequence-backed with unique \`key\`; \`posts\` remains a live legacy table; \`logs\` still has only the five legacy fields.
+- Existing direct public-table grants remain restricted to \`postgres\` and \`service_role\`. \`postgres\` public default ACLs are restricted. Catalog entries for platform-managed \`supabase_admin\` include API-role defaults, but that reserved owner context is not a project migration target.
+
+### Reconciliation status and exact sequence
+
+The snapshot resolves the *unknown schema inventory* but does not silently repair the remote ledger. The two 20261117 migration effects already exist; re-running them in production is not the right fix. Their ledger discrepancy needs a separately reviewed baseline/repair operation after the exact effects and version syntax have been verified on an isolated branch.
+
+The proposed isolated sequence is:
+1. Create a disposable Supabase branch from Jarvis production (branch receives no production data).
+2. Confirm the two 20261117 column effects; replay the two idempotent migration statements only on the branch and verify the branch ledger.
+3. Apply \`20261120090000_expand_logs_audit_fields.sql\`.
+4. Apply \`20261123093000_admin_audit_access_and_hash_chain.sql\`.
+5. Apply \`20261124130000_shared_workspace_role_access.sql\`.
+6. Verify object owners, grants, policies, function ACLs, triggers, audit append actor binding, hash-chain integrity and admin/operator/reader allow/deny matrix.
+7. Only after the branch tests pass, prepare a production migration-history reconciliation proposal and obtain explicit approval for the exact production operation.
+
+No production migration, migration repair, DDL/DML, Auth user provisioning, or feature flag change was performed during this revalidation.

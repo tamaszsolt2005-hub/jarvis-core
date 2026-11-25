@@ -69,3 +69,12 @@ követhetők. A CI-eredmények és azok korlátai:
 - [Legfrissebb PR #13 CI-eredmények](docs/PR13_CI_VALIDATION_2026-11-24.md)
 
 A jelenlegi PR #13 head (`e6736101405180c220d6b96b5a7a3c1d890813e0`) teljesen zöld CI-eredménye: **762 passed, 3 skipped, 96.47% coverage**. A PostgreSQL 17 + pgTAP és izolált age backup/restore integráció szintén sikeres. Ez nem helyettesíti a production backupot vagy a valós Supabase Auth/RLS validációt. Részletek a [PR #13 CI-validációs naplóban](docs/PR13_CI_VALIDATION_2026-11-24.md).
+
+
+## Production Supabase validation artifacts
+
+- [2026-11-25 production schema snapshot](docs/PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md)
+- [Migration drift and reconciliation](docs/SUPABASE_MIGRATION_DRIFT_RECONCILIATION.md)
+- [Production recovery and backup/restore plan](docs/production-migration-recovery.md)
+
+The repository now contains a manual live Auth/JWT/RLS smoke workflow for a disposable Supabase branch and a production backup workflow that verifies an encrypted S3 object and restores it into a separate PostgreSQL 17 target. Neither workflow changes the production schema. Required secrets and the isolated test branch must be configured before execution.

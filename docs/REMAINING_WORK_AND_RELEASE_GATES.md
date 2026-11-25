@@ -172,3 +172,47 @@ Ez történeti read-only bizonyíték, nem friss lekérdezés. A következő pro
 - [PR #13](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)
 
 **Biztonsági állapot:** production Supabase nem módosult; production Auth flag OFF; PR #13 nem merge-ölhető automatikusan.
+
+
+## P0 Supabase / backup / real Auth-RLS execution update (2026-11-25)
+
+The latest read-only evidence and implementation artifacts are now recorded:
+
+- [Production schema snapshot](PRODUCTION_SCHEMA_SNAPSHOT_2026-11-25.md): complete public table/column/index/constraint/RLS/grant/default-ACL inventory, exact five-version remote ledger, and absent audit schema.
+- [Migration drift reconciliation](SUPABASE_MIGRATION_DRIFT_RECONCILIATION.md): two 20261117 effects already present but not ledgered; three later audit/RBAC migrations remain unapplied.
+- [Production recovery plan](production-migration-recovery.md): ordered branch-first validation and forward-only recovery sequence.
+
+### P0.1 – Migration drift
+
+<badge>Evidence captured; production repair blocked</badge>
+
+- [x] Fresh read-only schema snapshot.
+- [x] Exact remote ledger list.
+- [x] Supabase Security Advisor: 8 RLS-enabled/no-policy findings.
+- [ ] Create disposable Supabase branch and replay migrations in order.
+- [ ] Validate two 20261117 baseline/ledger reconciliation behavior on the branch.
+- [ ] Verify audit expansion → hash-chain → RBAC postconditions and failure recovery.
+- [ ] Prepare exact production ledger repair/forward migration plan; production operation requires separate approval.
+
+### P0.2 – Production backup and separate restore
+
+- [x] Existing encrypted public-schema backup code reviewed.
+- [x] Workflow extended to verify S3 SSE-KMS metadata, download/decrypt/hash-check the object, then restore into a separate disposable PostgreSQL 17 container.
+- [ ] Configure/verify the required GitHub secrets and variables.
+- [ ] Deploy/verify the AWS CloudFormation stack and main-branch GitHub OIDC trust.
+- [ ] Run the production backup workflow from trusted \`main\`.
+- [ ] Capture S3 object key/version, KMS metadata, manifest hashes, restored table inventory, and row-count evidence.
+
+The backup archive covers JARVIS \`public\` schema only; Supabase-managed schemas and Storage object binaries are excluded. This limitation is explicit in the recovery plan.
+
+### P0.3 – Real Supabase Auth/JWT/RLS
+
+- [x] Live test harness creates temporary Auth users with server-managed \`app_metadata.role\`.
+- [x] Harness exercises real Auth-issued JWTs through PostgREST, including admin/operator/reader permissions, user_metadata spoof rejection, audit append/read separation, role refresh and logout.
+- [x] Manual GitHub workflow uses a dedicated \`supabase-integration\` environment and test-only credentials.
+- [ ] Create/approve disposable Supabase branch (quoted compute cost: **$0.01344/hour**).
+- [ ] Add branch-only URL, publishable key, service-role key and project ref to the protected GitHub environment.
+- [ ] Execute live Auth/RLS workflow and archive evidence.
+- [ ] Delete the disposable branch after evidence is captured.
+
+**Production safety:** production schema, migration ledger, Auth users and policies remain unchanged. Production Auth flag stays OFF. No production migration or Auth provisioning is authorized by this documentation update.
