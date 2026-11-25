@@ -215,6 +215,16 @@ def test_email_sender_atomic_followup_claim_rejects_stale_snapshot(monkeypatch, 
     assert db.rows[0]["status"] == "follow_up_sent"
 
 
+
+def test_email_sender_does_not_claim_followup_before_due_time(monkeypatch):
+    future = datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1)
+    db = _DB([_lead(status="follow_up_sent", next_follow_up_at=future.isoformat())])
+    _configure(monkeypatch, db, send=lambda *_args: pytest.fail("not due; must not send"))
+
+    assert email_sender._send_one(db, db.rows[0], True, datetime.now(timezone.utc)) is False
+    assert db.rows[0]["status"] == "follow_up_sent"
+
+
 def test_email_sender_rechecks_followup_due_state_after_claim(monkeypatch):
     db = _DB([_lead(status="follow_up_sent", follow_up_count=0)])
     sent = []
