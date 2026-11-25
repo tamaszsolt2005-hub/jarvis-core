@@ -50,6 +50,8 @@ class _Query:
         if self.operation == "update":
             if self.db.lose_claim and self.values == {"status": "sending"}:
                 return type("Result", (), {"data": []})()
+            if self.db.lose_completion and self.values and self.values.get("status") in {"sent", "follow_up_sent"}:
+                return type("Result", (), {"data": []})()
             for row in matches:
                 row.update(self.values)
             data = [{"id": row["id"]} for row in matches] if self.returning else []
@@ -61,6 +63,7 @@ class _DB:
     def __init__(self, rows):
         self.rows = rows
         self.lose_claim = False
+        self.lose_completion = False
 
     def table(self, _name):
         return _Query(self)
@@ -230,3 +233,37 @@ def test_unknown_smtp_outcome_is_excluded_from_automatic_retry(monkeypatch):
     email_sender._run()
 
     assert db.rows[0]["status"] == "send_unknown"
+
+
+@pytest.mark.parametrize("follow_up,initial_status,expected_count", [
+    (False, "new", 0),
+    (True, "follow_up_sent", 1),
+])
+def test_email_sender_marks_delivery_unknown_when_post_send_state_persistence_is_lost(
+    monkeypatch, follow_up, initial_status, expected_count
+):
+    db = _DB([_lead(status=initial_status, follow_up_count=expected_count)])
+    db.lose_completion = True
+    audit_statuses, reports = [], []
+
+    def audit(*_args, **kwargs):
+        audit_statuses.append(kwargs["status"])
+        return True
+
+    _configure(
+        monkeypatch, db,
+        send=lambda *_args: "provider-accepted-id",
+        audit=audit,
+    )
+    monkeypatch.setattr(
+        email_sender, "report_error",
+        lambda error, **kwargs: reports.append((error, kwargs)),
+    )
+
+    assert email_sender._send_one(
+        db, db.rows[0], follow_up, datetime.now(timezone.utc)
+    ) is False
+    assert db.rows[0]["status"] == "send_unknown"
+    assert db.rows[0]["next_follow_up_at"] is None
+    assert audit_statuses == ["pending", "unknown"]
+    assert reports and "lead kézbesítési állapota nem menthető" in str(reports[0][0])
