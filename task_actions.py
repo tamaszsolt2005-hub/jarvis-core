@@ -7,8 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from uuid import uuid4
 
-from jarvis_common import audit_event, env_bool, get_user_supabase
-from jarvis_auth import require_permission
+from jarvis_common import audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
 
 
@@ -269,18 +268,13 @@ def execute_task_action(
         raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
     _validate_action(action)
 
-    # Roll out behind an explicit server-side flag. Until the dashboard login and
-    # table policies are ready, the existing legacy path remains unchanged.
-    # If the flag is enabled, a missing/invalid session denies the operation and
-    # all task/audit queries use the public-key client carrying the user's JWT.
-    if env_bool("JARVIS_AUTH_RBAC_ENFORCED", False):
-        if not isinstance(auth_session, dict):
-            raise PermissionError("A feladatművelethez ellenőrzött Supabase Auth-munkamenet szükséges.")
-        db, refreshed_session = get_user_supabase(
-            auth_session, allowed_roles={"admin", "operator"}
-        )
-        require_permission(refreshed_session.get("role"), "tasks.write")
-        auth_session.update(refreshed_session)
+    # Use the shared enforcement gate so individual Auth login and explicit
+    # RBAC enforcement have identical fail-closed behavior across all modules.
+    enforced = get_enforced_user_supabase(
+        auth_session, "tasks.write", allowed_roles={"admin", "operator"}
+    )
+    if enforced is not None:
+        db, _refreshed_session = enforced
 
     try:
         return _execute_task_action(db, action)
