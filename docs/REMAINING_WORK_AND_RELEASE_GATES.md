@@ -179,7 +179,7 @@ A repository Streamlit appot dokumentál, de a GitHub repo homepage üres, Pages
 
 ## Aktuális release állapot – PR #26, 2026-11-25
 
-A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`eaad5428311d86590f03c744f7f5b0e02da45064`); a PR nyitott és nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
+A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`a PR oldalon látható aktuális head`); a PR nyitott és nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 | Kapu | Jelenlegi állapot | Bizonyíték / hiány |
 |---|---|---|
