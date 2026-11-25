@@ -127,7 +127,7 @@ jobs:
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $migration_check$
           DECLARE
             versions integer;
             lead_website text;
@@ -165,7 +165,7 @@ jobs:
                  WHERE table_schema='public' AND table_name='logs' AND column_name='level') <> 1 THEN
               RAISE EXCEPTION 'expected additive columns missing or duplicated';
             END IF;
-          END $;
+          END $migration_check$;
           SQL
       - name: Run structured audit migrations and pgTAP security tests
         shell: bash
