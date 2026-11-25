@@ -55,14 +55,14 @@ Feladatok:
 ### P0.2 – Production backup és restore bizonyítása
 
 **Felelős terület:** infrastruktúra / üzemeltetés  
-**Állapot:** a CI lokális round-trip zöld; production backup nincs igazolva.
+**Állapot:** a production age-titkosított logikai dump S3-feltöltése, SSE-KMS metaadat-ellenőrzése, letöltése, visszafejtése és manifest-hash ellenőrzése sikeres (`45611038142`). Az izolált PostgreSQL 17 CI backup/restore round-trip is zöld (`45617334463`). A production backup külön adatbázisba történő tényleges visszaállítása és a restore-jegyzőkönyv még nyitott.
 
 Feladatok:
 - [ ] AWS backup stack telepítése és CloudFormation outputok ellenőrzése.
 - [ ] GitHub Actions secrets/variables meglétének és jogosultságainak ellenőrzése: DB URL, AWS role ARN, age identity/recipient, bucket, KMS key, régió.
-- [ ] Production dump titkosított feltöltése S3-ba.
-- [ ] Feltöltött objektum letöltése, visszafejtése, manifest- és hash-ellenőrzése.
-- [ ] Restore külön izolált PostgreSQL adatbázisba.
+- [x] Production dump titkosított feltöltése S3-ba (`45611038142`, SSE-KMS).
+- [x] Feltöltött objektum letöltése, visszafejtése, manifest- és hash-ellenőrzése (`45611038142`).
+- [ ] Ugyanezen production archívum restore-ja külön izolált PostgreSQL adatbázisba (a CI lokális fixture restore-ja nem helyettesíti ezt).
 - [ ] Restore utáni integritás-, sémaszám-, rekordszám- és alkalmazási smoke teszt dokumentálása.
 - [ ] Rendszeres backup ütemezés, retention, riasztás és hozzáférési kontroll ellenőrzése.
 
@@ -133,7 +133,9 @@ Feladatok:
 - [x] Aktuális head line coverage: 96.47%, 80% küszöb felett.
 - [x] PostgreSQL 17 + pgTAP integráció és lokális age backup/restore round-trip.
 - [ ] Valós Supabase Auth/JWT/RLS integráció engedélyezett izolált környezetben.
-- [ ] Production encrypted backup + külön DB restore bizonyítéka.
+- [x] Production encrypted backup S3 upload + decrypt/hash verification.
+- [x] Isolated PostgreSQL 17 CI restore round-trip.
+- [ ] A production archívum külön adatbázisba történő restore-ja és dokumentált post-restore ellenőrzése.
 - [ ] Production migrációs drift feloldása és független SQL review.
 - [ ] E-mail és task approval race/replay/failure integrációs tesztek.
 - [ ] Üzemeltetési runbook és restore-gyakorlat.
@@ -273,7 +275,7 @@ A d76e8e859bca9021a4d5d491e49e04591dc5a26f headhez tartozó legutóbbi futások 
 
 - Push: https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45589657934 – in_progress.
 - PR: https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45589669569 – in_progress.
-- Mindkét futásban a Python test és a PostgreSQL/backup-restore backup-restore-integration job futott; végleges tesztszám, coverage és teljes siker még nincs igazolva.
+- A korábbi 45571463053 és 45571470452 futások a 762 passed / 3 skipped / 96.47% coverage baseline-t igazolták. A négy közös fájl main/PR összevezetése után új PR CI futás szükséges; a korábbi baseline nem a jelenlegi head bizonyítéka.
 - A korábbi, 762 passed / 3 skipped / 96.47% coverage eredmény korábbi headhez tartozik; nem tekinthető a mostani JWT role tesztmódosítás CI-bizonyítékának.
 
 ### Még szükséges – nyitott kapuk
@@ -284,7 +286,7 @@ A d76e8e859bca9021a4d5d491e49e04591dc5a26f headhez tartozó legutóbbi futások 
 | Supabase CLI migration repair szemantika | **Nincs igazolva** | A CI workflow jelenleg nem telepít és nem futtat Supabase CLI-t; ezért a pontos migration repair viselkedés továbbra is unverified. Csak izolált, lokális környezetben vizsgálható; production parancs nem futtatható. |
 | Két 20261117 ledger-eltérés | **Nyitott** | Az ismételt SQL replay és adatmegőrzés bizonyított a lokális fixture-ben, de ez nem javítja és nem bizonyítja a remote ledger biztonságos módosítását. Pontos, CLI-kompatibilis reconciliation eljárás és független review kell. |
 | Migrációs katalógus-postconditionök | **Részben kész** | A CI-ben további explicit ellenőrzés szükséges a productionnel egyező owner/grant/policy/function ACL/trigger/index állapotra; az összes objektumra kiterjedő egyezés nincs teljes körűen bizonyítva. |
-| Production backup + restore | **Csak lokális CI-ben bizonyított** | AWS stack/OIDC/secrets konfiguráció ellenőrzése, titkosított production backup S3-ba, objektum letöltés/decrypt/hash/manifest ellenőrzés, külön adatbázisba restore és jegyzőkönyv. |
+| Production backup + restore | **Részben igazolt** | A production age-titkosított dump S3-feltöltése, SSE-KMS ellenőrzése, letöltése, visszafejtése és manifest hash-ellenőrzése sikeres (`45611038142`); az izolált PostgreSQL 17 CI restore-round-trip sikeres (`45617334463`). A production archívum külön adatbázisba való restore-ja, a teljes post-restore jegyzőkönyv, AWS stack státusz és retention/riasztás továbbra is nyitott. |
 | Valós Supabase Auth/JWT/RLS | **Harness kész, futtatás nyitott** | A már létező Jarvis projekten kívüli tesztprojekt/branch nem hozható létre; a meglévő Jarvis production projekt csak read-only. Ha nincs már engedélyezett izolált Supabase környezet, a valós live teszt blokkolt marad. A live workflowhoz szükséges secret/variable beállítás és futtatás nincs igazolva. |
 | Üzleti mellékhatások és külső integrációk | **Nyitott** | Approval race/replay/failure tesztek, SMTP/IMAP/Gemini kontrollált integrációs tesztek és audit fail-closed bizonyíték. |
 | Operáció | **Nyitott** | Production restore-gyakorlat, RPO/RTO, retention/riasztás, incidens- és kulcsrotációs runbook. |
