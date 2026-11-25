@@ -240,3 +240,18 @@ def test_csv_run_does_not_audit_success_without_returned_lead_id(tmp_path, monke
     assert [event["status"] for event in lead_events] == ["pending", "unknown"]
     assert lead_events[0]["operation_id"] == lead_events[1]["operation_id"]
     assert all(event["status"] != "success" for event in lead_events)
+
+
+@pytest.mark.parametrize(
+    "email, expected",
+    [
+        ("plain@example.com", "plain@example.com"),
+        ("first_last@example.com", "first\\_last@example.com"),
+        ("first%last@example.com", "first\\%last@example.com"),
+        (String.raw`first\\last@example.com`, String.raw`first\\\\last@example.com`),
+    ],
+)
+def test_csv_duplicate_lookup_escapes_like_pattern_metacharacters(email, expected):
+    from lead_gen import _escape_like_literal
+
+    assert _escape_like_literal(email) == expected
