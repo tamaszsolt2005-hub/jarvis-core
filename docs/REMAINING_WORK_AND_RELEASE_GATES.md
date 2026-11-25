@@ -216,3 +216,16 @@ The backup archive covers JARVIS `public` schema only; Supabase-managed schemas 
 - [ ] Delete the disposable branch after evidence is captured.
 
 **Production safety:** production schema, migration ledger, Auth users and policies remain unchanged. Production Auth flag stays OFF. No production migration or Auth provisioning is authorized by this documentation update.
+
+## Supabase test-environment constraint (2026-11-25)
+
+The user explicitly requires use of the existing Jarvis Supabase project only and prohibits
+creating a new Supabase test account or development branch. The connected account currently
+exposes only project `kiutreccucbegskxowek`; its branch list is empty.
+
+This supersedes the earlier branch-creation steps in this roadmap. Migration replay,
+failure-injection and recovery validation must run in the existing GitHub Actions isolated
+PostgreSQL 17 production-shape fixture. Do not create a Supabase project/branch and do not
+run production migrations or migration repair. The existing Jarvis project is read-only
+for this phase. The 20261117 ledger discrepancy remains open until local fixture tests
+prove the exact CLI-compatible reconciliation operation. Production Auth stays OFF.
