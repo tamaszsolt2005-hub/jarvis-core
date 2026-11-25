@@ -58,7 +58,15 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-25
 
-A jelenlegi munka a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) ágon folyik (`docs/pre-feature-readiness-gates`). A PR nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d` (mindkét job sikeres a `45689264377` futásban). A dokumentációs frissítések utáni PR-head: `a PR oldalon látható aktuális head`; erre a headre új teljes CI-eredmény még nincs. A production migráció, deploy és jogosultságmódosítás továbbra sincs végrehajtva.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`). A PR aktuális, ellenőrzött headje: `7c8e6970a733884f4423821cddf3731f58e5b392`; a PR nincs merge-ölve.
 
+A headhez tartozó ellenőrzések mind sikeresek:
+- JARVIS CI: tesztek és backup/restore integráció.
+- CodeQL Python statikus elemzés.
+- pip-audit a `requirements-test.txt` alapján (runtime és tesztfüggőségek).
 
-- E-mail provider/idempotencia terv: [docs/EMAIL_PROVIDER_IDEMPOTENCY.md](docs/EMAIL_PROVIDER_IDEMPOTENCY.md). A Resend adapter előkészített, de a kimenő küldés továbbra is hard-disabled.
+További repós védelem: heti Dependabot frissítési ellenőrzés Python- és GitHub Actions-függőségekre. A sikeres CI nem igazolja a production deployt, a production Supabase-sémát vagy az SMTP-hitelesítést.
+
+E-mail: a kiválasztott útvonal Gmail SMTP (`EMAIL_PROVIDER=smtp`); a GitHub workflow az `EMAIL_USER` és `EMAIL_PASSWORD` secretneveket használja. A kimenő küldés továbbra is kódszinten hard-disabled, az outbound workflow-lépés tiltott. A Resend adapter alternatív kódútvonal, nem az aktív provider.
+
+Production deploy, adatbázis-migráció, GRANT/REVOKE, Auth/RBAC-változtatás és e-mail-küldés nem történt. A production host továbbra sem igazolt.
