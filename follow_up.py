@@ -88,6 +88,8 @@ def _run() -> None:
                 .eq("consent_basis", "consent")
                 .eq("approved_to_contact", True)
                 .eq("opted_out", False)
+                .eq("follow_up_count", 0)
+                .eq("next_follow_up_at", lead.get("next_follow_up_at"))
                 .select("id")
                 .execute()
             )
@@ -99,7 +101,8 @@ def _run() -> None:
                 db.table("leads")
                 .select(
                     "id,status,email,consent_basis,consent_confirmed_at,"
-                    "approved_to_contact,opted_out,reply_category,last_inbound_message_id"
+                    "approved_to_contact,opted_out,reply_category,last_inbound_message_id,"
+                    "next_follow_up_at,follow_up_count"
                 )
                 .eq("id", lead_id)
                 .limit(1)
@@ -109,7 +112,9 @@ def _run() -> None:
             if (
                 not fresh_rows
                 or fresh_rows[0].get("status") != "followup_sending"
-                or not _has_timestamped_consent(fresh_rows[0], now)
+                or not _eligible_for_follow_up(
+                    {**fresh_rows[0], "status": "sent"}, now
+                )
                 or fresh_rows[0].get("opted_out") is not False
                 or fresh_rows[0].get("reply_category")
                 or fresh_rows[0].get("last_inbound_message_id")
