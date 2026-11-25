@@ -54,7 +54,7 @@ A sikeres logikai dump sem teljes Supabase platform-mentés: nem tekinthető a S
 ## 5. CI állapot a merge után
 
 - Main commit: `bb5788e94b60a11185c45502b45d351ab2b2189b`.
-- A merge utáni CI `45624735367`: a PostgreSQL 17 `backup-restore-integration` job sikeres; a Python `test` job a legutóbbi ellenőrzéskor még futott.
+- A merge utáni CI `45624735367`: mindkét job (`test`, `backup-restore-integration`) befejeződött és sikeres. [GitHub Actions](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45624735367).
 - A merge utáni production backup workflow `45624735241`: sikertelen, a fenti importhiba miatt.
 - A CI eredményeket mindig a pontos commit SHA-hoz kösd; ne másold át a korábbi branch vagy régi main futás eredményét.
 
