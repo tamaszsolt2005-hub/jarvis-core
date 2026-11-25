@@ -50,7 +50,7 @@ def test_email_sender_reports_critical_when_send_error_state_cannot_be_persisted
     reports = []
     _configure(
         monkeypatch, db,
-        send=lambda *_args: (_ for _ in ()).throw(OSError("mock SMTP outage")),
+        send=lambda *_args: (_ for _ in ()).throw(email_sender.EmailDeliveryOutcomeUnknown("mock SMTP DATA outcome unknown")),
     )
     monkeypatch.setattr(
         email_sender, "report_error",
