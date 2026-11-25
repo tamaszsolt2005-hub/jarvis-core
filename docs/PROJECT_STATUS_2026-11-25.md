@@ -227,3 +227,15 @@ A sikeres CI coverage artifactja (run `45666323123`) összesített **90,75% line
 
 A `tests/test_task_actions.py` fájlhoz további parser, payload-validáció, approval, hibás RPC-válasz és auth enforcement edge teszteket adtam hozzá. Az új PR-head CI eredménye még ellenőrzés alatt áll; a coverage javulását csak az új artifact alapján lehet kijelenteni.
 
+
+
+## 2026-11-25 – produkciós alkalmazás-host felderítés (3. feladat)
+
+Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
+- A README Streamlit appot dokumentál (`dashboard.py`, Python 3.11, `streamlit run dashboard.py --server.port 8501`), de nem nevez meg production szolgáltatót vagy URL-t.
+- A GitHub repository `homepage` mezője üres, GitHub Pages nincs bekapcsolva. A vizsgált repositoryban nem találtam Streamlit Cloud, Railway, Render, Fly.io, Vercel vagy más app-host URL-t / deployment konfigurációt.
+- A hozzáférhető Railway workspace-ben egyetlen projekt van: `VolleyForm`; egyetlen szolgáltatása `volleyform-api`, domainje `volleyform-api-production.up.railway.app`. Ez másik repository/projekt, tehát **nem JARVIS host**.
+- A production Supabase projekt csak adatbázis/API végpont; nem azonos a Streamlit dashboard hostjával.
+- Nyilvános webes keresés sem adott ellenőrizhető JARVIS production URL-t.
+
+**Eredmény: a host/URL nem azonosítható a jelenleg hozzáférhető bizonyítékokból.** Nem próbáltam a JARVIS-t a VolleyForm Railway szolgáltatásra telepíteni, nem hoztam létre új szolgáltatást, nem módosítottam DNS-t, változókat vagy secrets értékeket. A feladat blokkoló bemenete: a tényleges host/projekt megnevezése vagy a szolgáltatóhoz tartozó dashboard/deployment hivatkozás megadása.
