@@ -80,3 +80,8 @@ A `e6736101405180c220d6b96b5a7a3c1d890813e0` commiton mért **762 passed, 3 skip
 - [Production recovery and backup/restore plan](docs/production-migration-recovery.md)
 
 The repository contains a manually triggered Auth/JWT/RLS smoke workflow intended only for an already-existing, explicitly authorized isolated Supabase environment; it must not create a new project or branch and must never target production. The production backup workflow completed successfully on 2026-11-25 (run 45611038142): it uploaded the age-encrypted logical dump to S3 with SSE-KMS, downloaded it, decrypted it and verified the manifest hashes. The separate PostgreSQL 17 CI restore round-trip also passed in run 45617334463. Neither workflow applies production schema changes. Real Auth/JWT/RLS validation remains unrun.
+
+
+## Fejlesztési áttekintés és prioritások
+
+A fejlesztési javaslatok és ellenőrzött státuszuk egyetlen helyen: [Fejlesztési áttekintés és javaslatok](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md). A merge és production release gate-ek: [Hátralévő feladatok és release gate-ek](docs/REMAINING_WORK_AND_RELEASE_GATES.md). A hosszú távú fejlesztési alap a `main`; a PR ágak átmenetiek.
