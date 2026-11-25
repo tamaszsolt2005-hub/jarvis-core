@@ -455,6 +455,8 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_service_role.test.sql
           # A failed final audit append must roll back the task and approval consumption.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_audit_fail_closed.sql
+          # Verify approval replay returns the stored result and revoke blocks execution.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_replay_revoke.test.sql
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |
