@@ -201,3 +201,21 @@ Skála: **1 = nagyon könnyű, 10 = nagyon nehéz**. A pontszám a várható mé
 
 **Együtt végzendő, 5/10 alatti csomag:** 1, 2, 9, 12, 14, 15, 18. Ezeket egy menetben készítem el, de a 2. pont éles deploy része csak a host igazolása és külön jóváhagyás után történhet. A 9. pont review-ja nem helyettesíti a production módosítás jóváhagyását.
 
+## 2026-11-25 – az alacsony nehézségű feladatcsomag ellenőrzésének eredménye
+
+A hét feladatot egy közös auditkörben ellenőriztem. Ez read-only vizsgálatokat és izolált CI-teszteket tartalmaz; production deploy, adatírás, GRANT/REVOKE, titokmódosítás és PR merge nem történt.
+
+| Feladat | Eredmény | Állapot |
+|---|---|---|
+| Production host/URL felderítése | A repo Streamlit appot ír le, de nincs igazolt production URL vagy JARVIS deployment. A hozzáférhető Railway projekt nem JARVIS. | **Nyitott** |
+| SMTP hard-disable | `EMAIL_DELIVERY_ENABLED = False`; a küldő az Auth/DB/secrets/SMTP elérése előtt hibával leáll; az email workflow outbound lépése `if: false`. | **Kódban ellenőrizve; production runtime/deploy nyitott** |
+| SQL review/ellenőrzőlista | Előkészítési kapuk: migrációs sorrend, pre/post-check, adatmegőrzés, rollback/recovery, ledger reconciliation. | **Előkészítve; független SQL review nyitott** |
+| Service-role negatív teszt | A PR CI izolált PostgreSQL 17 + pgTAP security jobja sikeres; a task service-role teszt a lockdown migráció után fut. Productionben a `service_role` INSERT/UPDATE/DELETE továbbra is engedélyezett. | **Izolált teszt sikeres; production ellenőrzés lockdown után nyitott** |
+| RLS és grant felülvizsgálat | Friss read-only lekérdezés: mind a 8 public tábla RLS-enabled, 0 policy; `service_role` DML true; anon/authenticated DML revoke korábban igazolt. Security Advisor: 8 INFO `rls_enabled_no_policy`. | **Felülvizsgálat kész; policy/RBAC döntés és telepítés nyitott** |
+| Host/build/health/secret dokumentáció | Megerősítve: Python 3.11, `streamlit run dashboard.py --server.port 8501`; health diagnosztika `health_check.run_self_diagnostics`; szükséges secretnevek dokumentálva, értékek nélkül. | **Ismert tények dokumentálva; host-specifikus runtime értékek nyitottak** |
+| Branch protection ellenőrzése | GitHub branch API: `main.protected=false`; required checks enforcement `off`, contexts/checks üres; repository rulesets: üres lista. | **Audit kész; védelem beállítása nyitott** |
+
+**Fontos production korlát:** a service_role production jogosultságát nem próbáltam éles DML-lel negatívan tesztelni, mert a jelenlegi grant még engedi az írást, és a rollback sem teszi kockázatmentessé az éles műveletet. A valós production negatív teszt csak a task RPC appverzió deployja és a külön jóváhagyott lockdown után futhat.
+
+A PR #26 CI `45665466795` futásában a `backup-restore-integration` job sikeres; a `test` job eredménye a dokumentum frissítésekor még futott.
+
