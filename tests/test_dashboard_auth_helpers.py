@@ -188,9 +188,28 @@ def test_pending_approval_is_one_time_and_bound_to_authenticated_user(monkeypatc
     assert isinstance(staged["_approval_created_at"], (int, float))
 
     consumed = namespace["_consume_pending_action"]()
-    assert consumed == action
+    assert consumed["task_action"]["type"] == "create"
+    assert consumed["task_action"]["title"] == "Bound action"
+    assert consumed["task_action"]["operation_id"]
     assert "_jarvis_pending_action" not in st.session_state
     assert namespace["_consume_pending_action"]() is None
+
+
+def test_pending_create_operation_id_is_stable_across_approval_consumption(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({
+        "task_action": {"type": "create", "title": "Approved once"}
+    })
+    staged_id = st.session_state["_jarvis_pending_action"]["task_action"]["operation_id"]
+
+    consumed = namespace["_consume_pending_action"]()
+
+    assert consumed["task_action"]["operation_id"] == staged_id
+    assert len(staged_id) == 36
 
 
 def test_pending_approval_rejects_payload_mutation_after_staging(monkeypatch):
@@ -199,7 +218,7 @@ def test_pending_approval_rejects_payload_mutation_after_staging(monkeypatch):
         state={"_jarvis_auth_session": {"user_id": "user-a"}},
         enabled=True,
     )
-    namespace["_stage_pending_action"]({"task_action": {"type": "create", "title": "Original"}})
+    namespace["_stage_pending_action"]({"task_action": {"type": "update", "title": "Original"}})
     st.session_state["_jarvis_pending_action"]["task_action"]["title"] = "Tampered"
 
     assert namespace["_consume_pending_action"]() is None
@@ -228,9 +247,8 @@ def test_pending_approval_copies_nested_payload_before_staging(monkeypatch):
     namespace["_stage_pending_action"](action)
     action["task_action"]["title"] = "Changed after staging"
 
-    assert namespace["_consume_pending_action"]() == {
-        "task_action": {"type": "create", "title": "Original"}
-    }
+    consumed = namespace["_consume_pending_action"]()
+    assert consumed == {"task_action": {"type": "update", "title": "Original"}}
 
 
 def test_pending_approval_expires_after_five_minutes(monkeypatch):
