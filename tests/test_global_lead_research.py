@@ -92,7 +92,11 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
     monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(research, "audit_event", lambda *_args, **_kwargs: True)
+    audit_events = []
+    monkeypatch.setattr(
+        research, "audit_event",
+        lambda _db, **kwargs: audit_events.append(kwargs) or True,
+    )
 
     db = FakeDB()
     result = research.research_global_companies(db, "globális cégek", FakeClient(response))
@@ -109,6 +113,9 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     assert result["companies"][0]["business_fit_score"] == 100
     assert result["companies"][0]["research_confidence"] == "high"
     assert result["email_sending"] == "disabled"
+    insert_events = [event for event in audit_events if event["action"] == "save_researched_company"]
+    assert [event["status"] for event in insert_events] == ["pending", "success"]
+    assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
 
 
 def test_global_research_deduplicates_existing_company(monkeypatch):
@@ -247,3 +254,36 @@ def test_lead_research_and_market_write_deny_missing_auth_session_when_enforced(
         research.research_global_companies(FakeDB(), "kutatás", FakeClient({}))
     with pytest.raises(PermissionError, match="Auth-munkamenet"):
         research.set_research_market(FakeDB(), "Germany")
+
+
+
+def test_global_research_does_not_insert_company_when_pending_audit_fails(monkeypatch):
+    company = {
+        "company_name": "Acme Systems",
+        "website": "https://acme.example",
+        "source_url": "https://acme.example/about",
+    }
+    response = {
+        "text": json.dumps({"companies": [company]}),
+        "candidates": [{
+            "grounding_metadata": {
+                "grounding_chunks": [{"web": {"uri": "https://acme.example/about"}}]
+            }
+        }],
+    }
+    monkeypatch.setattr(research.types, "GenerateContentConfig", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "Tool", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
+    monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        research, "audit_event",
+        lambda _db, **kwargs: kwargs["status"] != "pending"
+        or kwargs["action"] != "save_researched_company",
+    )
+
+    db = FakeDB()
+    import pytest
+    with pytest.raises(RuntimeError, match="pending auditbejegyzés"):
+        research.research_global_companies(db, "globális cégek", FakeClient(response))
+    assert db.inserted == []
