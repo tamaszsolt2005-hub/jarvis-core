@@ -1,59 +1,46 @@
-# JARVIS – merge és production release gate-ek
+# JARVIS – production és release gate-ek
 
-**Felülvizsgálat:** 2026-11-25  
-**Tartós fejlesztési ág:** `main`
+Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás vagy élesítés előtt. A fejlesztési teendők a [fejlesztési backlogban](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) vannak.
 
-> **A fejlesztési javaslatok és azok implementációs státuszának egyetlen forrása:** [Fejlesztési áttekintés, ellenőrzött állapot és javaslatok](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md). Ez a dokumentum szándékosan nem ismétli meg az ott felsorolt fejlesztési feladatokat; kizárólag a merge és production kiadás döntési kapuit tartalmazza.
+## Jelenlegi döntési állapot
 
-## 1. Aktuális GitHub-állapot
+**Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva.**
 
-- Main HEAD: `6b22893b650c4a6336adef3b43429ce69e567738`.
-- PR #13 head: `32aef539c0128c1fedaa9e03768477433e93abe1`.
-- PR #13: draft, nyitott, nincs merge-elve.
-- PR #13: a main integrálása megtörtént; 0 commit behind. A PR továbbra is draft és nincs merge-elve.
-- [PR CI #45620672894](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45620672894): sikeres a PR akkori headjén.
-- [Main CI #45621572548](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45621572548): sikeres a `f49eda7` main headen.
+A PR #13 merge-elve a `main` ágba (`bb5788e94b60a11185c45502b45d351ab2b2189b`). Ez kódintegráció, nem production release.
 
-A CI eredmények csak a megadott commitokra érvényesek. A main és a PR frissítése után a legújabb headeken újra kell ellenőrizni őket.
+## Kötelező kapuk
 
-## 2. PR merge gate
+### 1. Repository és CI
+- A pontos main commit minden kötelező CI jobja befejezett és sikeres.
+- A backup workflow teljes, friss futása sikeres; a dump, titkosítás, S3 feltöltés, letöltés, visszafejtés és hash ellenőrzés is igazolt.
+- A tényleges production archívum külön, izolált PostgreSQL 17 adatbázisba történő restore-ja sikeres.
+- A sikertelen vagy futó workflow nem tekinthető sikeresnek.
 
-- [x] A PR frissítése a legújabb mainre; a behind érték 0.
-- [ ] A teljes PR diff és commit-történet review-ja lezárult.
-- [ ] A migrációk, RLS/GRANT, Auth trust boundary, backup workflow és approval/idempotencia útvonalak review-ja lezárult.
-- [ ] A PR legfrissebb headjén minden kötelező CI-job sikeres.
-- [ ] A GitHub mergeability és branch protection közvetlenül a döntés előtt ellenőrizve.
-- [ ] A dokumentáció és a kód állapota egyezik; nincs elavult CI/head vagy egymásnak ellentmondó checklist.
-- [ ] A fennmaradó, nem blokkoló fejlesztési adósságok elfogadása és ütemezése dokumentált.
-- [ ] Külön, kifejezett döntés született a merge-ről.
+### 2. Migration drift
+- Friss read-only production schema és remote ledger snapshot készült.
+- A két 20261117 verzió ledger-eltérése dokumentáltan és függetlenül rendezett.
+- Az öt visszanyert történeti migráció és a repository migrációk tartalma/postconditionjei ellenőrzöttek.
+- A teljes migrációs sorrend production-shape izolált PostgreSQL 17 környezetben sikeres.
+- A pontos SQL-készletet független review és külön, konkrét production jóváhagyás fedi.
 
-**Merge-döntés:** a CI-zöldség önmagában nem elég. A PR jelentős változáscsomagja miatt teljes review szükséges. A merge nem automatikus.
+### 3. Auth/RLS
+- A live Auth/JWT/RLS smoke csak már létező, kifejezetten engedélyezett izolált Supabase környezetben sikeres.
+- Admin Auth user, szerepkörök, session refresh, invalid/lejárt token és admin/operator/reader jogosultságok ellenőrzöttek.
+- A production RLS/GRANT utófeltételek és visszaellenőrző lekérdezések előre definiáltak.
+- Auth/RBAC flag csak a migráció után, külön jóváhagyással kapcsolható be.
 
-## 3. Production release gate
+### 4. Üzemeltetés
+- RPO/RTO, retention, riasztás, kulcsrotáció, hozzáférés és incidenskezelés dokumentált.
+- Restore runbook és felelősök kijelölve.
+- A logikai DB backup határain túli igények (Storage objektumok, Auth/Realtime platformadatok, projektkonfiguráció) kezelése tisztázott.
 
-A production bevezetés a PR merge-től külön döntés. A következő bizonyítékok nélkül a production Supabase maradjon read-only, az Auth/RBAC flag pedig OFF:
+## Kifejezetten tiltott külön jóváhagyás nélkül
 
-- [ ] A konkrét production backup archívum visszaállítása külön, izolált adatbázisba.
-- [ ] Post-restore ellenőrzés és jegyzőkönyv: séma, rekordok, kritikus táblák, indexek, jogosultságok és alkalmazás-kompatibilitás.
-- [ ] Production preflight és migrációs ledger eltérés dokumentált, felülvizsgált rendezési terve.
-- [ ] Valós Auth-issued JWT/PostgREST/RLS teszt kizárólag már létező és kifejezetten engedélyezett izolált Supabase környezetben.
-- [ ] Minden production változtatáshoz külön jóváhagyott terv, rollback és megfigyelési/ellenőrzési lépések.
-- [ ] Backup/recovery, retention, kulcskezelés és incidenskezelés üzemeltetési feltételei elfogadva.
+- Production DDL/DML és adatírás.
+- `supabase db push`, `supabase migration repair`, migration ledger kézi átírása.
+- GRANT/REVOKE, RLS policy és Auth user módosítás.
+- Production Auth/RBAC feature flag bekapcsolása.
+- AWS production deploy vagy backup infrastruktúra változtatása.
+- Új Supabase projekt vagy branch létrehozása.
 
-## 4. Tiltott műveletek külön jóváhagyás nélkül
-
-- Production DDL/DML.
-- `supabase db push`, `supabase migration repair`, migration ledger kézi módosítása.
-- GRANT/REVOKE vagy RLS policy módosítás productionben.
-- Production Auth-user provisioning vagy Auth/RBAC aktiválás.
-- AWS production stack deploy.
-- Új Supabase account, projekt vagy branch létrehozása.
-- PR merge.
-
-## 5. Döntési állapot
-
-**PR #13:** a main szinkronizálása megtörtént (0 behind). A teljes változáscsomagot továbbra is review-zni kell, és a friss head CI-jét ellenőrizni.
-
-**Production:** nem release-ready, amíg a konkrét production backup restore, preflight és az izolált élő Auth/JWT/RLS bizonyítékok nem állnak rendelkezésre, és a production változtatási terv nincs külön jóváhagyva.
-
-**Munkaszervezés:** a cél egyetlen tartós `main` ág. Az átmeneti PR ág csak a jelenlegi integrációs folyamat miatt létezik; a további munka a merge után a mainen folytatódik.
+A production állapot részletes, időponthoz kötött tényállása: [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).

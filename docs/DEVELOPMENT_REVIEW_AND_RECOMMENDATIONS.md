@@ -1,103 +1,47 @@
-# JARVIS – fejlesztési áttekintés, ellenőrzött állapot és javaslatok
+# JARVIS – fejlesztési backlog
 
-**Felülvizsgálat:** 2026-11-25  
-**Tartós fejlesztési ág:** `main`  
-**Repository:** https://github.com/tamaszsolt2005-hub/jarvis-core
+**Alapág:** `main`  
+**Alap commit:** `bb5788e94b60a11185c45502b45d351ab2b2189b`  
+**Szabály:** ez az egyetlen fejlesztési backlog. A megvalósítás státuszát a kóddal és az aktuális CI-vel kell ellenőrizni.
 
-> **Dokumentumhasználat:** ez az egyetlen dokumentum, amely a fejlesztési javaslatok teljes listáját és azok ellenőrzött státuszát tartalmazza. A [Hátralévő feladatok és release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) kizárólag a merge és production kiadás kapuit tartalmazza; nem ismétli meg a fejlesztési javaslatokat.
+## P0 – következő javítások
 
-## 1. Aktuális repository-állapot
+1. **Backup workflow importhiba javítása.** A merge utáni `45624735241` futás a `scripts/supabase_backup.py` importjánál elbukott: `ModuleNotFoundError: jarvis_errors`. Javítsd az indítási/import útvonalat, adj regressziós tesztet, majd futtasd újra a workflow-t. Ne állíts sikeres backupot, amíg a teljes friss futás nem zöld.
+2. **Task approval race.** Az egyszer használatos jóváhagyás jelenlegi UI-session kezelése nem garantál atomikus, több processz közötti one-use fogyasztást. Vezess be DB-szintű atomikus consume műveletet, lejáratot, principal- és payload-kötést, konkurens teszteket.
+3. **Teljes műveleti idempotencia.** A task-create kapott stabil operation ID-t és deduplikációt. A task update/close és külső mellékhatások teljes replay/idempotencia védelme hiányos.
+4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
+5. **Külső e-mail integritás.** SMTP unknown kimenetel után nincs bizonyított szolgáltatói idempotencia; az automatikus retry duplikált küldést okozhat. Kimenő küldés maradjon tiltott, amíg a deduplikáció és a végponttól végpontig tesztek nincsenek készen.
 
-| Elem | Ellenőrzött érték |
-|---|---|
-| `main` HEAD | `6b22893b650c4a6336adef3b43429ce69e567738` |
-| PR #13 HEAD | az aktuális PR #13 oldalon követhető; main-integráló merge commit létrejött |
-| PR #13 | draft, open, nincs merge-elve |
-| PR és main viszonya | 0 commit behind; a PR változásai továbbra sincsenek merge-elve |
-| PR CI | a main integrálása utáni új head CI-je ellenőrzendő |
-| PR push CI | a main integrálása utáni új head CI-je ellenőrzendő |
-| Main dokumentációs CI | [#45621572548](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45621572548) – sikeres |
+## P1 – biztonság és integráció
 
-A korábbi PR CI a korábbi headen zöld volt. A main integrálása után új PR-head jött létre; annak CI-je külön ellenőrzendő. A nagy változáscsomag miatt a teljes diff és a migrációs történet review-ja továbbra is szükséges. A CI zöld állapota nem helyettesíti ezt a review-t.
+- Gemini/SMTP/IMAP timeout, retry, rate limit, részleges hiba és redakció integrációs mátrixának teljessé tétele.
+- Titokredakció regressziós tesztjeinek fenntartása minden log/audit útvonalon.
+- Auth/RLS live smoke teszt meglévő, engedélyezett izolált Supabase környezetben.
+- Auth session refresh, szerepkörváltozás, invalid/lejárt JWT, reader/operator/admin negatív tesztjei.
+- Különválasztani és dokumentálni a user-JWT dashboard klienst és a háttérfolyamat service-role kliensét; a service-role kulcs soha ne kerüljön felhasználói kliensbe.
+- Ha tenantok kiszolgálása cél, külön tenant-azonosító és tenant-szintű RLS architektúra szükséges. A jelenlegi modell shared workspace, nem multi-tenant.
 
-## 2. Kódellenőrzés: mi van már implementálva?
+## P1 – production adatbázis
 
-Az alábbi státuszok különválasztják a jelenlegi `main` állapotát és a PR #13-ban lévő, de még be nem olvasztott megvalósítást.
+- A két 20261117 migration ledger eltérés rendezési tervének bizonyítása.
+- Production-shape PostgreSQL 17 migrációs replay és adatmegőrzési ellenőrzés.
+- Audit/hash-chain/RBAC/idempotencia migrációk független SQL review-ja.
+- A production logikai backup tényleges külön adatbázisba restore-jának igazolása.
+- A Supabase platformon kívüli mentési igények (Storage objektumok, Auth/Realtime és konfiguráció) tisztázása.
 
-| Terület / javaslat | Ellenőrzött megvalósítás | Státusz |
-|---|---|---|
-| Explicit task approval | A dashboard csak explicit jóváhagyás után hívja a task műveletet; az approval paraméter szigorúan boolean. Tesztek ellenőrzik a tiltást. | **Implementálva** |
-| Pending audit a task művelet előtt | A task végrehajtás előtt pending auditot ír; sikertelen auditnál megáll. | **Implementálva** |
-| Task create idempotencia | A PR tartalmaz stabil `operation_id` mezőt, unique partial indexet, konfliktus utáni rekord-visszakeresést és replay tesztet. | **PR-ben implementálva; mainbe még nem került** |
-| Minden műveletre kiterjedő idempotencia | A task create kapott deduplikációt, de ez nem terjed ki minden task update/close, e-mail és egyéb külső mellékhatásra. | **Részleges; fejlesztendő** |
-| Több processz közötti egyszer használatos approval | A dashboard sessionből eltávolítja a pending approvalt a végrehajtás előtt, de ez nem közös, adatbázis-szintű atomikus consume. | **Hiányzik; fejlesztendő** |
-| Task konkurens módosítás elleni védelem | Update/close útvonal ellenőrzi az állapotot és az üres update eredményt konfliktusként kezeli; tesztek fedik a konkurens változás szimulációját. | **Részben implementálva; nem oldja meg az approval race-t** |
-| Audit fail-closed | Több érzékeny útvonal pending audit hibánál leáll; központi audit tesztek ellenőrzik például a lead importot, kutatást és inbound email feldolgozást. | **Részben implementálva; teljes útvonal-lefedettség review szükséges** |
-| SMTP küldési biztonság | SMTP-kód és mockolt siker/hiba tesztek léteznek; a kimenő küldés jelenleg biztonsági kapcsolóval tiltott. A küldési folyamat pending/success/failed/unknown auditállapotokat kezel. | **Alapok implementálva; éles küldés tiltott** |
-| E-mail idempotencia és bizonytalan retry | Van operation ID audit célra és az unknown SMTP-kimenetel naplózása, de nincs bizonyított, tartós, szolgáltatói idempotencia a duplikált küldés ellen. | **Hiányos; fejlesztendő az e-mail engedélyezése előtt** |
-| SMTP integrációs tesztek | Mockolt tesztek fedik a konfigurációt, hibákat, STARTTLS sikerutat és header injectiont. | **Implementálva mock szinten** |
-| Gemini retry | Korlátozott retry konfiguráció szerepel a közös kliensben. | **Implementálva; további rate-limit/timeout mátrix ellenőrzése szükséges** |
-| IMAP/Gemini/SMTP teljes integrációs mátrix | A külső szolgáltatások egyes hibái mockolva teszteltek; ez nem azonos a teljes, dedikált integrációs tesztcsomaggal. | **Részleges** |
-| Titokredakció az auditban | A közös auditkód érzékeny mezőket redaktál. | **Implementálva; regressziós lefedettséget fenn kell tartani** |
-| Auth szerepkör-ellenőrzés | A PR-ban külön Auth helper és ellenőrzött user-JWT kliensút van; szerepkör a megbízható `app_metadata`-ből származik, fail-closed módon. | **PR-ben implementálva; mainbe még nem került** |
-| RLS/GRANT szerepkörmátrix | A PR migráció shared-workspace admin/operator/reader policy-kat, grantokat és audit korlátozásokat tartalmaz; SQL postcondition teszt ellenőrzi a katalógust. | **PR-ben implementálva; mainbe még nem került** |
-| Valós Auth/JWT/RLS smoke | Kézi live smoke script létezik Auth-issued JWT, role claim refresh, invalid JWT és PostgREST hozzáférés ellenőrzésére. | **Tesztkód implementálva; élő futás nincs igazolva** |
-| Migrációs katalógus-ellenőrzés | A PR SQL teszt ellenőrzi a táblatulajdonost, RLS policy-kat, grantokat, function ACL-t, triggereket, indexeket és default ACL-t izolált PostgreSQL fixture-ben. | **PR-ben implementálva; mainbe még nem került** |
-| Migration ledger eltérés | A PR dokumentálja a két 20261117 migráció eltérését és a reconciliation vizsgálatot; production javítás nem történt. | **Dokumentált; tényleges reconciliation nyitott** |
-| Production backup CI restore | Titkosított backup útvonal és izolált PostgreSQL 17 restore teszt létezik; a CI futások sikeresek. | **CI-ben igazolt** |
-| Konkrét production archívum külön adatbázisba restore-ja | A CI fixture restore nem bizonyítja a tényleges production archívum teljes helyreállíthatóságát. | **Hiányzik** |
-| RPO/RTO, retention, incidenskezelés | A release/üzemeltetési dokumentáció említi, de teljes, jóváhagyott célértékek és runbook még nem igazoltak. | **Hiányzik / tisztázandó** |
-| Supabase teljes platform- és Storage mentés | A public-schema logikai backup nem bizonyít Auth, Storage bináris objektumok és projektkonfiguráció teljes helyreállítását. | **Nyitott tervezési feladat** |
-| Multi-tenant izoláció | A jelenlegi RLS shared-workspace modell; nem tenantonkénti izoláció. | **Nincs implementálva; csak több ügyfél kiszolgálásakor szükséges** |
-| WORM / külső audit hash anchor | A hash chain nem véd a teljes adatbázis-tulajdonosi jogosultsággal szemben. | **Nincs implementálva; követelményfüggő** |
+Részletek és aktuális tények: [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).
 
-## 3. Ténylegesen hátralévő fejlesztési javaslatok
+## P2 – termék és üzemeltetés
 
-Az alábbi lista kizárólag azokat a tételeket tartalmazza, amelyek a fenti kódellenőrzés alapján még nem teljesek. A már implementált tételek nem szerepelnek újra.
+- RPO/RTO, retention, riasztás, kulcsrotáció, restore runbook és incidenskezelés meghatározása.
+- Proaktív monitor és briefing production schedulerének tényleges működés- és hibafigyelése.
+- Külső szolgáltatások költség-, rate-limit- és kvótamonitorozása.
+- Üzleti eredmény metrikák: lead minőség, kutatási pontosság, utánkövetés konverziója, feladat-végrehajtás sikeressége.
+- Ha az adat- vagy ügyfélszám nő, teljesítménytesztek, indexek és tenant izoláció újratervezése.
 
-### P0 – merge előtt
+## Fejlesztési szabályok
 
-1. A PR ágat a `main`-hez igazítottuk; a friss merge commit CI-je és teljes diff-review-ja szükséges.
-2. A 282 commitnyi teljes változáscsomag diff- és commit-review-ja szükséges, különösen az Auth/JWT/RLS, SQL migrációk, backup workflow és dashboard approval útvonalak tekintetében.
-3. A main integrálása után létrejött PR-head teljes kötelező CI-jét újra ellenőrizni kell.
-4. A main és PR eltérő fájlállapotait a teljes diff-review során felül kell vizsgálni; a main változásai megőrzendők.
-5. A merge stratégia csak a teljes review után választható ki.
-
-### P1 – biztonság és üzleti logika
-
-1. **Atomikus approval consumption:** közös, adatbázis-szintű one-use token/approval consume, amely több worker/process között is atomi; race teszt bizonyítsa, hogy egy approval legfeljebb egyszer használható fel.
-2. **Idempotencia kiterjesztése:** a task create-on túl a releváns task műveletek és külső mellékhatások kapjanak stabil, tartós idempotencia-azonosítót.
-3. **E-mail küldési garanciák:** SMTP unknown kimenetel, újrapróbálás, szolgáltatói elfogadás és duplikált küldés kockázatának kezelése. A küldés maradjon tiltva, amíg ez nincs lezárva.
-4. **Audit teljesség:** a pending audit fail-closed ellenőrzését minden érzékeny műveleti útvonalra ki kell terjeszteni, és hiányzó regressziós tesztekkel alátámasztani.
-5. **Integrációs tesztmátrix:** Gemini/SMTP/IMAP timeout, retry, rate limit, részleges hiba és titokredakció lefedése; a mockolt teszteket ne nevezzük élő integrációs validációnak.
-
-### P1 – Supabase / migráció
-
-1. A két 20261117 migrációs fájlnév és remote migration ledger eltérésének CLI-kompatibilis reconciliation terve, majd független review.
-2. A live Auth/JWT/RLS smoke futtatása kizárólag már létező, kifejezetten engedélyezett izolált Supabase környezetben; a futás bizonyítékának archiválása.
-3. A migrációk, RLS, GRANT, SECURITY DEFINER függvények és function ACL-ek független SQL review-ja.
-4. A PR-ban lévő SQL fixture teszteket a frissített main-alapú PR headen újra kell futtatni.
-
-### P2 – üzemeltetés és jövőbeni architektúra
-
-1. A konkrét production backup külön adatbázisba restore-ja és post-restore jegyzőkönyv.
-2. RPO/RTO, retention, riasztás, kulcsrotáció, incidenskezelés és restore runbook meghatározása.
-3. A Supabase Auth, Storage és projektkonfiguráció mentési/helyreállítási igényeinek tisztázása.
-4. Multi-tenant adatmodell és tenant RLS csak akkor, ha a termék több ügyfélre bővül.
-5. Külső hash anchor/WORM csak akkor, ha adatbázis-tulajdonossal szembeni manipulációvédelem formális követelmény.
-
-## 4. Egyetlen main ág – fejlesztési szabály
-
-- A `main` az egyetlen tartós fejlesztési ág.
-- Rövid életű PR ág csak technikai integrációs eszköz; a PR célága mindig `main`.
-- Merge után az átmeneti ág lezárható/törölhető; minden új munka a friss `main`-ből indul.
-- A `main` CI minden módosítás után kötelező.
-- Production adatbázis-, Auth-, migrációs vagy infrastruktúra-módosítás külön, konkrét jóváhagyás nélkül nem végezhető.
-
-## 5. Biztonsági korlátozások
-
-- Production Supabase read-only.
-- Auth/RBAC production flag OFF.
-- Nincs jóváhagyás nélküli production DDL/DML, `supabase db push`, `supabase migration repair`, ledger edit, GRANT/REVOKE, RLS módosítás vagy Auth-user provisioning.
-- Új Supabase account/projekt/branch nem hozható létre.
-- AWS production deploy és PR merge külön jóváhagyást igényel.
+- A tartós ág `main`; rövid életű feature ág csak integrációhoz.
+- Egy változtatás = célzott kód + teszt + releváns dokumentáció.
+- Ne készíts újabb dátumozott állapotjelentést, ha a backlog frissíthető.
+- A production release gate nem backlog: azt külön dokumentum kezeli.
