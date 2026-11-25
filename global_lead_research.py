@@ -294,7 +294,7 @@ def research_global_companies(
                 "consent_basis": None,
                 "approved_to_contact": False,
                 "opted_out": False,
-            }).execute()
+            }).select("id").execute()
             if not getattr(insert_response, "data", None):
                 raise RuntimeError("A kutatási lead mentését az adatbázis nem igazolta vissza.")
         except Exception as exc:
