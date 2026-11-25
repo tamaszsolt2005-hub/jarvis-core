@@ -58,3 +58,30 @@
 Production read-only audit: 8 public tábla, mind RLS enabled, 0 policy; anon/authenticated DML jog false, service_role teljes DML jog true. `private` schema, audit chain state, approval táblák/RPC és `tasks.operation_id` hiányzik; migration ledgerben 5 (20261119) bejegyzés van. Nincs production írás vagy deploy.
 
 Provider idempotencia követelmények: stabil üzleti eseményhez kötött kulcs, request body tartós tárolása és változatlan újraküldése, provider válaszazonosító mentése, 24 órás provider-key lejárat után automatikus retry tiltása / manuális egyeztetés. Resend API hivatalosan dokumentálja az `Idempotency-Key` fejlécet, azonos payload elvárást és 24 órás időablakot: https://resend.com/blog/engineering-idempotency-keys. SMTP hard-disable maradjon aktív, amíg ez és a teljes E2E nincs tesztelve.
+
+## ÚJ FUNKCIÓK ELŐTTI VÉGES BACKLOG – 2026-11-25
+
+Az alábbi pontok a jelenlegi tényleges állapotot tükrözik; a már kész kódot nem kell újraimplementálni. Csak a hiányzó production integrációt, döntést és bizonyítékot kell lezárni.
+
+### P0 – biztonságos production alap
+- [ ] JARVIS tényleges production host/URL felderítése. A repo-ban nincs app URL/deploy workflow; az elérhető Railway projekt másik termék. Ne deployoljunk találomra.
+- [ ] PR #23 SMTP hard-disable deployja a valós app hostra, runtime ellenőrzéssel. Main CI zöld, de production runtime nincs bizonyítva.
+- [ ] Production schema/ledger drift reconciliation: a két `20261117` migráció eredetének tisztázása; teljes PG17 migration replay és adatmegőrzés; független SQL review.
+- [ ] A hiányzó production audit/approval/operation DB objektumok migrációs csomagja és deployja: private schema, structured audit/hash-chain, `tasks.operation_id`, approval/operation táblák és RPC-k.
+- [ ] Érzékeny műveleti útvonal-leltár és audit fail-closed bizonyítása.
+- [ ] RPC-alapú task write path deploy + smoke; utána `20261125170000` service_role task DML lockdown, majd negatív direct-DML és pozitív RPC teszt.
+- [ ] Live Auth/JWT/session/RLS/role smoke már létező, engedélyezett izolált Supabase környezetben.
+- [ ] Production release: health check, task/approval/audit/RPC smoke és rollback ellenőrzés.
+
+### P1 – külső integritás és termék-alapok
+- [ ] E-mail provider kiválasztása; stabil idempotency key, változatlan request body, provider response ID mentése, `unknown` kimenetel és retry-határ kezelése, E2E. Addig SMTP maradjon hard-disabled.
+- [ ] Proaktív lead/üzleti monitor: források, bizonytalanság, minőség és duplikáció mérése.
+- [ ] Teljes lead→eredmény workflow állapotmodell, megszakítás/folytatás/idempotencia és E2E.
+- [ ] Forrásolt, jogosultságkezelt memória; frissesség, bizonytalanság, retention/deletion és tény/következtetés elkülönítése.
+
+### P2 – későbbi üzemeltetési javítások
+- [ ] Storage/Auth/Realtime és projektkonfiguráció backup scope tisztázása.
+- [ ] Main branch protection / required checks audit.
+- [ ] Alacsony coverage modulok célzott tesztjei, kockázat alapján.
+
+**Lezárási szabály:** a P0 minden pontja és a külső hatásokat érintő P1 pontok teljesüljenek; az új funkciók előfeltételéül szolgáló termék-alapok elfogadási tesztjei zöldek legyenek. P2 nem lehet ürügy a végtelen halasztásra. Ne ismételjük meg a már zöld CI/backup teszteket ok nélkül, és ne találjunk ki további kapukat a fenti feltételek teljesülése után.
