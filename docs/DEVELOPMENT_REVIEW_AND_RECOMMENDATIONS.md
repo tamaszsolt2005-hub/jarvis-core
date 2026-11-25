@@ -51,3 +51,10 @@
 - Egy változtatás = célzott kód + teszt + releváns dokumentáció.
 - Production változtatás csak a külön dokumentált release gate-ek és konkrét jóváhagyás után.
 - SMTP kimenő küldés maradjon tiltva, amíg az idempotencia és a végponttól végpontig tesztek nem teljesek.
+
+
+## Friss audit és külső e-mail idempotencia – 2026-11-25
+
+Production read-only audit: 8 public tábla, mind RLS enabled, 0 policy; anon/authenticated DML jog false, service_role teljes DML jog true. `private` schema, audit chain state, approval táblák/RPC és `tasks.operation_id` hiányzik; migration ledgerben 5 (20261119) bejegyzés van. Nincs production írás vagy deploy.
+
+Provider idempotencia követelmények: stabil üzleti eseményhez kötött kulcs, request body tartós tárolása és változatlan újraküldése, provider válaszazonosító mentése, 24 órás provider-key lejárat után automatikus retry tiltása / manuális egyeztetés. Resend API hivatalosan dokumentálja az `Idempotency-Key` fejlécet, azonos payload elvárást és 24 órás időablakot: https://resend.com/blog/engineering-idempotency-keys. SMTP hard-disable maradjon aktív, amíg ez és a teljes E2E nincs tesztelve.
