@@ -98,6 +98,8 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
             and consent_at.tzinfo is not None
             and consent_at.utcoffset() is not None
+            # Use the report's reference date, not wall-clock time, so historical
+            # reports and tests do not treat later consent as already granted.
             and consent_at.astimezone(LOCAL_TZ).date() <= today
             and 0 <= follow_up_count < 1
             and due_date is not None
