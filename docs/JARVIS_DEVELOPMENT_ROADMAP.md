@@ -172,7 +172,7 @@ A következő ellenőrzések közös munkacsomagban lefutottak:
 
 ## Aktuális állapotfrissítés – 2026-11-25, PR #26
 
-**Fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) · **legutóbbi ismert commit:** `38693f2f93b790608aef37a33f190a86e611ff0d`.
+**Fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) · **aktuális PR-head:** `eaad5428311d86590f03c744f7f5b0e02da45064`. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 A PR #26-ban a korábban nyitott biztonsági munka több kódbeli és tesztelési eleme elkészült:
 - DB-szintű, rövid életű, principal- és payload-kötött approval token; atomikus consume a task végrehajtással együtt.
@@ -181,7 +181,7 @@ A PR #26-ban a korábban nyitott biztonsági munka több kódbeli és tesztelés
 - SMTP kimenő küldés hard-disabled; az SMTP DATA utáni bizonytalan eredmény `send_unknown` állapotú és nem kerül automatikus retry-ra. Stabil belső email operation ID van, de Gmail SMTP provider-oldali idempotenciát nem garantál.
 - A service-role task DML lockdown migrációja és negatív tesztje izolált CI-ben szerepel; productionre továbbra is blokkolt, amíg az RPC app path nincs deployolva és smoke-tested.
 
-**CI a dokumentáció frissítésekor:** a `38693f2` commiton a `45689264377` és `45689247826` futás `in_progress` állapotú volt. Egyik sem tekinthető sikeresnek addig, amíg minden job `success` állapotban be nem fejeződik. Kövesd a [CI futásokat](https://github.com/tamaszsolt2005-hub/jarvis-core/actions).
+**CI eredmény:** a `38693f2` kódcommiton a `45689264377` mindkét jobja (`test`, `backup-restore-integration`) sikeres. A párhuzamos `45689247826` futást a GitHub concurrency szabálya megszakította. A későbbi dokumentációs commitok után indult futások is megszakadtak; az aktuális PR-head dokumentációs módosításaira külön teljes CI-eredmény még nincs. Kövesd a [CI futásokat](https://github.com/tamaszsolt2005-hub/jarvis-core/actions).
 
 **Production továbbra is változatlan:** a korábbi read-only snapshot szerint a két 20261117 ledger-egyeztetés után hét történeti verzió szerepel a ledgerben; hat újabb migráció (köztük az audit/RBAC/task approval és végső privilege lock) nincs alkalmazva. Az új PR-kód/izolált teszt nem bizonyít production telepítést. A JARVIS host továbbra sincs igazolva; a hozzáférhető Railway projekt nem JARVIS. Nincs production deploy, migráció, GRANT/REVOKE, Auth flag aktiválás vagy PR merge.
 
