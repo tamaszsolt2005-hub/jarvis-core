@@ -126,6 +126,15 @@ jobs:
           # Repeat to prove idempotence against an already-upgraded schema.
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          # Model a migration process stopping after a committed prefix of the
+          # audit expansion file: several columns and one index already exist.
+          # Replay the complete file and verify IF NOT EXISTS recovers cleanly.
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --command \
+            "ALTER TABLE public.logs ADD COLUMN operation_id uuid, ADD COLUMN action text, ADD COLUMN status text NOT NULL DEFAULT 'unknown'"
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --command \
+            "CREATE INDEX logs_created_at_desc_idx ON public.logs (created_at DESC)"
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261120090000_expand_logs_audit_fields.sql
           PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 <<'SQL'
           DO $migration_check$
           DECLARE
@@ -133,6 +142,7 @@ jobs:
             lead_website text;
             log_level text;
             setting_id_type text;
+            next_setting_id bigint;
           BEGIN
             SELECT count(*) INTO versions FROM public.jarvis_migration_ledger_fixture;
             IF versions <> 5 THEN RAISE EXCEPTION 'remote ledger fixture changed'; END IF;
@@ -158,6 +168,21 @@ jobs:
             END IF;
             IF pg_get_serial_sequence('public.settings','id') IS NULL THEN
               RAISE EXCEPTION 'legacy settings sequence was lost';
+            END IF;
+            EXECUTE format('SELECT nextval(%L::regclass)', pg_get_serial_sequence('public.settings','id'))
+              INTO next_setting_id;
+            IF next_setting_id <= (SELECT max(id) FROM public.settings) THEN
+              RAISE EXCEPTION 'legacy settings sequence did not advance beyond existing IDs: %', next_setting_id;
+            END IF;
+            IF (SELECT count(*) FROM pg_indexes
+                 WHERE schemaname='public' AND tablename='logs'
+                   AND indexname='logs_created_at_desc_idx') <> 1 THEN
+              RAISE EXCEPTION 'partially applied audit migration index was not retained';
+            END IF;
+            IF (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='logs'
+                   AND column_name IN ('operation_id','action','status','result','error','approved','recipient','subject','delivery_id')) <> 9 THEN
+              RAISE EXCEPTION 'audit expansion migration did not recover all columns';
             END IF;
             IF (SELECT count(*) FROM information_schema.columns
                  WHERE table_schema='public' AND table_name='leads' AND column_name='website') <> 1
