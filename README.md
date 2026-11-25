@@ -58,4 +58,4 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-25
 
-A jelenlegi munka a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) ágon folyik (`docs/pre-feature-readiness-gates`). A PR nem merge-ölt. A legutóbbi ismert commit: `38693f2f93b790608aef37a33f190a86e611ff0d`. A teljes CI két futása (`45689264377`, `45689247826`) a dokumentáció frissítésekor még futott, ezért a tesztkapu nyitott. A production migráció, deploy és jogosultságmódosítás továbbra sincs végrehajtva.
+A jelenlegi munka a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) ágon folyik (`docs/pre-feature-readiness-gates`). A PR nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja: `38693f2f93b790608aef37a33f190a86e611ff0d` (mindkét job sikeres a `45689264377` futásban). A dokumentációs frissítések utáni PR-head: `eaad5428311d86590f03c744f7f5b0e02da45064`; erre a headre új teljes CI-eredmény még nincs. A production migráció, deploy és jogosultságmódosítás továbbra sincs végrehajtva.
