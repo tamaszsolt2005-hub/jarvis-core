@@ -172,7 +172,14 @@ def send_email(
             server.ehlo()
             server.login(sender, password)
             try:
-                server.send_message(message)
+                refused = server.send_message(message)
+                if refused:
+                    # smtplib returns a refusal mapping for recipients rejected
+                    # after DATA; with our single-recipient contract this is a
+                    # known non-delivery, not a successful send or an ambiguity.
+                    raise smtplib.SMTPRecipientsRefused(refused)
+            except smtplib.SMTPRecipientsRefused:
+                raise
             except Exception as exc:
                 raise EmailDeliveryOutcomeUnknown(
                     "Az SMTP-kézbesítés kimenetele bizonytalan; automatikus újraküldés tilos."
