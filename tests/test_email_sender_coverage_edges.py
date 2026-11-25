@@ -151,7 +151,7 @@ def test_email_sender_smtp_failure_is_reported_and_not_marked_as_sent(monkeypatc
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
     assert db.rows[0]["status"] == "send_unknown"
     assert audit_statuses == ["pending", "unknown"]
-    assert isinstance(reports[0][0], OSError)
+    assert isinstance(reports[0][0], email_sender.EmailDeliveryOutcomeUnknown)
 
 
 def test_email_sender_known_preflight_failure_is_not_classified_as_delivery_unknown(monkeypatch):
