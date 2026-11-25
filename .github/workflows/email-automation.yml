@@ -23,8 +23,7 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       EMAIL_USER: ${{ secrets.EMAIL_USER }}
       EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-      EMAIL_PROVIDER: resend
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_PROVIDER: smtp
       IMAP_HOST: ${{ secrets.IMAP_HOST }}
       IMAP_PORT: ${{ secrets.IMAP_PORT }}
       EMAIL_INBOX_MONITOR_ENABLED: ${{ secrets.EMAIL_INBOX_MONITOR_ENABLED }}
