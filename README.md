@@ -58,7 +58,7 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-25
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`). A PR aktuális, ellenőrzött headje: `7c8e6970a733884f4423821cddf3731f58e5b392`; a PR nincs merge-ölve.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`). A legutóbbi dokumentációs head: `4e53eb19acb1d4859a7e0964a8d0e10cdc0f6322`; a PR nincs merge-ölve. A teljes CI/CodeQL/dependency auditot igazoló kód- és dokumentációs head: `7c8e6970a733884f4423821cddf3731f58e5b392`. Az azóta következő commitok dokumentációs korrekciók; ezekhez még nincs visszaigazolt új workflow-eredmény.
 
 A headhez tartozó ellenőrzések mind sikeresek:
 - JARVIS CI: tesztek és backup/restore integráció.
