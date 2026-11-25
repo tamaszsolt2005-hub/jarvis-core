@@ -2,7 +2,7 @@
 
 **Frissítve:** 2026-11-25  
 **Vizsgált branch:** `feat/supabase-auth-rbac-foundation`  
-**Igazolt commit:** `e6736101405180c220d6b96b5a7a3c1d890813e0`  
+**Korábbi CI-baseline commit:** `e6736101405180c220d6b96b5a7a3c1d890813e0` (nem a legfrissebb head).  
 **PR:** [#13 – open, draft](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)  
 **Hatókör:** fejlesztési backlog és release gate; ez a dokumentum nem production change approval.
 
@@ -189,9 +189,9 @@ The latest read-only evidence and implementation artifacts are now recorded:
 - [x] Fresh read-only schema snapshot.
 - [x] Exact remote ledger list.
 - [x] Supabase Security Advisor: 8 RLS-enabled/no-policy findings.
-- [ ] Create disposable Supabase branch and replay migrations in order.
-- [ ] Validate two 20261117 baseline/ledger reconciliation behavior on the branch.
-- [ ] Verify audit expansion → hash-chain → RBAC postconditions and failure recovery.
+- [x] Supabase branch létrehozása elvetve: a felhasználói korlátozás szerint új Supabase branch nem hozható létre; a migrációs replay a meglévő GitHub Actions PostgreSQL 17 fixture-ben történik.
+- [ ] A két 20261117 ledger-eltérés pontos, CLI-kompatibilis rendezésének bizonyítása lokális fixture-ben; a replay/adatmegőrzés teszt már kész, de a remote ledger javítása nem igazolt.
+- [x] Audit expansion → hash-chain → RBAC migrációs sorrend és fájlok közötti forward-recovery CI-ben tesztelve; a részleges audit DDL-prefix utáni replay is lefedett. [ ] Teljes owner/grant/policy/function ACL/trigger postcondition review még szükséges.
 - [ ] Prepare exact production ledger repair/forward migration plan; production operation requires separate approval.
 
 ### P0.2 – Production backup and separate restore
@@ -210,10 +210,10 @@ The backup archive covers JARVIS `public` schema only; Supabase-managed schemas 
 - [x] Live test harness creates temporary Auth users with server-managed `app_metadata.role`.
 - [x] Harness exercises real Auth-issued JWTs through PostgREST, including admin/operator/reader permissions, user_metadata spoof rejection, audit append/read separation, role refresh and logout.
 - [x] Manual GitHub workflow uses a dedicated `supabase-integration` environment and test-only credentials.
-- [ ] Create/approve disposable Supabase branch (quoted compute cost: **$0.01344/hour**).
-- [ ] Add branch-only URL, publishable key, service-role key and project ref to the protected GitHub environment.
+- [x] Új Supabase branch létrehozása kifejezetten tiltott; nincs meglévő fejlesztői branch. Live Supabase teszt csak már létező, külön engedélyezett izolált környezetben végezhető.
+- [ ] Ha rendelkezésre áll már létező, engedélyezett izolált Supabase környezet: annak URL/anon-publishable key/service-role key/project ref értékeinek beállítása a védett GitHub environmentben.
 - [ ] Execute live Auth/RLS workflow and archive evidence.
-- [ ] Delete the disposable branch after evidence is captured.
+- [x] Nincs törlendő Supabase branch; új branch nem jött létre.
 
 **Production safety:** production schema, migration ledger, Auth users and policies remain unchanged. Production Auth flag stays OFF. No production migration or Auth provisioning is authorized by this documentation update.
 
