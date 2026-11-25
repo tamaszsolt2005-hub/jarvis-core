@@ -63,7 +63,7 @@ returns table (
 language sql
 stable
 security invoker
-set search_path = pg_catalog, public, extensions
+set search_path = pg_catalog
 as $$
   with recursive entries as (
     select
@@ -143,7 +143,7 @@ grant execute on function public.verify_logs_audit_chain() to authenticated, ser
 create or replace function public.set_logs_audit_hash_chain()
 returns trigger
 language plpgsql
-set search_path = pg_catalog, public, extensions
+set search_path = pg_catalog
 as $$
 declare
   prior_hash text;
@@ -179,7 +179,7 @@ $$;
 create or replace function public.reject_logs_audit_mutation()
 returns trigger
 language plpgsql
-set search_path = pg_catalog, public
+set search_path = pg_catalog
 as $$
 begin
   raise exception 'Audit log rows are append-only; % is not permitted', tg_op

@@ -428,12 +428,31 @@ jobs:
             echo "pgTAP reported failed RBAC assertions."
             exit 1
           fi
-          grep -q '1..32' <<< "$rbac_output"
+          grep -q '1..34' <<< "$rbac_output"
           # Add the stable task-creation idempotency key after the existing
           # RBAC schema is in place; replay to verify forward recovery.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125150000_task_creation_idempotency.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125150000_task_creation_idempotency.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_creation_idempotency.test.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125160000_atomic_task_approvals_and_operations.sql
+          # Replaying this migration must preserve the approval/idempotency schema.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125160000_atomic_task_approvals_and_operations.sql
+          # Run two simultaneous executions with the same approval and operation ID.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_concurrency_setup.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_concurrency_execute.sql > "$RUNNER_TEMP/task-approval-race-1.log" &
+          race_pid_1=$!
+          # The first session sleeps inside its task INSERT while holding the operation row lock.
+          sleep 0.5
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_concurrency_execute.sql > "$RUNNER_TEMP/task-approval-race-2.log" &
+          race_pid_2=$!
+          wait "$race_pid_1"
+          wait "$race_pid_2"
+          cat "$RUNNER_TEMP/task-approval-race-1.log" "$RUNNER_TEMP/task-approval-race-2.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_concurrency_verify.sql
+          # Lock down the legacy service_role table-write path only after the RPC path exists.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_service_role.test.sql
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |

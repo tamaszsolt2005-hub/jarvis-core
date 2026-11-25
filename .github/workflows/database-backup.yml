@@ -49,11 +49,11 @@ jobs:
           [[ -n "$AWS_DEFAULT_REGION" ]] || missing+=("BACKUP_AWS_REGION variable")
           [[ -n "$AWS_BACKUP_ROLE_ARN" ]] || missing+=("AWS_BACKUP_ROLE_ARN secret")
           [[ -n "$BACKUP_AGE_IDENTITY" ]] || missing+=("BACKUP_AGE_IDENTITY secret")
-          if (( \${#missing[@]} )); then
+          if [[ -n "${missing[*]-}" ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "## Backup NOT performed" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Missing required configuration: \${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Backup cannot run; required secrets/variables are missing: \${missing[*]}"
+            echo "- Missing required configuration: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Backup cannot run; required secrets/variables are missing: ${missing[*]}"
             exit 1
           fi
           if [[ "$JARVIS_BACKUP_SOURCE_PROJECT_REF" != "kiutreccucbegskxowek" ]]; then

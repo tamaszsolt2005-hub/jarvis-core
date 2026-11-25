@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -19,7 +20,7 @@ import pandas as pd
 import streamlit as st
 
 import jarvis_common
-from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_user_supabase, get_model_name, log_event, env_bool
+from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_user_supabase, get_service_supabase, get_enforced_user_supabase, get_model_name, log_event, env_bool
 from jarvis_auth import sign_in_user, sign_out_user, has_permission
 import jarvis_errors
 from jarvis_errors import sanitize_log_text
@@ -529,7 +530,11 @@ def render_audit_admin_page() -> None:
 
 
 def _auth_login_enabled() -> bool:
-    return env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
+    # Enforced RBAC cannot coexist with the legacy shared-password identity.
+    return (
+        env_bool("JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", False)
+        or env_bool("JARVIS_AUTH_RBAC_ENFORCED", False)
+    )
 
 
 def _auth_session_kwargs() -> dict[str, Any]:
@@ -543,19 +548,38 @@ PENDING_APPROVAL_TTL_SECONDS = 5 * 60
 
 
 def _approval_actor() -> str | None:
-    """Bind a pending approval to the currently authenticated principal."""
+    """Return a stable principal for one user session, not a timestamp."""
     if _auth_login_enabled():
         session = st.session_state.get("_jarvis_auth_session")
         user_id = session.get("user_id") if isinstance(session, dict) else None
         return f"auth:{user_id}" if user_id else None
-    authenticated_at = st.session_state.get("_jarvis_authenticated_at")
-    if isinstance(authenticated_at, (int, float)) and authenticated_at > 0:
-        return f"legacy:{authenticated_at}"
-    return None
+    if not st.session_state.get("authenticated"):
+        return None
+    principal_id = st.session_state.setdefault(
+        "_jarvis_approval_principal", str(uuid4())
+    )
+    return f"legacy:{principal_id}"
 
 
-def _stage_pending_action(action: dict[str, Any]) -> None:
-    """Stage a one-use action approval with a short expiry and principal binding."""
+def _approval_rpc_bool(response: Any) -> bool:
+    """Normalize PostgREST boolean RPC results without truthy coercion."""
+    value = getattr(response, "data", None)
+    if isinstance(value, list):
+        if len(value) != 1:
+            return False
+        value = value[0]
+    if isinstance(value, dict) and len(value) == 1:
+        value = next(iter(value.values()))
+    return value is True
+
+
+def _approval_database_payload(action: dict[str, Any]) -> dict[str, Any]:
+    task_action = action.get("task_action")
+    return task_action if isinstance(task_action, dict) else action
+
+
+def _stage_pending_action(action: dict[str, Any], db: Any) -> None:
+    """Verify the user and persist an approval using the server-only service role."""
     if not isinstance(action, dict):
         raise TypeError("A függő jóváhagyásnak objektumnak kell lennie.")
     try:
@@ -564,31 +588,119 @@ def _stage_pending_action(action: dict[str, Any]) -> None:
         )
     except (TypeError, ValueError) as exc:
         raise TypeError("A függő jóváhagyás csak JSON-kompatibilis műveletet tartalmazhat.") from exc
+
     pending = json.loads(serialized_action)
     task_action = pending.get("task_action")
-    if isinstance(task_action, dict) and task_action.get("type") == "create":
+    if isinstance(task_action, dict):
+        # All task action types share the same durable idempotency mechanism.
         task_action.setdefault("operation_id", str(uuid4()))
-    # Include the stable operation ID in the signed payload.
+
     serialized_action = json.dumps(
-        {key: value for key, value in pending.items()},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        pending, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     )
     pending = json.loads(serialized_action)
+    principal = _approval_actor()
+    if principal is None:
+        raise PermissionError("A jóváhagyás kiadásához aktív felhasználói munkamenet szükséges.")
+
+    # User JWTs cannot call issue_pending_approval. Re-verify each underlying
+    # permission server-side, then mint the one-use approval with the service
+    # role held exclusively by this server process.
+    required_permissions: list[tuple[str, set[str]]] = []
+    if isinstance(task_action, dict):
+        required_permissions.append(("tasks.write", {"admin", "operator"}))
+    if isinstance(pending.get("chat_email"), dict):
+        required_permissions.append(("email.send", {"admin", "operator"}))
+    if pending.get("market"):
+        required_permissions.append(("settings.write", {"admin"}))
+    if pending.get("research_prompt"):
+        required_permissions.append(("leads.write", {"admin", "operator"}))
+    if not required_permissions:
+        raise ValueError("A jóváhagyás nem tartalmaz végrehajtható műveletet.")
+
+    if _auth_login_enabled():
+        session = st.session_state.get("_jarvis_auth_session")
+        for permission, allowed_roles in required_permissions:
+            verified = get_enforced_user_supabase(
+                session, permission, allowed_roles=allowed_roles
+            )
+            if verified is None:
+                raise PermissionError("A felhasználói jogosultság ellenőrzése nem sikerült.")
+        # Refresh helpers update the session in-place; keep the stable principal.
+        if _approval_actor() != principal:
+            raise PermissionError("A felhasználói munkamenet jóváhagyás közben megváltozott.")
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    database_payload = _approval_database_payload(pending)
+    approval_db = get_service_supabase()
+    response = approval_db.rpc(
+        "issue_pending_approval",
+        {
+            "p_token_hash": token_hash,
+            "p_principal": principal,
+            "p_payload": database_payload,
+            "p_ttl_seconds": PENDING_APPROVAL_TTL_SECONDS,
+        },
+    ).execute()
+    if not _approval_rpc_bool(response):
+        raise RuntimeError("A jóváhagyást az adatbázis nem tudta biztonságosan rögzíteni.")
+
     pending["_approval_created_at"] = time.time()
-    pending["_approval_actor"] = _approval_actor()
+    pending["_approval_actor"] = principal
     pending["_approval_nonce"] = uuid4().hex
-    pending["_approval_payload_hash"] = hashlib.sha256(serialized_action.encode("utf-8")).hexdigest()
+    pending["_approval_payload_hash"] = hashlib.sha256(
+        serialized_action.encode("utf-8")
+    ).hexdigest()
+    pending["_approval_token"] = raw_token
+    pending["_approval_token_hash"] = token_hash
     st.session_state["_jarvis_pending_action"] = pending
 
 
-def _consume_pending_action() -> dict[str, Any] | None:
-    """Consume an approval exactly once; reject expired or cross-user approvals."""
-    pending = st.session_state.pop("_jarvis_pending_action", None)
+def _revoke_pending_action(db: Any) -> None:
+    """Invalidate a pending approval in the database before dropping local state."""
+    pending = st.session_state.get("_jarvis_pending_action")
+    if not isinstance(pending, dict):
+        return
+    token_hash = pending.get("_approval_token_hash")
+    principal = pending.get("_approval_actor")
+    current_actor = _approval_actor()
+    if (
+        isinstance(token_hash, str)
+        and len(token_hash) == 64
+        and isinstance(principal, str)
+        and principal == current_actor
+    ):
+        response = db.rpc(
+            "revoke_pending_approval",
+            {"p_token_hash": token_hash, "p_principal": principal},
+        ).execute()
+        # False means it was already consumed/revoked; either way it cannot run again.
+        if not isinstance(getattr(response, "data", None), (bool, list)):
+            raise RuntimeError("Az adatbázis nem igazolta vissza a jóváhagyás visszavonását.")
+    st.session_state.pop("_jarvis_pending_action", None)
+
+
+def _consume_pending_action(db: Any) -> dict[str, Any] | None:
+    """Validate local state, then consume generic approvals in the database.
+
+    Task approvals are deliberately left unconsumed here: the task RPC consumes
+    the approval and commits the task/audit/idempotency record in one transaction.
+    """
+    pending = st.session_state.get("_jarvis_pending_action")
     if not isinstance(pending, dict):
         return None
-    created_at = pending.get("_approval_created_at")
+
     actor = _approval_actor()
+    principal = pending.get("_approval_actor")
+    if actor is None or principal != actor:
+        st.session_state.pop("_jarvis_pending_action", None)
+        return None
+
+    created_at = pending.get("_approval_created_at")
     nonce = pending.get("_approval_nonce")
+    raw_token = pending.get("_approval_token")
+    token_hash = pending.get("_approval_token_hash")
     payload_hash = pending.get("_approval_payload_hash")
     action = {
         key: value for key, value in pending.items()
@@ -600,24 +712,48 @@ def _consume_pending_action() -> dict[str, Any] | None:
         )
         expected_payload_hash = hashlib.sha256(serialized_action.encode("utf-8")).hexdigest()
     except (TypeError, ValueError):
+        _revoke_pending_action(db)
         return None
+
     now = time.time()
-    if (
-        not isinstance(payload_hash, str)
-        or not payload_hash.isascii()
-        or not hmac.compare_digest(payload_hash, expected_payload_hash)
-        or not isinstance(created_at, (int, float))
-        or isinstance(created_at, bool)
-        or created_at <= 0
-        or created_at > now
-        or now - created_at > PENDING_APPROVAL_TTL_SECONDS
-        or not isinstance(nonce, str)
-        or not nonce
-        or actor is None
-        or pending.get("_approval_actor") != actor
-    ):
+    valid = (
+        isinstance(payload_hash, str)
+        and payload_hash.isascii()
+        and hmac.compare_digest(payload_hash, expected_payload_hash)
+        and isinstance(created_at, (int, float))
+        and not isinstance(created_at, bool)
+        and 0 < created_at <= now
+        and now - created_at <= PENDING_APPROVAL_TTL_SECONDS
+        and isinstance(nonce, str)
+        and bool(nonce)
+        and isinstance(raw_token, str)
+        and len(raw_token) >= 32
+        and isinstance(token_hash, str)
+        and hmac.compare_digest(
+            token_hash, hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        )
+    )
+    if not valid:
+        _revoke_pending_action(db)
         return None
-    return action
+
+    if isinstance(action.get("task_action"), dict):
+        action["_approval"] = {"token": raw_token, "principal": principal}
+        return action
+
+    database_payload = _approval_database_payload(action)
+    response = db.rpc(
+        "consume_pending_approval",
+        {
+            "p_token_hash": token_hash,
+            "p_principal": principal,
+            "p_payload": database_payload,
+        },
+    ).execute()
+    consumed = _approval_rpc_bool(response)
+    # A false result means expired/already used/mismatched; never retain it for retry.
+    st.session_state.pop("_jarvis_pending_action", None)
+    return action if consumed else None
 
 
 def _audit_export_is_valid(pending: Any, actor_user_id: str | None, *, now: float | None = None) -> bool:
@@ -667,6 +803,7 @@ def authenticated() -> bool:
                 st.session_state.pop("_jarvis_user_role", None)
                 st.session_state.pop("_jarvis_db", None)
                 st.session_state.pop("_jarvis_pending_action", None)
+                st.session_state.pop("_jarvis_approval_principal", None)
                 st.session_state["authenticated"] = False
                 st.warning("A munkamenet lejárt vagy már nem jogosult. Jelentkezz be újra.")
         st.markdown('<div class="jarvis-eyebrow">PRIVATE BUSINESS INTELLIGENCE</div>', unsafe_allow_html=True)
@@ -699,6 +836,7 @@ def authenticated() -> bool:
         st.session_state.pop("_jarvis_authenticated_at", None)
         st.session_state.pop("_jarvis_db", None)
         st.session_state.pop("_jarvis_pending_action", None)
+        st.session_state.pop("_jarvis_approval_principal", None)
     expected = get_secret("JARVIS_DASHBOARD_PASSWORD")
     if not expected:
         st.error("Hiányzó JARVIS_DASHBOARD_PASSWORD. Állítsd be a Codespace secrets konfigurációjában.")
@@ -1189,7 +1327,7 @@ with st.sidebar:
                 report_error(exc, module="dashboard", operation="supabase_auth_sign_out", severity="warning")
             for key in (
                 "_jarvis_auth_session", "_jarvis_user_role", "_jarvis_db",
-                "_jarvis_pending_action", "authenticated",
+                "_jarvis_pending_action", "_jarvis_approval_principal", "authenticated",
             ):
                 st.session_state.pop(key, None)
             st.rerun()
@@ -1387,12 +1525,12 @@ if prompt:
         chat_email_action = None
         if q in {"elutasítom", "elutasitom", "mégse", "megse", "ne hajtsd végre", "ne hajtsd vegre"}:
             if pending_action:
-                st.session_state.pop("_jarvis_pending_action", None)
+                _revoke_pending_action(db)
                 approval_notice = "A függő műveletet elutasítottad; semmilyen módosítás vagy kutatás nem történt."
             else:
                 approval_notice = "Nincs függőben jóváhagyásra váró művelet."
         elif q in {"jóváhagyom", "jovahagyom", "jóváhagyom a műveletet", "jovahagyom a muveletet", "végrehajthatod", "vegrehajthatod", "igen, mehet"}:
-            pending_action = _consume_pending_action()
+            pending_action = _consume_pending_action(db)
             if pending_action:
                 market_change = pending_action.get("market")
                 research_prompt = pending_action.get("research_prompt")
@@ -1404,7 +1542,7 @@ if prompt:
                     if not EMAIL_DELIVERY_ENABLED or not env_bool("CHAT_EMAIL_ENABLED", False):
                         approval_notice = "A tervezetet jóváhagytad, de e-mail nem ment ki: a szerveroldali EMAIL_DELIVERY_ENABLED és CHAT_EMAIL_ENABLED beállítás nincs bekapcsolva."
                     else:
-                        email_operation_id = str(uuid4())
+                        email_operation_id = chat_email.get('operation_id') or str(uuid4())
                         audit_fields = {
                             "module": "chat_email",
                             "action": "send_approved_email",
@@ -1423,7 +1561,8 @@ if prompt:
                             )
                         except Exception as email_exc:
                             audit_event(
-                                db, status="failed", error=email_exc, level="error",
+                                db, status="unknown", error=email_exc, level="critical",
+                                result={"smtp_outcome": "unknown; do_not_retry_automatically"},
                                 **audit_fields,
                             )
                             report_error(
@@ -1444,14 +1583,25 @@ if prompt:
                             log_event(db, "chat_email", "Jóváhagyott chatből indított e-mail elküldve.")
                             approval_notice = f"A jóváhagyott e-mailt az SMTP-szerver átvette. Üzenetazonosító: {message_id or 'nem érkezett azonosító'}."
                         else:
+                            # SMTP accepted the message; record uncertainty if the success
+                            # audit write failed. Never invite an automatic resend.
+                            audit_event(
+                                db, status="unknown", level="critical",
+                                result={"smtp_accepted": True, "smtp_outcome": "unknown; do_not_retry_automatically"},
+                                **audit_fields,
+                            )
                             log_event(db, "chat_email", "SMTP átvétel megtörtént, de a záró auditbejegyzés nem menthető.", "error")
                             approval_notice = f"Az SMTP-szerver átvette az e-mailt ({message_id or 'azonosító nélkül'}), de a végső auditbejegyzés mentése nem sikerült. A küldést ne ismételd meg ellenőrzés nélkül."
                 elif task_action:
                     stage = "Jóváhagyott feladatművelet"
                     approval_notice = execute_task_action(
                         db, task_action, approved=True,
+                        approval=pending_action.get("_approval"),
                         **_auth_session_kwargs(),
                     )
+                    # Keep the approval locally until the atomic RPC has returned;
+                    # a timeout after commit can safely replay the same operation ID.
+                    st.session_state.pop("_jarvis_pending_action", None)
                 else:
                     approval_notice = "A jóváhagyott művelet végrehajtása elindult."
             else:
@@ -1460,7 +1610,7 @@ if prompt:
             # A pending approval is valid for exactly the next user message.
             # Any new request invalidates it before another action can be staged.
             if pending_action:
-                st.session_state.pop("_jarvis_pending_action", None)
+                _revoke_pending_action(db)
                 approval_notice = "A korábbi jóváhagyásra váró műveletet töröltem, mert új kérést adtál meg."
             requested_task_action = parse_task_command(prompt)
             requested_market = detect_market_change(prompt)
@@ -1473,12 +1623,15 @@ if prompt:
                 else:
                     stage = "Chatből indított e-mail-tervezet"
                     subject, body = build_chat_email_draft(prompt, generate_text)
-                    chat_email = {"recipient": recipient, "subject": subject, "body": body}
+                    chat_email = {
+                        "recipient": recipient, "subject": subject, "body": body,
+                        "operation_id": str(uuid4()),
+                    }
                     chat_email_action = chat_email
                     _stage_pending_action({
                         "market": None, "research_prompt": None, "task_action": None,
                         "chat_email": chat_email,
-                    })
+                    }, db)
                     approval_notice = (
                         "Jóváhagyásra váró e-mail-tervezet:\n"
                         f"Címzett: {recipient}\nTárgy: {subject}\n\n{body}\n\n"
@@ -1504,7 +1657,7 @@ if prompt:
                 if task_action:
                     _stage_pending_action({
                         "market": None, "research_prompt": None, "task_action": task_action,
-                    })
+                    }, db)
                     descriptions = {
                         "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
                         "close": f"feladat lezárása: **{task_title}** (azonosító: {task_action['id']})",
@@ -1516,7 +1669,7 @@ if prompt:
                     "market": requested_market,
                     "research_prompt": requested_research,
                     "task_action": None,
-                })
+                }, db)
                 parts = []
                 if requested_market:
                     parts.append(f"célpiac váltása erre: {requested_market}")

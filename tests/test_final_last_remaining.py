@@ -38,7 +38,7 @@ def test_email_sender_reports_critical_when_send_error_state_cannot_be_persisted
 
     class BrokenQuery(_Query):
         def execute(self):
-            if self.operation == "update" and self.values == {"status": "send_error"}:
+            if self.operation == "update" and self.values and self.values.get("status") == "send_unknown":
                 raise OSError("mock state recovery failure")
             return super().execute()
 
@@ -58,7 +58,7 @@ def test_email_sender_reports_critical_when_send_error_state_cannot_be_persisted
     )
 
     assert email_sender._send_one(db, db.rows[0], False, email_sender.datetime.now(email_sender.timezone.utc)) is False
-    assert any(item[1]["severity"] == "critical" and item[1]["operation"] == "mark_send_error" for item in reports)
+    assert any(item[1]["severity"] == "critical" and item[1]["operation"] == "mark_send_unknown" for item in reports)
 
 
 def test_email_sender_disabled_gate_does_not_initialize_database(monkeypatch, capsys):

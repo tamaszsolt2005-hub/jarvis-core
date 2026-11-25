@@ -8,13 +8,14 @@ Never point this script at the production project.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import secrets
 import sys
 import uuid
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 PRODUCTION_PROJECT_REF = "kiutreccucbegskxowek"
@@ -50,6 +51,7 @@ class SupabaseHttp:
         self.url = url.rstrip("/")
         self.publishable_key = publishable_key
         self.service_role_key = service_role_key
+        self.created_user_ids: list[str] = []
 
     def request(self, method: str, path: str, *, key: str, token: str | None = None,
                 payload: dict | list | None = None, prefer: str | None = None):
@@ -93,11 +95,12 @@ class SupabaseHttp:
             payload=payload,
         )
 
-    def rest(self, method: str, path: str, *, token: str, payload=None):
+    def rest(self, method: str, path: str, *, token: str, payload=None,
+             prefer: str = "return=minimal"):
         return self.request(
             method, "/rest/v1/" + path,
             key=self.publishable_key, token=token,
-            payload=payload, prefer="return=minimal",
+            payload=payload, prefer=prefer,
         )
 
     def create_user(self, role: str, marker: str, *, spoof_user_metadata: bool = False):
@@ -113,6 +116,8 @@ class SupabaseHttp:
         })
         if status not in (200, 201) or not isinstance(result, dict) or not result.get("id"):
             raise SmokeTestError(f"Could not create disposable {role} test user (HTTP {status}).")
+        # Track the user before sign-in, so cleanup also handles failed login.
+        self.created_user_ids.append(str(result["id"]))
         status, session = self.auth(
             "POST", "/auth/v1/token?grant_type=password",
             {"email": email, "password": password},
@@ -137,136 +142,266 @@ class SupabaseHttp:
         self._expect_status(status, (200,), "PostgREST SELECT")
         return result if isinstance(result, list) else []
 
+    def _cleanup(self, lead_name: str | None, secret_key: str | None,
+                 market_created: bool) -> None:
+        """Remove only resources created by this test run.
+
+        Auth/audit logs are append-only by design; the test users, lead, and
+        uniquely named settings are disposable and are deleted in a finally block.
+        """
+        failures: list[str] = []
+
+        def delete(path: str, label: str) -> None:
+            status, _ = self.admin("DELETE", path)
+            if status not in (200, 204):
+                failures.append(f"{label} (HTTP {status})")
+
+        if lead_name:
+            delete(
+                "/rest/v1/leads?company_name=eq." + quote(lead_name, safe=""),
+                "lead fixture",
+            )
+        if secret_key:
+            delete(
+                "/rest/v1/settings?key=eq." + quote(secret_key, safe=""),
+                "secret setting fixture",
+            )
+        if market_created:
+            delete(
+                "/rest/v1/settings?key=eq.lead_research_market",
+                "temporary market setting",
+            )
+        for user_id in reversed(self.created_user_ids):
+            delete(
+                "/auth/v1/admin/users/" + quote(user_id, safe=""),
+                "temporary Auth user",
+            )
+        self.created_user_ids.clear()
+
+        if failures:
+            raise SmokeTestError("Live Auth/RLS cleanup incomplete: " + ", ".join(failures))
+
     def run(self) -> dict:
         marker = "jarvis_live_" + uuid.uuid4().hex
-        admin = self.create_user("admin", marker)
-        operator = self.create_user("operator", marker)
-        reader = self.create_user("reader", marker)
-        spoof = self.create_user("reader", marker, spoof_user_metadata=True)
+        lead_name: str | None = None
+        secret_key: str | None = None
+        market_created = False
+        try:
+            admin = self.create_user("admin", marker)
+            operator = self.create_user("operator", marker)
+            reader = self.create_user("reader", marker)
+            spoof = self.create_user("reader", marker, spoof_user_metadata=True)
 
-        admin_token = admin["session"]["access_token"]
-        operator_token = operator["session"]["access_token"]
-        reader_token = reader["session"]["access_token"]
-        spoof_token = spoof["session"]["access_token"]
+            admin_token = admin["session"]["access_token"]
+            operator_token = operator["session"]["access_token"]
+            reader_token = reader["session"]["access_token"]
+            spoof_token = spoof["session"]["access_token"]
 
-        # Seed only synthetic rows through service_role on this disposable project.
-        lead_name = marker + "_lead"
-        market_key = marker + "_market"
-        secret_key = marker + "_secret"
-        status, _ = self.admin("POST", "/rest/v1/leads", {
-            "company_name": lead_name,
-        })
-        self._expect_status(status, (201,), "Seed lead fixture")
-        status, _ = self.admin("POST", "/rest/v1/settings", [
-            {"key": market_key, "value": {"country": "HU"}},
-            {"key": secret_key, "value": {"fixture": "admin-only"}},
-        ])
-        self._expect_status(status, (201,), "Seed settings fixtures")
+            # Seed only uniquely named synthetic rows in the disposable project.
+            lead_name = marker + "_lead"
+            market_key = "lead_research_market"
+            secret_key = marker + "_secret"
+            status, existing_market = self.admin(
+                "GET", "/rest/v1/settings?select=key&key=eq.lead_research_market"
+            )
+            self._expect_status(status, (200,), "Read existing market setting")
+            market_created = not (isinstance(existing_market, list) and existing_market)
 
-        lead_query = urlencode({"select": "id,company_name", "company_name": f"eq.{lead_name}"})
-        for role, token in (
-            ("admin", admin_token), ("operator", operator_token),
-            ("reader", reader_token), ("spoofed_reader", spoof_token),
-        ):
-            rows = self._get_rows("leads?" + lead_query, token)
-            if len(rows) != 1:
-                raise SmokeTestError(f"{role} could not read the shared-workspace lead fixture.")
+            status, _ = self.admin("POST", "/rest/v1/leads", {
+                "company_name": lead_name,
+            })
+            self._expect_status(status, (201,), "Seed lead fixture")
+            setting_rows = [{"key": secret_key, "value": {"fixture": "admin-only"}}]
+            if market_created:
+                setting_rows.insert(0, {"key": market_key, "value": {"country": "HU"}})
+            status, _ = self.admin("POST", "/rest/v1/settings", setting_rows)
+            self._expect_status(status, (201,), "Seed settings fixtures")
 
-        # Reader and user_metadata-admin spoof must not gain write access.
-        denied_lead = {"company_name": marker + "_reader_write_denied"}
-        for role, token in (("reader", reader_token), ("spoofed_reader", spoof_token)):
-            status, _ = self.rest("POST", "leads", token=token, payload=denied_lead)
-            self._expect_status(status, (401, 403), f"{role} lead INSERT denial")
+            lead_query = urlencode({
+                "select": "id,company_name",
+                "company_name": f"eq.{lead_name}",
+            })
+            for role, token in (
+                ("admin", admin_token), ("operator", operator_token),
+                ("reader", reader_token), ("spoofed_reader", spoof_token),
+            ):
+                rows = self._get_rows("leads?" + lead_query, token)
+                if len(rows) != 1:
+                    raise SmokeTestError(f"{role} could not read the shared-workspace lead fixture.")
 
-        # Admin can read all settings; operator only the designated market key; reader none.
-        def settings_for(token: str, key_name: str):
-            query = urlencode({"select": "key", "key": f"eq.{key_name}"})
-            return self._get_rows("settings?" + query, token)
+            # Reader and user_metadata-admin spoof must not gain write access.
+            denied_lead = {"company_name": marker + "_reader_write_denied"}
+            for role, token in (("reader", reader_token), ("spoofed_reader", spoof_token)):
+                status, _ = self.rest("POST", "leads", token=token, payload=denied_lead)
+                self._expect_status(status, (401, 403), f"{role} lead INSERT denial")
 
-        if len(settings_for(admin_token, market_key)) != 1 or len(settings_for(admin_token, secret_key)) != 1:
-            raise SmokeTestError("Admin could not read both settings fixtures.")
-        if len(settings_for(operator_token, market_key)) != 1:
-            raise SmokeTestError("Operator could not read the lead-research market setting.")
-        if settings_for(operator_token, secret_key):
-            raise SmokeTestError("Operator read an admin-only setting.")
-        if settings_for(reader_token, market_key) or settings_for(reader_token, secret_key):
-            raise SmokeTestError("Reader unexpectedly read settings.")
-        if settings_for(spoof_token, secret_key):
-            raise SmokeTestError("user_metadata.role spoof unexpectedly read an admin-only setting.")
+            # The policy intentionally grants operator visibility to this fixed key only.
+            def settings_for(token: str, key_name: str):
+                query = urlencode({"select": "key", "key": f"eq.{key_name}"})
+                return self._get_rows("settings?" + query, token)
 
-        # Operator may append an audit event but may not read audit history.
-        audit_action = marker + "_operator_append"
-        status, _ = self.rest("POST", "logs", token=operator_token, payload={
-            "module": "live_auth_rls_smoke",
-            "message": "Disposable operator append fixture",
-            "level": "info",
-            "action": audit_action,
-            "status": "success",
-        })
-        self._expect_status(status, (201,), "Operator audit append")
-        for role, token in (("operator", operator_token), ("reader", reader_token), ("spoofed_reader", spoof_token)):
-            query = urlencode({"select": "id", "action": f"eq.{audit_action}"})
-            if self._get_rows("logs?" + query, token):
-                raise SmokeTestError(f"{role} unexpectedly read audit history.")
-        query = urlencode({"select": "id,actor_user_id", "action": f"eq.{audit_action}"})
-        admin_audit = self._get_rows("logs?" + query, admin_token)
-        if len(admin_audit) != 1 or admin_audit[0].get("actor_user_id") != operator["id"]:
-            raise SmokeTestError("Admin could not verify operator audit append/actor binding.")
+            if (
+                len(settings_for(admin_token, market_key)) != 1
+                or len(settings_for(admin_token, secret_key)) != 1
+            ):
+                raise SmokeTestError("Admin could not read both settings fixtures.")
+            if len(settings_for(operator_token, market_key)) != 1:
+                raise SmokeTestError("Operator could not read lead_research_market.")
+            if settings_for(operator_token, secret_key):
+                raise SmokeTestError("Operator read an admin-only setting.")
+            if settings_for(reader_token, market_key) or settings_for(reader_token, secret_key):
+                raise SmokeTestError("Reader unexpectedly read settings.")
+            if settings_for(spoof_token, secret_key):
+                raise SmokeTestError("user_metadata.role spoof unexpectedly read an admin-only setting.")
 
-        # The hash-chain head is visible to admin only.
-        if len(self._get_rows("audit_chain_state?select=singleton", admin_token)) != 1:
-            raise SmokeTestError("Admin could not read audit_chain_state.")
-        if self._get_rows("audit_chain_state?select=singleton", operator_token):
-            raise SmokeTestError("Operator unexpectedly read audit_chain_state.")
-        if self._get_rows("audit_chain_state?select=singleton", reader_token):
-            raise SmokeTestError("Reader unexpectedly read audit_chain_state.")
+            # Operator may append an audit event but may not read audit history.
+            audit_action = marker + "_operator_append"
+            status, _ = self.rest("POST", "logs", token=operator_token, payload={
+                "module": "live_auth_rls_smoke",
+                "message": "Disposable operator append fixture",
+                "level": "info",
+                "action": audit_action,
+                "status": "success",
+            })
+            self._expect_status(status, (201,), "Operator audit append")
+            for role, token in (
+                ("operator", operator_token), ("reader", reader_token),
+                ("spoofed_reader", spoof_token),
+            ):
+                query = urlencode({"select": "id", "action": f"eq.{audit_action}"})
+                if self._get_rows("logs?" + query, token):
+                    raise SmokeTestError(f"{role} unexpectedly read audit history.")
+            query = urlencode({"select": "id,actor_user_id", "action": f"eq.{audit_action}"})
+            admin_audit = self._get_rows("logs?" + query, admin_token)
+            if len(admin_audit) != 1 or admin_audit[0].get("actor_user_id") != operator["id"]:
+                raise SmokeTestError("Admin could not verify operator audit append/actor binding.")
 
-        # Refresh must carry server-updated app_metadata into a new signed JWT.
-        refreshed_role = "operator"
-        status, _ = self.admin("PUT", f"/auth/v1/admin/users/{reader['id']}", {
-            "app_metadata": {"role": refreshed_role},
-        })
-        self._expect_status(status, (200,), "Admin role metadata update")
-        old_claims = _jwt_claims(reader_token)
-        if old_claims.get("app_metadata", {}).get("role") != "reader":
-            raise SmokeTestError("Existing access token unexpectedly changed before refresh.")
-        refresh_token = reader["session"].get("refresh_token")
-        status, refreshed = self.auth(
-            "POST", "/auth/v1/token?grant_type=refresh_token",
-            {"refresh_token": refresh_token},
-        )
-        self._expect_status(status, (200,), "JWT refresh after role change")
-        if _jwt_claims(refreshed["access_token"]).get("app_metadata", {}).get("role") != "operator":
-            raise SmokeTestError("Refreshed JWT did not contain the updated app_metadata.role.")
+            # Atomic approval RPCs must bind both the JWT subject and exact JSON payload.
+            approval_payload = {"purpose": "auth_rls_smoke", "marker": marker}
+            approval_token = secrets.token_urlsafe(32)
+            approval_hash = hashlib.sha256(approval_token.encode("utf-8")).hexdigest()
+            approval_principal = "auth:" + operator["id"]
+            issue = {
+                "p_token_hash": approval_hash,
+                "p_principal": approval_principal,
+                "p_payload": approval_payload,
+                "p_ttl_seconds": 300,
+            }
+            # Token issuance is intentionally restricted to the trusted
+            # server-side service-role client. User JWTs cannot mint approvals.
+            status, _ = self.rest(
+                "POST", "rpc/issue_pending_approval",
+                token=operator_token, payload=issue,
+                prefer="return=representation",
+            )
+            self._expect_status(status, (401, 403), "Operator direct approval issuance denial")
+            status, result = self.admin(
+                "POST", "/rest/v1/rpc/issue_pending_approval", issue
+            )
+            self._expect_status(status, (200,), "Server-only approval issuance")
+            if result is not True:
+                raise SmokeTestError("Server-side approval RPC did not return true.")
 
-        # Logout revokes the refresh token; do not rely on it to instantly invalidate an issued access JWT.
-        status, _ = self.auth("POST", "/auth/v1/logout", {}, token=refreshed["access_token"])
-        self._expect_status(status, (200, 204), "Auth logout")
-        status, _ = self.auth(
-            "POST", "/auth/v1/token?grant_type=refresh_token",
-            {"refresh_token": refreshed.get("refresh_token", refresh_token)},
-        )
-        self._expect_status(status, (400, 401), "Refresh token rejection after logout")
+            consume = {
+                "p_token_hash": approval_hash,
+                "p_principal": approval_principal,
+                "p_payload": approval_payload,
+            }
+            status, result = self.rest(
+                "POST", "rpc/consume_pending_approval",
+                token=operator_token, payload=consume,
+                prefer="return=representation",
+            )
+            self._expect_status(status, (200,), "Operator consume approval")
+            if result is not True:
+                raise SmokeTestError("First approval consumption was not accepted.")
+            status, result = self.rest(
+                "POST", "rpc/consume_pending_approval",
+                token=operator_token, payload=consume,
+                prefer="return=representation",
+            )
+            self._expect_status(status, (200,), "Repeated approval consumption")
+            if result is not False:
+                raise SmokeTestError("A one-use approval was accepted more than once.")
 
-        status, _ = self.rest("GET", "leads?select=id", token="not.a.valid.jwt")
-        self._expect_status(status, (401,), "Invalid JWT rejection")
+            reader_issue = dict(issue)
+            reader_issue["p_token_hash"] = hashlib.sha256(
+                (approval_token + "-reader").encode("utf-8")
+            ).hexdigest()
+            reader_issue["p_principal"] = "auth:" + reader["id"]
+            status, _ = self.rest(
+                "POST", "rpc/issue_pending_approval",
+                token=reader_token, payload=reader_issue,
+                prefer="return=representation",
+            )
+            self._expect_status(status, (401, 403), "Reader task approval denial")
 
-        return {
-            "project_ref": os.environ["SUPABASE_EXPECTED_PROJECT_REF"],
-            "roles_created": ["admin", "operator", "reader", "reader_with_user_metadata_admin_spoof"],
-            "checks": [
-                "Auth admin user creation and email/password sign-in",
-                "real Auth-issued JWT app_metadata role claims",
-                "shared lead SELECT and reader INSERT denial",
-                "user_metadata role spoofing denied",
-                "admin/operator/reader settings visibility",
-                "operator audit append and actor_user_id binding",
-                "admin-only audit and audit-chain reads",
-                "role change observed only after JWT refresh",
-                "logout refresh-token revocation",
-                "invalid JWT rejected by PostgREST",
-            ],
-        }
+            # The hash-chain head is visible to admin only.
+            if len(self._get_rows("audit_chain_state?select=singleton", admin_token)) != 1:
+                raise SmokeTestError("Admin could not read audit_chain_state.")
+            if self._get_rows("audit_chain_state?select=singleton", operator_token):
+                raise SmokeTestError("Operator unexpectedly read audit_chain_state.")
+            if self._get_rows("audit_chain_state?select=singleton", reader_token):
+                raise SmokeTestError("Reader unexpectedly read audit_chain_state.")
+
+            # Refresh must carry server-updated app_metadata into a new signed JWT.
+            refreshed_role = "operator"
+            status, _ = self.admin("PUT", f"/auth/v1/admin/users/{reader['id']}", {
+                "app_metadata": {"role": refreshed_role},
+            })
+            self._expect_status(status, (200,), "Admin role metadata update")
+            old_claims = _jwt_claims(reader_token)
+            if old_claims.get("app_metadata", {}).get("role") != "reader":
+                raise SmokeTestError("Existing access token unexpectedly changed before refresh.")
+            refresh_token = reader["session"].get("refresh_token")
+            status, refreshed = self.auth(
+                "POST", "/auth/v1/token?grant_type=refresh_token",
+                {"refresh_token": refresh_token},
+            )
+            self._expect_status(status, (200,), "JWT refresh after role change")
+            if _jwt_claims(refreshed["access_token"]).get("app_metadata", {}).get("role") != "operator":
+                raise SmokeTestError("Refreshed JWT did not contain the updated app_metadata.role.")
+
+            # Logout revokes the refresh token; do not assume an issued access JWT
+            # is immediately invalidated.
+            status, _ = self.auth("POST", "/auth/v1/logout", {}, token=refreshed["access_token"])
+            self._expect_status(status, (200, 204), "Auth logout")
+            status, _ = self.auth(
+                "POST", "/auth/v1/token?grant_type=refresh_token",
+                {"refresh_token": refreshed.get("refresh_token", refresh_token)},
+            )
+            self._expect_status(status, (400, 401), "Refresh token rejection after logout")
+
+            status, _ = self.rest("GET", "leads?select=id", token="not.a.valid.jwt")
+            self._expect_status(status, (401,), "Invalid JWT rejection")
+
+            return {
+                "project_ref": os.environ["SUPABASE_EXPECTED_PROJECT_REF"],
+                "roles_created": ["admin", "operator", "reader", "reader_with_user_metadata_admin_spoof"],
+                "checks": [
+                    "Auth admin user creation and email/password sign-in",
+                    "real Auth-issued JWT app_metadata role claims",
+                    "shared lead SELECT and reader INSERT denial",
+                    "user_metadata role spoofing denied",
+                    "admin/operator/reader settings visibility",
+                    "operator audit append and actor_user_id binding",
+                    "service-role-only approval issuance, operator one-use consume, and reader denial",
+                    "admin-only audit and audit-chain reads",
+                    "role change observed only after JWT refresh",
+                    "logout refresh-token revocation",
+                    "invalid JWT rejected by PostgREST",
+                    "temporary users and synthetic data cleaned up",
+                ],
+            }
+        finally:
+            had_error = sys.exc_info()[0] is not None
+            try:
+                self._cleanup(lead_name, secret_key, market_created)
+            except SmokeTestError as cleanup_error:
+                if not had_error:
+                    raise
+                print(str(cleanup_error), file=sys.stderr)
+
 
 
 def main() -> int:

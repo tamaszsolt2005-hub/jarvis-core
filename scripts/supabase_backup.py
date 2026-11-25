@@ -20,7 +20,14 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlsplit, urlunsplit
+
+# Direct execution sets sys.path[0] to scripts/, not the repository root.
+# Add the root explicitly so shared top-level modules resolve in CLI workflows.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPOSITORY_ROOT))
 
 from jarvis_errors import report_error, sanitize_log_text
 

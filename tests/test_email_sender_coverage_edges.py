@@ -149,8 +149,8 @@ def test_email_sender_smtp_failure_is_reported_and_not_marked_as_sent(monkeypatc
     monkeypatch.setattr(email_sender, "report_error", lambda error, **kwargs: reports.append((error, kwargs)))
 
     assert email_sender._send_one(db, db.rows[0], False, datetime.now(timezone.utc)) is False
-    assert db.rows[0]["status"] == "send_error"
-    assert audit_statuses == ["pending", "failed"]
+    assert db.rows[0]["status"] == "send_unknown"
+    assert audit_statuses == ["pending", "unknown"]
     assert isinstance(reports[0][0], OSError)
 
 
@@ -186,3 +186,24 @@ def test_email_sender_followup_limit_disables_next_schedule(monkeypatch):
     assert db.rows[0]["status"] == "follow_up_sent"
     assert db.rows[0]["follow_up_count"] == 2
     assert db.rows[0]["next_follow_up_at"] is None
+
+
+
+def test_unknown_smtp_outcome_is_excluded_from_automatic_retry(monkeypatch):
+    db = _DB([_lead(status="send_unknown", next_follow_up_at=None)])
+    _configure(
+        monkeypatch, db,
+        send=lambda *_args: pytest.fail("Unknown SMTP outcome must never be retried"),
+    )
+    monkeypatch.setattr(email_sender, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_sender, "get_service_supabase", lambda: db)
+    monkeypatch.setattr(email_sender, "env_bool", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(email_sender, "env_int", lambda _name, default, *_args: default)
+    monkeypatch.setattr(
+        email_sender, "_send_one",
+        lambda *_args, **_kwargs: pytest.fail("send_unknown must not enter the send pipeline"),
+    )
+
+    email_sender._run()
+
+    assert db.rows[0]["status"] == "send_unknown"

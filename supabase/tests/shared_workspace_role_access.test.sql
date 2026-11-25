@@ -1,6 +1,6 @@
 -- Run only against an isolated PostgreSQL/Supabase test database.
 BEGIN;
-SELECT plan(32);
+SELECT plan(34);
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), 'RLS enabled on leads');
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='public.tasks'::regclass), 'RLS enabled on tasks');
@@ -18,6 +18,8 @@ SELECT ok(NOT has_table_privilege('authenticated','public.jarvis_proactive_state
 
 INSERT INTO public.leads (id, company_name) VALUES
 ('a0000000-0000-4000-8000-000000000001','RBAC fixture');
+INSERT INTO public.tasks (id, title) VALUES
+('b0000000-0000-4000-8000-000000000001','Approval-gated task fixture');
 INSERT INTO public.settings (key,value) VALUES
 ('lead_research_market','{"country":"Germany"}'::jsonb),
 ('smtp_password','{"value":"must stay admin-only"}'::jsonb);
@@ -45,6 +47,10 @@ SELECT is((SELECT count(*) FROM public.audit_chain_state),0::bigint,'reader cann
 SELECT set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","app_metadata":{"role":"operator"}}',true);
 INSERT INTO public.leads (company_name) VALUES ('operator allowed');
 SELECT is((SELECT count(*) FROM public.leads WHERE company_name='operator allowed'),1::bigint,'operator can insert leads');
+SELECT throws_ok(
+  $operator$INSERT INTO public.tasks (title) VALUES ('operator approval bypass')$operator$,
+  '42501', NULL, 'operator cannot bypass atomic task approval with direct INSERT'
+);
 INSERT INTO public.logs (module,message,level,action,status) VALUES ('rbac_test','operator event','info','test','success');
 -- Operators may append but cannot read audit rows. Inspect the append result
 -- as the database owner, then return to the authenticated operator context.
@@ -64,6 +70,10 @@ INSERT INTO public.settings (key,value) VALUES ('rbac_fixture','{}'::jsonb);
 SELECT is((SELECT count(*) FROM public.settings WHERE key='rbac_fixture'),1::bigint,'admin can write settings');
 SELECT is((SELECT count(*) FROM public.logs WHERE module='rbac_test'),1::bigint,'admin can read the operator audit event');
 SELECT is((SELECT count(*) FROM public.audit_chain_state),1::bigint,'admin can read audit chain state');
+SELECT throws_ok(
+  $admin$UPDATE public.tasks SET title='admin approval bypass' WHERE id='b0000000-0000-4000-8000-000000000001'$admin$,
+  '42501', NULL, 'admin cannot bypass atomic task approval with direct UPDATE'
+);
 
 SELECT * FROM finish();
 ROLLBACK;

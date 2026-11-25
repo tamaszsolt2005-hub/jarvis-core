@@ -113,7 +113,7 @@ def test_chat_email_sending_requires_explicit_approval_and_both_server_switches(
     approval = _approval_branch()
     _call_positions(approval, [
         'elif q in {"jóváhagyom"',
-        '_consume_pending_action()',
+        '_consume_pending_action(db)',
         'chat_email = pending_action.get("chat_email")',
         "if chat_email:",
         "if not EMAIL_DELIVERY_ENABLED or not env_bool(\"CHAT_EMAIL_ENABLED\", False):",
@@ -137,7 +137,7 @@ def test_chat_email_smtp_failure_is_audited_and_reported():
     _call_positions(approval, [
         "send_email(",
         'except Exception as email_exc:',
-        'audit_event(\n                                db, status="failed"',
+        'audit_event(\n                                db, status="unknown"',
         "report_error(",
         'operation="send_approved_chat_email"',
     ])
@@ -150,6 +150,7 @@ def test_chat_email_final_audit_failure_warns_against_duplicate_send():
         'audit_saved = audit_event(',
         "if audit_saved:",
         "else:",
+        'db, status="unknown"',
         "SMTP átvétel megtörtént, de a záró auditbejegyzés nem menthető.",
         "A küldést ne ismételd meg ellenőrzés nélkül.",
     ])
@@ -161,10 +162,10 @@ def test_pending_approval_is_cleared_on_rejection_and_on_any_new_request():
     rejection = SOURCE[rejection_start:rejection_end]
     invalidation_start = SOURCE.index("# A pending approval is valid for exactly the next user message.")
     invalidation = SOURCE[invalidation_start:]
-    assert rejection.index('st.session_state.pop("_jarvis_pending_action", None)') >= 0
+    assert rejection.index('_revoke_pending_action(db)') >= 0
     _call_positions(invalidation, [
         "# A pending approval is valid for exactly the next user message.",
-        'st.session_state.pop("_jarvis_pending_action", None)',
+        '_revoke_pending_action(db)',
         "requested_task_action = parse_task_command(prompt)",
     ])
 
@@ -173,6 +174,7 @@ def test_task_database_mutation_is_only_invoked_from_approval_branch():
     approval = _approval_branch()
     assert "execute_task_action(" in approval
     assert "approved=True" in approval
+    assert "approval=pending_action.get(\"_approval\")" in approval
     assert "execute_task_action(db, task_action, approved=True)" not in _chat_email_draft_branch()
     task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
     assert "approved: bool = False" in task_source

@@ -111,7 +111,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
             result={"reason": "lead_claim_not_acquired"},
         )
         return False
-    smtp_accepted = False
+    smtp_attempted = False
     try:
         subject, body = _draft(lead, follow_up=follow_up)
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
@@ -144,8 +144,10 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         }
         if not audit_event(db, status="pending", **audit_fields):
             raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
+        # The remote server may accept the message even if its final SMTP response is lost.
+        # From this point onward the outcome is uncertain and automatic retry is forbidden.
+        smtp_attempted = True
         message_id = send_email(str(lead["email"]), subject, body)
-        smtp_accepted = True
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
             max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
@@ -179,19 +181,19 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     except Exception as exc:
         if "audit_fields" in locals():
             audit_event(
-                db, status="unknown" if smtp_accepted else "failed",
+                db, status="unknown" if smtp_attempted else "failed",
                 error=exc, level="error",
-                result={"smtp_accepted": smtp_accepted},
+                result={"smtp_attempted": smtp_attempted},
                 **audit_fields,
             )
         report_error(
             exc, module="email_sender", operation="send_one", severity="error", db=db
         )
         try:
-            db.table("leads").update({"status": "send_error"}).eq("id", lead["id"]).eq("status", claim_status).execute()
+            db.table("leads").update({"status": "send_unknown" if smtp_attempted else "send_error", "next_follow_up_at": None if smtp_attempted else lead.get("next_follow_up_at")}).eq("id", lead["id"]).eq("status", claim_status).execute()
         except Exception as state_exc:
             report_error(
-                state_exc, module="email_sender", operation="mark_send_error",
+                state_exc, module="email_sender", operation="mark_send_unknown" if smtp_attempted else "mark_send_error",
                 severity="critical", db=db,
             )
         return False

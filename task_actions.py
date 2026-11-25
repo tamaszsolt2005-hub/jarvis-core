@@ -1,13 +1,14 @@
 """Explicit, approval-gated task actions for the JARVIS chat."""
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 from uuid import uuid4
 
-from jarvis_common import audit_event, get_enforced_user_supabase
+from jarvis_common import get_enforced_user_supabase
 from jarvis_errors import report_error
 
 
@@ -98,120 +99,6 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
 
 
 
-def _record_success_audit(db: Any, *, action: str, operation_id: str, result: dict[str, Any]) -> bool:
-    """Record completion; surface an audit outage without hiding the completed DB action."""
-    saved = audit_event(
-        db, module="task_actions", action=action, status="success",
-        operation_id=operation_id, approved=True, result=result,
-    )
-    if saved:
-        return True
-    report_error(
-        RuntimeError("A feladatművelet végrehajtása megtörtént, de a sikeres auditbejegyzés nem menthető."),
-        module="task_actions",
-        operation=f"audit_success:{action}",
-        severity="critical",
-        db=db,
-    )
-    return False
-
-
-def _execute_task_action(db: Any, action: dict[str, Any]) -> str:
-    """Execute a previously parsed action only after the chat approval gate."""
-    kind = action.get("type")
-    operation_id = action.get("operation_id") if kind == "create" else None
-    operation_id = operation_id or str(uuid4())
-    audit_action = "task_" + str(kind or "unknown")
-    if not audit_event(
-        db, module="task_actions", action=audit_action, status="pending",
-        operation_id=operation_id, approved=True,
-        result={"task_id": action.get("id"), "title": action.get("title")},
-    ):
-        raise RuntimeError("A feladatműveletet nem hajtottam végre: az auditnapló nem írható.")
-    if kind == "create":
-        payload = {
-            "title": action["title"], "priority": action["priority"],
-            "due_at": action.get("due_at"), "notes": action.get("notes") or None,
-            "status": "open",
-        }
-        payload["operation_id"] = operation_id
-        try:
-            result = db.table("tasks").insert(payload).execute()
-        except Exception as exc:
-            # A unique operation_id conflict means an earlier retry already
-            # committed this exact approved create operation.
-            code = getattr(exc, "code", None)
-            if isinstance(exc, dict):
-                code = exc.get("code", code)
-            if code != "23505":
-                raise
-            existing = (
-                db.table("tasks").select("id,title").eq("operation_id", operation_id)
-                .limit(1).execute().data or []
-            )
-            if not existing:
-                raise
-            audit_event(
-                db, module="task_actions", action=audit_action, status="blocked",
-                operation_id=operation_id, approved=True,
-                result={"reason": "idempotent_replay", "task_id": existing[0].get("id")},
-            )
-            return (
-                f"A jóváhagyott feladatművelet már végrehajtódott: "
-                f"**{existing[0].get('title') or action['title']}** "
-                f"(azonosító: {existing[0].get('id')}). Nem hoztam létre újabb feladatot."
-            )
-        row = (result.data or [{}])[0]
-        audit_saved = _record_success_audit(
-            db, action=audit_action, operation_id=operation_id,
-            result={"task_id": row.get("id")},
-        )
-        if not audit_saved:
-            return f"A feladat létrejött: **{action['title']}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
-        return f"Feladat létrehozva: **{action['title']}** (azonosító: {row.get('id', 'a rendszer visszaigazolása szerint')})."
-
-    task_id = action.get("id")
-    existing = db.table("tasks").select("id,title,status").eq("id", task_id).limit(1).execute().data or []
-    if not existing:
-        audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "not_found"})
-        return "A feladat nem található; nem történt módosítás."
-    if str(existing[0].get("status") or "").casefold() != "open":
-        audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "not_open"})
-        return "A feladat már nem nyitott; az előkészített műveletet nem hajtottam végre."
-    title = existing[0].get("title") or task_id
-    if kind == "close":
-        now = datetime.now(timezone.utc).isoformat()
-        result = db.table("tasks").update({
-            "status": "done", "completed_at": now, "updated_at": now,
-        }).eq("id", task_id).eq("status", "open").select("id").execute()
-        if not result.data:
-            audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
-            return "A feladat állapota időközben megváltozott; nem történt lezárás."
-        audit_saved = _record_success_audit(
-            db, action=audit_action, operation_id=operation_id,
-            result={"task_id": task_id},
-        )
-        if not audit_saved:
-            return f"A feladat lezárult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
-        return f"Feladat lezárva: **{title}**."
-    if kind == "update":
-        payload = dict(action["updates"])
-        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-        result = db.table("tasks").update(payload).eq("id", task_id).eq("status", "open").select("id").execute()
-        if not result.data:
-            audit_event(db, module="task_actions", action=audit_action, status="blocked", operation_id=operation_id, approved=True, result={"reason": "concurrent_change"})
-            return "A feladat állapota időközben megváltozott; nem történt módosítás."
-        audit_saved = _record_success_audit(
-            db, action=audit_action, operation_id=operation_id,
-            result={"task_id": task_id, "updated_fields": sorted(action["updates"])},
-        )
-        if not audit_saved:
-            return f"A feladat módosult: **{title}**, de a sikeres auditbejegyzés mentése nem sikerült. Ne ismételd meg ellenőrzés nélkül."
-        return f"Feladat módosítva: **{title}**."
-    return "Ismeretlen feladatművelet; nem történt módosítás."
-
-
-
 def _validate_action(action: Any) -> None:
     """Validate the complete task payload before any audit or database access."""
     if not isinstance(action, dict):
@@ -233,9 +120,7 @@ def _validate_action(action: Any) -> None:
         if not isinstance(notes, str) or len(notes) > 1000:
             raise ValueError("A feladat leírása legfeljebb 1000 karakter lehet.")
         operation_id = action.get("operation_id")
-        if operation_id is not None and (
-            not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id)
-        ):
+        if not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id):
             raise ValueError("Érvénytelen műveletazonosító.")
         due_at = action.get("due_at")
         if due_at is not None:
@@ -250,8 +135,11 @@ def _validate_action(action: Any) -> None:
         return
 
     if kind in {"close", "update"}:
-        if set(action) - ({"type", "id"} if kind == "close" else {"type", "id", "updates"}):
+        if set(action) - ({"type", "id", "operation_id"} if kind == "close" else {"type", "id", "updates", "operation_id"}):
             raise ValueError("A feladatművelet nem támogatott mezőt tartalmaz.")
+        operation_id = action.get("operation_id")
+        if not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id):
+            raise ValueError("Érvénytelen műveletazonosító.")
         task_id = action.get("id")
         if not isinstance(task_id, str) or not _UUID.fullmatch(task_id):
             raise ValueError("Érvénytelen feladatazonosító.")
@@ -293,26 +181,57 @@ def execute_task_action(
     action: dict[str, Any],
     *,
     approved: bool = False,
+    approval: dict[str, str] | None = None,
     auth_session: dict[str, str] | None = None,
 ) -> str:
-    """Execute an approved task; enforced Auth mode uses only the verified user JWT client."""
+    """Execute a task through one database transaction that consumes approval,
+    appends audit events and stores an idempotent operation result.
+    """
     if approved is not True:
         raise PermissionError("A feladatművelethez külön felhasználói jóváhagyás szükséges.")
     _validate_action(action)
 
-    # Use the shared enforcement gate so individual Auth login and explicit
-    # RBAC enforcement have identical fail-closed behavior across all modules.
+    if not isinstance(approval, dict):
+        raise PermissionError("A feladatművelethez adatbázisban rögzített jóváhagyás szükséges.")
+    token = approval.get("token")
+    principal = approval.get("principal")
+    if not isinstance(token, str) or len(token) < 32:
+        raise PermissionError("A jóváhagyási token hiányzik vagy érvénytelen.")
+    if not isinstance(principal, str) or len(principal) > 100:
+        raise PermissionError("A jóváhagyás felhasználói kötése hiányzik vagy érvénytelen.")
+
+    # The enforcement helper swaps the legacy service client for a verified
+    # user-JWT client whenever Auth/RBAC enforcement is enabled.
     enforced = get_enforced_user_supabase(
         auth_session, "tasks.write", allowed_roles={"admin", "operator"}
     )
     if enforced is not None:
         db, _refreshed_session = enforced
 
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    operation_id = action["operation_id"]
     try:
-        return _execute_task_action(db, action)
+        response = db.rpc(
+            "execute_approved_task_action",
+            {
+                "p_token_hash": token_hash,
+                "p_principal": principal,
+                "p_operation_id": operation_id,
+                "p_action": action,
+            },
+        ).execute()
+        result = response.data
+        if isinstance(result, list) and len(result) == 1:
+            result = result[0]
+        if not isinstance(result, dict) or not isinstance(result.get("message"), str):
+            raise RuntimeError("A feladatművelet adatbázis-visszaigazolása érvénytelen.")
+        return result["message"]
     except Exception as exc:
         report_error(
-            exc, module="task_actions", operation=f"execute:{action.get('type', 'unknown')}",
-            severity="critical", db=db,
+            exc,
+            module="task_actions",
+            operation=f"execute_atomic:{action.get('type', 'unknown')}",
+            severity="critical",
+            db=db,
         )
         raise

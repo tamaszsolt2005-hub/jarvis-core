@@ -176,15 +176,23 @@ def test_dashboard_passes_approval_only_from_the_explicit_confirmation_branch():
 
 
 
-def test_pending_approval_is_consumed_before_task_execution_to_prevent_replay():
+def test_task_approval_is_consumed_inside_the_atomic_task_rpc():
     approval_start = DASHBOARD_SOURCE.index('elif q in {"jóváhagyom"')
     consume_index = DASHBOARD_SOURCE.index(
-        "_consume_pending_action()", approval_start
+        "_consume_pending_action(db)", approval_start
     )
     execute_index = DASHBOARD_SOURCE.index(
         "execute_task_action(", approval_start
     )
-    assert consume_index < execute_index
+    approval_argument = DASHBOARD_SOURCE.index(
+        'approval=pending_action.get("_approval")', execute_index
+    )
+    task_source = (ROOT / "task_actions.py").read_text(encoding="utf-8")
+    assert consume_index < execute_index < approval_argument
+    assert 'db.rpc(' in task_source
+    assert '"execute_approved_task_action"' in task_source
+    assert '"p_token_hash"' in task_source
+    assert '"p_operation_id"' in task_source
 
 
 def test_new_chat_request_invalidates_previous_pending_approval():
@@ -192,7 +200,7 @@ def test_new_chat_request_invalidates_previous_pending_approval():
         "# A pending approval is valid for exactly the next user message."
     )
     invalidate_index = DASHBOARD_SOURCE.index(
-        'st.session_state.pop("_jarvis_pending_action", None)', invalidation_comment
+        "_revoke_pending_action(db)", invalidation_comment
     )
     parse_index = DASHBOARD_SOURCE.index(
         "requested_task_action = parse_task_command(prompt)", invalidation_comment
@@ -221,3 +229,20 @@ def test_dashboard_system_diagnostics_receives_auth_session():
     assert '"system.diagnostics"' in health_source
     assert "allowed_roles={\"admin\"}" in health_source
     assert "get_enforced_user_supabase(" in health_source
+
+
+
+def test_task_table_writes_are_restricted_to_the_atomic_approval_rpc():
+    migration = (ROOT / "supabase/migrations/20261124130000_shared_workspace_role_access.sql").read_text()
+    grant_start = migration.index("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE")
+    grant_end = migration.index("TO authenticated;", grant_start)
+    grants = migration[grant_start:grant_end]
+    assert "public.tasks" not in grants
+    assert "REVOKE ALL ON TABLE public.tasks FROM PUBLIC, anon, authenticated;" in migration
+    assert "GRANT SELECT ON TABLE public.tasks TO authenticated, service_role;" in migration
+    final_lockdown = (ROOT / "supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql").read_text()
+    assert "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" in final_lockdown
+    assert "FROM PUBLIC, anon, authenticated, service_role" in final_lockdown
+    assert "execute_approved_task_action" in (
+        ROOT / "supabase/migrations/20261125160000_atomic_task_approvals_and_operations.sql"
+    ).read_text()

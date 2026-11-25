@@ -46,9 +46,15 @@ class _Query:
 class _ReadOnlyDB:
     def __init__(self, rows=None):
         self.rows = rows or []
+        self.rpc_calls = []
 
     def table(self, _name):
         return _Query(self.rows)
+
+    def rpc(self, name, params):
+        self.rpc_calls.append((name, params))
+        data = {"message": "APPT_TASK_ACTION_EXECUTED"} if name == "execute_approved_task_action" else True
+        return SimpleNamespace(execute=lambda: SimpleNamespace(data=data))
 
 
 def _prepare_dashboard(monkeypatch):
@@ -61,6 +67,7 @@ def _prepare_dashboard(monkeypatch):
         lambda key, default=None: "app-test-password" if key == "JARVIS_DASHBOARD_PASSWORD" else default,
     )
     monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
+    monkeypatch.setattr(jarvis_common, "get_service_supabase", lambda: db)
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(jarvis_common, "estimate_response_tokens", lambda _prompt: 256)
     monkeypatch.setattr(jarvis_common, "generate_text", lambda *_args, **_kwargs: "APPT_CHAT_RESPONSE")
@@ -210,7 +217,7 @@ def test_streamlit_task_approval_executes_only_after_explicit_confirmation(monke
     task_calls = []
     monkeypatch.setattr(
         task_actions, "execute_task_action",
-        lambda _db, action, *, approved=False: (
+        lambda _db, action, *, approved=False, approval=None, auth_session=None: (
             task_calls.append((action, approved)) or "APPT_TASK_EXECUTED"
         ),
     )
@@ -318,7 +325,7 @@ def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
     email_switch["enabled"] = True
     _submit_chat(app, "Jóváhagyom")
 
-    assert audit_statuses == ["pending", "failed"]
+    assert audit_statuses == ["pending", "unknown"]
     assert any("JARVIS művelet" in item.value for item in app.error)
     assert any("OSError" in item.value for item in app.warning)
 
@@ -340,7 +347,7 @@ def test_streamlit_chat_email_final_audit_failure_warns_against_duplicate_send(m
     _submit_chat(app, "Jóváhagyom")
 
     assert len(smtp_calls) == 1
-    assert audit_statuses == ["pending", "success"]
+    assert audit_statuses == ["pending", "success", "unknown"]
     assert any("ne ismételd meg ellenőrzés nélkül" in value for value in _markdown_values(app))
 
 
@@ -363,7 +370,7 @@ def test_streamlit_task_close_and_update_require_preview_then_approval(monkeypat
     task_calls = []
     monkeypatch.setattr(
         task_actions, "execute_task_action",
-        lambda db, action, *, approved=False: (
+        lambda db, action, *, approved=False, approval=None, auth_session=None: (
             task_calls.append((action, approved)) or "APPT_TASK_ACTION_EXECUTED"
         ),
     )
