@@ -16,7 +16,7 @@ Cél: a jelenlegi működés legyen kiszámítható, hibákkal és párhuzamos v
 - Tegyük atomikussá az egyszer használatos jóváhagyások felhasználását, beleértve a konkurens kérések kezelését.
 - Egészítsük ki a műveletek idempotenciáját: ismételt kérés vagy bizonytalan külső válasz ne okozzon duplikált feladatot vagy mellékhatást.
 - Az érzékeny műveletek auditálása legyen fail-closed.
-- A kimenő e-mail és más külső mellékhatások maradjanak tiltva, amíg a biztonságos idempotencia és a végponttól végpontig tesztek nem igazolják a működést.
+- A kimenő SMTP-küldés PR #23-mal hard-disable állapotban bekerült a mainbe; maradjon tiltva, amíg provider oldali idempotencia, tartós műveleti kulcs és végponttól végpontig tesztek nem igazolják a működést.
 
 **Lezárási feltétel:** a javítások regressziós és konkurenciatesztekkel igazoltak; a backup teljes friss futása sikeres, beleértve a mentés ellenőrzését és a visszaállítási próbát.
 
@@ -124,3 +124,10 @@ A legnagyobb lefedettségi rés a `scripts/supabase_auth_rls_smoke.py` (17%, 42/
 | 3 | Önállóbb üzleti asszisztens | Leadkutatás, scoring, proaktív monitor és javaslatok részben implementáltak | Forrásolt minőségi benchmark, pontosság/hasznosság visszamérése és production pilot |
 | 4 | Üzleti munkafolyamatok automatizálása | Task/approval alapok implementáltak és teszteltek; teljes E2E folyamat nincs lezárva | Lead→minősítés→jóváhagyás→utánkövetés→eredménymérés E2E és KPI-k |
 | 5 | Tudás és hosszú távú memória | Tartós memória/analitika alapjai implementáltak; minőségi tudásréteg nincs igazolva | Forrásolt, jogosultságkezelt, lifecycle-kezelt tudás és retrieval quality tesztek |
+
+
+## Megbízhatóság/biztonság – friss státusz 2026-11-25
+
+- SMTP hard-disable mainbe integrálva PR #23 squash merge-dzsel (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`); merge utáni main CI `45661201562` még futott az utolsó ellenőrzéskor.
+- Production read-only audit frissítve: 8/8 public tábla RLS, 0 policy, anon/authenticated DML tiltva, service_role direct DML engedélyezett; private schema/task approval RPC hiányzik; remote migration ledger 5 bejegyzésre korlátozódik.
+- Külső e-mail idempotencia még nem lezárt. SMTP protokoll önmagában nem biztosít idempotency key-t; provider API kell, ugyanazon stabil műveleti kulccsal és változatlan request body-val. A Resend dokumentáltan támogat idempotency key-t, de a kulcs 24 óráig él, ezért ezen túl automatikus retry nem biztonságos. A provider kiválasztása, API key és verified sender domain még hiányzik.
