@@ -13,6 +13,7 @@ def _lead(**changes):
         "consent_confirmed_at": datetime.now(timezone.utc).isoformat(),
         "approved_to_contact": True, "opted_out": False, "reply_category": None,
         "last_inbound_message_id": None, "follow_up_count": 0,
+        "next_follow_up_at": datetime.now(timezone.utc).isoformat(),
     }
     row.update(changes)
     return row
@@ -196,6 +197,39 @@ def test_email_sender_success_records_delivery_and_followup_schedule(monkeypatch
     assert db.rows[0]["last_message_id"] == "provider-id"
     assert db.rows[0]["next_follow_up_at"] is not None
     assert [item["status"] for item in audits] == ["pending", "success"]
+
+
+
+@pytest.mark.parametrize("change", [
+    {"follow_up_count": 1},
+    {"next_follow_up_at": None},
+])
+def test_email_sender_atomic_followup_claim_rejects_stale_snapshot(monkeypatch, change):
+    stale = _lead(status="follow_up_sent", follow_up_count=0)
+    db = _DB([{**stale, **change}])
+    sent = []
+    _configure(monkeypatch, db, send=lambda *args: sent.append(args) or "provider-id")
+
+    assert email_sender._send_one(db, stale, True, datetime.now(timezone.utc)) is False
+    assert sent == []
+    assert db.rows[0]["status"] == "follow_up_sent"
+
+
+def test_email_sender_rechecks_followup_due_state_after_claim(monkeypatch):
+    db = _DB([_lead(status="follow_up_sent", follow_up_count=0)])
+    sent = []
+
+    def make_not_due(_lead, **_kwargs):
+        db.rows[0]["next_follow_up_at"] = None
+        return "Subject", "Body"
+
+    _configure(monkeypatch, db, send=lambda *args: sent.append(args) or "provider-id")
+    monkeypatch.setattr(email_sender, "_draft", make_not_due)
+
+    assert email_sender._send_one(db, db.rows[0], True, datetime.now(timezone.utc)) is False
+    assert sent == []
+    assert db.rows[0]["status"] == "send_blocked"
+    assert db.rows[0]["next_follow_up_at"] is None
 
 
 def test_email_sender_followup_limit_disables_next_schedule(monkeypatch):
