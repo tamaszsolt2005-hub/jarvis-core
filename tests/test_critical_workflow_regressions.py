@@ -396,3 +396,32 @@ def test_sender_pipeline_selects_only_eligible_leads_and_respects_run_limit(monk
     email_sender._run()
 
     assert sent == [("new-lead", False), ("follow-up-lead", True)]
+
+
+
+def test_sender_treats_smtp_recipient_refusal_as_known_failure(monkeypatch):
+    db = SenderDB()
+    audit_statuses = []
+
+    monkeypatch.setattr(email_sender, "_draft", lambda *_args, **_kwargs: ("Subject", "Body"))
+    monkeypatch.setattr(
+        email_sender, "audit_event",
+        lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True,
+    )
+    monkeypatch.setattr(
+        email_sender, "send_email",
+        lambda *_args: (_ for _ in ()).throw(
+            email_sender.smtplib.SMTPRecipientsRefused({
+                "person@example.test": (550, b"mailbox unavailable")
+            })
+        ),
+    )
+    monkeypatch.setattr(email_sender, "report_error", lambda *_args, **_kwargs: None)
+
+    assert email_sender._send_one(
+        db, _approved_lead(), False, datetime.now(timezone.utc)
+    ) is False
+
+    assert audit_statuses == ["pending", "failed"]
+    assert any(update and update.get("status") == "send_error" for update in db.updates)
+    assert not any(update and update.get("status") == "send_unknown" for update in db.updates)
