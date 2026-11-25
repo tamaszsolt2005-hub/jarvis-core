@@ -268,17 +268,51 @@ def research_global_companies(
             f"Forrás: {source_url}"
         )[:3500]
         # No email, no permission, no outreach status: discovery is not consent.
-        db.table("leads").insert({
-            "company_name": name,
-            "email": None,
-            "website": website,
-            "notes": notes,
-            "source": f"{SOURCE_TAG}:{source_domain}"[:200],
-            "status": "research",
-            "consent_basis": None,
-            "approved_to_contact": False,
-            "opted_out": False,
-        }).execute()
+        # Audit the write before inserting; a research record is still a durable
+        # business-data side effect even though it cannot trigger outreach.
+        insert_operation_id = str(uuid4())
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="save_researched_company",
+            status="pending",
+            operation_id=insert_operation_id,
+            result={"company_domain": site_domain, "source_domain": source_domain},
+        ):
+            raise RuntimeError("A kutatási lead mentése leállítva: a pending auditbejegyzés nem menthető.")
+        try:
+            db.table("leads").insert({
+                "company_name": name,
+                "email": None,
+                "website": website,
+                "notes": notes,
+                "source": f"{SOURCE_TAG}:{source_domain}"[:200],
+                "status": "research",
+                "consent_basis": None,
+                "approved_to_contact": False,
+                "opted_out": False,
+            }).execute()
+        except Exception as exc:
+            audit_event(
+                db,
+                module="global_lead_research",
+                action="save_researched_company",
+                status="unknown",
+                operation_id=insert_operation_id,
+                error=exc,
+                result={"company_domain": site_domain, "source_domain": source_domain},
+                level="error",
+            )
+            raise
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="save_researched_company",
+            status="success",
+            operation_id=insert_operation_id,
+            result={"company_domain": site_domain, "source_domain": source_domain},
+        ):
+            raise RuntimeError("A kutatási lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
         known_names.add(name.casefold())
         known_sites.add(site_domain)
         inserted.append({"company_name": name, "website": website, "country": country,
