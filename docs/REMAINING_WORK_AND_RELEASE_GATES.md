@@ -6,7 +6,7 @@ Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás va
 
 **Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
-A `main` aktuális commitja a PR #22 merge után `1f401d0dacb1333c3050829fa710197dfa523c6e`. A PR #23 SMTP hard-disable még nyitott PR-ben van; a PR head push CI-je sikeres, a PR-triggerelt tesztjob utolsó ellenőrzéskor még futott. Ez kódintegráció, nem production release.
+A `main` PR #23 merge commitja `c1364e8aaf0741ba2c8ef33360799c744bf1b688`; a kimenő SMTP hard-disable a main része. A merge utáni main CI `45661201562` az utolsó ellenőrzéskor futott. Ez kódintegráció, nem production release.
 
 ## Kötelező kapuk
 
@@ -14,8 +14,8 @@ A `main` aktuális commitja a PR #22 merge után `1f401d0dacb1333c3050829fa71019
 
 
 ### 1. Repository és CI
-- [x] PR #23 head push CI (`58d9e33`, run `45658587888`) mindkét jobja sikeres; 759 passed, 3 skipped, 90.75% line coverage.
-- [ ] PR #23 pull_request workflow (`45658617612`) minden jobja sikeres – utolsó ellenőrzéskor a test job még futott.
+- [x] PR #23 mindkét pull_request jobja sikeres (`45658617612`); SMTP hard-disable mainbe merge-elve.
+- [ ] PR #23 merge utáni main CI (`45661201562`) minden jobja sikeres – futása az utolsó ellenőrzéskor még tartott.
 - [x] A backup workflow teljes, friss futása sikeres (`45655512387`): dump, age titkosítás, S3 feltöltés, SSE-KMS/KMS key ellenőrzés, letöltés, visszafejtés és manifest SHA-256 ellenőrzés.
 - [x] A tényleges production archívum külön, izolált PostgreSQL 17 konténerbe restore-olása sikeres; 8 public tábla és kijelölt rekordszámok ellenőrizve.
 - A sikertelen vagy futó workflow nem tekinthető sikeresnek.
@@ -68,3 +68,11 @@ A release gate-ek **nem teljesültek** pusztán attól, hogy a PR CI zöld: elő
 - A PR workflow [45658617612](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658617612) backup–restore jobja sikeres; a test job utolsó ismert állapota futó Playwright install. A PR nem merge-elhető, amíg ez nem zárul sikeresen.
 - A PR head coverage-e 90.75% line coverage (3 729/4 109), 759 passed / 3 skipped; branch coverage nincs mérve. [Artifact](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888/artifacts/15043089238).
 - A PR #23 hard-disable csak merge után kerül a mainbe; production SMTP konfigurációt/secreteket és production alkalmazást nem módosít.
+
+
+## Friss production audit és SMTP állapot – 2026-11-25 17:06 UTC
+
+- PR #23 SMTP hard-disable merge-elve: `c1364e8aaf0741ba2c8ef33360799c744bf1b688`. A merge utáni main CI run `45661201562` még futott.
+- Read-only production snapshot: 8/8 public táblán RLS enabled; 0 policy; anon/authenticated table DML false minden táblán; service_role teljes DML true. A `private` schema, audit chain state, task approval táblák és execute RPC hiányoznak; `tasks.operation_id` hiányzik. Ledger: csak 5 db 20261119-es migráció. Security Advisor 8 INFO policy nélküli RLS miatt.
+- Ezt a snapshotot bizonyítékként rögzítettük; production adatbázis változatlan. A ledger repair, private schema/RPC migrációk és service_role direct task DML lockdown külön SQL review + konkrét jóváhagyás után hajtható végre.
+- SMTP hard-disable mainben kódszinten érvényes, de production futó alkalmazás verziója ettől nem frissül automatikusan; deploy továbbra sincs jóváhagyva.
