@@ -1,215 +1,174 @@
 # JARVIS – fennmaradó feladatok és élesítési kapuk
 
-**Frissítve:** 2026-11-24  
-**Hatókör:** `feat/supabase-auth-rbac-foundation` / PR #13  
-**Állapot:** fejlesztési és dokumentációs nyilvántartás; nem production change approval.
+**Frissítve:** 2026-11-25  
+**Vizsgált branch:** `feat/supabase-auth-rbac-foundation`  
+**Igazolt commit:** `e6736101405180c220d6b96b5a7a3c1d890813e0`  
+**PR:** [#13 – open, draft](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)  
+**Hatókör:** fejlesztési backlog és release gate; ez a dokumentum nem production change approval.
 
-Ez a dokumentum a kódban már előkészített funkciókat, a CI-ben bizonyított
-viselkedést és a productionben még nem igazolt képességeket külön kezeli.
-A CI zöld állapota önmagában nem jelent production-ready Auth/RBAC-ot.
+A dokumentum a repositoryban implementált, CI-ben ellenőrzött, izolált integrációs környezetben igazolt és productionben bizonyított állapotokat külön kezeli. Egy zöld CI nem jelent production-ready Auth/RBAC-ot.
 
-## 1. Legutóbbi igazolt fejlesztési állapot
+## 1. Aktuális, bizonyítékkal alátámasztott állapot
 
-### Aktuális CI pontosítás – 2026-11-25
+### PR és CI
 
-A jelenlegi branch head `649f5796ec8f475d0a069d2e263669efbb290d1b`.
-A korábbi teljesen zöld CI (734 passed / 3 skipped, 93.67%) nem ezen a
-commiton futott. Az újabb audit UI futás 751 passed / 11 failed / 3 skipped
-és 94.17% coverage eredményt adott; mind a 11 hiba az audit UI tesztfájlban
-jelentkezett. A javítások bekerültek, de a hatásuk még nincs igazolva.
+- PR #13 nyitott és draft; nincs merge.
+- A branch head `e6736101405180c220d6b96b5a7a3c1d890813e0`.
+- A [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) ezen a headen teljesen sikeres.
+- Python / Streamlit / AppTest / browser tesztek: **762 passed, 3 skipped**.
+- Python line coverage: **96.47%** (3,799 statement; 134 missed).
+- CloudFormation validáció, Playwright böngészőtelepítés és `compileall`: sikeres.
+- PostgreSQL 17 integrációs job: sikeres; audit/RBAC migrációk és pgTAP ellenőrzések lefutottak.
+- Age titkosítású backup/restore round-trip: sikeres, izolált CI PostgreSQL környezetben.
+- Coverage artifact: [15002127458](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053/artifacts/15002127458).
+- A [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) ugyanezen a commiton még folyamatban van az ellenőrzés időpontjában; az első teljesen zöld futás eredményétől független, külön futás.
 
-A jelenlegi head push futása [45509638790](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509638790):
-a PostgreSQL 17 backup/restore integráció sikeres, a Python teszt job a
-legutóbbi ellenőrzéskor még futott. A teszt végső eredménye és coverage-e
-nem ismert; a korábbi 94.17%-ot nem szabad új eredményként feltüntetni.
-A PR futás: [45509647393](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45509647393).
+**A 45571463053 eredménye a 20 korábbi teszthiba javítását igazolja.** Nem bizonyítja a production AWS/S3 mentést, production restore-t, valós Supabase Auth/JWT/RLS viselkedést vagy éles e-mail-kézbesítést.
 
+### Kód- és tesztjavítások a jelenlegi headen
 
-- PR #13 továbbra is nyitott és draft.
-- A legutóbbi teljesen zöld CI-t tartalmazó PR head: `4945816b9010d899c1737a90ff3785ec1898acdd`.
-- A legutóbbi teljes CI run [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568) mindkét jobja sikeres: **718 passed, 3 skipped, 93.78% coverage** (3,500/3,732 sor); `dashboard.py` 82.27%, `jarvis_auth.py` 96.55%, `audit_admin.py` 96.19%.
-- A PostgreSQL 17 audit/RBAC + pgTAP + titkosított age backup/restore integráció, CloudFormation-validáció, Playwright, compileall és a Python/AppTest/browser tesztek egyaránt sikeresek.
-- Coverage és 27 reszponzív dashboard screenshot artifact feltöltve. Ez CI-bizonyíték, nem production backup vagy valós Supabase Auth-teszt.
-- A dashboard Auth helper tesztcsomag a session frissítést, hiányzó/visszavont session fail-closed kezelését, régi kliens kizárását Auth módban és a sessionből történő takarítást ellenőrzi.
-- A PostgreSQL CI job lokális, izolált PostgreSQL környezetet használ. Ez nem production backup, nem Supabase Auth szolgáltatás és nem AWS/S3 restore-próba.
+- A dashboard kompatibilitási `audit_event` és `report_error` delegate-jei megőrzik a központi modulimplementációt és a monkeypatchelhető tesztfelületet.
+- Az audit UI AppTest fixture a hitelesített admin kliens izolált stubját a rerun előtt telepíti; a login tesztek címke alapján választják a submit gombot.
+- A célzott regressziós tesztfutás 762 passed / 3 skipped eredményt adott.
+- A változtatások nem kapcsolják be a production Auth flaget és nem módosítják a production adatbázist.
 
-## 2. Kritikus blokkolók – production bevezetés előtt
+## 2. P0 – kötelező blokkolók bármilyen production Auth/RBAC előtt
 
-### P0 – migrációs előzmények és schema reconciliation
+### P0.1 – Supabase migrációs drift és schema reconciliation
 
-- [x] Az öt remote migration ledgerben szereplő történeti SQL visszanyerése a `supabase_migrations.schema_migrations.statements` mezőből és az eredeti verzióazonosítójú fájlok visszaállítása. Lásd `docs/AUTH_RBAC_PRODUCTION_RECONCILIATION.md`.
-- [ ] A teljes, aktuális schema-only snapshot és külön forward-only reconciliation terv véglegesítése; a visszanyert történeti SQL nem helyettesíti a schema/ledger drift rendezését.
-- [ ] A két `20261117` repo migráció ledgereltérésének bizonyítékalapú rendezése.
-- [ ] A live `settings`, `posts`, `logs` legacy struktúrájának megőrzése és az audit/RBAC migrációk előfeltételeinek ellenőrzése.
-- [ ] Tiszta bootstrap és production-shape PostgreSQL 17 teszt, negatív precondition tesztekkel.
-- [ ] Pontos, felülvizsgált migrációs sorrend, rollback/forward-recovery terv és postcondition lekérdezések.
+**Felelős terület:** adatbázis / platform  
+**Állapot:** részben előkészített, productionben nem lezárt.
 
-**Tiltás:** nincs `supabase db push`, `supabase migration repair`, production DDL/DML vagy kézi ledger-módosítás a bizonyítékok és pontos migrációs terv rendezése előtt.
+Feladatok:
+- [ ] Aktuális, read-only schema-only snapshot készítése és archiválása.
+- [ ] A remote migration ledger és a repo migrációk verziónkénti összevetése, különösen a két `20261117` repo-only verzióé.
+- [ ] A live `settings`, `posts`, `logs` legacy struktúrák és constraint/index/default eltéréseinek dokumentálása.
+- [ ] A migrációk pontos, determinisztikus sorrendjének és minden precondition/postcondition SQL-jének rögzítése.
+- [ ] Forward-recovery és rollback/kompenzációs terv készítése; destruktív vagy nem visszafordítható lépések külön jelölése.
+- [ ] Clean bootstrap és production-shape PostgreSQL 17 teszt, negatív precondition tesztekkel.
+- [ ] Független review az SQL-csomagon és az alkalmazási sorrenden.
 
-### P0 – titkosított production backup
+**Elfogadási kritérium:** minden remote/repo verzióeltérés magyarázott; a teljes migrációs lánc tiszta és production-shape izolált adatbázison reprodukálható; minden pre/postcondition zöld; a recovery tervet szárazpróbán ellenőrizték.
 
-- [ ] AWS backup stack deploy és a CloudFormation outputok ellenőrzése.
-- [ ] GitHub Actions secrets: `SUPABASE_DB_URL`, `AWS_BACKUP_ROLE_ARN`, `BACKUP_AGE_IDENTITY`.
-- [ ] GitHub Actions variables: source project ref, age recipient, S3 bucket, KMS key ARN, AWS region.
+**Tiltás:** production `supabase db push`, `migration repair`, DDL/DML, ledger-módosítás vagy migrációs futtatás nem végezhető külön, pontos felhasználói jóváhagyás nélkül.
+
+### P0.2 – Production backup és restore bizonyítása
+
+**Felelős terület:** infrastruktúra / üzemeltetés  
+**Állapot:** a CI lokális round-trip zöld; production backup nincs igazolva.
+
+Feladatok:
+- [ ] AWS backup stack telepítése és CloudFormation outputok ellenőrzése.
+- [ ] GitHub Actions secrets/variables meglétének és jogosultságainak ellenőrzése: DB URL, AWS role ARN, age identity/recipient, bucket, KMS key, régió.
 - [ ] Production dump titkosított feltöltése S3-ba.
-- [ ] Feltöltött objektum letöltése, visszafejtése, manifest/hash ellenőrzése.
-- [ ] Restore-próba külön, izolált PostgreSQL adatbázisba, az eredmény dokumentálása.
+- [ ] Feltöltött objektum letöltése, visszafejtése, manifest- és hash-ellenőrzése.
+- [ ] Restore külön izolált PostgreSQL adatbázisba.
+- [ ] Restore utáni integritás-, sémaszám-, rekordszám- és alkalmazási smoke teszt dokumentálása.
+- [ ] Rendszeres backup ütemezés, retention, riasztás és hozzáférési kontroll ellenőrzése.
 
-A privát age identity kizárólag GitHub Secretben tárolható; chatbe és Gitbe nem kerülhet. A CI local-test round-trip nem helyettesíti ezt a munkát.
+**Elfogadási kritérium:** van dátummal, forrásazonosítóval, objektumazonosítóval, hash-sel és restore jegyzőkönyvvel igazolt, titkosított production mentés; a visszaállítás sikeres külön adatbázisba; a titkok nem kerülnek logba vagy Gitbe.
 
-### P0 – valós Auth/RLS és felhasználói életciklus
+### P0.3 – Valós Supabase Auth/JWT/RLS validáció
 
-- [ ] Már létező, külön engedélyezett izolált Supabase környezet biztosítása valós JWT/RLS próbákhoz; új tesztprojektet nem hozunk létre.
-- [ ] Auth user provisioning, e-mail megerősítés, megbízható `app_metadata.role` kiosztás és admin visszaállítási folyamat.
-- [ ] Admin/operator/reader pozitív és negatív teszt minden táblára, műveletre, RPC-re, view-ra és módosító UI útvonalra.
-- [ ] Token refresh, revoke, lejárat, logout, szerepkör-demotion és több felhasználós session izoláció valós Supabase Authon.
-- [ ] A `logs` audit append útvonal megoldása: a jelenlegi production legacy táblán nincs audit mező/policy; enforced user-JWT módban az auditírásnak biztonságosan és fail-closed módon kell működnie.
-- [ ] Auth flag csak a migrációk, admin provisioning és end-to-end tesztek után kapcsolható be.
+**Felelős terület:** alkalmazásbiztonság / Supabase  
+**Állapot:** repository tesztek zöldek; valós Auth/RLS validáció nincs igazolva.
 
-## 3. Fontos funkcionális és architekturális hiányok
+Feladatok:
+- [ ] Csak már létező, külön engedélyezett izolált Supabase környezet használata; production nem lehet tesztkörnyezet.
+- [ ] Admin/operator/reader provisioning és trusted `app_metadata.role` kiosztás ellenőrzése.
+- [ ] Pozitív és negatív SELECT/INSERT/UPDATE/DELETE/RPC/view teszt minden érintett táblára.
+- [ ] JWT refresh, lejárat, revoke, logout, role demotion és user-váltás teszt.
+- [ ] Több user és session közötti adatszivárgás/izoláció negatív teszt.
+- [ ] Audit append fail-closed útvonal bizonyítása user-JWT mellett.
+- [ ] Admin bootstrap és elveszett admin hozzáférés visszaállítási eljárás próbája.
 
-- [ ] A dashboard teljes felhasználói belépési útvonalának, logoutjának, session lejáratának és admin bootstrap folyamatának end-to-end ellenőrzése.
-- [ ] Minden üzleti modul felhasználói vs. háttérfolyamat DB-hozzáférésének végleges szétválasztása. A service-role kliens kizárólag szűk, szerveroldali jobokban maradhat.
-- [ ] `get_supabase()` deprecated alias fokozatos kivezetése és minden hívó explicit besorolása.
-- [ ] `task_actions` auditírás és felhasználói JWT/RLS együttműködésének valós tesztelése.
-- [ ] Jóváhagyás művelethez kötése, egyszer használhatóság, lejárat és replay-védelem; az egyszerű `approved=True` önmagában nem biztonsági bizonyíték.
-- [ ] E-mail-küldési mellékhatások role-, approval- és szerveroldali kapcsolóvédelmének végponttól végpontig tesztelése.
-- [ ] Nincs tenant izoláció: a jelenlegi role modell egyetlen közös workspace-re vonatkozik. Több ügyfél kiszolgálása előtt tenant adatmodell és RLS kell.
-- [ ] Audit hash-lánc nem WORM: DB-tulajdonossal szembeni megváltoztathatatlanság, külső hash-ankor, retention/jogi hold és független riasztás nincs kialakítva.
-- [ ] Gemini, SMTP, IMAP és ütemezett proaktív workflow éles külső integrációinak bizonyítása kontrollált tesztekkel.
-- [ ] Rendszeres restore-gyakorlat, backup retention és riasztási/üzemeltetési runbook.
+**Elfogadási kritérium:** minden szerepkör minden táblaműveletére dokumentált allow/deny mátrix; a valós Supabase tesztkörnyezetben a negatív tesztek is sikeresek; nincs service-role fallback felhasználói útvonalon; audit append hibája esetén a védett művelet nem fut tovább.
 
-## 4. Tesztelési hiányok és minőségi kapuk
+**Production Auth flag: OFF marad.** Bekapcsolás csak külön jóváhagyott change terv és az összes P0 kapu teljesülése után lehetséges.
 
-- [x] A teljes Python/AppTest/browser eredmény és coverage riport rögzítése a `45463032568` futásból.
-- [x] Új dashboard Auth/session helper tesztek CI-validálása; `dashboard.py` coverage 82.27% (további UI ágak még javíthatók).
-- [ ] Valós Supabase Auth/JWT/RLS integrációs tesztek (mockolt teszt nem elegendő).
-- [ ] Minden role és CRUD művelet negatív tesztje, beleértve az RPC-ket, view-kat és közvetlen API hozzáférést.
-- [ ] E-mail és task jóváhagyási replay/race/failure tesztek.
-- [ ] Backup workflow fail-closed konfigurációs, S3 round-trip és restore utáni integritási teszt.
-- [ ] CI artifactok (coverage XML, screenshotok) megőrzési és hozzáférési szabályainak ellenőrzése.
+## 3. P1 – alkalmazás és üzleti folyamatok
 
-## 5. Kötelező élesítési sorrend
+### P1.1 – Dashboard Auth átállás
 
-1. PR #13 kódszintű review, teljes CI és dokumentációs konzisztencia.
-2. Production schema/migration history reconciliation lezárása.
-3. AWS production backup stack és friss, visszaellenőrzött titkosított mentés.
-4. Pontos audit → hash-chain → shared-workspace RBAC migrációs sorrend izolált PostgreSQL 17 próbája.
-5. Valós Auth/JWT/RLS teszt meglévő, engedélyezett izolált Supabase környezetben.
-6. Külön production change terv: előfeltételek, karbantartási ablak, rollback/forward recovery, ellenőrző SQL.
-7. A már megadott általános engedély mellett is a pontos éles SQL/migrációs csomag külön, közvetlen jóváhagyása és friss backup után szabad élesíteni.
-8. Read-only post-deploy ellenőrzés, teszt, monitorozás, dokumentáció és csak ezután a feature flag bekapcsolása.
+- [ ] Minden chat-, analitika-, admin- és exportadatútvonal explicit user-JWT vagy szűk szerveroldali job besorolást kap.
+- [ ] Service-role kliens kizárólag szerveroldali, minimális jogosultságú háttérműveletben használható.
+- [ ] A `get_supabase()` kompatibilitási alias hívóinak leltározása és fokozatos kivezetése.
+- [ ] Login, logout, session refresh/expiry, role demotion, admin bootstrap end-to-end tesztje.
 
-## 6. Kapcsolódó dokumentumok
+**Elfogadási kritérium:** minden DB-hívó dokumentált principal- és jogosultsági kontextussal rendelkezik; Auth módban hiányzó/lejárt session esetén nincs legacy/service-role fallback; regressziós teszt védi ezt.
+
+### P1.2 – Jóváhagyás és üzleti mellékhatások
+
+- [ ] `task_actions` audit + user-JWT/RLS útvonal valós integrációs tesztje.
+- [ ] Jóváhagyás egyszer használható, lejáró, userhez és művelet-payload hashhez kötött legyen.
+- [ ] Párhuzamos kérés, replay, race condition és hálózati hiba tesztje.
+- [ ] E-mail küldés role-, approval- és szerveroldali feature flag védelme.
+- [ ] Leadkutatás, célpiacmódosítás és minden módosító workflow jogosultságtesztje.
+- [ ] Sikertelen auditírás esetén a külső mellékhatás blokkolása.
+
+**Elfogadási kritérium:** minden mellékhatás előtt szerveroldali jogosultság és audit; egy jóváhagyás legfeljebb egyszer fogyasztható; párhuzamos/replay próbák nem eredményeznek dupla műveletet.
+
+### P1.3 – Külső integrációk
+
+- [ ] Gemini timeout/retry/quota/hibaválasz és titok-redakciós teszt.
+- [ ] SMTP/IMAP tesztfiókkal küldés/fogadás, retry/idempotencia és hibakezelés.
+- [ ] Ütemezett workflow-k deduplikációja, lockolása és auditálása.
+- [ ] E-mail kézbesítési eredmény bizonyítása tesztcímzettel; éles címzett csak külön engedéllyel.
+
+**Elfogadási kritérium:** minden külső hívás timeouttal, korlátozott retry-val, redaktált loggal és megfigyelhető audit eseménnyel működik; kézbesítés csak kontrollált tesztből állítható.
+
+## 4. P2 – üzemeltetés és hosszú távú biztonság
+
+- [ ] Restore-gyakorlat és RPO/RTO célok meghatározása.
+- [ ] Backup retention, riasztások, least-privilege AWS role és artifact hozzáférés.
+- [ ] Incidenskezelési, kulcsrotációs és helyreállítási runbook.
+- [ ] Több-tenant adatmodell és tenant-szintű RLS – csak több ügyfél kiszolgálása előtt.
+- [ ] Audit hash-chain külső hash-ankorral/WORM tárolással, retention és legal hold.
+- [ ] Független riasztás auditlánc-megszakadásra és jogosultsági anomáliákra.
+- [ ] Függőségek és GitHub Actions verziók rendszeres frissítése, SBOM és sebezhetőség-ellenőrzés.
+
+## 5. Tesztelési és release kapuk
+
+- [x] Aktuális head teljes Python/AppTest/browser CI: 762 passed, 3 skipped.
+- [x] Aktuális head line coverage: 96.47%, 80% küszöb felett.
+- [x] PostgreSQL 17 + pgTAP integráció és lokális age backup/restore round-trip.
+- [ ] Valós Supabase Auth/JWT/RLS integráció engedélyezett izolált környezetben.
+- [ ] Production encrypted backup + külön DB restore bizonyítéka.
+- [ ] Production migrációs drift feloldása és független SQL review.
+- [ ] E-mail és task approval race/replay/failure integrációs tesztek.
+- [ ] Üzemeltetési runbook és restore-gyakorlat.
+
+## 6. Production állapot – legutóbbi ismert read-only bizonyíték
+
+A 2026-11-24 18:51 UTC read-only revalidation dokumentált eredménye:
+- 8 public tábla; mindegyiken RLS engedélyezve.
+- 0 alkalmazott RLS policy.
+- 0 Supabase Auth-felhasználó.
+- Hiányzó `audit_chain_state`.
+- A `logs` táblában 12 ellenőrzött strukturált auditmezőből 0 található.
+
+Ez történeti read-only bizonyíték, nem friss lekérdezés. A következő production ellenőrzés kizárólag read-only lehet, és nem járhat migrációval vagy Auth flag változtatással.
+
+## 7. Kötelező végrehajtási sorrend
+
+1. PR #13 kódreview, CI és dokumentáció konzisztencia.
+2. Read-only schema snapshot és migration drift reconciliation.
+3. Izolált PostgreSQL 17 migrációs dry-run + recovery próba.
+4. AWS production backup és külön adatbázisba restore bizonyítása.
+5. Valós Auth/JWT/RLS teszt meglévő, engedélyezett izolált környezetben.
+6. P1 üzleti műveletek és külső integrációk validációja.
+7. Pontos production change terv, rollback/forward recovery, karbantartási ablak és ellenőrző SQL.
+8. Minden éles SQL/migráció/flag módosítás előtt külön, kifejezett jóváhagyás.
+9. Read-only post-deploy ellenőrzés, monitorozás és dokumentációfrissítés.
+
+## 8. Kapcsolódó dokumentumok
 
 - [Teljes műszaki dokumentáció](JARVIS_DOCUMENTATION.md)
 - [Auth/RBAC production reconciliation](AUTH_RBAC_PRODUCTION_RECONCILIATION.md)
 - [Supabase klienshozzáférési leltár](SUPABASE_CLIENT_ACCESS_INVENTORY.md)
 - [Production migration recovery](production-migration-recovery.md)
-- [Friss production read-only revalidation](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md)
+- [Production read-only revalidation](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md)
 - [PR #13 CI validation](PR13_CI_VALIDATION_2026-11-24.md)
 - [PR #13](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/13)
 
-**Production állapot:** a friss, 2026-11-24 18:51 UTC read-only revalidation ugyanazt igazolta: 8 public tábla, mindegyiken RLS engedélyezve, 0 policy; `auth.users` üres; `audit_chain_state` hiányzik; a 12 ellenőrzött strukturált audit oszlopból 0 található a `logs` táblában. Részletek: [PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md](PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md).
-
-
-## CI státusz pontosítás (2026-11-24)
-
-A `45462249173` futás végül nem lett teljesen zöld: a PostgreSQL 17
-integrációs job sikeres, a Python `test` jobot a kombinált
-unit/AppTest/browser tesztlépés közben megszakították (cancelled), amikor
-újabb commitok kerültek a PR ágra. A feltöltött, de megszakított futáshoz
-tartozó coverage XML 3,500/3,732 sort (93.78%) mutat, ebből
-`dashboard.py` 82.27%. Ez csak részleges/provizórikus mérés, nem tekinthető
-sikeres CI-nek és nem helyettesíti a teljes pytest futás coverage riportját.
-
-Ez a CI-futás történeti állapot. A későbbi teljesen zöld futás a [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568), amely 718 passed / 3 skipped és 93.78% coverage eredményt adott. A legutóbbi audit-export és jóváhagyáslejárati módosítások újabbak ennél, ezért azok a legfrissebb branch headen külön CI-ellenőrzést igényelnek.
-
-
-## Legfrissebb CI – teljesen zöld (2026-11-24)
-
-A [45463032568](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45463032568)
-futás mindkét jobja sikeres: 718 teszt passed, 3 skipped, 93.78% line
-coverage (3,500/3,732). A PostgreSQL 17 audit/RBAC pgTAP és titkosított
-lokális backup/restore integráció is zöld. A coverage és 27 UI screenshot
-artifact elérhető a workflow-ban.
-
-Ezzel a repo CI-validációs kapu teljesült az adott commitra. Továbbra is
-nyitott blokkoló a production backup, a remote migrációs előzmények
-helyreállítása/egyeztetése, valamint a valós Auth/JWT/RLS ellenőrzés.
-
-
-## Új kódszintű biztonsági javítások – CI-re vár (2026-11-24)
-
-- A chatben előkészített task, célpiac, leadkutatás és e-mail műveletek
-  jóváhagyása most 5 perc után lejár, egyszer fogyasztható, és az aktuális
-  Supabase Auth felhasználóhoz kötött. A legacy belépésnél a bejelentkezési
-  időbélyeg a kötés alapja; azonosítható principal nélkül a jóváhagyás tiltott.
-- A külön audit-admin session refresh most megköveteli, hogy a frissített
-  Supabase Auth user ID egyezzen az eredetileg bejelentkezett user ID-val.
-- Az audit CSV export pending/success/blocked/unknown eseményei a külön
-  ellenőrzött admin user-JWT klienssel íródnak, nem a legacy service-role
-  dashboard klienssel. A pending export 5 perc után lejár, és admin
-  felhasználóhoz kötött.
-- Új regressziós tesztek fedik le a jóváhagyás lejáratát, egyszeri
-  felhasználását, user-váltást, audit-session identity substitutiont és az
-  audit export JWT-kliens szerződését.
-- Ezek a változások a korábbi zöld CI után kerültek be; végleges eredményüket
-  a legfrissebb PR headen kell megvárni.
-
-**Megmaradó korlát:** az alkalmazás UI approval továbbra sem kriptográfiai
-aláírás és nem helyettesíti az adatbázis RLS-t vagy a szerveroldali RBAC-ot.
-A production RLS policy-k még nincsenek alkalmazva.
-
-
-### Rendszerdiagnosztika service-role útvonal lezárása
-
-A dashboardból hívható `run_self_diagnostics()` Auth módban már
-`system.diagnostics` admin-only permissiont követel, a frissen ellenőrzött
-user-JWT klienst használja, és nem kérdez rá a belső service-only táblákra.
-Hiányzó vagy nem admin session esetén minden DB/Gemini próba előtt leáll.
-A legacy shared-password mód korábbi read-only működése megmaradt.
-A változást tesztek fedik le; a végleges CI-eredmény a legfrissebb branch
-headre még szükséges.
-
-
-## Történeti migrációk forrásának visszanyerése – elvégzett
-
-A remote Supabase migration ledger `statements` oszlopa tárolta az öt hiányzó
-migráció pontos SQL-utasításait. Ezeket read-only módon visszanyertük, és
-mind az öt fájlt visszaállítottuk a `supabase/migrations/` könyvtárba.
-Új teszt ellenőrzi a fájlok jelenlétét és a ledgerből visszanyert fő SQL
-utasításokat. A CI integrációs workflow mostantól a repo-only 20261117
-migrációkkal együtt, sorrendben futtatja a teljes történeti → audit → RBAC
-láncot PostgreSQL 17-en.
-
-Ez a feladat teljesült, de a production migrációs drift csak a repo-only
-20261117 verziók, a live schema snapshot és a későbbi audit/RBAC változások
-pontos összevetése után tekinthető lezártnak. Production továbbra is
-változatlan; a titkosított backup kapu továbbra is kötelező.
-
-## Latest verified code and CI state — 2026-11-24 19:12 UTC
-
-The latest PR head is 50ff914a67aa48906a96c1abe5983bb2b826dff3.
-Workflow [45467211381](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45467211381) is fully green: **734 passed, 3 skipped, 93.67% coverage**. Both the Python/AppTest/browser job and PostgreSQL 17 integration job passed.
-
-### Closed repository-side gaps
-
-- [x] Five historical migration SQL sources recovered exactly from the remote ledger's stored statements and restored as versioned migration files.
-- [x] CI replays the two repository-only 20261117 migrations, the five recovered historical migrations, and the audit/hash-chain/RBAC migrations in order against the production-shape PostgreSQL 17 fixture.
-- [x] Audit-admin session refresh is bound to the original verified user ID.
-- [x] Pending chat operations are one-use, expire after five minutes and are bound to the authenticated principal; a missing principal fails closed.
-- [x] Audit CSV export uses the verified admin user-JWT client, is user-bound and expires after five minutes; invalid/expired export is discarded and audited as blocked when the append path is available.
-- [x] Dashboard system diagnostics require admin-only system.diagnostics permission in Auth mode, use the verified user JWT, and do not fall back to service-role or probe internal service-only tables.
-- [x] Schema bootstrap includes the legacy posts table and production-compatible integer identity settings ID plus unique key.
-- [x] Coverage and screenshot artifact retention is explicitly limited to 14 and 7 days.
-
-### Still blocked outside the repository
-
-- The remote ledger and repository still differ for the two 20261117 migration versions: their effects are present in production, but those versions are not recorded in the remote ledger. The five previously missing historical sources are now recovered; this does not by itself reconcile the two repo-only versions.
-- Production has no public RLS policies, no Auth users, no audit_chain_state and no structured audit columns on logs. The audit/RBAC migrations remain unapplied.
-- No verified encrypted production backup exists yet; AWS backup resources and required GitHub Actions secrets/variables are not confirmed/deployed.
-- Real Supabase Auth/JWT/RLS behavior requires an already-existing, explicitly authorized isolated environment. Production must not be used as a test environment.
-- The shared-workspace RBAC model is not tenant isolation; audit hash-chain integrity is not WORM against a database owner; cross-process approval race prevention and external Gemini/SMTP/IMAP integration tests remain open.
-
-See PRODUCTION_REVALIDATION_2026-11-24_1851UTC.md and SUPABASE_MIGRATION_DRIFT_RECONCILIATION.md.
+**Biztonsági állapot:** production Supabase nem módosult; production Auth flag OFF; PR #13 nem merge-ölhető automatikusan.

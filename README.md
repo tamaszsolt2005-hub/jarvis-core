@@ -68,8 +68,4 @@ követhetők. A CI-eredmények és azok korlátai:
 - [Hátralévő feladatok és élesítési kapuk](docs/REMAINING_WORK_AND_RELEASE_GATES.md)
 - [Legfrissebb PR #13 CI-eredmények](docs/PR13_CI_VALIDATION_2026-11-24.md)
 
-A legutóbbi teljesen zöld baseline CI 734 passed / 3 skipped és 93.67% coverage
-eredményt adott egy korábbi commiton. A jelenlegi PR #13 head teljes CI-je még
-fut; a státusz és az eredmények a [PR #13 CI-validációs naplóban](docs/PR13_CI_VALIDATION_2026-11-24.md)
-követhetők. A CI nem helyettesíti a production backupot vagy a valós Supabase
-Auth/RLS validációt.
+A jelenlegi PR #13 head (`e6736101405180c220d6b96b5a7a3c1d890813e0`) teljesen zöld CI-eredménye: **762 passed, 3 skipped, 96.47% coverage**. A PostgreSQL 17 + pgTAP és izolált age backup/restore integráció szintén sikeres. Ez nem helyettesíti a production backupot vagy a valós Supabase Auth/RLS validációt. Részletek a [PR #13 CI-validációs naplóban](docs/PR13_CI_VALIDATION_2026-11-24.md).

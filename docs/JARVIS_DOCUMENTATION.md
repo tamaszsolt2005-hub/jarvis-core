@@ -1,7 +1,8 @@
 # JARVIS – teljes projekt- és műszaki dokumentáció
 
-> **Felülvizsgálat:** 2026-11-23  
-> **Vizsgált main commit:** `8650ce6b22fc7669c58cb3241730a0ab49b55342`  
+> **Felülvizsgálat:** 2026-11-25  
+> **Vizsgált fejlesztési branch:** `feat/supabase-auth-rbac-foundation`  
+> **Igazolt branch commit:** `e6736101405180c220d6b96b5a7a3c1d890813e0`  
 > **Repository:** `tamaszsolt2005-hub/jarvis-core`
 
 Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A forráskód, a Supabase-migrációk és a GitHub Actions workflow-k az elsődleges technikai bizonyítékok. A dokumentum külön választja a kódban létező funkciót, a tesztelt működést és az éles környezetben ténylegesen igazolt állapotot.
@@ -20,6 +21,16 @@ Ez az egyetlen részletes, ember által olvasható projekt-dokumentáció. A for
 10. [Tesztelés és bizonyítékok](#10-tesztelés-és-bizonyítékok)
 11. [Ismert hibák és blokkolók](#11-ismert-hibák-és-blokkolók)
 12. [Fejlesztési sorrend](#12-fejlesztési-sorrend)
+
+
+
+## Aktuális állapot és bizonyítékok – 2026-11-25
+
+A fejlesztési branch aktuális commitja `e6736101405180c220d6b96b5a7a3c1d890813e0`. A [45571463053 CI-futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) teljesen sikeres: **762 passed, 3 skipped, 96.47% Python line coverage**. A PostgreSQL 17 + pgTAP integráció, az izolált age backup/restore round-trip, CloudFormation-validáció, Playwright telepítés és compileall is sikeres.
+
+Ez a repository és izolált CI környezet bizonyítéka. Nem igazolja a production AWS/S3 mentést, production restore-t, valós Supabase Auth/JWT/RLS viselkedést vagy éles e-mail kézbesítést. A production állapot ismert read-only vizsgálata szerint RLS policy és Auth user még nincs telepítve; a production Auth flag ezért OFF marad. A PR #13 nyitott és draft.
+
+A végrehajtandó feladatok, felelősségi területek és elfogadási kritériumok a [fennmaradó feladatok és release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak. A dokumentum a CI-ben igazolt állapotot elkülöníti a productionben még nem bizonyított képességektől.
 
 ## 1. Projektáttekintés
 

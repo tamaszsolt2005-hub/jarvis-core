@@ -179,3 +179,21 @@ The run on PR head `3997f938cd3d3be497e62b9bed9bd4042372d85b` completed with **7
 3. **Dashboard helpers (6 tests):** helper tests patch `dashboard.report_error`, but the module-level seam had been removed during the module-namespace refactor. The compatibility delegate restores that supported seam for safe database reads and website-profile transport/parser reporting, including when the reporter itself raises.
 
 The changes are test-isolation and dependency-seam repairs; they do not weaken audit authorization, export expiry, logout cleanup, email approval, or fail-closed behavior. A new CI run on the resulting commit is required before these fixes can be called verified. No production Supabase data or configuration was changed.
+
+
+## Aktuális head – teljes CI-igazolás (2026-11-25)
+
+A branch head `e6736101405180c220d6b96b5a7a3c1d890813e0` a [45571463053 futásban](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053) teljesen zöld eredményt adott.
+
+- Python / Streamlit / AppTest / browser job: **success**.
+- Tesztek: **762 passed, 3 skipped**.
+- Python line coverage: **96.47%** (3,799 statement, 134 missed; 80% minimum).
+- `compileall`, CloudFormation-validáció és Playwright Chromium/Firefox/WebKit telepítés: **success**.
+- PostgreSQL 17 integráció: **success**.
+- Audit/RBAC migrációk és pgTAP security tesztek: **success**.
+- Age titkosítású backup/restore round-trip külön, izolált CI PostgreSQL adatbázisban: **success**.
+- Coverage artifact: [15002127458](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571463053/artifacts/15002127458).
+
+A futás a `e6736101405180c220d6b96b5a7a3c1d890813e0` commitot tesztelte, így igazolja a korábbi 20 teszthiba célzott javítását. Egy másik, azonos headre indított [45571470452 futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45571470452) a dokumentáció frissítésekor még futott; a zöld 45571463053 ettől függetlenül teljes és sikeres.
+
+**Fontos korlátok:** ez repository CI és izolált PostgreSQL integráció. Nem production backup, nem AWS/S3 deploy/restore, nem valós Supabase Auth/JWT/RLS teszt, és nem bizonyít SMTP/IMAP/Gemini éles kézbesítést. Production Auth flag OFF marad; production adatbázis nem módosult; PR #13 nyitott és draft.
