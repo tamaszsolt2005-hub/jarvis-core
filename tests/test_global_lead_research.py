@@ -23,6 +23,9 @@ class Query:
     def limit(self, _limit):
         return self
 
+    def order(self, _column):
+        return self
+
     def range(self, start, end):
         self.start = start
         self.end = end
