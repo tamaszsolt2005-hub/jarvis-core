@@ -75,7 +75,6 @@ jobs:
           echo "AGE_IDENTITY_FILE=$identity" >> "$GITHUB_ENV"
 
       - name: Install PostgreSQL 17 client, age and AWS CLI
-      - name: Install PostgreSQL 17 client, age and AWS CLI
         if: steps.config.outputs.ready == 'true'
         shell: bash
         run: |
