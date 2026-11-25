@@ -220,15 +220,15 @@ jobs:
           (
             cd "$cli_dir"
             supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
-            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
             # Reverted removes the version row; applied inserts it. Reapply so
             # the fixture ends in the intended reconciled state.
             supabase migration repair 20261117 --status reverted --remote="$drift_url" --yes
-            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 5 FROM supabase_migrations.schema_migrations" | grep -qx t
             supabase migration repair 20261117 --status applied --remote="$drift_url" --yes
-            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --set ON_ERROR_STOP=1 \
+            PGPASSWORD=postgres psql "$drift_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
               --command "SELECT count(*) = 6 FROM supabase_migrations.schema_migrations" | grep -qx t
           )
           # Add the second same-version file only for the migration-list
