@@ -1,16 +1,16 @@
 # JARVIS – projektállapot, hátralévő feladatok és lefedettség
 
-**Állapotfelvétel:** 2026-11-25 (frissítve a PR #20 merge és backup/restore után)  
+**Állapotfelvétel:** 2026-11-25 (PR #23 CI és coverage run alapján frissítve)  
 **Repository:** `tamaszsolt2005-hub/jarvis-core`  
-**Main:** `71d6a1cdc755607a9598bf9b2c19c50730f5e036` (PR #21 squash merge)  
+**Main:** `1f401d0dacb1333c3050829fa710197dfa523c6e` (PR #22 squash merge; PR #23 még nyitott)  
 **Production Supabase:** `kiutreccucbegskxowek` (PostgreSQL 17.11)
 
 > Ez a jelentés külön kezeli a kódbeli implementációt, CI-t, production backupot, production sémamódosítást és deployt. A sikeres backup/restore nem jelent production migrációt vagy deployt.
 
 ## 1. Vezetői összefoglaló
 
-- PR #18, #19 és #20 squash merge-elve a `main` ágba.
-- Aktuális main: `2e2a97e`; main CI run `45655131500` sikeres.
+- PR #18–#22 squash merge-elve a `main` ágba; a dokumentumfrissítés és SMTP hard-disable PR #23 még nem került a mainbe.
+- PR #23 head `58d9e33eaed1ac826884a00848999be8584121c2`; push CI `45658587888` teljesen sikeres, PR-triggerelt run `45658617612` az utolsó ellenőrzéskor még futott.
 - PR #20 javította a S3 objektumellenőrző Python-blokk behúzását.
 - **Production backup + ellenőrzés + restore: sikeres**, workflow-dispatch run `45655512387`.
 - A backup futás minden lépése sikeres: age titkosított logikai dump, privát S3 feltöltés, SSE-KMS és KMS kulcs ellenőrzés, S3 objektum letöltés, age visszafejtés és manifest SHA-256 ellenőrzés, külön PostgreSQL 17 restore, 8 public tábla és kijelölt rekordszámok ellenőrzése.
@@ -50,7 +50,7 @@ Hivatkozások: [Main CI](https://github.com/tamaszsolt2005-hub/jarvis-core/actio
 - PostgreSQL 17 CI migrációs, pgTAP, katalógus és backup–restore integrációs tesztek.
 - A tényleges production archívum külön PostgreSQL 17 restore próbája sikeres a run #45655512387-ben.
 
-A legutóbbi korábban mért coverage: 90.75% line coverage, 759 passed / 3 skipped; ez a PR #20 utáni friss runból még nem újramért adat. Branch coverage nincs mérve. Korábbi artifact: [coverage XML](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45652611537/artifacts/15041113174).
+A legfrissebb coverage a PR #23 head commitján futó sikeres push CI-ből származik (`45658587888`): 90.75% line coverage (3 729 / 4 109 sor), 759 passed / 3 skipped; a 80%-os küszöböt 10.75 százalékponttal meghaladja. Branch coverage nincs mérve. [Coverage artifact](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888/artifacts/15043089238).
 
 ## 5. Hátralévő feladatok és sorrend
 
@@ -118,3 +118,28 @@ Kötelező sorrend:
 - A fail-closed audit és SMTP-állapotkezelés regressziós tesztjei léteznek, de ezek izolált unit/CI tesztek; nem helyettesítik a production schema és a külső szolgáltató validálását.
 
 **Változtatási határ:** az audit során nem történt production DDL/DML, migration repair, GRANT/REVOKE, RLS-módosítás, Auth provisioning vagy deploy. A következő lépés kizárólag drift-egyeztetés, SQL review és production-shape migrációs replay; éles módosítás külön jóváhagyás nélkül továbbra sem végezhető.
+
+
+## 9. Frissített állapot – 2026-11-25, PR #23 és coverage
+
+**Repository / CI**
+- Main a PR #22 merge után: `1f401d0dacb1333c3050829fa710197dfa523c6e`.
+- PR #23 (`fix/disable-outbound-email-until-reviewed`) head: `58d9e33eaed1ac826884a00848999be8584121c2`; a PR még nyitott, nem merge-elt.
+- Push workflow [45658587888](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888): mindkét job sikeres, beleértve a teljes unit/AppTest/browser teszteket és a PostgreSQL 17 backup–restore integrációt.
+- PR workflow [45658617612](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658617612): backup–restore job sikeres; a test job az utolsó ellenőrzéskor még futott. Merge előtt ennek is sikeresnek kell lennie.
+
+**Aktuális kódlefedettség – PR #23 head, run 45658587888**
+- Line coverage: **90.75%** = 3 729 / 4 109 sor; 380 sor nem fedett.
+- Tesztek: **759 passed, 3 skipped**; a konfigurált minimum 80%, tehát +10.75 százalékpont a küszöb felett.
+- Branch coverage nincs konfigurálva/mérve; a 90.75% kizárólag line coverage.
+- Alacsony lefedettség: `scripts/supabase_auth_rls_smoke.py` 17% (42/243), `task_actions.py` 81% (136/167), `proactive_monitor_job.py` 89% (8/9), `global_lead_research_job.py` 93% (25/27), `scripts/supabase_backup.py` 93% (253/273), `dashboard.py` 94% (867/927). Következő tesztelési prioritás az Auth/RLS smoke mockolt negatív/hibakezelési ágai, majd a task műveletek szélső esetei.
+- [Coverage artifact](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45658587888/artifacts/15043089238).
+
+**Öt fejlesztési terület – vezetői státusz**
+1. Megbízhatóság és biztonság: approval/idempotencia és backup–restore CI-vel igazolt; SMTP hard-disable PR #23-ban elkészült, de még nem main. Külső SMTP provider idempotencia és teljes production audit fail-closed bizonyíték nincs.
+2. Supabase/jogosultság: migrációk és RPC-k kódban/izolált CI-ben előkészítve; production drift és hiányzó private schema/RPC-k miatt éles integráció blokkolt. Nincs production deploy vagy migráció.
+3. Önállóbb üzleti asszisztens: leadkutatás, scoring, proaktív monitor és javaslati modulok részben implementáltak; minőségi benchmark, visszamérés és production bizonyíték hiányzik.
+4. Üzleti munkafolyamatok: task és approval építőelemek implementáltak/teszteltek; teljes lead→eredmény E2E, tartós folyamatállapot és üzleti KPI-k nincsenek lezárva.
+5. Tudás és hosszú távú memória: memória és analitika alapjai implementáltak; forrásolt, jogosultságkezelt, életciklus-kezelt tudásréteg és minőségi mérés hiányzik.
+
+A PR #23 hard-disable-je csak a PR ágban él: a main/production SMTP állapotát nem változtatja meg merge előtt. Production írás vagy deploy nem történt.
