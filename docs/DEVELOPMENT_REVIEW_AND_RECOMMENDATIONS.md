@@ -6,10 +6,10 @@
 ## 1. Megbízhatóság és biztonság
 
 1. **Backup workflow javítása és igazolása – KÉSZ.** A CLI importútvonal, S3 shell quoting és Python indentation hibák javítva PR #18–#20-ban. A `main` CI `45655131500` sikeres. A production backup workflow `45655512387` minden lépése sikeres: titkosított dump, S3/SSE-KMS feltöltés és ellenőrzés, letöltés/visszafejtés/hash, külön PostgreSQL 17 restore és táblainventár/rekordszám ellenőrzés. Ez a backup gate teljesült.
-2. **Task approval race.** Az egyszer használatos jóváhagyás jelenlegi UI-session kezelése nem garantál atomikus, több processz közötti one-use fogyasztást. Vezess be DB-szintű atomikus consume műveletet, lejáratot, principal- és payload-kötést, konkurens teszteket.
+2. **Task approval race – kódoldali megoldás kész, productionre nem telepített.** A DB-szintű atomikus consume, expiry, principal/payload kötés, replay védelem és concurrency tesztek implementálva vannak a migrációban/RPC-ben. A production private schema és RPC-k hiányoznak; deploy és live smoke külön release gate.
 3. **Teljes műveleti idempotencia.** A task approval/execute RPC operation ID-val és concurrency-védelemmel implementált és tesztelt. A task update/close teljes műveleti lefedettségét és a külső szolgáltatók idempotenciáját még külön igazolni kell.
 4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
-5. **Külső e-mail integritás.** SMTP unknown kimenetel után nincs bizonyított szolgáltatói idempotencia; az automatikus retry duplikált küldést okozhat. Kimenő küldés maradjon tiltott, amíg a deduplikáció és a végponttól végpontig tesztek nincsenek készen.
+5. **Külső e-mail integritás.** PR #23-ban a kimenő SMTP hard-disable kódszinten elkészült (fix false flag, azonnali RuntimeError, workflow sender step letiltva), de a PR még nem merge-elt; a main/production státusz ettől még nem változott. SMTP provider idempotencia és live E2E továbbra sincs bizonyítva.
 
 ## 2. Supabase és jogosultságkezelés
 
@@ -51,3 +51,13 @@
 - Egy változtatás = célzott kód + teszt + releváns dokumentáció.
 - Production változtatás csak a külön dokumentált release gate-ek és konkrét jóváhagyás után.
 - SMTP kimenő küldés maradjon tiltva, amíg az idempotencia és a végponttól végpontig tesztek nem teljesek.
+
+
+## Coverage-prioritás – 2026-11-25
+
+A PR #23 head push CI (`45658587888`) 759 passed / 3 skipped és 90.75% line coverage (3 729/4 109) eredményt adott. A branch coverage nincs mérve. A célzott tesztelési sorrend:
+1. `scripts/supabase_auth_rls_smoke.py`: 17% (42/243) – mockolt Auth/JWT/RLS hibautak, invalid/expired token, hiányzó konfiguráció, timeout és cleanup ágak.
+2. `task_actions.py`: 81% (136/167) – approval hiány/lejárat/rossz principal, RPC hibák, idempotens ismétlés és audit-hiba.
+3. `scripts/supabase_backup.py`: 93% (253/273) és `dashboard.py`: 94% (867/927) – hibakezelés, rollback/unknown kimenetek, külső szolgáltatás-határok.
+
+A 90.75% line coverage jó általános alap, de nem helyettesíti az ág-lefedettséget, a live integration teszteket vagy a production smoke-ot.
