@@ -1,6 +1,11 @@
 name: JARVIS encrypted database backup
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/database-backup.yml"
+      - "scripts/supabase_backup.py"
   schedule:
     - cron: "15 2 * * *"
   workflow_dispatch:
