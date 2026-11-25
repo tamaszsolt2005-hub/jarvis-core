@@ -111,6 +111,62 @@ jobs:
           container_id="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -n1)"
           test -n "$container_id"
           docker exec -u root "$container_id" bash -lc 'apt-get update && apt-get install --yes postgresql-17-pgtap postgresql-contrib-17'
+      - name: Validate 20261117 migration drift and legacy data preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          drift_url="postgresql://postgres:postgres@127.0.0.1:5432/migration_drift_test"
+          PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres migration_drift_test
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/tests/migration_drift_recovery.test.sql
+          # Replaying both missing-ledger migrations is safe only because the
+          # fixture proves their effects already exist and the SQL is additive.
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          # Repeat to prove idempotence against an already-upgraded schema.
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_leads_website.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261117_add_logs_level.sql
+          PGPASSWORD=postgres psql "$drift_url" --set ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE
+            versions integer;
+            lead_website text;
+            log_level text;
+            setting_id_type text;
+          BEGIN
+            SELECT count(*) INTO versions FROM public.jarvis_migration_ledger_fixture;
+            IF versions <> 5 THEN RAISE EXCEPTION 'remote ledger fixture changed'; END IF;
+            SELECT website INTO lead_website FROM public.leads
+             WHERE id = '80000000-0000-0000-0000-000000000011';
+            IF lead_website <> 'https://example.invalid' THEN
+              RAISE EXCEPTION 'legacy lead row was not preserved';
+            END IF;
+            SELECT level INTO log_level FROM public.logs
+             WHERE id = '80000000-0000-0000-0000-000000000012';
+            IF log_level <> 'warning' THEN RAISE EXCEPTION 'legacy log row was not preserved'; END IF;
+            IF (SELECT count(*) FROM public.settings WHERE key='legacy_key') <> 1 THEN
+              RAISE EXCEPTION 'legacy settings row was not preserved';
+            END IF;
+            IF (SELECT count(*) FROM public.posts WHERE content='legacy post') <> 1 THEN
+              RAISE EXCEPTION 'legacy posts row was not preserved';
+            END IF;
+            SELECT data_type INTO setting_id_type
+              FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='settings' AND column_name='id';
+            IF setting_id_type <> 'integer' THEN
+              RAISE EXCEPTION 'legacy settings id type changed: %', setting_id_type;
+            END IF;
+            IF pg_get_serial_sequence('public.settings','id') IS NULL THEN
+              RAISE EXCEPTION 'legacy settings sequence was lost';
+            END IF;
+            IF (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='leads' AND column_name='website') <> 1
+               OR (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='logs' AND column_name='level') <> 1 THEN
+              RAISE EXCEPTION 'expected additive columns missing or duplicated';
+            END IF;
+          END $;
+          SQL
       - name: Run structured audit migrations and pgTAP security tests
         shell: bash
         run: |
