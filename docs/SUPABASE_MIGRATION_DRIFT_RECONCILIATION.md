@@ -178,3 +178,44 @@ This repository work may prepare and test the exact reconciliation proposal. It 
 not execute that proposal against the existing Jarvis Supabase project. Any future
 production ledger repair or schema migration requires a separate approval naming
 the exact operation and SQL. Production Auth remains OFF.
+
+## Local migration-drift regression coverage added (2026-11-25)
+
+Commits:
+- `c9cc6c00eac8b96996420b708cf068dfddd56351`: added
+  `supabase/tests/migration_drift_recovery.test.sql`.
+- `d995fe5e577e7bdc455aec67083c6fd894f982c4`: added a dedicated PostgreSQL 17
+  CI step, "Validate 20261117 migration drift and legacy data preservation".
+
+The new CI fixture creates a separate local database and seeds the five observed
+remote ledger versions. It separately represents the already-present effects of
+`20261117_add_leads_website.sql` and `20261117_add_logs_level.sql`, then replays
+both migrations twice. Assertions check:
+- the five seeded ledger rows are unchanged (the test does not invent a repair);
+- existing lead website and log level values survive;
+- the legacy settings row and posts row survive;
+- `settings.id` remains integer and sequence-backed;
+- the two additive columns remain present after repeated replay.
+
+This specifically proves additive/idempotent schema replay against an already-upgraded
+local fixture. It does **not** prove that the two versions may be inserted into the live
+Supabase migration ledger, nor does it emulate the full Supabase CLI repair command.
+
+### CI status for the new regression step
+
+The push workflow for commit `d995fe5e577e7bdc455aec67083c6fd894f982c4` was queued
+at the time this document was updated:
+https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45586358598
+
+The corresponding PR workflow was pending:
+https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45586327045
+
+Do not mark the new regression test as passed until these runs complete successfully.
+
+### Remaining unresolved work
+
+- Obtain and document authoritative Supabase CLI semantics for reconciling the two
+  historical versions; no live `migration repair` or ledger edit is authorized.
+- Add failure-injection/forward-recovery coverage for the audit and RBAC migrations.
+- Add catalog assertions for grants, function ACLs, owners, policies and trigger state.
+- Keep production read-only, do not create Supabase projects/branches, and keep Auth OFF.
