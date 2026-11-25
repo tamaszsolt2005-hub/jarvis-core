@@ -124,3 +124,47 @@ A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20
 A GitHub repository metadata alapján nincs homepage URL és GitHub Pages sincs engedélyezve. A repository Streamlit `dashboard.py` alkalmazást tartalmaz, de nem tartalmaz igazolt Streamlit Cloud/Railway/Render/Fly/Vercel deployment hivatkozást. A hozzáférhető Railway accountban csak a `VolleyForm` projekt (`volleyform-api` szolgáltatás, `volleyform-api-production.up.railway.app` domain) látható; ez nem JARVIS és nem szabad JARVIS production hostként kezelni. A Supabase projekt URL adatbázis/API végpont, nem alkalmazás-host.
 
 A production host/URL ezért továbbra is **ismeretlen**. A következő lépéshez a tulajdonosnak meg kell adnia a tényleges hostot vagy annak dashboard linkjét. Eddig semmilyen új deploy, domain/DNS, secrets vagy infrastruktúra-módosítás nem történt.
+
+
+## 2026-11-25 – migration ledger reconciliation and full-chain read-only review
+
+A fresh production check was performed against Supabase project `kiutreccucbegskxowek` (PostgreSQL 17.11).
+
+### Reconciled historical ledger entries
+
+The live schema was checked before touching the migration ledger:
+
+- `public.leads.website` exists as nullable `text`, matching `20261117090000_add_leads_website.sql`.
+- `public.logs.level` exists as non-null `text` with default `'info'::text`, matching `20261117100000_add_logs_level.sql`.
+
+Only after those postconditions and the expected migration names were verified, the two missing rows were inserted into `supabase_migrations.schema_migrations`:
+
+- `20261117090000 / add_leads_website`
+- `20261117100000 / add_logs_level`
+
+A fresh `list_migrations` read confirmed both rows, seven total ledger entries, and no duplicate versions. The two schema migrations were **not rerun**. No other production schema, data, grant, RLS, or application change was made.
+
+### Complete repository migration inventory
+
+The branch contains 13 migration files. Seven are now represented in the production ledger; six remain unapplied:
+
+1. `20261120090000_expand_logs_audit_fields`
+2. `20261123093000_admin_audit_access_and_hash_chain`
+3. `20261124130000_shared_workspace_role_access`
+4. `20261125150000_task_creation_idempotency`
+5. `20261125160000_atomic_task_approvals_and_operations`
+6. `20261125170000_enforce_atomic_task_write_privileges`
+
+The earlier 20261117 effects are present and reconciled. The production read-only snapshot confirms the later audit columns, `audit_chain_state`, `tasks.operation_id`, private approval/operation tables, and task RPCs are still absent.
+
+### Dependency and rollout review
+
+- `20261120090000` must precede `20261123093000`, which adds the audit hash-chain schema and trigger.
+- `20261124130000` requires the audit-chain table and the JARVIS workspace tables; it must follow the audit migrations.
+- `20261125150000` adds the task operation key required by `20261125160000`.
+- `20261125160000` depends on the structured audit fields, audit actor field, and task operation key.
+- `20261125170000` removes direct `service_role` task DML. It must remain unapplied until the RPC-enabled application is deployed and a production smoke test proves the new write path works.
+
+The repository directory contains 13 files; there is no `20261124150000` migration file in this branch. Do not invent or ledger an absent migration version.
+
+**Current result:** the two historical ledger gaps are reconciled and verified. The complete file inventory and dependency order are reviewed, but the six later migrations are intentionally not applied. No CI was run, in accordance with the agreed batch-testing workflow. The app host is still unidentified, so the required application deploy/smoke gate for the final privilege-lock migration remains blocked.
