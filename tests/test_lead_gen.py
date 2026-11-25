@@ -316,5 +316,5 @@ def test_csv_duplicate_lookup_passes_escaped_email_to_ilike(tmp_path, monkeypatc
 
     lead_gen.run(str(source))
 
-    assert db.patterns == [r"first\\_last@example.com"]
+    assert db.patterns == [r"first\_last@example.com"]
     assert len(db.inserted) == 1
