@@ -11,8 +11,8 @@
 
 - **PR #18:** összevonva a `main` ágba; merge commit: `0f02a4399df530a6e3b31314e3cd4e7b46da0a2b`.
 - **PR #19:** nyitott, nem merge-ölt javító PR az S3 backup ellenőrzés shell/Python idézőjelezési hibájára. Head: `bbca0bb0668639ca39c6b7b4cf3e6ec9521d18ca`.
-- **PR #19 CI, run #45652611537:** a `backup-restore-integration` job sikeres; a `test` job az állapotfelvételkor még futott, ezért a teljes PR CI eredménye még nem tekinthető zöldnek.
-- **Legutóbbi teljes, befejezett CI:** run #45649264268, commit `5d774883325521efb7103f9a63b800715adc1d81`: 759 passed, 3 skipped, 90.75% line coverage. Ez a mérés a PR #19 javítás előtti kódra vonatkozik.
+- **PR #19 CI, run #45652611537:** mindkét job sikeres (`test`, `backup-restore-integration`). A teszt job eredménye 759 passed, 3 skipped, 90.75% line coverage. A dokumentációs commit után indult #45653353882 futás az állapotfrissítéskor még futott.
+- **Legutóbbi teljes, befejezett CI a PR #19 kódjavításán:** run #45652611537, commit `bbca0bb0668639ca39c6b7b4cf3e6ec9521d18ca`: 759 passed, 3 skipped, 90.75% line coverage. A coverage XML artifact [itt érhető el](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45652611537/artifacts/15041113174).
 - **Production backup:** a run #45652336576 elkészítette és S3-ba feltöltötte a titkosított logikai DB-archívumot, de az objektum-ellenőrzés idézőjelhibával elbukott. A letöltés/hash ellenőrzés és a tényleges archívum izolált restore-ja ennél a production backupnál nem igazolt.
 - **Production adatbázis:** a jelentés készítésekor nem történt DDL/DML vagy migration-ledger módosítás. Az aktuális read-only ledger továbbra is öt verziót mutat.
 - **Deploy:** az új RPC-alapú alkalmazás production telepítése nem igazolt; a végleges service-role task DML-lockdown migrációt ezért tilos előrehozni.
@@ -96,7 +96,8 @@ A 90.75% jó általános eredmény, de nem jelenti azt, hogy minden üzleti vagy
 
 - [PR #18 – atomikus task approval és auth hardening](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/18)
 - [PR #19 – S3 backup ellenőrzés javítása](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/19)
-- [PR #19 CI run #45652611537](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45652611537)
+- [PR #19 CI run #45652611537 – sikeres](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45652611537)
+- [Dokumentációs frissítés CI run #45653353882](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45653353882)
 - [Sikertelen első production backup run #45652336576](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45652336576)
 - [Utolsó teljes coverage run #45649264268](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45649264268)
 

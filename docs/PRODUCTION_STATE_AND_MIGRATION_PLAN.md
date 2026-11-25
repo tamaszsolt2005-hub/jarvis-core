@@ -1,5 +1,3 @@
-> **2026-11-25 frissítés:** A dokumentum alábbi korábbi megállapításait az új [projektállapot-jelentés](PROJECT_STATUS_2026-11-25.md) egészíti ki. A PR #18 azóta merge-ölve lett (`0f02a4399df530a6e3b31314e3cd4e7b46da0a2b`). A backup CLI importhibát a PR #18 javította. A következő production backup run titkosított archívumot töltött fel, de S3 objektum-ellenőrzés közben idézőjelhibával elbukott; a javítás PR #19-ben van, amely az állapotfelvételkor még nyitott volt. A remote ledger legutóbbi read-only listázása továbbra is öt korábbi verziót mutatott. Production migráció/deploy nem történt.
-
 # Production állapot és migrációs terv
 
 **Állapot dátuma:** 2026-11-25. A lent felsorolt sémaadatok a 2026-11-25-i read-only ellenőrzésből származnak; új production módosítást nem jelentettek.

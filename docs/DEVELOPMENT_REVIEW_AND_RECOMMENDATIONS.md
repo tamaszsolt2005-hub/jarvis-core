@@ -1,5 +1,3 @@
-> **Aktuális státuszfrissítés (2026-11-25):** A régi backlog egyes pontjai azóta elkészültek. A kész kód és CI-bizonyíték, valamint a még hátralévő production feladatok részletes, dátumozott állapota a [projektállapot-jelentésben](PROJECT_STATUS_2026-11-25.md) található. A korábbi alábbi pontok nem tekintendők mind nyitottnak: a task approval race, task operation idempotencia, SMTP unknown/no-retry kezelés, backup CLI importhiba és a PostgreSQL 17 izolált backup/restore teszt elkészült. A PR #19 S3 ellenőrzési javítása még CI/merge folyamatban volt az állapotfelvételkor.
-
 # JARVIS – fejlesztési backlog
 
 **Alapág:** `main`  
