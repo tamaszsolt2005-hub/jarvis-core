@@ -206,6 +206,18 @@ def test_pending_approval_rejects_payload_mutation_after_staging(monkeypatch):
     assert "_jarvis_pending_action" not in st.session_state
 
 
+def test_pending_approval_rejects_non_ascii_payload_hash(monkeypatch):
+    namespace, st, _calls = load_auth_helpers(
+        monkeypatch,
+        state={"_jarvis_auth_session": {"user_id": "user-a"}},
+        enabled=True,
+    )
+    namespace["_stage_pending_action"]({"action": "send"})
+    st.session_state["_jarvis_pending_action"]["_approval_payload_hash"] = "é"
+
+    assert namespace["_consume_pending_action"]() is None
+
+
 def test_pending_approval_copies_nested_payload_before_staging(monkeypatch):
     namespace, st, _calls = load_auth_helpers(
         monkeypatch,
