@@ -99,3 +99,26 @@ A dokumentum célja egyértelmű: mi az a véges, ellenőrizhető munka, amely n
 - Backup+restore sikeres; ez nem pótolja a migration/release kapukat.
 
 **Nem szabad összekeverni:** a zöld CI, a mainben lévő kód, a production DB séma és a futó production app négy külön állapot. Mindegyikhez saját bizonyíték szükséges.
+
+
+## Feladatonkénti nehézség és végrehajtási csoportosítás
+
+Skála: **1 = könnyű, 10 = nagyon nehéz**; becslés, nem időígéret. Az **5/10 alatti** pontokat közös munkacsomagban végzem, a függőségek betartásával. Az 5/10-es és magasabb feladatok külön, sorrendben haladnak. Production változtatás csak külön konkrét jóváhagyással.
+
+| Feladat | Nehézség |
+|---|:---:|
+| Production host/URL felderítése | **3/10** |
+| SMTP hard-disable deploy és runtime ellenőrzés | **4/10** |
+| Schema/ledger drift, migrációs replay és adatmegőrzés | **6/10** |
+| SQL review, pre/post-check és rollback terv | **4/10** |
+| Audit/approval DB objektumok és fail-closed működés | **7/10** |
+| RPC task write path deploy, majd service_role lockdown és teszt | **7/10** |
+| Auth/JWT/RLS élő smoke | **6/10** |
+| Provider kiválasztás és idempotencia E2E | **8/10** |
+| Production alkalmazás health/smoke/rollback ellenőrzés | **6/10** |
+| Storage/Auth/Realtime backup scope | **5/10** |
+| Main branch protection / required checks | **2/10** |
+| Célzott coverage javítás | **4/10** |
+
+**Közös, 5/10 alatti munkacsomag:** host/URL felderítés, SMTP kódbeli és workflow ellenőrzés (deploy külön jóváhagyással), SQL review előkészítő ellenőrzőlista, backup scope felmérés, branch protection audit és indokolt célzott coverage. A migrációs replay, DB security és provider-integráció nem kerül ebbe az összevont csomagba, mert nagyobb kockázatú és függőségei vannak.
+
