@@ -189,3 +189,21 @@ def test_email_idempotency_key_requires_a_stable_lead_id():
         assert "lead-azonosító" in str(exc)
     else:
         raise AssertionError("A delivery without a stable lead ID must be rejected")
+
+
+def test_uncertain_email_delivery_state_is_never_eligible_for_automatic_follow_up():
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc)
+    lead = {
+        "status": "send_unknown",
+        "opted_out": False,
+        "reply_category": None,
+        "last_inbound_message_id": None,
+        "next_follow_up_at": "2026-11-20T12:00:00+00:00",
+        "follow_up_count": 0,
+    }
+
+    assert not email_sender._due_follow_up(lead, now)
+    lead["status"] = "sent"
+    assert email_sender._due_follow_up(lead, now)
