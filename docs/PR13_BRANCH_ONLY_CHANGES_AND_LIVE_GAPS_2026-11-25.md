@@ -55,7 +55,7 @@ A PR ágban lévő kód nem azonos az éles Jarvisban aktív funkcióval. A doku
 **Korlát:** a PR-ban lévő migrációk nem bizonyítják, hogy a production adatbázisban már alkalmazva vannak. A production read-only snapshot szerint az audit chain táblája és a strukturált audit oszlopok hiányoznak; a későbbi audit/RBAC migrációk nem szerepelnek a production ledgerben.
 
 ### 2.5 Migrációs és backup/restore CI
-- Két repo-only `20261117` migráció ismételt replay-je és legacy adatok megőrzésének ellenőrzése izolált PostgreSQL 17 fixture-ben.
+- A két eredetileg azonos `20261117` verziójú legacy migráció egyedi 14 számjegyű verzióra rendezése (`20261117090000`, `20261117100000`); a CI fixture ezek külön ledger-repair, replay és legacy-adat-megőrzési ellenőrzését futtatja. Az új CI-futás eredménye még ellenőrzendő.
 - Supabase CLI 3.4.0 migration repair applied/reverted/applied szemantikájának vizsgálata kizárólag lokális fixture-ben.
 - Audit/RBAC migrációs replay, failure-injection és forward recovery.
 - Catalog postcondition és pgTAP security tesztek.
@@ -81,7 +81,7 @@ A production read-only állapotfelméréskor a projektben 8 public tábla volt, 
 ## 4. Nyitott feladatok és release gate-ek
 
 ### P0 – Production előfeltételek
-1. **Migration drift:** a két repo-only `20261117` verzió production ledgerbeli eltérésének pontos, függetlenül review-zott rendezési terve; precondition/postcondition és forward-recovery terv.
+1. **Migration drift:** a két legacy migráció egyedi verzióra rendezése elkészült a PR ágban; a CI bizonyítása, majd a két production ledger-bejegyzés külön jóváhagyással történő history-only repairje és a négy későbbi migráció biztonságos rendezése még hátravan.
 2. **Valós production backup/restore:** AWS OIDC, S3, KMS és GitHub konfiguráció ellenőrzése; titkosított mentés; külön adatbázisba visszaállítás és hash/rekordszám jegyzőkönyv.
 3. **Valós Auth/JWT/RLS:** kizárólag már létező, kifejezetten engedélyezett izolált Supabase környezetben. Új projektet, accountot vagy branch-et nem szabad létrehozni.
 
