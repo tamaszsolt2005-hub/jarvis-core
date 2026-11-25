@@ -1,6 +1,6 @@
 # Production állapot és migrációs terv
 
-**Állapot dátuma:** 2026-11-25. A lent felsorolt sémaadatok a 2026-11-25-i read-only ellenőrzésből származnak; új production módosítást nem jelentettek.
+**Állapot dátuma:** 2026-11-25. A séma/ledger tényállás az utolsó dokumentált read-only auditból származik; a production backup/restore ezt követően sikeresen lefutott, production séma módosítás nélkül.
 **Production adatbázis:** Supabase PostgreSQL 17, project ref: `kiutreccucbegskxowek`.
 
 ## 1. Rövid állapot
@@ -45,6 +45,12 @@ A CI PostgreSQL 17 fixture a migrációs láncot és a katalógus-postcondition�
 
 ## 4. Backup állapot
 
+**Friss eredmény (2026-11-25):** a main commit `2e2a97e` alatti workflow-dispatch run `45655512387` teljesen sikeres. A workflow létrehozta az age titkosított production logikai dumpot, feltöltötte privát S3-ba SSE-KMS titkosítással, ellenőrizte a S3 objektum KMS kulcsát és méretét, letöltötte az objektumot, visszafejtette és ellenőrizte a manifest SHA-256 hash-eket, majd az archívumot egy külön, eldobható PostgreSQL 17 konténerbe állította vissza. Az ellenőrzés 8 várt public táblát és a leads/logs/settings rekordszám-lekérdezéseit igazolta. A workflow summary szerint production DB írás nem történt. [Részletes workflow](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+
+Ez a sikeres futás a korábbi, hibás #45652336576 / #45654544915 próbálkozásokat felülírja a backup gate szempontjából. A korábbi sikertelenségek történeti hibák, nem a jelenlegi workflow állapota.
+
+
+
 A korábbi, 2026-11-25-i `45611038142` workflow sikeresen titkosította a production logikai adatbázis-dumpot age segítségével, S3-ba töltötte SSE-KMS titkosítással, majd letöltés/visszafejtés/hash ellenőrzést végzett. Ez történeti siker, nem igazolja a legutóbbi main futás eredményét.
 
 A PR #13 merge után indult `45624735241` backup workflow **FAILED**: a `scripts/supabase_backup.py` indításakor `ModuleNotFoundError: No module named 'jarvis_errors'` történt. Emiatt a backup létrehozása, S3-feltöltése és restore lépései nem futottak le. A hiba kódjavítást és új futást igényel.
@@ -52,6 +58,13 @@ A PR #13 merge után indult `45624735241` backup workflow **FAILED**: a `scripts
 A sikeres logikai dump sem teljes Supabase platform-mentés: nem tekinthető a Storage bináris objektumok, Auth/Realtime platformadatok, projektbeállítások és titkos platformkulcsok teljes mentésének. A tényleges production archívum külön adatbázisba történő restore-ját külön kell bizonyítani.
 
 ## 5. CI állapot a merge után
+
+- Aktuális main commit: `2e2a97e182687c9b9d018da99b87095b75a21054` (PR #20 squash merge).
+- Main CI run `45655131500`: sikeres.
+- PR #20 CI run `45654575685`: sikeres.
+- Main push backup run `45655131449` és kézi workflow-dispatch backup run `45655512387`: sikeres; utóbbi minden ellenőrzési és restore lépése zöld.
+
+
 
 - Main commit: `bb5788e94b60a11185c45502b45d351ab2b2189b`.
 - A merge utáni CI `45624735367`: mindkét job (`test`, `backup-restore-integration`) befejeződött és sikeres. [GitHub Actions](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45624735367).
@@ -66,4 +79,4 @@ A sikeres logikai dump sem teljes Supabase platform-mentés: nem tekinthető a S
 - AWS production deploy vagy backup infrastruktúra módosítása;
 - új Supabase projekt vagy branch létrehozása.
 
-A részletes release-engedélyezési feltételek a [release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak.
+A sikeres backup nem oldja meg a migration driftet, és nem engedélyez production DDL-t. A részletes release-engedélyezési feltételek a [release gate dokumentumban](REMAINING_WORK_AND_RELEASE_GATES.md) vannak.

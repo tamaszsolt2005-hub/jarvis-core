@@ -73,15 +73,19 @@ Cél: olyan tartós üzleti tudásréteg kialakítása, amely összekapcsolja a 
 
 ## Haladáskövetés
 
+**Frissítve:** 2026-11-25, `main` commit `2e2a97e`. A PR #20 javította az S3 ellenőrző Python-blokk behúzását. A main CI (`45655131500`) sikeres. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+
+
+
 A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumozott roadmapeket.
 
 | Sorrend | Terület | Státusz |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Folyamatban – a backup hiba és az idempotencia javítása hátravan |
-| 2 | Supabase és jogosultságkezelés | Előkészítve – izolált tesztelés és migrációs rendezés hátravan |
-| 3 | Önállóbb üzleti asszisztens | Tervezett |
-| 4 | Üzleti munkafolyamatok automatizálása | Tervezett |
-| 5 | Tudás és hosszú távú memória | Tervezett |
+| 1 | Megbízhatóság és biztonság | Kód és CI kész; friss production backup+restore sikeres. Külső SMTP-idempotencia és teljes audit fail-closed bizonyítás még hátra van |
+| 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
+| 3 | Önállóbb üzleti asszisztens | Részben implementálva – proaktív monitor/lead és javaslati modulok vannak; minőségi és production bizonyíték hiányzik |
+| 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva – task/approval alapok megvannak; teljes E2E folyamat és üzleti mérés hátra van |
+| 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
 
 A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás és – ahol releváns – engedélyezett integrációs bizonyíték alapján frissítsük. Egy feladat csak akkor tekinthető késznek, ha a lezárási feltétele teljesült. A „kódban implementált”, „automatikusan tesztelt”, „külső integrációval igazolt” és „productionben aktív” állapotokat mindig különböztessük meg.
 

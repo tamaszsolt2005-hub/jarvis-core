@@ -4,16 +4,19 @@ Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás va
 
 ## Jelenlegi döntési állapot
 
-**Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva.**
+**Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
-A PR #13 merge-elve a `main` ágba (`bb5788e94b60a11185c45502b45d351ab2b2189b`). Ez kódintegráció, nem production release.
+A `main` aktuális commitja `2e2a97e182687c9b9d018da99b87095b75a21054` (PR #20 squash merge). A main CI `45655131500` sikeres. Ez kódintegráció, nem production release.
 
 ## Kötelező kapuk
 
+**2026-11-25 friss bizonyíték:** [backup+restore workflow #45655512387](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387) minden lépése sikeres. A mentés ellenőrzési kapuja teljesült; a többi kapu ettől függetlenül nyitott.
+
+
 ### 1. Repository és CI
-- A pontos main commit minden kötelező CI jobja befejezett és sikeres.
-- A backup workflow teljes, friss futása sikeres; a dump, titkosítás, S3 feltöltés, letöltés, visszafejtés és hash ellenőrzés is igazolt.
-- A tényleges production archívum külön, izolált PostgreSQL 17 adatbázisba történő restore-ja sikeres.
+- [x] A pontos main commit (`2e2a97e`) CI-je befejezett és sikeres (`45655131500`).
+- [x] A backup workflow teljes, friss futása sikeres (`45655512387`): dump, age titkosítás, S3 feltöltés, SSE-KMS/KMS key ellenőrzés, letöltés, visszafejtés és manifest SHA-256 ellenőrzés.
+- [x] A tényleges production archívum külön, izolált PostgreSQL 17 konténerbe restore-olása sikeres; 8 public tábla és kijelölt rekordszámok ellenőrizve.
 - A sikertelen vagy futó workflow nem tekinthető sikeresnek.
 
 ### 2. Migration drift
@@ -43,4 +46,4 @@ A PR #13 merge-elve a `main` ágba (`bb5788e94b60a11185c45502b45d351ab2b2189b`).
 - AWS production deploy vagy backup infrastruktúra változtatása.
 - Új Supabase projekt vagy branch létrehozása.
 
-A production állapot részletes, időponthoz kötött tényállása: [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).
+A backup sikeres, de ez nem jelenti a Supabase migration drift vagy az élesítés lezárását. A production állapot részletes, időponthoz kötött tényállása: [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).
