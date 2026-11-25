@@ -87,6 +87,10 @@ class _ResearchQuery:
         return self
     def limit(self, *_args, **_kwargs):
         return self
+    def order(self, *_args, **_kwargs):
+        return self
+    def range(self, *_args, **_kwargs):
+        return self
     def insert(self, payload):
         self.payload = payload
         return self
