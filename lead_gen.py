@@ -124,6 +124,7 @@ def run(path="data/leads.csv"):
                         ) from exc
                     lead_operation_id = None
                     lead_write_attempted = False
+                    side_effect_started = imported > 0
                     skipped += 1
                     continue
                 inserted_rows = getattr(inserted, "data", None) or []
