@@ -2,15 +2,15 @@
 
 **Állapotfelvétel:** 2026-11-25 (PR #23 CI és coverage run alapján frissítve)  
 **Repository:** `tamaszsolt2005-hub/jarvis-core`  
-**Main:** `1f401d0dacb1333c3050829fa710197dfa523c6e` (PR #22 squash merge; PR #23 még nyitott)  
+**Main:** `c1364e8aaf0741ba2c8ef33360799c744bf1b688` (PR #23 SMTP hard-disable squash merge)  
 **Production Supabase:** `kiutreccucbegskxowek` (PostgreSQL 17.11)
 
 > Ez a jelentés külön kezeli a kódbeli implementációt, CI-t, production backupot, production sémamódosítást és deployt. A sikeres backup/restore nem jelent production migrációt vagy deployt.
 
 ## 1. Vezetői összefoglaló
 
-- PR #18–#22 squash merge-elve a `main` ágba; a dokumentumfrissítés és SMTP hard-disable PR #23 még nem került a mainbe.
-- PR #23 head `58d9e33eaed1ac826884a00848999be8584121c2`; push CI `45658587888` teljesen sikeres, PR-triggerelt run `45658617612` az utolsó ellenőrzéskor még futott.
+- PR #18–#23 squash merge-elve a `main` ágba; PR #23 merge commit: `c1364e8aaf0741ba2c8ef33360799c744bf1b688`.
+- PR #23 mindkét PR CI jobja sikeres volt (`45658617612`); a merge utáni main CI `45661201562` az utolsó ellenőrzéskor még futott.
 - PR #20 javította a S3 objektumellenőrző Python-blokk behúzását.
 - **Production backup + ellenőrzés + restore: sikeres**, workflow-dispatch run `45655512387`.
 - A backup futás minden lépése sikeres: age titkosított logikai dump, privát S3 feltöltés, SSE-KMS és KMS kulcs ellenőrzés, S3 objektum letöltés, age visszafejtés és manifest SHA-256 ellenőrzés, külön PostgreSQL 17 restore, 8 public tábla és kijelölt rekordszámok ellenőrzése.
@@ -21,7 +21,9 @@
 
 | Bizonyíték | Állapot | Mit igazol |
 |---|---|---|
-| Main CI `45655131500` | Sikeres | A `2e2a97e` main commit CI-je |
+| PR #23 merge utáni main CI `45661201562` | Futott | SMTP hard-disable main commit CI-je |
+| PR #23 pull request CI `45658617612` | Sikeres | Test + PostgreSQL 17 backup–restore |
+| Production read-only audit 2026-11-25 17:06 UTC | Elvégezve | Schema, migration ledger, RLS, policy és table grants |
 | PR #20 CI `45654575685` | Sikeres | A Python indentation javítás tesztjei |
 | Backup workflow `45655512387` | Sikeres | Production dump → S3/KMS → letöltés/hash → izolált PG17 restore |
 | Korábbi hibás backup `45654544915` | Sikertelen, már javított | PR #20 előtti indentation hiba; nem a jelenlegi eredmény |
@@ -143,3 +145,14 @@ Kötelező sorrend:
 5. Tudás és hosszú távú memória: memória és analitika alapjai implementáltak; forrásolt, jogosultságkezelt, életciklus-kezelt tudásréteg és minőségi mérés hiányzik.
 
 A PR #23 hard-disable-je csak a PR ágban él: a main/production SMTP állapotát nem változtatja meg merge előtt. Production írás vagy deploy nem történt.
+
+
+## 10. PR #23 merge és friss production read-only audit – 2026-11-25 17:06 UTC
+
+**SMTP hard-disable:** PR #23 squash merge-elve a mainbe (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`). A `send_email()` azonnal leáll, mielőtt Auth/DB/secret/SMTP elérést végezne; az outbound workflow sender step explicit letiltott. GitHub secrets nem változtak, e-mail nem lett kiküldve. A merge utáni main CI run `45661201562` az audit időpontjában még futott.
+
+**Production Supabase audit – kizárólag SELECT/read-only:** projekt aktív, PostgreSQL 17.11; 8 public tábla, mind a 8 RLS enabled, 0 public policy; `anon` és `authenticated` SELECT/INSERT/UPDATE/DELETE jogosultsága mind a 8 táblán false; `service_role` mind a 8 táblán teljes DML joggal rendelkezik. `private` schema nincs; `public.audit_chain_state`, `private.task_approvals`, `private.task_action_operations` és `private.execute_approved_task_action(...)` hiányzik. `auth.users` 0 sor. Migration ledgerben továbbra is csak az öt 20261119-es bejegyzés található. `leads.website` text nullable default nélkül; `logs.level` text NOT NULL default `'info'`; `tasks.operation_id` hiányzik. Security Advisor: 8 INFO `rls_enabled_no_policy` megállapítás, mindegyik a nyolc public táblához kapcsolódik.
+
+**Következtetés:** a public Data API szerepkörök közvetlen DML hozzáférése tiltott, de a policy nélküli RLS táblák csak akkor biztonságosak, ha a grantszintű tiltás fennmarad. A service_role továbbra is közvetlen task DML joggal rendelkezik; a végleges privilege lockdown migrációt nem futtattuk. A private approval/RPC rendszer nincs productionben. Migration ledger drift nyitott; semmilyen production DDL/DML, ledger repair, GRANT/REVOKE, Auth provisioning vagy deploy nem történt.
+
+A production audit megfigyelési bizonyíték, nem a hiányzó production migrációk vagy RPC-k működési bizonyítéka. Ezek rendezése külön SQL review és explicit production jóváhagyás után történhet.
