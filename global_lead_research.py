@@ -106,7 +106,9 @@ def get_research_market(db: Any) -> str:
         rows = db.table("settings").select("value").eq("key", "lead_research_market").limit(1).execute().data or []
         value = rows[0].get("value") if rows else None
         if isinstance(value, dict) and isinstance(value.get("country"), str):
-            return value["country"]
+            country = value["country"].strip()
+            if country in set(MARKET_ALIASES.values()):
+                return country
     except Exception as exc:
         # This is an optional read with a safe default; report locally only.
         # Do not write to the database from this fallback path.
