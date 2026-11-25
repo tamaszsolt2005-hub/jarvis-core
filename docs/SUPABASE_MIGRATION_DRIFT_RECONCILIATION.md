@@ -296,7 +296,7 @@ Supabase CLI v3 is local-target by default; a hosted target requires explicit `-
 and a hosted repair confirmation. In this CI test the explicit remote URL points only to
 localhost, with `--yes` used for non-interactive execution. The repair operation changes
 migration history only; it does not execute or reverse SQL. See the official
-[CLI migration repair reference](https://supabase.com/docs/reference/cli/config) and
+[CLI migration repair reference](https://supabase.com/docs/reference/cli/introduction) and
 [CLI v3 breaking-change notice](https://supabase.com/changelog?tags=cli).
 
 **Status at commit time:** CI implementation added; do not mark the new catalog or CLI
