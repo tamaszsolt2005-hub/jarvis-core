@@ -26,14 +26,15 @@ class Query:
     def execute(self):
         if self.row is not None:
             self.db.inserted.append(self.row)
-            return Result([self.row])
+            return Result([] if self.db.lose_insert_response else [self.row])
         return Result(self.db.existing)
 
 
 class FakeDB:
-    def __init__(self, existing=None):
+    def __init__(self, existing=None, lose_insert_response=False):
         self.existing = existing or []
         self.inserted = []
+        self.lose_insert_response = lose_insert_response
 
     def table(self, _name):
         return Query(self)
@@ -321,3 +322,40 @@ def test_global_research_uses_default_market_when_market_is_omitted(monkeypatch)
 
     result = research.research_global_companies(FakeDB(), "test", FakeClient(response))
     assert result["market_country"] == "Hungary"
+
+
+def test_global_research_marks_insert_without_database_confirmation_unknown(monkeypatch):
+    import pytest
+
+    company = {
+        "company_name": "Acme Systems",
+        "website": "https://acme.example",
+        "source_url": "https://acme.example/about",
+    }
+    response = {
+        "text": json.dumps({"companies": [company]}),
+        "candidates": [{
+            "grounding_metadata": {
+                "grounding_chunks": [{"web": {"uri": "https://acme.example/about"}}]
+            }
+        }],
+    }
+    monkeypatch.setattr(research.types, "GenerateContentConfig", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "Tool", lambda **kwargs: kwargs)
+    monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
+    monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    events = []
+    monkeypatch.setattr(
+        research, "audit_event",
+        lambda _db, **kwargs: events.append(kwargs) or True,
+    )
+
+    db = FakeDB(lose_insert_response=True)
+    with pytest.raises(RuntimeError, match="nem igazolta vissza"):
+        research.research_global_companies(db, "globális cégek", FakeClient(response))
+
+    assert len(db.inserted) == 1
+    insert_events = [event for event in events if event["action"] == "save_researched_company"]
+    assert [event["status"] for event in insert_events] == ["pending", "unknown"]
+    assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
