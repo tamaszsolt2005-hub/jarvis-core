@@ -175,3 +175,26 @@ A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20
 A repository Streamlit appot dokumentál, de a GitHub repo homepage üres, Pages nincs bekapcsolva, és a repo konfigurációjában nem található ellenőrizhető JARVIS deployment URL. A hozzáférhető Railway workspace kizárólag a `VolleyForm` projektet és annak `volleyform-api` szolgáltatását tartalmazza; ez nem JARVIS, ezért domainje nem használható JARVIS production URL-ként. A Supabase URL adatbázis/API, nem dashboard host.
 
 **Nyitott / külső input szükséges:** add meg a tényleges alkalmazás-host szolgáltatóját/projektjét vagy annak dashboard URL-jét. Addig production app deploy, runtime SMTP ellenőrzés és host-specifikus health check nem végezhető el biztonságosan.
+
+
+## Aktuális release állapot – PR #26, 2026-11-25
+
+A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`38693f2f93b790608aef37a33f190a86e611ff0d`); a PR nyitott és nem merge-ölt.
+
+| Kapu | Jelenlegi állapot | Bizonyíték / hiány |
+|---|---|---|
+| SMTP hard-disable kód | Implementálva | `EMAIL_DELIVERY_ENABLED = False`; production runtime/deploy nem igazolt |
+| SMTP bizonytalan kimenetel | Implementálva, tesztek hozzáadva | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; CI végső eredménye még függőben |
+| Belső email operation ID | Implementálva | Stabil lead+sequence kulcs; SMTP provider oldali deduplikációt nem biztosít |
+| Approval + task RPC | Implementálva a branchben | DB approval, principal/payload binding, expiry, atomic consume és operation replay; production migráció/deploy nincs |
+| Audit fail-closed | SQL regressziós teszt hozzáadva | Audit insert hiba esetén tranzakció rollback; CI futás még nem zárult le |
+| Approval replay/revoke | SQL teszt hozzáadva | Replay és revoke viselkedés; CI futás még nem zárult le |
+| Párhuzamos approval végrehajtás | Két-session SQL teszt hozzáadva | Azonos operation ID-ra egy task/egy műveleti eredmény elvárás; CI futás még nem zárult le |
+| Migration drift | Izolált CI fixture bővítve | A két korábbi ledger gap reconciliation már megtörtént; hat későbbi migration productionben nincs alkalmazva |
+| Service-role privilege lock | Blokkolt | Csak RPC app deploy + production smoke után alkalmazható; production DML jog jelenleg nem tekinthető visszavontnak |
+| Production app host | Ismeretlen | A rendelkezésre álló Railway projekt VolleyForm, nem JARVIS |
+| Production deploy/migration | Nem történt | Külön jóváhagyás szükséges; semmilyen production DB/app módosítás nem történt |
+
+**CI pillanatkép:** a `38693f2` commiton két workflow run (`45689264377`, `45689247826`) futott a dokumentáció frissítésekor. Amíg mindkettő be nem fejeződik sikeresen, a CI kapu nyitott. [Run 1](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689264377) · [Run 2](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689247826).
+
+**Kiadási döntés:** a megbízhatósági és biztonsági munkacsomag még nem minősíthető lezártnak. A PR merge, production migration, service-role GRANT/REVOKE, Auth/RBAC aktiválás, app deploy és SMTP engedélyezés nem része az automatikusan végrehajtható CI munkának; ezek külön döntési kapuk maradnak.
