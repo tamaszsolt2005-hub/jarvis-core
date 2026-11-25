@@ -102,7 +102,30 @@ def run(path="data/leads.csv"):
                     raise RuntimeError("Lead mentése leállítva: a pending auditbejegyzés nem menthető.")
                 side_effect_started = True
                 lead_write_attempted = True
-                inserted = db.table("leads").insert(record).select("id").execute()
+                try:
+                    inserted = db.table("leads").insert(record).select("id").execute()
+                except Exception as exc:
+                    # PostgreSQL unique_violation (23505) proves this insert did
+                    # not happen; treat a concurrent duplicate as a safe skip.
+                    if getattr(exc, "code", None) != "23505":
+                        raise
+                    if not audit_event(
+                        db,
+                        module="lead_gen",
+                        action="create_reviewed_lead",
+                        status="failed",
+                        operation_id=lead_operation_id,
+                        error=exc,
+                        result={"reason": "duplicate_email"},
+                    ):
+                        raise RuntimeError(
+                            "A párhuzamos email-duplikációt az adatbázis elutasította, "
+                            "de a sikertelen művelet auditja nem menthető."
+                        ) from exc
+                    lead_operation_id = None
+                    lead_write_attempted = False
+                    skipped += 1
+                    continue
                 inserted_rows = getattr(inserted, "data", None) or []
                 lead_id = inserted_rows[0].get("id") if inserted_rows and isinstance(inserted_rows[0], dict) else None
                 if not lead_id:
