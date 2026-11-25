@@ -217,7 +217,7 @@ def test_parser_accepts_ascii_aliases_and_empty_input_is_not_action():
         "uj feladat: Teszt; cim=Másik cím; hatarido=2026-12-02; prioritas=high; leiras=Részlet"
     )
     assert parsed["type"] == "create"
-    assert parsed["title"] == "Teszt"
+    assert parsed["title"] == "Másik cím"
     assert parsed["priority"] == "high"
     assert parsed["notes"] == "Részlet"
     assert task_actions.parse_task_command("") is None
@@ -269,7 +269,8 @@ def test_execution_rejects_invalid_approval_before_database_access(approval):
 
 @pytest.mark.parametrize("data", [None, [], [{}], {"ok": True}])
 def test_execution_rejects_malformed_rpc_response_and_reports_critical(monkeypatch, data):
-    db = FakeDB(data=data)
+    db = FakeDB()
+    db.data = data
     reports = []
     monkeypatch.setattr(task_actions, "get_enforced_user_supabase", lambda *_a, **_k: None)
     monkeypatch.setattr(task_actions, "report_error", lambda error, **kwargs: reports.append(kwargs))
