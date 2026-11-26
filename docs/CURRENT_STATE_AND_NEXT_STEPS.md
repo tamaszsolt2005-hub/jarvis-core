@@ -27,16 +27,24 @@ A következő fejlesztési munka **helyi, funkciófejlesztési szakaszban** tör
 - Lead/cégazonosítás: a korábban nyitott, alkalmazásszintű global-research race kockázatot a PR #26 közös, tranzakciós RPC-íróútja kezeli; az izolált két-session teszt sikeres.
 - A PostgreSQL 17 migrációs, pgTAP és backup/restore integrációs tesztek CI-ben sikeresek.
 
-## 3/A. Új funkciófejlesztési előrelépés – lead → belső task-javaslat
+## 3/A. Első workflow-szelet – lead → belső task-javaslat
 
-A PR #26 branchben új, read-only `lead_workflow.py` modul készült, amely a strukturált, forrásolt leadkutatási adatból következő belső ellenőrzési feladatot javasol. A napi briefing már megjeleníti a javaslatot a kutatási prioritással, üzleti illeszkedéssel, bizonyossággal, bizonyítékszámmal és indoklással.
+A PR #26 branchben a `lead_workflow.py` read-only modul a strukturált, forrásolt leadkutatási adatból belső ellenőrzési feladatot javasol. A napi briefing megjeleníti a prioritást, üzleti illeszkedést, bizonyosságot, bizonyítékszámot és indoklást. Ez a javaslat önmagában nem ír adatbázist és nem ad kapcsolatfelvételi engedélyt.
 
-- Már meglévő leadhez kötött task esetén nem ismétli meg az első feladatjavaslatot.
-- Gyenge bizonyosság vagy kevés bizonyíték esetén további kutatást javasol.
-- Nem ír adatbázist, nem hoz létre taskot, nem kér jóváhagyást, nem küld e-mailt, és nem ad kapcsolatfelvételi engedélyt.
-- Az új helperhez és a napi briefing integrációhoz célzott tesztek kerültek a repóba; ezek eredménye a friss PR CI-futásban ellenőrizendő.
+## 3/B. Második workflow-szelet – leadhez kapcsolt, jóváhagyásos task
 
-Ez az első workflow-szelet, nem a teljes automatizálás. A következő lépés a task létrehozás leadhez kapcsolása az atomikus, jóváhagyásos RPC-n keresztül.
+A PR #26 branchben a napi briefingben megjelenő javaslatból explicit chat-paranccsal előkészíthető a leadhez kapcsolt feladat:
+
+- Parancs: `Hozz létre javasolt feladat: <lead UUID>`.
+- A dashboard újraolvassa a lead kutatási forrását, a bizonyítékokat és a leadhez már kapcsolt feladatokat; csak érvényes, forrásolt kutatásból épít taskot.
+- A feladat a meglévő egyhasználatos, principal- és payload-kötött approval mechanizmuson keresztül kerül jóváhagyásra; jóváhagyás előtt nincs task-írás.
+- A task payload a `tasks.lead_id` mezőben tartósan összekapcsolja a feladatot a lead rekorddal.
+- Az atomikus RPC leadenként advisory lockot használ, és nem enged két párhuzamos nyitott első feladatot ugyanahhoz a leadhez. Lezárt feladat után későbbi lépés létrehozható.
+- A migrációs SQL teszt lefedi a leadkapcsolatot, a nyitott feladat duplikációjának blokkolását és a lezárt feladat utáni továbblépést. A Python tesztek a parancsot, a forrásellenőrzést és a payload-validációt fedik le.
+
+**Biztonsági határ:** ez továbbra is belső task, nem e-mail vagy outreach. Nem állít be consentet, nem változtat lead státuszt, nem küld üzenetet. A friss PR CI-futásnak kell igazolnia a módosításokat; production migráció vagy deploy nem történt.
+
+A teljes leadkutatás → minősítés → stratégia → feladat → jóváhagyás → utánkövetés → eredménymérés folyamat még nincs kész. Következő fejlesztési szelet: a feladat állapotának és a lead üzleti workflow állapotának összekapcsolása, majd a follow-up és eredménymérés.
 
 ## 4. Mi maradt még a funkciófejlesztés előtt?
 
