@@ -116,3 +116,36 @@ def estimate_research_cost_microusd(
     )
     numerator = input_tokens * input_price + output_tokens * output_price
     return (numerator + 999_999) // 1_000_000
+
+
+
+def estimate_research_cost_ceiling_microusd(
+    *,
+    input_price_microusd_per_million_tokens: int,
+    output_price_microusd_per_million_tokens: int,
+    max_input_tokens_per_attempt: int = 12000,
+    max_output_tokens_per_attempt: int = 2048,
+    max_attempts: int = 1,
+) -> int:
+    """Return a conservative per-job reservation ceiling for bounded provider calls.
+
+    The default input-token ceiling is deliberately conservative and matches
+    the research adapter's 12,000-character prompt limit. Retries are included
+    in both input and output exposure; callers enabling retries must pass the
+    same attempt limit to this function and to the provider adapter.
+    """
+    max_input_tokens = _integer(
+        max_input_tokens_per_attempt, "max_input_tokens_per_attempt", minimum=1
+    )
+    max_output_tokens = _integer(
+        max_output_tokens_per_attempt, "max_output_tokens_per_attempt", minimum=128
+    )
+    attempts = _integer(max_attempts, "max_attempts", minimum=1)
+    if max_output_tokens > 4096 or attempts > 3:
+        raise ValueError("provider cost ceiling exceeds supported hard limits")
+    return estimate_research_cost_microusd(
+        input_tokens=max_input_tokens * attempts,
+        output_tokens=max_output_tokens * attempts,
+        input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
+        output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+    )
