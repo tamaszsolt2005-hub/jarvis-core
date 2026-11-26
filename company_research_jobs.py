@@ -42,6 +42,25 @@ def _owned_active_job(job: dict[str, Any], worker_id: str, now: datetime) -> boo
     return parsed.tzinfo is not None and parsed.astimezone(timezone.utc) > now
 
 
+
+def retry_backoff_seconds(
+    attempt_count: int, *, base_delay_seconds: int = 60,
+    max_delay_seconds: int = 3600,
+) -> int:
+    """Return capped exponential retry delay for a 1-based attempt count."""
+    attempt_count = _positive_int(attempt_count, "attempt_count")
+    base_delay_seconds = _positive_int(base_delay_seconds, "base_delay_seconds")
+    max_delay_seconds = _positive_int(max_delay_seconds, "max_delay_seconds")
+    if max_delay_seconds < base_delay_seconds:
+        raise ValueError("max_delay_seconds must be at least base_delay_seconds")
+    # Compare before exponentiation to avoid constructing huge integers.
+    exponent = attempt_count - 1
+    max_exponent = (max_delay_seconds // base_delay_seconds).bit_length()
+    if exponent >= max_exponent:
+        return max_delay_seconds
+    return min(base_delay_seconds * (2 ** exponent), max_delay_seconds)
+
+
 def create_research_job(
     *, operation_id: str, lead_id: str, payload: dict[str, Any],
     now: datetime | None = None,
