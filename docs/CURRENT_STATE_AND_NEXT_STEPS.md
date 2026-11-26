@@ -196,3 +196,8 @@ A `company_research_runtime.py` explicit composition root is elkészült: `run_c
 ### 7.14 Hosszú Gemini-kérések lease-heartbeat javítása
 
 A Gemini provider adapter most a teljes szinkron API-kérés és retry-időszak alatt periodikusan megújítja a lease-t a worker heartbeat callbackjén keresztül. A heartbeat külön leállítható daemon szálon fut; lease-vesztéskor a provider eredménye nem használható fel. A javítást két célzott teszt fedi, a teljes CI-ellenőrzés az új PR head SHA-ján következik.
+
+
+## 8. Főrendszer-készültségi felmérés – 2026-11-26
+
+A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadási feltételei, valamint a P0/P1/P2 és production release teendők külön dokumentumban szerepelnek: [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md). Röviden: a főbb üzleti modulok implementáltak, de az aktuális PR #28 CI még fut, a teljes lead → task approval → audit E2E, a worker SQL konkurencia és a kutatási snapshot E2E, valamint a teljes helyi smoke még nem tekinthető igazoltnak. Emiatt a főrendszer még nem minősíthető késznek.
