@@ -87,7 +87,7 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 | 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; kimenő SMTP hard-disabled; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – forrásolt leadprioritás és belső következőlépés-javaslat már össze van kapcsolva; proaktív minőségmérés és production bizonyíték hátra van |
-| 4 | Üzleti munkafolyamatok automatizálása | Leadkutatás → bizonyíték-alapú javaslat → approval-gated task és read-only dashboard Feladatközpont implementálva; follow-up queue, eredményalapú következő lépés és teljes E2E még hátra van |
+| 4 | Üzleti munkafolyamatok automatizálása | Leadkutatás → bizonyíték-alapú javaslat → approval-gated task, dashboard Feladatközpont és consent-aware read-only follow-up queue implementálva; outcome-driven következő lépés és teljes E2E még hátra van |
 | 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
 
 A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás és – ahol releváns – engedélyezett integrációs bizonyíték alapján frissítsük. Egy feladat csak akkor tekinthető késznek, ha a lezárási feltétele teljesült. A „kódban implementált”, „automatikusan tesztelt”, „külső integrációval igazolt” és „productionben aktív” állapotokat mindig különböztessük meg.
@@ -278,3 +278,8 @@ A migráció, Python integráció, SQL prioritás/consent teszt és két Postgre
 A 4. terület első, felhasználó által közvetlenül használható dashboard-funkciója elkészült a PR #26 ágban: valódi Feladatok navigáció, szűrhető/rendezhető feladatlista, lejárt és sürgős számlálók, leadkapcsolat és jóváhagyásos chat-parancsok súgója. A nézet read-only marad; a task írási műveletek a meglévő approval RPC-n mennek át.
 
 A célzott AppTest bekerült; a PR-head CI eredményét a merge előtt ellenőrizni kell. Következő funkciószelet: consent-aware, kizárólag áttekintésre szolgáló follow-up queue, majd az outcome rögzítéséből származó következő belső task-javaslat.
+
+
+### Feladatközpont – consent-aware utánkövetési sor
+
+A dashboard Feladatközpont mostantól külön sorban mutatja a már lejárt és a következő 7 napban esedékes, feltételeknek megfelelő utánkövetéseket. A szűrés közös build_follow_up_queue függvényen alapul, amelyet a napi briefing is használ. A queue kizárólag áttekintésre szolgál; nem indít külső kapcsolatfelvételt. Unit teszt ellenőrzi a consent, opt-out, reply, follow-up count és időbélyeges határfeltételeket. A teljes PR CI az új headen még ellenőrizendő.
