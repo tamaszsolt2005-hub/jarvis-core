@@ -8,6 +8,7 @@ import uuid
 
 from jarvis_common import audit_event, get_service_supabase, log_event
 from jarvis_errors import report_error
+from lead_identity import upsert_company_lead
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
@@ -85,10 +86,6 @@ def run(path="data/leads.csv"):
                 if record is None:
                     skipped += 1
                     continue
-                exists = db.table("leads").select("id").ilike("email", _escape_like_literal(record["email"])).limit(1).execute().data
-                if exists:
-                    skipped += 1
-                    continue
                 lead_operation_id = str(uuid.uuid4())
                 lead_write_attempted = False
                 if not audit_event(
@@ -103,43 +100,42 @@ def run(path="data/leads.csv"):
                 side_effect_started = True
                 lead_write_attempted = True
                 try:
-                    inserted = db.table("leads").insert(record).select("id").execute()
+                    identity_result = upsert_company_lead(
+                        db,
+                        company_name=record["company_name"],
+                        website=record["website"],
+                        email=record["email"],
+                        notes=record["notes"],
+                        source=record["source"],
+                        consent_basis=record["consent_basis"],
+                        approved_to_contact=record["approved_to_contact"],
+                        consent_confirmed_at=record["consent_confirmed_at"],
+                    )
                 except Exception as exc:
-                    # PostgreSQL unique_violation (23505) proves this insert did
-                    # not happen; treat a concurrent duplicate as a safe skip.
-                    if getattr(exc, "code", None) != "23505":
-                        raise
-                    if not audit_event(
+                    # Identity conflicts and cross-company email reuse are not
+                    # silently skipped; the atomic RPC rolls back the whole claim.
+                    audit_event(
                         db,
                         module="lead_gen",
                         action="create_reviewed_lead",
                         status="failed",
                         operation_id=lead_operation_id,
                         error=exc,
-                        result={"reason": "duplicate_email"},
-                    ):
-                        raise RuntimeError(
-                            "A párhuzamos email-duplikációt az adatbázis elutasította, "
-                            "de a sikertelen művelet auditja nem menthető."
-                        ) from exc
+                        result={"reason": "company_identity_or_contact_conflict"},
+                    )
                     lead_operation_id = None
                     lead_write_attempted = False
-                    side_effect_started = imported > 0
-                    skipped += 1
-                    continue
-                inserted_rows = getattr(inserted, "data", None) or []
-                lead_id = inserted_rows[0].get("id") if inserted_rows and isinstance(inserted_rows[0], dict) else None
-                if not lead_id:
-                    raise RuntimeError(
-                        "A CSV-import lead mentését az adatbázis nem igazolta vissza."
-                    )
+                    raise
                 if not audit_event(
                     db,
                     module="lead_gen",
                     action="create_reviewed_lead",
                     status="success",
                     operation_id=lead_operation_id,
-                    result={"lead_id": str(lead_id) if lead_id is not None else None},
+                    result={
+                        "lead_id": identity_result["lead_id"],
+                        "outcome": identity_result["outcome"],
+                    },
                 ):
                     raise RuntimeError("A lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
                 lead_operation_id = None
@@ -154,8 +150,8 @@ def run(path="data/leads.csv"):
             result={"imported": imported, "skipped": skipped},
         ):
             raise RuntimeError("A CSV-import befejeződött, de a záró auditbejegyzés nem menthető.")
-        log_event(db, "lead_gen", f"CSV import: {imported} új lead, {skipped} kihagyva.")
-        print(f"Import kész: {imported} új, {skipped} kihagyott rekord.")
+        log_event(db, "lead_gen", f"CSV import: {imported} kapcsolattartói rekord feldolgozva, {skipped} kihagyva.")
+        print(f"Import kész: {imported} kapcsolattartói rekord feldolgozva, {skipped} kihagyva.")
     except Exception as exc:
         if db is not None and lead_operation_id:
             audit_event(
