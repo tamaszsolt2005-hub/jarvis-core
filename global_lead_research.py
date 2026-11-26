@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from uuid import uuid4
 from typing import Any
 from urllib.parse import urlparse
@@ -16,6 +17,7 @@ from company_dossier import build_company_dossier, render_company_dossier
 
 
 MAX_RESULTS = 15
+RESEARCH_API_MAX_ATTEMPTS = 3
 EXISTING_LEAD_PAGE_SIZE = 1000
 DEFAULT_MARKET = "Hungary"
 MARKET_ALIASES = {
@@ -114,6 +116,41 @@ def _load_existing_company_keys(db: Any) -> tuple[set[str], set[str]]:
             break
         offset += EXISTING_LEAD_PAGE_SIZE
     return names, sites
+
+
+def _is_retryable_research_error(exc: Exception) -> bool:
+    """Retry only transient upstream failures, never auth/config/validation errors."""
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        status = None
+    if status in {408, 425, 429, 500, 502, 503, 504}:
+        return True
+    if status is not None:
+        return False
+    message = str(exc).casefold()
+    return any(token in message for token in (
+        "timeout", "timed out", "temporarily unavailable",
+        "connection reset", "connection aborted", "rate limit",
+        "resource exhausted", "server error",
+    ))
+
+
+def _generate_research_with_retry(
+    client: Any, *, model: str, prompt: str, config: Any,
+    sleep: Any = time.sleep,
+) -> Any:
+    """Bounded exponential retry for transient Gemini/transport errors."""
+    for attempt in range(1, RESEARCH_API_MAX_ATTEMPTS + 1):
+        try:
+            return client.models.generate_content(
+                model=model, contents=prompt, config=config
+            )
+        except Exception as exc:
+            if attempt >= RESEARCH_API_MAX_ATTEMPTS or not _is_retryable_research_error(exc):
+                raise
+            sleep(min(2 ** (attempt - 1), 4))
 
 
 def _parse_companies(text: str) -> list[dict[str, Any]]:
@@ -256,8 +293,8 @@ def research_global_companies(
     config = types.GenerateContentConfig(
         tools=[types.Tool(google_search=types.GoogleSearch())],
     )
-    response = client.models.generate_content(
-        model=get_model_name(), contents=prompt, config=config
+    response = _generate_research_with_retry(
+        client, model=get_model_name(), prompt=prompt, config=config
     )
     companies = _parse_companies(_field(response, "text", "") or "")
     grounded_urls = _grounded_sources(response)
