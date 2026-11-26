@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 
 from company_research_job_repository import (
+    CompanyResearchAdmissionRejected,
     CompanyResearchBudgetExceeded,
     CompanyResearchJobRepositoryError,
     RPC_AUDIT_LIST,
@@ -64,6 +65,8 @@ def test_create_uses_injected_client_and_is_idempotent_by_rpc_contract():
     assert client.calls[0][1]["p_job"]["payload"] == {"source": "planner"}
     assert client.calls[0][1]["p_estimated_cost_microusd"] == 0
     assert client.calls[0][1]["p_daily_budget_microusd"] is None
+    assert client.calls[0][1]["p_max_jobs_per_hour"] is None
+    assert client.calls[0][1]["p_max_jobs_per_domain_per_day"] is None
 
 
 @pytest.mark.parametrize("operation_id", ["short", "", None])
@@ -173,7 +176,11 @@ def test_create_passes_atomic_budget_reservation_values():
         payload={"source": "planner"},
         estimated_cost_microusd=250_000,
         daily_budget_microusd=1_000_000,
+        max_jobs_per_hour=20,
+        max_jobs_per_domain_per_day=5,
     )
+    assert client.calls[0][1]["p_max_jobs_per_hour"] == 20
+    assert client.calls[0][1]["p_max_jobs_per_domain_per_day"] == 5
     assert client.calls[0][1]["p_estimated_cost_microusd"] == 250_000
     assert client.calls[0][1]["p_daily_budget_microusd"] == 1_000_000
 
@@ -232,3 +239,42 @@ def test_audit_list_rejects_unexpected_response_shape():
     repository = SupabaseCompanyResearchJobRepository(client)
     with pytest.raises(CompanyResearchJobRepositoryError, match="response shape"):
         repository.list_audit(operation_id="research:lead-123")
+
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_jobs_per_hour": 0},
+    {"max_jobs_per_hour": True},
+    {"max_jobs_per_domain_per_day": -1},
+])
+def test_create_rejects_invalid_atomic_quota_values(kwargs):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner", "company_domain": "example.com"},
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
+    ("database_error", "reason"),
+    [
+        ("research_hourly_limit_exceeded", "global_hourly_limit"),
+        ("research_domain_daily_limit_exceeded", "domain_daily_limit"),
+    ],
+)
+def test_create_maps_atomic_rate_limit_errors(database_error, reason):
+    repository = SupabaseCompanyResearchJobRepository(
+        FakeSupabaseClient({RPC_CREATE: RuntimeError(database_error)})
+    )
+    with pytest.raises(CompanyResearchAdmissionRejected) as caught:
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner", "company_domain": "example.com"},
+            max_jobs_per_hour=10,
+            max_jobs_per_domain_per_day=3,
+        )
+    assert caught.value.reason == reason
