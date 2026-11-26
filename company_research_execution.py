@@ -52,10 +52,10 @@ def _normalize_domain(value: Any) -> str:
     try:
         domain = raw.encode("idna").decode("ascii")
         ipaddress.ip_address(domain.strip("[]"))
-    except ValueError:
-        pass
     except UnicodeError as exc:
         raise CompanyResearchExecutionError("invalid_company_domain") from exc
+    except ValueError:
+        pass
     else:
         raise CompanyResearchExecutionError("ip_address_not_allowed")
     labels = domain.split(".")
@@ -99,11 +99,14 @@ def build_company_research_prompt(
     *, company_name: str, company_domain: str, market: str
 ) -> str:
     """Create a bounded, structured prompt; treat company identifiers as data."""
+    company_name_json = json.dumps(company_name, ensure_ascii=False)
+    company_domain_json = json.dumps(company_domain, ensure_ascii=False)
+    market_json = json.dumps(market, ensure_ascii=False)
     return f"""Research this company using public, business-relevant information only.
 
-Company name: {company_name}
-Company website domain: {company_domain}
-Target market: {market}
+Company name (JSON string): {company_name_json}
+Company website domain (JSON string): {company_domain_json}
+Target market (JSON string): {market_json}
 
 Return one JSON object with:
 - company_facts: an array of objects with category, fact, source_url
@@ -173,3 +176,15 @@ def execute_company_research(
         "grounded_source_count": len(grounded_sources),
         "accepted_fact_count": len(stamped["facts"]),
     }
+
+
+
+def make_company_research_handler(provider: CompanyResearchProvider):
+    """Adapt an injected provider to the worker's (payload, heartbeat) handler API."""
+    if provider is None or not callable(getattr(provider, "research_company", None)):
+        raise CompanyResearchExecutionError("invalid_research_provider")
+
+    def handler(payload: dict[str, Any], heartbeat: Any) -> dict[str, Any]:
+        return execute_company_research(payload, provider=provider, heartbeat=heartbeat)
+
+    return handler
