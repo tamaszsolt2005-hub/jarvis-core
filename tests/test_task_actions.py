@@ -134,6 +134,18 @@ def test_task_execution_calls_single_atomic_rpc_with_token_hash(monkeypatch):
     assert params["p_action"] == _create_action()
 
 
+def test_task_execution_preserves_linked_lead_id_in_approved_rpc(monkeypatch):
+    db = FakeDB()
+    monkeypatch.setattr(task_actions, "get_enforced_user_supabase", lambda *_args, **_kwargs: None)
+
+    action = _create_action(lead_id=TASK_ID)
+    task_actions.execute_task_action(
+        db, action, approved=True, approval=_approval()
+    )
+
+    assert db.calls[0][1]["p_action"]["lead_id"] == TASK_ID
+
+
 def test_rpc_error_is_reported_critical_and_original_error_reraised(monkeypatch):
     error = RuntimeError("mock atomic RPC failure")
     db = FakeDB(error=error)
