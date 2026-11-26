@@ -40,8 +40,20 @@ def test_queue_bridge_enqueues_only_planner_candidates_and_is_idempotent():
     repository = FakeRepository()
     now = datetime(2026, 11, 26, tzinfo=timezone.utc)
 
-    first = enqueue_company_research_refreshes(repository, leads, {}, now=now)
-    second = enqueue_company_research_refreshes(repository, leads, {}, now=now)
+    enqueue_limits = {
+        "max_jobs_per_hour": 10,
+        "max_jobs_per_domain_per_day": 10,
+        "max_concurrent_jobs": 2,
+        "max_daily_cost_microusd": 1_000_000,
+    }
+    first = enqueue_company_research_refreshes(
+        repository, leads, {}, limits=enqueue_limits,
+        estimated_cost_microusd_per_job=100, now=now,
+    )
+    second = enqueue_company_research_refreshes(
+        repository, leads, {}, limits=enqueue_limits,
+        estimated_cost_microusd_per_job=100, now=now,
+    )
 
     assert len(first) == 1
     assert len(second) == 1
@@ -59,8 +71,20 @@ def test_new_snapshot_version_produces_a_new_refresh_operation_id():
     old_dossier = {"researched_at": "2026-01-01T00:00:00+00:00"}
     new_dossier = {"researched_at": "2026-02-01T00:00:00+00:00"}
 
-    old_job = enqueue_company_research_refreshes(repository, leads, {lead_id: old_dossier}, now=now)[0]
-    new_job = enqueue_company_research_refreshes(repository, leads, {lead_id: new_dossier}, now=now)[0]
+    enqueue_limits = {
+        "max_jobs_per_hour": 10,
+        "max_jobs_per_domain_per_day": 10,
+        "max_concurrent_jobs": 2,
+        "max_daily_cost_microusd": 1_000_000,
+    }
+    old_job = enqueue_company_research_refreshes(
+        repository, leads, {lead_id: old_dossier}, limits=enqueue_limits,
+        estimated_cost_microusd_per_job=100, now=now,
+    )[0]
+    new_job = enqueue_company_research_refreshes(
+        repository, leads, {lead_id: new_dossier}, limits=enqueue_limits,
+        estimated_cost_microusd_per_job=100, now=now,
+    )[0]
 
     assert old_job["operation_id"] != new_job["operation_id"]
     assert len(repository.by_operation_id) == 2
@@ -76,6 +100,13 @@ def test_queue_bridge_does_not_enqueue_fresh_or_invalid_domain_leads():
     result = enqueue_company_research_refreshes(
         repository, leads,
         {fresh_id: {"researched_at": "2026-11-25T00:00:00+00:00"}},
+        limits={
+            "max_jobs_per_hour": 10,
+            "max_jobs_per_domain_per_day": 10,
+            "max_concurrent_jobs": 2,
+            "max_daily_cost_microusd": 1_000_000,
+        },
+        estimated_cost_microusd_per_job=100,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result == []
