@@ -110,3 +110,10 @@ Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A megl�
 - Each accepted company dossier now receives a schema version, unique snapshot ID, UTC research timestamp, and SHA-256 content fingerprint.
 - A compact append-only `company_research_snapshot` audit event records the snapshot manifest and company domain. The full public-business dossier remains in the lead notes field.
 - This is traceability metadata, not yet a queryable historical snapshot store or automatic refresh scheduler. A dedicated normalized snapshot table and refresh policy remain a later migration task; no production schema was changed.
+
+### Research dossier freshness policy (Phase 1 increment)
+- Added a reusable freshness decision helper for versioned company dossiers.
+- Default refresh age is 30 days; callers can supply a different non-negative whole-day threshold.
+- Missing, malformed, timezone-naive, or future timestamps are treated as stale (fail-closed), so bad metadata never suppresses a needed refresh.
+- The policy is unit-tested at the age boundary and for invalid configuration/timestamps.
+- This is a tested policy primitive only: no automatic refresh worker, database lookup, or production schedule is enabled yet.
