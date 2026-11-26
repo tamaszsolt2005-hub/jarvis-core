@@ -881,3 +881,90 @@ def test_streamlit_task_center_keeps_follow_up_queue_visible_without_tasks(monke
     assert any("Még nincs feladat" in item.value for item in app.info)
     assert any("Utánkövetési sor" in item.value for item in app.subheader)
     assert len(app.get("dataframe")) == 1
+
+
+
+def test_streamlit_audit_page_renders_verified_admin_view_and_integrity_result(monkeypatch):
+    import audit_admin
+
+    session = {
+        "access_token": "verified-audit-access",
+        "refresh_token": "verified-audit-refresh",
+        "user_id": "10000000-0000-0000-0000-000000000001",
+        "email": "audit-admin@example.com",
+        "role": "admin",
+    }
+    db = object()
+    monkeypatch.setattr(audit_admin, "verified_admin_client", lambda _session: (db, session))
+    monkeypatch.setattr(
+        audit_admin, "fetch_audit_page",
+        lambda *_args, **_kwargs: ({
+            "events": [{
+                "module": "task_actions",
+                "action": "task_create",
+                "status": "success",
+                "operation_id": "audit-operation-1",
+            }],
+            "next_cursor": None,
+        }),
+    )
+    monkeypatch.setattr(
+        audit_admin, "verify_audit_integrity",
+        lambda _db: {"ok": True, "total_entries": 1},
+    )
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.session_state["_jarvis_audit_admin_session"] = session
+    app.button(key="jarvis_nav_audit").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "audit"
+    assert len(app.get("dataframe")) == 1
+
+    app.button(key="jarvis_audit_integrity_check").click().run()
+
+    assert not app.exception
+    assert any("hash-lánc ellenőrzése sikeres" in item.value for item in app.success)
+
+
+def test_streamlit_company_research_fails_closed_in_individual_auth_mode(monkeypatch):
+    import pytest
+    import jarvis_auth
+
+    session = {
+        "access_token": "verified-access",
+        "refresh_token": "verified-refresh",
+        "user_id": "10000000-0000-0000-0000-000000000001",
+        "email": "reader@example.com",
+        "role": "reader",
+    }
+    user_db = _ReadOnlyDB()
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: name in {
+            "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", "CHAT_EMAIL_ENABLED"
+        } if name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED" else default,
+    )
+    monkeypatch.setattr(jarvis_auth, "sign_in_user", lambda _email, _password: session.copy())
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda supplied, *, allowed_roles: (user_db, session.copy()),
+    )
+    monkeypatch.setattr(
+        jarvis_common, "get_legacy_dashboard_supabase",
+        lambda: pytest.fail("Research Auth mode must never fall back to a legacy/service-role client"),
+    )
+
+    app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
+    app.run()
+    app.text_input[0].set_value("reader@example.com")
+    app.text_input[1].set_value("test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_research").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "research"
+    assert any("olvasási jogosultsága még nincs kivezetve" in item.value for item in app.info)
