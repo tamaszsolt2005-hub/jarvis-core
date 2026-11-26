@@ -173,3 +173,13 @@ A JARVIS hosszú távú fő funkciója az legyen, hogy önállóan cégeket kuta
 - AI-támogatott fejlesztés, minőségbiztosítás és ügyféleredményből tanulás.
 
 A meglévő leadkutatás, cégazonosítás, scoring, jóváhagyásos task workflow, memória és outcome-logika ennek az alapja, de nem szabad a teljes célfolyamatot már késznek tekinteni. A kimenő e-mail hard-disabled marad; a nyilvános e-mail-cím nem jelent automatikus marketingengedélyt. Személyes kutatás csak a szükséges, releváns szakmai kontextusra korlátozódhat; érzékeny magánadat nem gyűjthető. A termék-tiltó napló ajánlás előtti kötelező gate.
+
+### Tartós cégkutatási előzmények – fejlesztői ágon
+- Új migráció: `supabase/migrations/20261126140000_company_research_snapshot_history.sql`.
+- Új `company_research_snapshots` tábla tárolja a teljes, változatlan kutatási dossziéverziókat, lead-kapcsolattal és ellenőrizhető hash-sel.
+- Új `company_research_store.py` menti és visszaolvassa a kutatási előzményeket; a visszaolvasás legfeljebb 100 rekordot kér.
+- A mentés előtt ellenőrzi a snapshot UUID-t, az időzónás dátumot és a SHA-256 tartalomlenyomatot.
+- A táblán RLS aktív; anon/authenticated hozzáférés nincs, a backend service_role csak SELECT/INSERT jogosultságot kap.
+- A CI izolált PostgreSQL adatbázison ellenőrzi a migrációt és a jogosultságokat.
+- A migráció csak a GitHub feature branch-en van; production adatbázisra nem futott le.
+- Az automatikus frissítő worker még nincs bekapcsolva.
