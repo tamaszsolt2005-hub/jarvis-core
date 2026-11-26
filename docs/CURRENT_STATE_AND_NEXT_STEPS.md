@@ -1,0 +1,55 @@
+# JARVIS – aktuális állapot és következő lépések
+
+**Frissítve:** 2026-11-26  
+**Fejlesztési ág:** `docs/pre-feature-readiness-gates`  
+**PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
+**Ellenőrzött PR-head:** `2a27a19078e6183c143e775ca9d89ccc776c7bf8`
+
+## 1. Hol tartunk most?
+
+**A JARVIS alkalmazás még nincs telepítve publikus vagy production alkalmazás-hostra.** Jelenleg helyi fejlesztés zajlik, a Streamlit dashboardot helyben indítjuk. Nincs kiválasztott JARVIS app-host, nincs JARVIS app URL, és nincs futó JARVIS production alkalmazás. A korábban vizsgált Railway `VolleyForm` projekt nem JARVIS.
+
+Fontos különbség: létezik egy Supabase production adatbázis-projekt, de ez önmagában nem jelenti azt, hogy a JARVIS Streamlit alkalmazás is telepítve lenne. A Supabase production állapotára vonatkozó adatokat a [production audit dokumentum](PRODUCTION_STATE_AND_MIGRATION_PLAN.md) időbélyeggel és read-only bizonyítékként kezeli.
+
+A következő fejlesztési munka **helyi, funkciófejlesztési szakaszban** történik. A production release kapuk nem akadályozzák a helyi funkciófejlesztést; csak az éles telepítés, adatbázis-módosítás vagy külső mellékhatás engedélyezése előtt kötelezőek.
+
+## 2. Aktuális repo és CI állapot
+
+- PR #26 nyitott, nem merge-ölt; a változtatásokat nem integráltuk a `main` ágba.
+- A PR-head `2a27a19078e6183c143e775ca9d89ccc776c7bf8` összes ellenőrzött GitHub checkje sikeres: `test`, `backup-restore-integration`, `CodeQL`, `Analyze Python` és `pip-audit` (a check runok mind `completed/success` állapotúak).
+- A branchben implementált és CI-vel tesztelt a cégazonosítási `upsert_company_lead` RPC, a normalizált cégnév/domain aliasok tranzakciós zárolása, a CSV- és global research íróútvonal közös RPC-használata, a kontaktjelöltek consent-aware prioritása, valamint a két PostgreSQL sessionös concurrency teszt.
+- A kód/CI állapot nem production telepítési bizonyíték. A PR merge külön jóváhagyást igényel.
+
+## 3. Elkészült fő technikai alapok
+
+- Task approval és műveleti RPC-k: atomikus approval consume, operation ID-alapú replay-védelem és audit fail-closed tesztek.
+- E-mail küldés: kódszintű hard-disable aktív; bizonytalan kézbesítési kimenetel nem retry-olható automatikusan. A Resend adapter kódban jelen van, a dokumentált workflow konfiguráció Gmail SMTP-t használ; egyik provider élő küldési útja sincs igazolva. Külső e-mail küldés tiltva marad.
+- Lead/cégazonosítás: a korábban nyitott, alkalmazásszintű global-research race kockázatot a PR #26 közös, tranzakciós RPC-íróútja kezeli; az izolált két-session teszt sikeres.
+- A PostgreSQL 17 migrációs, pgTAP és backup/restore integrációs tesztek CI-ben sikeresek.
+
+## 4. Mi maradt még a funkciófejlesztés előtt?
+
+**Nincs olyan igazolt production-host vagy Supabase release-feladat, amely miatt a helyi funkciófejlesztést meg kellene állítani.** A következőket viszont érdemes a funkciók bővítése közben, megfelelő sorrendben kezelni:
+
+1. **Helyi integrációs ellenőrzés:** a dashboard fő útvonalainak kézi végigpróbálása valós helyi konfigurációval, titkok megosztása nélkül; hibák és hiányzó konfigurációk dokumentálása.
+2. **Konfigurációs határok:** egyértelműen váljon szét a helyi fejlesztői konfiguráció, a szerveroldali titkok és a későbbi host-specifikus konfiguráció. Ne legyen titok a repóban vagy a kliensoldalon.
+3. **Háttérfolyamatok:** különítsük el a dashboard által indított felhasználói kéréseket a scheduler/worker feladatoktól. A későbbi hosztingnál az ütemezett munkák ne függjenek nyitott böngészőfültől vagy aktív Streamlit sessiontől.
+4. **E-mail:** maradjon tiltva a valódi kimenő küldés addig, amíg nincs kiválasztott provider, hitelesített tesztkörnyezet, provider oldali idempotencia-ellenőrzés és külön jóváhagyás.
+5. **Lead workflow minősége:** az új cégazonosítási protokollt minden később hozzáadott lead-létrehozó útvonalnak is használnia kell; ne vezessünk be párhuzamos közvetlen INSERT-et.
+
+Ezek nem mindegyike blokkoló egy-egy önálló, helyben tesztelhető funkcióhoz. A roadmapben a legkorábbi valódi funkcionális hiányt kell választani, és csak az adott funkcióhoz szükséges előfeltételeket kell előre venni.
+
+## 5. Külön production/release kapuk – későbbre
+
+A következőket nem kell most végrehajtani, és egyikre sem ad ez a dokumentum engedélyt:
+
+- JARVIS alkalmazás-host kiválasztása és első deploy.
+- Friss production Supabase read-only audit, migration drift és teljes SQL review.
+- Auth/JWT/RLS modell és élő smoke teszt egy engedélyezett izolált környezetben.
+- Az RPC-t használó app telepítése és smoke tesztje; csak ezután a megfelelő privilege-lock migráció.
+- Backup/restore, health check, logolás, riasztás, hozzáférés- és rollback-eljárás.
+- Production secret, SMTP, Auth/RBAC, GRANT/REVOKE, DDL/DML, deploy vagy PR merge kizárólag külön, konkrét jóváhagyással történhet.
+
+## 6. Döntési szabály a folytatáshoz
+
+Most a helyi funkciófejlesztést folytatjuk. A hosting kiválasztását későbbre hagyjuk, amikor a szükséges always-on worker, ütemezés, hozzáférésvédelem, e-mail provider és üzemeltetési igények már világosak. A dokumentumok közül ez az aktuális összefoglaló; a [roadmap](JARVIS_DEVELOPMENT_ROADMAP.md) határozza meg a funkciófejlesztés sorrendjét, a [release gate dokumentum](REMAINING_WORK_AND_RELEASE_GATES.md) pedig az élesítés feltételeit.
