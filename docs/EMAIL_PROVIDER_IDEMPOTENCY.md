@@ -1,5 +1,8 @@
 # JARVIS – e-mail provider és idempotencia
 
+> **Aktuális korlátozás – 2026-11-26:** a kimenő e-mail küldés hard-disabled; a Gmail SMTP konfiguráció leírása nem bizonyít hitelesített kapcsolatot vagy aktív küldést. A Resend adapter kódban elérhető, de live provider E2E nincs igazolva. Valódi e-mailt ne küldj, és a hard-disable feloldásához külön jóváhagyás szükséges.
+
+
 ## Állapot és kiválasztott küldési út
 
 A JARVIS meglévő Gmail-fiókját használjuk a kimenő levelek feladójaként, a már implementált Gmail SMTP útvonalon. Saját domain és Resend-fiók nem szükséges ehhez a megoldáshoz.
