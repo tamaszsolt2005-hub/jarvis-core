@@ -163,7 +163,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
                 f"bizonyosság: {item['research_confidence']}; "
                 f"bizonyítékok: {item['evidence_count']}. {item['rationale']} "
                 f"Ez belső ellenőrzési javaslat, nem kapcsolatfelvételi engedély. "
-                f"(lead: {item['lead_id']})"
+                f"Előkészítés: Hozz létre javasolt feladat: {item['lead_id']}"
             )
     else:
         lines.append("- Nincs olyan strukturált kutatási lead, amelyhez még ne tartozna feladat.")
