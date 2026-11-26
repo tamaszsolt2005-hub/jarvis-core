@@ -126,3 +126,8 @@ A PR #28 ágán elkészült a `company_research_worker.py`: injektált repositor
 ### 7.4 Retry backoff finomítása
 
 Következő kódszelet: determinisztikus, exponenciális és felső korláttal védett retry késleltetés. A worker az attempt_count alapján növeli a várakozást, de konfigurált maximum fölé nem léphet; a retry továbbra is bounded, dead-letterbe kerül a limitet elérő job. Ez nem helyettesíti a globális rate limitet vagy költségkeretet.
+
+
+### 7.5 Kutatási admission policy
+
+A következő egység egy tiszta, DB-független admission döntés: óránkénti globális joblimit, domainenkénti napi limit, párhuzamos joblimit és napi költségkeret ellenőrzése. A költség egész mikro-USD egységben szerepel, lebegőpontos kerekítési hibák nélkül. A policy csak a megadott usage snapshot alapján dönt; tartós számlálást és atomikus foglalást későbbi repository/RPC réteg biztosít.
