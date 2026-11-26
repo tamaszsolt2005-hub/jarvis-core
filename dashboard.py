@@ -462,6 +462,104 @@ def _safe_research_source_url(value: Any) -> str | None:
         return None
 
 
+def render_settings_page() -> None:
+    """Render safe, read-only runtime settings and explicitly triggered diagnostics."""
+    st.title("Beállítások")
+    st.caption(
+        "A futó JARVIS-konfiguráció áttekintése. A titkok értékét soha nem jelenítjük meg, "
+        "és ezen az oldalon nem módosítunk környezeti változókat vagy adatbázis-beállításokat."
+    )
+
+    auth_mode = _auth_login_enabled()
+    role = str(st.session_state.get("_jarvis_user_role") or "legacy dashboard")
+    supabase_url_ready = bool((get_secret("SUPABASE_URL") or "").strip())
+    if auth_mode:
+        supabase_key_ready = bool(
+            (get_secret("SUPABASE_PUBLISHABLE_KEY") or "").strip()
+            or (get_secret("SUPABASE_ANON_KEY") or "").strip()
+        )
+        auth_label = "Egyéni Supabase Auth + RBAC"
+    else:
+        supabase_key_ready = bool(
+            (get_secret("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+            or (get_secret("SUPABASE_KEY") or "").strip()
+        )
+        auth_label = "Megosztott dashboard-jelszó"
+    gemini_ready = bool((get_secret("GEMINI_API_KEY") or "").strip())
+    dashboard_password_ready = auth_mode or bool(
+        (get_secret("JARVIS_DASHBOARD_PASSWORD") or "").strip()
+    )
+    try:
+        model_name = str(get_model_name())
+    except Exception:
+        model_name = "Nem olvasható"
+
+    st.subheader("Alkalmazás és hozzáférés")
+    access_rows = [
+        ("Bejelentkezési mód", auth_label),
+        ("Aktuális szerepkör", role),
+        ("Munkamenet", "Hitelesített" if st.session_state.get("authenticated") else "Nem hitelesített"),
+        ("Gemini modell", model_name),
+        ("Időzóna", "Europe/Budapest"),
+        ("Kutatási worker", "Kézzel indítható one-shot runtime; automatikus scheduler nincs bekapcsolva"),
+    ]
+    for label, value in access_rows:
+        left, right = st.columns([1, 2])
+        left.markdown(f"**{label}**")
+        right.write(value)
+
+    st.subheader("Integrációk és biztonsági kapuk")
+    configuration_rows = [
+        ("SUPABASE_URL", supabase_url_ready, "Supabase projekt URL"),
+        (
+            "Supabase API-kulcs",
+            supabase_key_ready,
+            "Auth módban publishable/anon kulcs; legacy módban szerveroldali kulcs",
+        ),
+        ("GEMINI_API_KEY", gemini_ready, "AI chat és kutatási szolgáltatás"),
+        ("Dashboard hitelesítés", dashboard_password_ready, "Megosztott jelszó vagy egyéni Auth"),
+        ("E-mail-küldési kódzár", EMAIL_DELIVERY_ENABLED is False, "Az e-mail-küldés kódszinten tiltott"),
+    ]
+    for label, configured, description in configuration_rows:
+        left, middle, right = st.columns([1.25, 1, 2])
+        left.write(label)
+        middle.success("Beállítva" if configured else "Hiányzik / ellenőrizendő") if configured else middle.warning("Hiányzik / ellenőrizendő")
+        right.caption(description)
+
+    if EMAIL_DELIVERY_ENABLED is False:
+        st.info("A kimenő e-mail-küldés biztonsági zárja aktív. A beállítások oldal ezt nem tudja feloldani.")
+    else:
+        st.error("A kimenő e-mail-küldés kódszintű zárja nincs aktív. Ne használd a rendszert outbound küldésre.")
+
+    st.subheader("Rendszerdiagnosztika")
+    st.caption(
+        "A diagnosztika korlátozott, olvasási Supabase-próbákat végez. "
+        "A Gemini próbakérés külső API-használatot és költséget okozhat; csak külön indításra fut."
+    )
+    if auth_mode and role != "admin":
+        st.warning("Egyéni Supabase Auth módban a teljes rendszerdiagnosztika csak admin szerepkörrel indítható.")
+    elif st.button("Rendszerdiagnosztika futtatása", key="jarvis_settings_run_diagnostics", type="primary"):
+        try:
+            diagnostic_report = run_self_diagnostics(
+                auth_session=st.session_state.get("_jarvis_auth_session") if auth_mode else None
+            )
+            st.session_state["jarvis_settings_diagnostics_report"] = str(diagnostic_report)
+        except Exception as exc:
+            report_error(exc, module="dashboard", operation="settings_diagnostics", severity="warning")
+            st.error("A rendszerdiagnosztika nem futott le. Érzékeny konfigurációs értéket nem jelenítettünk meg.")
+    diagnostic_report = st.session_state.get("jarvis_settings_diagnostics_report")
+    if diagnostic_report:
+        st.markdown(str(diagnostic_report))
+
+    with st.expander("Módosítható beállítások – jelenlegi korlátozások"):
+        st.markdown(
+            "- A Supabase- és Gemini-kulcsok, jelszavak és SMTP-adatok a futtatási környezet titkos konfigurációjában kezelendők.\n"
+            "- Az Auth/RBAC, RLS, e-mail-küldési zár és adatbázis-kapcsolat nem módosítható a dashboardról.\n"
+            "- A felület jelenleg nem tárol felhasználói preferenciákat; nem mutatunk olyan kapcsolót, amely nem mentene tartósan.\n"
+            "- A kutatási worker és az automatikus ütemezés nincs innen elindítva."
+        )
+
+
 def render_company_research_page(db: Any) -> None:
     """Render bounded, read-only company dossier history for existing researched leads."""
     st.title("Cégkutatási előzmények")
@@ -1690,13 +1788,16 @@ with st.sidebar:
         type="primary" if current_page == "audit" else "secondary",
         width="stretch",
     )
+    settings_clicked = st.button(
+        "⚙   Beállítások",
+        key="jarvis_nav_settings",
+        type="primary" if current_page == "settings" else "secondary",
+        width="stretch",
+    )
     st.markdown(
-        '<div class="jarvis-nav">'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
-        '</div>'
         '<div class="jarvis-sidebar-status">'
-        '<span class="jarvis-status-dot"></span><strong>Rendszer Online</strong>'
-        '<div class="jarvis-sidebar-version">v2.0.0</div>'
+        '<span class="jarvis-status-dot"></span><strong>Munkamenet aktív</strong>'
+        '<div class="jarvis-sidebar-version">JARVIS · belső munkaterület</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -1716,6 +1817,14 @@ if research_clicked:
 if audit_clicked:
     st.session_state["jarvis_page"] = "audit"
     st.rerun()
+if settings_clicked:
+    st.session_state["jarvis_page"] = "settings"
+    st.rerun()
+
+if st.session_state.get("jarvis_page") == "settings":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    render_settings_page()
+    st.stop()
 
 if st.session_state.get("jarvis_page") == "audit":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
