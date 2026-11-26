@@ -60,7 +60,7 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-26
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án ellenőrzött head `79dfb5b85afaa3ae21405b295bb23880019ec54d`. Ezen a commiton a CI 838 tesztet sikeresen futtatott (3 kihagyott), 91,29%-os lefedettséggel; a PostgreSQL 17 backup–restore integráció, CodeQL és dependency audit is sikeres.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án CI-vel igazolt commit `79dfb5b85afaa3ae21405b295bb23880019ec54d`; az ezt követő változtatások dokumentációs frissítések. Ezen a commiton a CI 838 tesztet sikeresen futtatott (3 kihagyott), 91,29%-os lefedettséggel; a PostgreSQL 17 backup–restore integráció, CodeQL és dependency audit is sikeres.
 
 - JARVIS CI: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
 - PostgreSQL 17 izolált migrációs/pgTAP és backup/restore integráció: sikeres.
@@ -69,4 +69,4 @@ A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/
 
 A global lead research név/domain deduplikációja jelenleg alkalmazásszintű; párhuzamos worker-ek között nincs DB-szintű atomikus garancia. Nem alkalmaztunk kockázatos cégnév/domain unique indexet; a tranzakciós DB/RPC claim megoldás tervezése nyitott. A részleteket és a release gate-eket az elsődleges [fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) rögzíti.
 
-A zöld CI nem bizonyít production deployt vagy production Supabase állapotot. Production migráció/írás, GRANT/REVOKE, Auth/RBAC aktiválás, secret-változtatás, SMTP-küldés nem történt. A kimenő e-mail hard-disabled; a PR merge külön jóváhagyást igényel.
+A 2026-11-26-i friss read-only production Supabase audit 7 remote migrációt, 8/8 RLS-enabled táblát és 0 RLS-policyt talált; a private schema, alkalmazási RPC-k és production Auth userek hiányoznak. A `leads_email_normalized_uidx` index és migráció nincs productionben, bár a jelenlegi 11 lead között nem volt normalizált email-duplikáció. A tényleges JARVIS app host/URL továbbra sincs igazolva. Production migráció/írás, GRANT/REVOKE, Auth/RBAC aktiválás, secret-változtatás, SMTP-küldés nem történt. A kimenő e-mail hard-disabled; a PR merge külön jóváhagyást igényel.
