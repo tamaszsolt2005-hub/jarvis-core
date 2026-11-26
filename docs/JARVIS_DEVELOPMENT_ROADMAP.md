@@ -185,3 +185,10 @@ A provider adapter a teljes szinkron kérés és retry-szakasz alatt külön dae
 ## Főrendszer-készültségi kapu – 2026-11-26
 
 A belső főrendszer és az autonóm SaaS-ügynök két külön cél. A főrendszer lezárási feltételeit és a P0/P1/P2 feladatokat a [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md) tartalmazza. A core lead → approval/task → audit E2E és az előző core commit teljes CI-je sikeres. A dashboard navigációs leltár, a read-only Settings oldal és az üres tasklista melletti utánkövetési sor hibajavítása elkészült; az audit utáni aktuális HEAD teljes CI-je, a valós Auth/RLS hozzáférés, worker SQL konkurencia és snapshot E2E, majd dokumentált helyi smoke következik. Scheduler, teljes SaaS-ötletmotor, tiltó napló, outreach és AI-fejlesztési pipeline nem blokkolja a belső core asszisztens lezárását.
+
+
+## Szelektív tesztelési és bizonyíték-kezelési szabály
+
+A teljes CI nem minden commit utáni kötelező lépés. Változatlan kód korábban sikeres tesztjeit nem ismételjük feleslegesen. A módosított modulokhoz tartozó célzott tesztek, közvetlen regressziós tesztek és új integrációs kockázatok ellenőrzése az elsődleges. Teljes CI-t csak egy összefüggő fejlesztési mérföldkő lezárásakor és merge/release gate-ként futtatunk. A backup–restore, SQL konkurencia, Auth/RLS és valós provider smoke külön bizonyítékot igényel; az egyik sikeres tesztje nem helyettesíti a másikat.
+
+A jelenlegi nyitott feladatok és a korábban már igazolt tesztkörök tételes listája: [JARVIS_REMAINING_WORK_REPORT.md](JARVIS_REMAINING_WORK_REPORT.md).
