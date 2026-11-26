@@ -3,6 +3,9 @@
 -- the migration instead of silently merging or deleting customer data.
 BEGIN;
 
+-- Freeze legacy lead writes while identity aliases are backfilled.
+LOCK TABLE public.leads IN SHARE ROW EXCLUSIVE MODE;
+
 CREATE OR REPLACE FUNCTION public.normalize_lead_company_name(p_name text)
 RETURNS text
 LANGUAGE sql
