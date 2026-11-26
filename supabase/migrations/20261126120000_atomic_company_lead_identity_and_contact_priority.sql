@@ -80,7 +80,6 @@ REVOKE ALL ON TABLE public.lead_company_aliases
 REVOKE ALL ON TABLE public.lead_contact_candidates
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO service_role;
-REVOKE ALL ON TABLE public.leads FROM service_role;
 GRANT SELECT, UPDATE ON TABLE public.leads TO service_role;
 
 -- Refuse ambiguous legacy data. No existing lead is deleted or merged.
