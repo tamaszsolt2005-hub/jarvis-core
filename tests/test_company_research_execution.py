@@ -268,3 +268,13 @@ def test_gemini_cost_extractor_rejects_invalid_usage_or_pricing():
             input_price_microusd_per_million_tokens=0,
             output_price_microusd_per_million_tokens=4_000_000,
         )({"provider_usage": {"prompt_tokens": 1, "output_tokens": 1}})
+
+
+
+def test_company_inputs_are_whitespace_normalized_before_prompting():
+    prompt = build_company_research_prompt(
+        company_name="Example   Ltd\\n Group",
+        company_domain="example.com",
+        market="Hungary",
+    )
+    assert '"Example Ltd Group"' in prompt
