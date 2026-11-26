@@ -321,12 +321,34 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.company_research_job_audit_list(
+  p_operation_id text, p_limit integer DEFAULT 100
+) RETURNS SETOF public.company_research_job_audit
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_operation_id IS NULL OR length(btrim(p_operation_id)) = 0
+     OR p_limit IS NULL OR p_limit < 1 OR p_limit > 1000 THEN
+    RAISE EXCEPTION 'invalid audit query arguments';
+  END IF;
+  RETURN QUERY
+    SELECT * FROM public.company_research_job_audit
+    WHERE operation_id = p_operation_id
+    ORDER BY created_at DESC, event_id DESC
+    LIMIT p_limit;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.company_research_job_audit_list(text, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_heartbeat(text, text, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) FROM PUBLIC, anon, authenticated;
 
+GRANT EXECUTE ON FUNCTION public.company_research_job_audit_list(text, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_heartbeat(text, text, integer) TO service_role;
