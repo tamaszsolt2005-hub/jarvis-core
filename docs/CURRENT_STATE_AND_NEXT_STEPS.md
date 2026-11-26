@@ -121,3 +121,8 @@ A megvalósított fájlok: `company_research_job_repository.py` (Protocol + inje
 ### 7.3 Egyszeri worker-orchestration
 
 A PR #28 ágán elkészült a `company_research_worker.py`: injektált repositoryból legfeljebb egy előkészített jobot claimel, injektált handlerrel feldolgozza, majd complete vagy bounded fail művelettel lezárja. Nincs beépített kutatási handler, Gemini/API-hívás, scheduler vagy automatikus futtatás. A handler hibáinak szövege nem kerül a job rekordba, csak korlátozott hibakód és általános, titokmentes üzenet. Lejárt lease esetén a worker nem jelenti sikeresnek a műveletet.
+
+
+### 7.4 Retry backoff finomítása
+
+Következő kódszelet: determinisztikus, exponenciális és felső korláttal védett retry késleltetés. A worker az attempt_count alapján növeli a várakozást, de konfigurált maximum fölé nem léphet; a retry továbbra is bounded, dead-letterbe kerül a limitet elérő job. Ez nem helyettesíti a globális rate limitet vagy költségkeretet.
