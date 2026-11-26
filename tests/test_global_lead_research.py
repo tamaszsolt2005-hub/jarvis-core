@@ -176,6 +176,13 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     insert_events = [event for event in audit_events if event["action"] == "save_researched_company"]
     assert [event["status"] for event in insert_events] == ["pending", "success"]
     assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
+    snapshot_events = [event for event in audit_events if event["action"] == "company_research_snapshot"]
+    assert len(snapshot_events) == 1
+    snapshot_manifest = snapshot_events[0]["result"]
+    assert snapshot_manifest["snapshot_id"] == dossier["snapshot_id"]
+    assert snapshot_manifest["schema_version"] == 1
+    assert snapshot_manifest["company_domain"] == "acme.example"
+    assert len(snapshot_manifest["content_sha256"]) == 64
 
 
 def test_global_research_deduplicates_existing_company(monkeypatch):
