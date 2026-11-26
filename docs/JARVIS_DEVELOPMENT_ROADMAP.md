@@ -73,3 +73,8 @@ Elkészült a háttérmotor első, DB-független kódszelete: company_research_j
 - Fake repository és adapter mapping tesztek; későbbi külön SQL concurrency teszt.
 - Belső job tábla RLS-sel, PUBLIC/anon/authenticated tiltással és service-role-only hozzáféréssel.
 - Migration csak repository-fájl, production alkalmazás nélkül. Nincs saját kliens létrehozás, secret olvasás, scheduler, Gemini-hívás vagy outbound side effect.
+
+
+### Phase 1B megvalósítási napló
+
+A PR #28 branchben elkészült a `CompanyResearchJobRepository` Protocol és az injektált Supabase adapter (`company_research_job_repository.py`), a planner és repository közötti idempotens enqueue híd (`company_research_refresh_queue.py`), a service-role-only job tábla és tranzakciós RPC-k migrationje, valamint a fake adapter/queue tesztek. Az RPC claim `FOR UPDATE SKIP LOCKED` mintát alkalmaz; heartbeat/complete/fail csak aktív lease tulajdonostól fogad el módosítást. Production DB-re nem csatlakozott, a migration nem futott le. A teljes CI-ellenőrzés a csomag elkészülte után esedékes.
