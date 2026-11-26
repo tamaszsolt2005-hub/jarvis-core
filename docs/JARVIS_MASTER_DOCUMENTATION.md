@@ -242,3 +242,8 @@ A következő fejlesztés az autonóm kutatás előfeltételeit készíti elő, 
 6. Scheduler csak explicit feature flag és emberi operációs kontroll mellett; production scheduler nincs engedélyezve.
 
 Az első implementációs szelet nem használhat production Supabase-t, nem futtathat migrációt, nem indíthat Gemini-kutatást és nem küldhet outbound üzenetet. A worker csak előkészített jobokat kezelhet; a tényleges kutatási végrehajtás későbbi külön lépés.
+
+
+### 10.1 Háttérmotor – első kódszelet
+
+A PR #28 ágán elkészült a company_research_jobs.py DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. A modul queued/running/retry_wait/succeeded/dead_letter állapotokat, stabil operation ID mezőt, lease owner/expiry, heartbeat, attempt counter, korlátozott retry és dead-letter átmeneteket modellez. A műveletek tiszta függvények, a repositorynak kell majd az operation ID egyediségét és a claim atomikusságát garantálnia. Nincs DB-integráció, scheduler, Gemini-hívás vagy külső mellékhatás. A tesztcsomag hozzáadva; az összesített CI-ellenőrzés a későbbi funkciócsomag után történik.
