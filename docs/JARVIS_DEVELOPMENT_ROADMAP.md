@@ -75,3 +75,21 @@ A JARVIS figyelhet, elemezhet, lehetőséget ismerhet fel és belső műveletet 
 
 ## Fejlesztési munkamódszer
 Minden funkcióhoz célzott implementáció, unit/AppTest/SQL teszt, releváns dokumentáció és PR CI szükséges. A fejlesztés PR/branch szinten marad; merge csak külön jóváhagyásra.
+
+
+## Stratégiai cél: önálló kutató és személyre szabott SaaS-ügynök
+
+A hosszú távú termékvízió és részletes fázisok: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
+
+A JARVIS célja, hogy önállóan cégeket fedezzen fel, forrásolt cégdossziét és szakmai döntéshozói kontextust készítsen, a cég valós problémáiból több egyedi SaaS-ötletet generáljon, ezeket magyarázhatóan rangsorolja, majd a globális és cégenkénti termék-tiltó/negatív ajánlási naplóval ütköztesse. A legjobb ötlethez személyre szabott, forrásolt ajánlatot és e-mail-tervezetet készítsen. Érdeklődés esetén igényfelmérés és szerződéses elfogadás után külön belső jóváhagyással indulhat AI-támogatott termékfejlesztési projekt.
+
+### Új stratégiai fejlesztési sorrend
+1. Automatikus, idempotens cégfelderítő worker és kutatási források.
+2. Verziózott cégdosszié, szakmai döntéshozó-kutatás, bizonyíték- és problémahipotézis.
+3. Egyedi SaaS-termékötlet motor, összehasonlítható pontozással.
+4. Globális termék-/ajánlási tiltó napló, elutasítások, ügyfélközi kizárólagosság és hasonlósági ütközésvizsgálat.
+5. Forrásolt, személyre szabott ajánlat és e-mail-tervezet, emberi megfelelőségi kapukkal.
+6. Válaszkezelés, értékesítési pipeline, szerződéses és fejlesztésindítási gate.
+7. AI-támogatott terméképítés, tesztelés, átadás és eredményalapú tanulás.
+
+Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A meglévő leadkutatás, pontozás, task workflow és memória alapot ad, de a teljes automatikus kutatási és személyre szabott SaaS-folyamat még nincs kész. Outbound e-mail hard-disable és production biztonsági kapuk változatlanok.
