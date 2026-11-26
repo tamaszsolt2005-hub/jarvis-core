@@ -128,3 +128,19 @@ A PR #28 ágon két új adatbázis-teszt készült:
 **Költségkeret-korlát:** a jelenlegi SQL szerződés a becsült költséget foglalja le, majd a tényleges költséget elszámolja. A szolgáltatói tényleges költség az alulbecslés miatt meghaladhatja a becsült foglalást; a mostani RPC nem érvényesít utólagos, visszamenőleges hard capet. Ezt a teszt és a későbbi költségpolitika külön kockázatként kezeli.
 
 **Ellenőrzési státusz: NEM FUTOTT.** A tesztek forrása elkészült, de lokális/izolált PostgreSQL futtatás és eredmény még nincs. A futtatás tervezett parancsa a helyi Supabase DB elindítása után: `supabase test db`. A vizsgált branch-en nem találtam verziózott `supabase/config.toml` fájlt, ezért a CLI-futtatás előtt a helyi Supabase projektkonfiguráció meglétét is ellenőrizni/pótolni kell. A concurrency teszthez a `dblink` extension elérhetősége szükséges. Production adatbázison nem szabad futtatni. A következő jelentésben a futás pontos commit SHA-ját, pgTAP eredményét és az esetleges hibákat kell rögzíteni.
+
+## 9. P0 – Gemini és külső szolgáltatások hibakezelési keményítése (2026-11-26)
+
+A PR #28 fejlesztési ágán az alábbi kód- és tesztmódosítások készültek:
+
+- A központi classify_error() kezeli a Google GenAI SDK által használt numerikus HTTP-kódokat és szimbolikus státuszokat is: RESOURCE_EXHAUSTED/429, UNAVAILABLE/503, DEADLINE_EXCEEDED/504, INTERNAL/500, PERMISSION_DENIED/403, valamint az API_KEY_INVALID/INVALID_ARGUMENT kombinációt. A hibás API-kulcs hitelesítési hiba, nem újrapróbálható általános kérés.
+- A Gemini generálási retry kizárólag a központi osztályozó által átmenetinek jelölt hibákra indul. A próbálkozások száma konfigurálható, 1–5 közé korlátozott; a várakozás exponenciális és legfeljebb 8 másodperc. A 429/503 túlterhelésnél tartalék modell is próbálható; auth-, konfigurációs és érvénytelen kérés hibánál nincs retry vagy fallback.
+- A generate_text() kizárólag modell-inferenciát végez. E-mail-küldés, adatbázis-módosítás és más üzleti mellékhatás nem kerülhet a generálási retry útvonalba. Az SMTP bizonytalan kimenetelét a chat jóváhagyási folyamat unknown auditállapottal kezeli, automatikus újraküldés nélkül; ezt AppTest is ellenőrzi.
+- A provider státuszkód csak korlátozott, biztonságos formátumban jelenhet meg; tetszőleges SDK mező nem kerül vissza a felhasználói hibaüzenetbe. A központi naplózás továbbra is redaktálja az API-kulcsokat, Bearer tokeneket és credential mezőket.
+- A hiányzó/hibás konfiguráció a required_secret() és required_http_url() útvonalon még külső művelet előtt kivételt vált ki; a Gemini-kulcs hiánya nem indít klienskérést. A külső hálózati és timeout hibák elkülönített, felhasználó számára érthető kategóriát kapnak.
+
+**Célzott regressziós lefedés hozzáadva:** tests/test_jarvis_errors.py, tests/test_jarvis_common.py, valamint a chat e-mail AppTest. A Settings AppTest hibás len(Button) lekérdezését kulcsalapú gombellenőrzésre cseréltük.
+
+**CI-státusz:** a legutóbbi teljes futás (#3102, commit 570349c1556995db1ca664f503f8ebbaa8b465f5) 1126 sikeres, 3 kihagyott és 1 sikertelen tesztet jelzett; a fennmaradó bukás a Settings AppTest gombobjektumának hibás len() használata volt. Ezt a tesztet javítottuk, és azóta Gemini hibakategorizálási, retry, titokmentesítési és SMTP-duplikációs tesztek is kerültek a branch-re. **A jelenlegi branch HEAD-re még nincs igazolt CI-eredmény**, ezért a teljes P0 csomag csak az új commiton futó tesztek sikeres lezárása után tekinthető késznek.
+
+Production adatbázis, secret, SMTP-konfiguráció és deploy nem módosult; valódi külső Gemini API-kérés nem futott.
