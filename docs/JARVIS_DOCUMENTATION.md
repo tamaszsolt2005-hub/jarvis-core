@@ -3,7 +3,7 @@
 > **Aktuális állapot – 2026-11-26:** a JARVIS alkalmazás még nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt; a cégazonosítás tranzakciós `upsert_company_lead` RPC-je és két-session concurrency tesztje elkészült. A production release kapuk nem blokkolják a helyi funkciófejlesztést. Az aktuális összefoglaló: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
 
 
-**Aktuális alap:** `main` – PR #20 squash merge: `2e2a97e182687c9b9d018da99b87095b75a21054` (2026-11-25).
+**Történeti main-alap:** `main` – PR #20 squash merge: `2e2a97e182687c9b9d018da99b87095b75a21054` (2026-11-25). A jelenlegi fejlesztési változások a nyitott PR #26 branchben vannak; ez még nincs merge-ölve.
 **Célközönség:** fejlesztők és AI-kódoló ügynökök. Ez a dokumentum a jelenlegi kódszerkezetet és a funkciók tényleges korlátait írja le.
 
 ## 1. Mi a JARVIS?
