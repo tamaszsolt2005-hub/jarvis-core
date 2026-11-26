@@ -220,7 +220,9 @@ def test_chat_exceptions_are_reported_with_stage_and_sanitized_details():
     handler_source = ast.get_source_segment(SOURCE, handlers[-1])
     assert 'report_error(' in handler_source
     assert 'operation=f"chat_request:{stage}"' in handler_source
-    assert "sanitize_log_text(exc, max_length=500)" in handler_source
+    # report_error delegates to jarvis_errors.sanitize_log_text before persistence;
+    # the dashboard must not maintain a second, divergent redaction path.
+    assert "report_error(" in handler_source
     assert "chat_error|request_id=" in handler_source
 
 
