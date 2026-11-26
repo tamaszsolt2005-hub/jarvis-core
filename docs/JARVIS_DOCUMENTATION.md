@@ -1,128 +1,126 @@
-# JARVIS – képességek és műszaki áttekintés
+# JARVIS – rendszer-, funkció- és architektúra-dokumentáció
 
-> **Aktuális állapot – 2026-11-26:** a JARVIS alkalmazás még nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt; a cégazonosítás tranzakciós `upsert_company_lead` RPC-je és két-session concurrency tesztje elkészült. A production release kapuk nem blokkolják a helyi funkciófejlesztést. Az aktuális összefoglaló: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
+A dokumentum a PR #26 fejlesztési ág jelenlegi rendszerképét írja le. Nem állítja, hogy minden modul productionben aktív.
 
+- Aktuális állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md)
+- Beírható parancsok: [JARVIS_COMMAND_GUIDE.md](JARVIS_COMMAND_GUIDE.md)
+- Fejlesztési irány: [JARVIS_DEVELOPMENT_ROADMAP.md](JARVIS_DEVELOPMENT_ROADMAP.md)
+- Release feltételek: [REMAINING_WORK_AND_RELEASE_GATES.md](REMAINING_WORK_AND_RELEASE_GATES.md)
 
-**Történeti main-alap:** `main` – PR #20 squash merge: `2e2a97e182687c9b9d018da99b87095b75a21054` (2026-11-25). A jelenlegi fejlesztési változások a nyitott PR #26 branchben vannak; ez még nincs merge-ölve.
-**Célközönség:** fejlesztők és AI-kódoló ügynökök. Ez a dokumentum a jelenlegi kódszerkezetet és a funkciók tényleges korlátait írja le.
+## 1. Rendszerkép és telepítési státusz
+A JARVIS magyar nyelvű, Streamlit-alapú üzleti asszisztens. A chat Gemini modellt használ, a Python modulok célzottan olvassák vagy explicit jóváhagyásos útvonalakon módosítják a Supabase/PostgreSQL adatokat.
 
-## 1. Mi a JARVIS?
+A JARVIS alkalmazás helyi fejlesztés alatt áll, nincs production hostra deployolva. A létező Supabase production projekt különálló adatbázis; önmagában nem bizonyítja az alkalmazás telepítését.
 
-A JARVIS magyar nyelvű, Streamlit-alapú B2B üzleti asszisztens. A felhasználó chat- és dashboardfelületen keresztül kérhet kutatást, elemzést, feladatkezelést és üzleti összefoglalót. A rendszer Python modulokból, Supabase/PostgreSQL adattárolásból, Gemini-alapú nyelvi feldolgozásból és ütemezhető háttérfeladatokból áll.
+## 2. Funkcionális területek
 
-## 2. Képességek és állapot
+### 2.1 Chat és kontextus
+Magyar nyelvű válaszgenerálás; a dashboard kérdés alapján lead, task, napló, analitika, memória és tervezet kontextust kérhet le. A beszélgetési előzmény méretkorlátos. Az explicit műveleti parancsok külön parseren mennek keresztül; a modell szabad szövege önmagában nem hajthat végre DB-műveletet.
 
-| Képesség | Mit csinál | Fontos korlát |
-|---|---|---|
-| Chat és válaszgenerálás | Magyar nyelvű chat, Gemini-alapú válaszok és dashboard műveletek | Külső Gemini eléréshez érvényes konfiguráció kell |
-| Leadkutatás | Cégek keresése, webes források gyűjtése, weboldal-audit | A források minősége és a webelérés befolyásolja az eredményt |
-| Leadértékelés | Lead scoring, prioritás és utánkövetési javaslat | Üzleti döntést támogató becslés, nem garantált eredmény |
-| Üzleti memória | Explicit üzleti információk tárolása és későbbi felhasználása | Nem korlátlan vagy automatikusan teljes tudásbázis |
-| Stratégia és döntéstámogatás | Üzleti tanulságok, stratégiai összefoglalók, analitika | A kimenet a rendelkezésre álló adatok minőségétől függ |
-| Feladatkezelés | Task létrehozás, módosítás, lezárás és DB-szintű jóváhagyásos végrehajtás; kutatási javaslatból leadhez kötött task előkészítése | A leadhez kötött create is a rövid életű approval RPC-t használja; teljes workflow E2E és follow-up állapotgép még nincs kész |
-| Audit és hibakezelés | Műveleti napló, auditállapotok, hibák redakciója | A hash chain nem WORM, és nem véd adatbázis-tulajdonossal szemben |
-| Napi briefing és utánkövetés | Vezetői összefoglaló, lejárt feladatok, follow-up jelzések és leadhez kötött belső következőlépés-javaslatok | A javaslat read-only; a feladat csak a megadott lead UUID-vel és külön jóváhagyással készülhet el; a follow-up küldés tiltott |
-| Proaktív monitor | Lead- és feladatváltozások figyelése, állapotfrissítés | A monitor kód megléte nem bizonyítja, hogy production scheduler fut |
-| E-mail | Tervezetkészítés, inbox feldolgozás és SMTP adapter | A kimenő SMTP-küldés biztonsági kapcsolóval tiltott; tartós provider-idempotencia nincs igazolva |
-| Auth/RBAC | Opcionális Supabase Auth login és shared-workspace admin/operator/reader jogosultság | Kódban és migrációkban előkészített; production flag OFF, migráció nem alkalmazott |
+### 2.2 Leadkutatás és cégazonosítás
+- Globális céges kutatás explicit prospecting kérésre indul.
+- Alapértelmezett piac Hungary; támogatott ország-aliasok: Magyarország, Németország, Franciaország, Ausztria, Svájc, Egyesült Királyság, Olaszország, Spanyolország, Lengyelország, Románia, Hollandia, Portugália, Belgium, Csehország, Szlovákia, Svédország, Dánia, Norvégia, Finnország, Írország, USA, Kanada és Worldwide.
+- Grounding URL-ek ellenőrzése, strukturált cégadat-validálás, legfeljebb 15 új cég/futás.
+- CSV import és globális kutatás közös cégazonosító RPC-t használ.
+- Normalizált cégnév/domain aliasok tranzakciós védelmet kapnak; több email-jelölt megőrizhető. Consent nem öröklődik címek között.
+- A személyes webmail cím pontozási heurisztikája rangsorolási jel, nem bizonyított válaszarány.
 
-**Státuszszabály:** a „kódban implementált”, „tesztelt”, „külső integrációval élőben igazolt” és „productionben aktív” négy külön állítás. Mindig nevezd meg, melyikről van szó.
+### 2.3 Lead scoring és workflow
+A pontozás üzleti illeszkedést, prioritást, kutatási bizonyosságot és bizonyítékszámot használ. A workflow csak strukturált, saját, forrásolt kutatásból javasol belső feladatot. Gyenge bizonyosság további kutatást kér. A javaslat read-only; a feladat explicit chat-paranccsal és approval folyamattal készíthető elő.
 
-## 3. Fő modulok
+Az eredménymérési task lezárásakor a kifejezett Eredmény: pozitív: ..., Eredmény: negatív: ... vagy Eredmény: nincs válasz: ... besorolás más belső következő lépést ajánl. Ismeretlen szövegnél besorolási feladatot javasol. Ez nem küld üzenetet és nem zárja le automatikusan a leadet.
 
+### 2.4 Feladatkezelés és Feladatközpont
+A dashboard read-only feladatlistát mutat: összes/nyitott/lejárt/sürgős mutatók, aktív/összes/lezárt/lejárt/sürgős szűrés és határidő/prioritás/létrehozás szerinti rendezés. Megjelenik a task UUID és kapcsolt lead UUID.
+
+Létrehozás, módosítás és lezárás csak strukturált chat-paranccsal készíthető elő, majd külön jóváhagyással hajtható végre. Módosítható mezők: cím, prioritás, határidő, leírás/jegyzet, eredmény. A határidő Budapest időzónában a megadott nap 23:59 órája.
+
+A DB RPC egyszer használatos approvalt, műveletazonosítót, auditot és atomikus végrehajtást használ. A leadhez kötött task létrehozás leadenkénti tranzakciós zárolással blokkolja a párhuzamos nyitott duplikátumot.
+
+### 2.5 Utánkövetési sor
+A Feladatközpontban read-only sor jeleníti meg az esedékes és 7 napon belül esedékes leadeket. Csak sent/follow_up_sent státuszú, consent-bázisú, jóváhagyott kapcsolatfelvételű, nem leiratkozott, válasz nélküli és még fel nem használt follow-up jelenhet meg. Hiányzó/hibás kritikus mezőnél fail-closed módon kimarad. Email címet nem jelenít meg, levelet nem küld és leadállapotot nem módosít.
+
+### 2.6 Hosszú távú üzleti memória
+Explicit parancsra mentés/listázás/inaktiválás. Kategóriák: business_preference, decision, outcome, lesson. Titoknak, jelszónak, tokennek, email-címnek, telefonszámnak és több érzékeny adatnak látszó tartalom nem menthető. A releváns aktív emlékek korlátozott számban kerülnek a chat kontextusába. A felejtés inaktiválás, nem feltétlen fizikai törlés.
+
+### 2.7 Napi briefing, analitika és üzleti tanulás
+A napi briefing read-only összesíti a leadkutatási rangsort, belső workflow-javaslatokat, nyitott/lejárt feladatokat és consent-valid utánkövetéseket. Az analitika naplókból és üzleti rekordokból készít összefoglalót, trendet, arányt vagy riportot. A business learning/strategy modulok explicit rögzített döntések és eredmények, valamint kutatási minták alapján készítenek összegzést; modellkövetkeztetés nem bizonyított tény.
+
+### 2.8 Audit és hibakezelés
+A strukturált audit műveletazonosítót, action/status mezőket, eredményt és szűrt hibát rögzít. Titokértékek redaktálása történik; tetszőleges e-mail törzs nem része az audit API-nak. A kritikus task műveleti útvonal auditírási hibánál fail-closed. A hash-lánc nem WORM bizonyíték adatbázis-tulajdonossal szemben.
+
+### 2.9 E-mail és inbox
+SMTP és Resend adapter, chat e-mail-tervezet és inbound inbox-monitor komponens létezik. A kimenő küldés EMAIL_DELIVERY_ENABLED = False kódszintű hard-disable miatt tiltott; az outbound GitHub workflow-lépés if: false. Bizonytalan provider-kimenet unknown, automatikus retry tilos. Az inbound IMAP monitor külön konfigurációt igényel. Provider live E2E és production scheduler nincs igazolva. Részletek: [EMAIL_PROVIDER_IDEMPOTENCY.md](EMAIL_PROVIDER_IDEMPOTENCY.md).
+
+### 2.10 Auth és RBAC
+A kódban előkészített szerepkörök: admin, operator, reader. A trusted role forrása a Supabase app_metadata.role, nem a felhasználó által írható metadata. A JARVIS_SUPABASE_AUTH_LOGIN_ENABLED és JARVIS_AUTH_RBAC_ENFORCED flag alapértelmezésben OFF. Auth módban ellenőrzött user JWT és publikus kulcs használatos, service-role fallback nélkül. A shared-workspace RLS/GRANT migrációk repositoryban vannak; production alkalmazásuk nincs igazolva.
+
+## 3. Fő komponensek
 | Fájl | Felelősség |
 |---|---|
-| `dashboard.py` | Streamlit UI, chat, dashboard folyamatok és felhasználói belépési pontok |
-| `jarvis_common.py` | Közös konfiguráció, Supabase kliensgyárak és segédfüggvények |
-| `jarvis_auth.py` | Supabase Auth session-ellenőrzés, role claim és user-JWT kliens |
-| `global_lead_research.py`, `web_auditor.py` | Leadkutatás és weboldal-vizsgálat |
-| `lead_scoring.py`, `intelligent_lead_scoring.py` | Leadpontozás |
-| `lead_workflow.py` | Kutatási bizonyítékokból belső feladatjavaslat, explicit parancs parser és approval-ready, leadhez kapcsolt task payload; a modul maga read-only |
-| `business_learning.py`, `business_strategy.py`, `decision_support.py` | Üzleti tanulás, stratégia és döntéstámogatás |
-| `jarvis_memory.py`, `jarvis_analytics.py`, `stats.py` | Memória, analitika és statisztika |
-| `task_actions.py` | Feladatműveletek és műveleti szabályok |
-| `audit_admin.py` | Audit-admin funkciók |
-| `daily_briefing.py`, `follow_up.py` | Vezetői briefing és utánkövetés |
-| `proactive_monitor.py`, `proactive_monitor_job.py` | Proaktív figyelés és háttérjob |
-| `email_sender.py`, `chat_email.py`, `email_inbox.py`, `inbox_monitor.py` | E-mail küldési, chat és inbox folyamatok |
-| `safe_http.py`, `jarvis_errors.py` | HTTP biztonsági segédek és központi hibakezelés |
-| `scripts/supabase_backup.py` | Supabase logikai backup/restore segédprogram |
-| `supabase/migrations/` | Verziókezelt SQL migrációk |
-| `supabase/tests/` | SQL/pgTAP biztonsági és sémapostcondition tesztek |
+| dashboard.py | Streamlit UI, chat routing, kontextus, Feladatközpont, approval |
+| jarvis_common.py | Secret/config olvasás, Gemini/Supabase kliensgyárak, audit/log, prompt/retry |
+| jarvis_auth.py | Supabase Auth session, trusted role, permission |
+| global_lead_research.py | Grounded céges kutatás, piacváltás, kutatási validálás |
+| lead_identity.py | Közös tranzakciós cég/lead upsert |
+| lead_gen.py, lead_scoring.py, intelligent_lead_scoring.py | Leadgenerálás és pontozás |
+| lead_workflow.py | Read-only belső következőfeladat-ajánlás |
+| task_actions.py | Task parancs parser és jóváhagyás utáni végrehajtás |
+| daily_briefing.py, follow_up.py | Napi összefoglaló és follow-up szabályok |
+| jarvis_memory.py, business_learning.py, business_strategy.py | Memória és üzleti tanulás |
+| jarvis_analytics.py, stats.py, decision_support.py | Analitika és döntéstámogatás |
+| audit_admin.py | Audit lekérdezés és export |
+| email_sender.py, chat_email.py, email_inbox.py, inbox_monitor.py | E-mail adapterek és inbox-feldolgozás |
+| proactive_monitor.py, proactive_monitor_job.py | Monitor kód és job belépési pont |
+| safe_http.py, jarvis_errors.py | HTTP-biztonság és hibakezelés |
+| supabase/migrations/, supabase/tests/ | Verziózott DB-séma, RPC, SQL tesztek |
+| .github/workflows/ | CI, CodeQL, dependency audit és email automation |
 
-## 4. Adat- és jogosultsági modell
+## 4. Adatmodell és fő adatfolyamok
+Fő entitások: leads, tasks, jarvis_memory, settings, logs. Részletes séma: supabase/schema.sql és supabase/migrations/.
 
-- A JARVIS jelenlegi célmodellje egyetlen közös workspace; nem tenant-izolált SaaS.
-- Az Auth/RBAC szerepek: `admin`, `operator`, `reader`.
-- A szerepkör megbízható forrása a szerver által kezelt Supabase `app_metadata.role`; a kliens által írható user metadata nem jogosultsági forrás.
-- Auth módban a dashboard user JWT-t és publikus kulcsot használ, service-role fallback nélkül.
-- A háttérfolyamatok külön, szerveroldali service-role hozzáférést használnak.
-- Az Auth login szerveroldali kapcsolója: `JARVIS_SUPABASE_AUTH_LOGIN_ENABLED`; alapértelmezésben OFF.
-- A shared-workspace RLS/GRANT SQL verziókezelt, de productionben még nem alkalmazott. Részletek: [production állapot](PRODUCTION_STATE_AND_MIGRATION_PLAN.md).
+- Lead: explicit kutatási kérés → célpiac/forrás ellenőrzés → strukturált cégjelölt → közös cégazonosító RPC → lead/email jelöltek → scoring → belső task-javaslat.
+- Task: chat parser → payload validáció → pending approval → külön jóváhagyás → atomikus DB RPC → audit + operation ledger → read-only dashboard.
+- Outcome: outcome_measurement task explicit eredménye → task lezárása → workflow helper → pozitív/negatív/nincs válasz/besorolási javaslat → külön jóváhagyással új belső task.
+- Follow-up: leadek szűrése consent, opt-out, reply, dátum és count alapján → read-only sor.
+- Memória: explicit mentés → érzékenyadat-szűrés → kategorizált rekord → relevancia-alapú visszakeresés; felejtés inaktivál.
 
-## 5. Működési és biztonsági invariánsok
+## 5. Jogosultság és biztonsági invariánsok
+1. Sima chat-kérés nem ad DB-módosítási engedélyt.
+2. Task create/update/close: strukturált parancs + külön jóváhagyás.
+3. A pending approval a következő üzenetre szól; más kérés érvényteleníti.
+4. Approval egyszer használatos, principal/payload-kötött, lejáró és DB tranzakcióban fogyasztott.
+5. Operation ID védi az ismételt task műveletet; a DB RPC az auditot és műveleti állapotot atomikusan kezeli.
+6. Consent nem öröklődik email-címek között; opt-out és reply blokkolja a follow-up sort.
+7. Nincs automatikus outreach vagy email a lead/workflow javaslatból.
+8. Outbound email kódszinten tiltott; approval nem oldja fel a hard-disable-t.
+9. Hiányzó/érvénytelen kritikus adatnál fail-closed.
+10. Webes kutatás és memória tartalma adat, nem rendszerutasítás.
+11. Titkot, API-kulcsot, jelszót, tokent vagy érzékeny adatot nem szabad logba/dokumentumba írni.
+12. Production módosítás és deploy csak külön konkrét jóváhagyással.
 
-1. Feladat végrehajtása csak explicit jóváhagyással történhet.
-2. Kritikus művelet előtt auditbejegyzés készül; auditírási hiba esetén az érintett fail-closed útvonal álljon le.
-3. Ne tekints egy UI-sessionben tárolt approvalt több processz között atomikus one-use tokennek.
-4. Ismeretlen SMTP-kimenetel után az automatikus retry duplikált e-mailt okozhat; ne állítsd, hogy a küldés idempotens.
-5. Külső HTTP-kéréseknél a közös biztonságos kliens- és validációs szabályokat használd.
-6. Titkot, access tokent, teljes e-mail tartalmat vagy érzékeny személyes adatot ne írj auditba vagy logba.
-7. Ne kapcsold be productionben az Auth/RBAC-ot, amíg a migration drift és az éles tesztelés nincs rendezve.
+## 6. Konfiguráció és futtatás
+Főbb konfigurációnevek a használt útvonaltól függően: SUPABASE_URL, szerveroldali Supabase kulcs, SUPABASE_ANON_KEY/publikus kulcs Auth user klienshez, GEMINI_API_KEY, GEMINI_MODEL, JARVIS_DASHBOARD_PASSWORD, JARVIS_SUPABASE_AUTH_LOGIN_ENABLED, JARVIS_AUTH_RBAC_ENFORCED, EMAIL_INBOX_MONITOR_ENABLED és IMAP host/port. Outbound provider konfiguráció létezik, de a küldés hard-disabled. A secret értékeket soha ne jelenítsd meg.
 
-## 6. Fejlesztés és tesztelés
+Helyi indítás:
+    python -m pip install -r requirements.txt
+    streamlit run dashboard.py --server.port 8501
 
-**Aktuális ellenőrzés (2026-11-25):** main commit `2e2a97e`; main CI `45655131500` sikeres. A production backup workflow `45655512387` sikeresen végrehajtotta a titkosított dumpot, S3 SSE-KMS ellenőrzést, letöltés/visszafejtés/hash ellenőrzést és külön PostgreSQL 17 restore-t. Ez nem jelent production migrációt vagy deployt. [Backup/restore futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
+Tesztelés:
+    python -m pip install -r requirements-test.txt
+    python -m compileall -q .
+    python -m pytest -q
 
+## 7. Háttérfolyamatok
+A dashboard nem általános célú scheduler. proactive_monitor_job.py létezik, az inbox workflow konfigurációhoz kötött, de ezek nem bizonyítják, hogy folyamatos JARVIS worker vagy production scheduler fut. Az email-automation workflow inbound ellenőrzést konfiguráció esetén futtathat; outbound küldő lépése tiltott. Az általános idempotens worker/claim protokoll későbbi feladat.
 
+## 8. Bizonyítékszintek
+- Implementált: kód létezik a vizsgált branchben.
+- Automatikusan tesztelt: az adott commiton sikeres teszt/CI igazolja.
+- Integrációval igazolt: külső szolgáltató engedélyezett tesztje lefutott.
+- Productionben aktív: deploy és éles smoke igazolja.
 
-```bash
-python -m pip install -r requirements-test.txt
-python -m compileall -q .
-python -m pytest -q
-```
+A PR #26 mindenkori aktuális head CI-jét a PR Checks oldalon ellenőrizd. Régi commit zöld CI-je nem bizonyíték újabb commitra.
 
-A CI PostgreSQL 17 izolált környezetben migrációs replayt, pgTAP teszteket, katalógus-postcondition ellenőrzést és titkosított backup/restore integrációt is futtat. A sikeres fixture-teszt nem bizonyítja a production Supabase Auth/JWT/RLS viselkedést.
-
-## 7. Következő fejlesztési irány
-
-A jelenlegi szakaszban a helyi funkciófejlesztés folytatható. A task approval/idempotencia és a cégazonosítás tranzakciós alapjai a PR #26 branchben CI-vel igazoltak. Továbbra is nyitott a külső e-mail provider live E2E (a küldés hard-disabled marad), a teljes üzleti workflow E2E és mérés, valamint a forrásolt/jogosultságkezelt memória lifecycle. A migration drift, Auth/RLS smoke és app-host kiválasztás későbbi production release feladat, nem a helyi funkciófejlesztés előfeltétele.
-
-A napi briefing leadjavaslata explicit `Hozz létre javasolt feladat: <lead UUID>` paranccsal leadhez kapcsolt task előkészítésévé alakítható. A dashboard újraellenőrzi a grounding forrást és a meglévő taskokat; a létrehozás a meglévő egyszer használatos DB-jóváhagyáson keresztül történik. Az atomikus RPC leadenként zárolja az első nyitott task létrehozását. A művelet nem ad outreach engedélyt és nem küld e-mailt. A teljes workflow következő része a follow-up állapotgép és az eredménymérés. A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) tartalmazzák.
-
-
-## Aktuális implementációs állapot – PR #26, 2026-11-25
-
-A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek; az aktuális státuszt a fenti összefoglaló és a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
-
-- **Approval:** a DB tárolja a token hashét, a principal/payload kötést és lejáratot; az egyszeri fogyasztás a végrehajtó tranzakció része. A replay/revoke SQL-tesztek hozzáadva.
-- **Task műveletek:** az `execute_approved_task_action` RPC operation ID alapján sorosítja az azonos műveletet; a már lezárt művelet eredményét adja vissza. A párhuzamos kettős végrehajtás ellenőrzésére két-session CI teszt van.
-- **Audit:** a kritikus task művelet auditírási hibájára rollback-teszt került be, amely ellenőrzi a task, operation ledger és approval állapotát is.
-- **SMTP:** `EMAIL_DELIVERY_ENABLED = False` marad. A DATA-küldés utáni bizonytalan eredmény `EmailDeliveryOutcomeUnknown` / `send_unknown`; automatikus retry tiltott. A csatlakozási/auth/preflight hiba ismert, nem-kézbesített hibaként kezelendő. Belső stabil operation ID a Resend adapterben Idempotency-Key fejlécben továbbítódik; SMTP-nél nincs provider-oldali deduplikáció.
-- **Service role:** a végső közvetlen task DML revoke migráció csak az RPC write path deployja és élő smoke-ja után alkalmazható. A CI fixture-ben való lefutása nem jogosít production módosításra.
-
-A `38693f2` kódcommiton a `45689264377` mindkét CI jobja sikeres; a párhuzamos `45689247826` futás megszakadt. A dokumentációs commitok utáni PR-head (`eaad542`) külön CI-je még nem zárult le sikeresen. Production Auth/RLS, migration, deploy és provider integráció nincs igazolva.
-
-
-## Resend provider adapter – 2026-11-25
-
-A Resend HTTPS API adapter elkészült. A stabil lead + sequence operation ID az API Idempotency-Key fejlécébe kerül; a legacy follow_up.py útvonal is ugyanazt a kulcsot használja. A workflow EMAIL_PROVIDER=resend és RESEND_API_KEY secret bindinggal elő van készítve. A globális EMAIL_DELIVERY_ENABLED=False és az outbound workflow if: false változatlan, tehát a provider nem küldhet levelet.
-
-A Resend 24 órán át őrzi az idempotenciakulcsot. A hálózati hiba, 409, 429 és 5xx bizonytalan eredmény; automatikus retry nincs. A send_unknown / followup_unknown állapotot tilos automatikusan visszaállítani küldhető állapotba. Live API-kulcs, ellenőrzött feladói domain és provider E2E még nincs igazolva. Részletek: [Email provider idempotency](EMAIL_PROVIDER_IDEMPOTENCY.md).
-
-
-
-## 2026-11-26 – PR #26 frissített implementációs és ellenőrzési állapot
-
-A korábbi, PR #20/21/23 és régebbi PR #26 CI-headre hivatkozó bekezdések történeti pillanatképek. Az ellenőrzött PR #26 head `6ef4020bba3949e02440e97583fc907b6bcb1f00` CI-eredménye:
-
-- Python/AppTest/browser: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
-- PostgreSQL 17 izolált migrációs, pgTAP, audit/RBAC catalog, encrypted backup/restore: sikeres.
-- CodeQL: sikeres.
-- pip-audit: sikeres.
-
-A korábban alkalmazásszintű global lead research deduplikációt a PR #26 közös, tranzakciós `upsert_company_lead` RPC-je váltotta fel. Mindkét lead writer ugyanazt a protokollt használja; a PostgreSQL két-session concurrency teszt sikeres. A cégclaim race fejlesztési kockázat lezárt a branchben; production migráció még nem történt.
-
-A CSV import normalizált email unique indexe ettől külön védelmi réteg. Az email-egyediség migráció izolált PostgreSQL CI-ben tesztelt, de production alkalmazása nem történt.
-
-**Production állapot:** a PR #26 továbbra is nyitott és nem merge-ölt. A CI nem bizonyítja a production Supabase séma/Auth/RLS állapotát, az alkalmazás hostját, az SMTP hitelesítést vagy a deployt. A kimenő e-mail hard-disabled. Production DB, deploy, jogosultságok, secret-ek és e-mailküldés változatlan.
+## 9. Nem kész / nem aktív
+Production host és JARVIS URL nincs kiválasztva; production Supabase migration drift és Auth/RLS rollout nincs rendezve; Auth/RBAC flag production aktiválása nem történt; outbound email hard-disabled; teljes lead → task → follow-up → outcome E2E nincs lezárva; általános célú scheduler/worker nincs kész; teljes, forrásolt üzleti tudásgráf/memória lifecycle további fejlesztést igényel.
