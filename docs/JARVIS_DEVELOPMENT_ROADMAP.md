@@ -150,3 +150,12 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Idempotens operation ID replay nem fogyaszt új kvótát.
 - A DB állítja be a job `created_at` értékét.
 - A tényleges provider-költség elszámolása és reservation release még hátravan.
+
+
+### Phase 1K – actual cost settlement alap implementálva
+
+- Opcionális worker actual-cost extractor callback.
+- Szigorú egész mikro-USD validáció.
+- Sikeres job completion és reservation settlement ugyanabban az RPC-tranzakcióban.
+- Audit metadata tartalmazza a tényleges költséget.
+- Provider-specifikus token usage adapter és valós költségmérés még hátravan.
