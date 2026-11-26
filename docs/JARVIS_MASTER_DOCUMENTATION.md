@@ -317,3 +317,8 @@ A kvóta a job enqueue-k számát jelenti, nem a sikeres kutatásokét: a sikert
 A worker opcionális `actual_cost_extractor` függvénnyel képes a provider handler eredményéből tényleges költséget kinyerni. A callback kimenete szigorúan nemnegatív egész mikro-USD. A repository a complete RPC-n keresztül adja át; a job sikeres lezárása, a budget reservation `settled` státuszra váltása, a foglalt összeg actual cost-ra cserélése és az audit metadata beírása egy adatbázis-tranzakcióban történik. Extractor hiányában az eredeti becsült összeg marad fenntartva, így az elszámolás nem engedi véletlenül felszabadítani a fel nem mért költséget. Tényleges provider usage mérés még nincs implementálva.
 
 Minden Python refresh enqueue útvonal kötelezően megadja a becsült költséget és a limit-konfigurációt; nincs több olyan egyszerű enqueue helper, amely a hard adatbázisoldali napi költség-, óránkénti vagy domain napi korlátok nélkül hozhat létre jobot.
+
+
+### 10.13 Grounded Gemini provider adapter
+
+A cégkutatási execution réteg most már tartalmaz injektált Gemini klienssel működő Google Search grounding adaptert, strukturált JSON feldolgozást, grounded host alapú tény- és döntéshozó-validációt, legfeljebb három transient retry-t exponenciális backoff-fal, valamint worker-kompatibilis handler factoryt. A provider usage token-számait továbbadja; explicit konfigurált tokenárakkal actual micro-USD költség számítható. API secretet vagy klienst nem olvas/hozz létre önállóan. A szinkron API hívás alatti heartbeat renewal még nincs megoldva, ezért hosszú provider hívásnál lease lejárhat. A dashboard és a tartós snapshot store integrációja még nincs bekötve; nincs automatikus futtatás vagy outbound kommunikáció.
