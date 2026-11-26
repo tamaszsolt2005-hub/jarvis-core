@@ -15,6 +15,8 @@ def config(**overrides):
         "input_price_microusd_per_million_tokens": 2_000_000,
         "output_price_microusd_per_million_tokens": 4_000_000,
         "pricing_model": "gemini-test",
+        "search_price_microusd_per_thousand_queries": 0,
+        "max_search_queries_per_attempt": 0,
         "max_daily_cost_microusd": 900_000,
         "max_jobs_per_hour": 12,
         "max_jobs_per_domain_per_day": 2,
@@ -39,6 +41,7 @@ def test_environment_loads_one_explicit_shared_configuration():
         "JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS": "2000000",
         "JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS": "4000000",
         "JARVIS_COMPANY_RESEARCH_PRICING_MODEL": "gemini-test",
+        "JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES": "0",
         "JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD": "900000",
         "JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR": "12",
         "JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY": "2",
@@ -46,6 +49,7 @@ def test_environment_loads_one_explicit_shared_configuration():
         "JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS": "777",
         "JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS": "555",
         "JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS": "1",
+        "JARVIS_COMPANY_RESEARCH_MAX_SEARCH_QUERIES_PER_ATTEMPT": "0",
     }
     loaded = CompanyResearchRuntimeConfig.from_env(env)
     assert loaded.input_price_microusd_per_million_tokens == 2_000_000
@@ -53,6 +57,8 @@ def test_environment_loads_one_explicit_shared_configuration():
     assert loaded.max_input_tokens_per_attempt == 777
     assert loaded.max_output_tokens_per_attempt == 555
     assert loaded.max_attempts == 1
+    assert loaded.search_price_microusd_per_thousand_queries == 0
+    assert loaded.max_search_queries_per_attempt == 0
     assert loaded.limits == {
         "max_daily_cost_microusd": 900_000,
         "max_jobs_per_hour": 12,
@@ -92,6 +98,8 @@ def test_queue_adapter_passes_exact_provider_cost_limits(monkeypatch):
     assert captured["max_input_tokens_per_attempt"] == cfg.max_input_tokens_per_attempt
     assert captured["max_output_tokens_per_attempt"] == cfg.max_output_tokens_per_attempt
     assert captured["max_attempts"] == cfg.max_attempts
+    assert captured["search_price_microusd_per_thousand_queries"] == cfg.search_price_microusd_per_thousand_queries
+    assert captured["max_search_queries_per_attempt"] == cfg.max_search_queries_per_attempt
     assert captured["max_age_days"] == cfg.max_age_days
     assert captured["limit"] == cfg.batch_limit
 
@@ -170,6 +178,7 @@ def test_worker_adapter_uses_shared_pricing_and_concurrency(monkeypatch):
     assert captured["input_price_microusd_per_million_tokens"] == cfg.input_price_microusd_per_million_tokens
     assert captured["output_price_microusd_per_million_tokens"] == cfg.output_price_microusd_per_million_tokens
     assert captured["max_concurrent_jobs"] == cfg.max_concurrent_jobs
+    assert captured["search_price_microusd_per_thousand_queries"] == cfg.search_price_microusd_per_thousand_queries
     assert captured["max_attempts"] == 1
     assert isinstance(captured["provider"], TokenBoundedGeminiProvider)
 
@@ -210,3 +219,13 @@ def test_runtime_rejects_model_that_does_not_match_pricing_schedule(monkeypatch)
             object(), client=client, model="different-model", snapshot_db=object(),
             worker_id="worker-a", config=cfg,
         )
+
+
+def test_positive_grounding_price_requires_reservation_query_allowance():
+    with pytest.raises(ValueError, match="max_search_queries_per_attempt"):
+        config(search_price_microusd_per_thousand_queries=35_000_000)
+    configured = config(
+        search_price_microusd_per_thousand_queries=35_000_000,
+        max_search_queries_per_attempt=4,
+    )
+    assert configured.max_search_queries_per_attempt == 4
