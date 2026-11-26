@@ -28,10 +28,13 @@ def run_one_company_research_job(
     max_attempts: int = 3,
     max_retry_delay_seconds: int = 3600,
     max_result_bytes: int = 262144,
+    actual_cost_extractor: Callable[[dict[str, Any]], int] | None = None,
 ) -> dict[str, Any]:
     """Claim and process at most one prepared job."""
     if not callable(handler):
         raise ValueError("handler must be callable")
+    if actual_cost_extractor is not None and not callable(actual_cost_extractor):
+        raise ValueError("actual_cost_extractor must be callable or None")
     if not isinstance(worker_id, str) or not worker_id.strip():
         raise ValueError("worker_id is required")
     if isinstance(retry_delay_seconds, bool) or not isinstance(retry_delay_seconds, int) or retry_delay_seconds < 1:
@@ -105,6 +108,15 @@ def run_one_company_research_job(
         if len(serialized_result.encode("utf-8")) > max_result_bytes:
             raise ValueError("handler_result_exceeds_size_limit")
         result = json.loads(serialized_result)
+        actual_cost_microusd = (
+            actual_cost_extractor(result) if actual_cost_extractor is not None else None
+        )
+        if actual_cost_microusd is not None and (
+            isinstance(actual_cost_microusd, bool)
+            or not isinstance(actual_cost_microusd, int)
+            or actual_cost_microusd < 0
+        ):
+            raise ValueError("actual_cost_extractor_must_return_non_negative_integer")
     except Exception as exc:
         error_code = getattr(exc, "code", None)
         if not isinstance(error_code, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", error_code):
@@ -141,6 +153,7 @@ def run_one_company_research_job(
         operation_id=operation_id,
         worker_id=worker_id,
         result=result,
+        actual_cost_microusd=actual_cost_microusd,
     )
     if completed is None:
         return {"status": "lease_lost", "operation_id": operation_id}
