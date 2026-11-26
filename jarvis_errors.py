@@ -184,7 +184,11 @@ def classify_error(error: BaseException) -> dict[str, Any]:
         category = "service_unavailable"
         retryable = True
     elif isinstance(error, (ConnectionError, OSError)) or any(
-        marker in text for marker in ("connection refused", "connection reset", "name or service not known", "temporary failure in name resolution", "dns", "network is unreachable")
+        marker in text for marker in (
+            "connectionerror", "connecterror", "connection refused", "connection reset",
+            "name or service not known", "temporary failure in name resolution", "dns",
+            "network is unreachable",
+        )
     ):
         category = "network_error"
         retryable = True
