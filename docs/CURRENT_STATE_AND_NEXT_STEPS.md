@@ -217,3 +217,6 @@ A PR #28 ágán egységes, titokmentes hibakategorizálás készült a `jarvis_e
 A Gemini kliens a kategorizálás alapján korlátozottan újrapróbálkozik hálózati, timeout, rate limit és átmeneti szolgáltatáshibánál. Hitelesítési és jogosultsági hibára nincs retry vagy másik jogosultsági útvonal. A dashboard chat megőrzi a megállási szakaszt, de a felhasználónak csak biztonságos, kategorizált segítséget mutat. A titokmentes naplózás továbbra is best-effort; naplózási hiba nem írhatja felül az eredeti hibát.
 
 A hozzáadott tesztek lefedik a hibakategóriákat, a secret UI-ból való kizárását, a hálózati retryt és az auth/permission fail-closed viselkedést. A teljes CI-t az összefüggő fejlesztési csomag lezárásakor kell futtatni; az implementáció önmagában még nem jelent zöld CI-t. Production konfiguráció, DB, jogosultság, secret és infrastruktúra nem módosult.
+
+
+A korábbi CI #3019 run (45875325010) részletes naplója alapján két AppTest hibás elvárása javítva: az e-mail-küldési zár szövegének ellenőrzése és a jogosultság miatt el nem renderelt diagnosztikai gomb hiányának ellenőrzése. A futásban a PostgreSQL backup/restore integráció sikeres volt; a teszt job 2 dashboard AppTest miatt bukott el. Az új javítások után a teljes aktuális HEAD CI-jét újra kell futtatni.
