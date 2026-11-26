@@ -201,7 +201,13 @@ from jarvis_errors import classify_error, user_facing_error
         (ConnectionError("connection reset"), "network_error", True),
         (TimeoutError("request timed out"), "timeout", True),
         (type("Unavailable", (Exception,), {"code": 503})("unavailable"), "service_unavailable", True),
-        (type("BadRequest", (Exception,), {"code": 400})("bad request"), "invalid_request", False),
+        (type("BadRequest", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"})("bad request"), "invalid_request", False),
+        (type("GeminiQuotaError", (Exception,), {"code": 429, "status": "RESOURCE_EXHAUSTED"})("quota"), "rate_limited", True),
+        (type("GeminiUnavailableError", (Exception,), {"code": 503, "status": "UNAVAILABLE"})("temporarily unavailable"), "service_unavailable", True),
+        (type("GeminiDeadlineError", (Exception,), {"code": 504, "status": "DEADLINE_EXCEEDED"})("deadline exceeded"), "timeout", True),
+        (type("GeminiPermissionError", (Exception,), {"code": 403, "status": "PERMISSION_DENIED"})("denied"), "permission_denied", False),
+        (type("GeminiAPIKeyError", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"})("API_KEY_INVALID: API key not valid"), "authentication_failed", False),
+        (type("GeminiInternalError", (Exception,), {"code": 500, "status": "INTERNAL"})("internal server error"), "service_unavailable", True),
     ],
 )
 def test_classify_error_categories(error, category, retryable):
@@ -225,3 +231,18 @@ def test_classify_audit_log_write_failure_as_fail_closed():
     assert result["category"] == "audit_unavailable"
     assert result["retryable"] is False
     assert "auditnapló nem írható" in user_facing_error(error)
+
+
+
+def test_provider_error_code_is_not_echoed_when_it_is_not_a_safe_status():
+    error = type("ProviderError", (Exception,), {"code": "secret=do-not-show"})("provider failed")
+    result = classify_error(error)
+    assert result["code"] is None
+    assert "do-not-show" not in user_facing_error(error)
+
+
+def test_provider_api_key_error_body_is_sanitized_before_logging(caplog):
+    error = RuntimeError("API_KEY_INVALID: x-goog-api-key: private-provider-key")
+    with caplog.at_level(logging.ERROR, logger="jarvis"):
+        report_error(error, module="gemini", operation="generate_content")
+    assert "private-provider-key" not in caplog.text
