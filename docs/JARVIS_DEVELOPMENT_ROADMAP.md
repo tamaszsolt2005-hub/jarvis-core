@@ -140,3 +140,13 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Production migration nem futott; PostgreSQL konkurencia-/tranzakcióteszt, actual-cost settlement, reservation release és atomikus hourly/domain rate quota még szükséges.
 
 - Korlátozott (1–1000 sor) operation ID szerinti audit-list RPC és repository metódus.
+
+
+### Phase 1J – atomikus rate limit enforcement implementálva
+
+- Globális UTC óránkénti jobkvóta adatbázisoldali ellenőrzése.
+- Domainenkénti UTC napi jobkvóta adatbázisoldali ellenőrzése, case-insensitive domain kulccsal.
+- A költségkeret és rate limit ellenőrzések közös tranzakciós advisory lock alatt futnak.
+- Idempotens operation ID replay nem fogyaszt új kvótát.
+- A DB állítja be a job `created_at` értékét.
+- A tényleges provider-költség elszámolása és reservation release még hátravan.
