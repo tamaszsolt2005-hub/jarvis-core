@@ -457,6 +457,8 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_audit_fail_closed.sql
           # Verify approval replay returns the stored result and revoke blocks execution.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_replay_revoke.test.sql
+          # Verify lead-linked task creation, duplicate-open-task blocking, and sequential workflow progression.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_linkage.test.sql
           # Add normalized email uniqueness only after a locked, non-destructive duplicate preflight.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
