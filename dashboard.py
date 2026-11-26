@@ -72,6 +72,7 @@ from lead_workflow import (
 from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
+from company_research_store import get_company_research_history
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -434,6 +435,156 @@ def render_tasks_page(db: Any) -> None:
             "Külső e-mail vagy kapcsolatfelvétel ebből az oldalból nem indul."
         )
 
+
+
+def _safe_research_source_url(value: Any) -> str | None:
+    """Allow only public-looking HTTP(S) source links from stored dossier data."""
+    from urllib.parse import urlparse
+
+    raw = str(value or "").strip()
+    if not raw or len(raw) > 2048:
+        return None
+    try:
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").casefold()
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not host
+            or parsed.username
+            or parsed.password
+            or host in {"localhost", "localhost.localdomain"}
+            or host.endswith(".localhost")
+            or host.endswith(".local")
+        ):
+            return None
+        return raw
+    except ValueError:
+        return None
+
+
+def render_company_research_page(db: Any) -> None:
+    """Render bounded, read-only company dossier history for existing researched leads."""
+    st.title("Cégkutatási előzmények")
+    st.caption(
+        "Forrásolt cégdossziék és korábbi kutatási pillanatképek. Ez az oldal kizárólag olvas; "
+        "nem indít új kutatást, nem módosít leadet és nem kezdeményez kapcsolatfelvételt."
+    )
+    if _auth_login_enabled():
+        st.info(
+            "Az egyéni Supabase Auth-munkamenetekhez a cégkutatási előzménytábla "
+            "olvasási jogosultsága még nincs kivezetve. A hozzáférést nem kerülöm meg "
+            "service-role klienssel; külön RLS- és jogosultsági tervezés szükséges."
+        )
+        return
+
+    lead_status: dict[str, Any] = {}
+    leads = _safe_rows(
+        db, "leads", "id,company_name,source", 500, status=lead_status
+    )
+    if lead_status.get("error"):
+        st.error("A céglista nem érhető el; az adatbázishibát nem tekintem üres eredménynek.")
+        st.caption(f"Hibatípus: {lead_status.get('error_type') or 'ismeretlen'}")
+        return
+
+    researched = [
+        lead for lead in leads
+        if lead.get("id")
+        and str(lead.get("source") or "").startswith("gemini_google_search_grounding:")
+    ]
+    if not researched:
+        st.info("Még nincs megjeleníthető, forrásolt cégkutatási lead.")
+        st.caption("Legfeljebb 500 lead kerül ellenőrzésre.")
+        return
+
+    labels = {
+        str(lead["id"]): str(lead.get("company_name") or "Névtelen cég")
+        for lead in researched
+    }
+    selected_lead_id = st.selectbox(
+        "Vizsgált cég",
+        options=list(labels),
+        format_func=lambda value: labels.get(str(value), str(value)),
+        key="jarvis_company_research_lead",
+    )
+    try:
+        history = get_company_research_history(
+            db, lead_id=str(selected_lead_id), limit=20
+        )
+    except Exception as exc:
+        report_error(
+            exc, module="dashboard", operation="company_research_history_read",
+            severity="warning", db=db,
+        )
+        st.error("A cégkutatási előzmények nem olvashatók. A hozzáférési hibát nem kerültem meg.")
+        st.caption(f"Hibatípus: {type(exc).__name__}")
+        return
+
+    st.metric("Mentett kutatási pillanatképek", len(history))
+    if not history:
+        st.info("Ehhez a céghez még nem található mentett kutatási pillanatkép.")
+        return
+
+    for index, snapshot in enumerate(history):
+        if not isinstance(snapshot, dict):
+            continue
+        dossier = snapshot.get("dossier")
+        if not isinstance(dossier, dict):
+            dossier = {}
+        raw_date = str(snapshot.get("researched_at") or dossier.get("researched_at") or "")
+        try:
+            parsed_date = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            if parsed_date.tzinfo is None:
+                raise ValueError("naive timestamp")
+            date_label = parsed_date.astimezone(ZoneInfo("Europe/Budapest")).strftime("%Y-%m-%d %H:%M")
+        except (TypeError, ValueError, OverflowError):
+            date_label = "Ismeretlen dátum"
+        domain = str(snapshot.get("company_domain") or "ismeretlen domain")[:253]
+        with st.expander(
+            f"{date_label} · {domain}",
+            expanded=index == 0,
+        ):
+            st.caption(
+                f"Snapshot: {str(snapshot.get('snapshot_id') or '—')} · "
+                f"Séma: {snapshot.get('schema_version', '—')} · "
+                f"SHA-256: {str(snapshot.get('content_sha256') or '')[:16] or '—'}"
+            )
+            leader = dossier.get("decision_maker")
+            if isinstance(leader, dict) and any(
+                leader.get(key) for key in ("name", "role", "professional_background")
+            ):
+                st.markdown("**Nyilvános szakmai döntéshozó**")
+                identity = " · ".join(
+                    str(leader.get(key)).strip()
+                    for key in ("name", "role")
+                    if leader.get(key)
+                )
+                if identity:
+                    st.write(identity)
+                if leader.get("professional_background"):
+                    st.write(str(leader["professional_background"]))
+                leader_url = _safe_research_source_url(leader.get("source_url"))
+                if leader_url:
+                    st.markdown(f"[Vezetői forrás megnyitása]({leader_url})")
+
+            facts = dossier.get("facts")
+            facts = facts if isinstance(facts, list) else []
+            if facts:
+                st.markdown("**Forrásolt céginformációk**")
+                for fact in facts[:12]:
+                    if not isinstance(fact, dict):
+                        continue
+                    category = str(fact.get("category") or "Egyéb")[:60]
+                    statement = str(fact.get("fact") or "").strip()[:1000]
+                    if not statement:
+                        continue
+                    st.markdown(f"**{category}**")
+                    st.write(statement)
+                    source_url = _safe_research_source_url(fact.get("source_url"))
+                    if source_url:
+                        st.markdown(f"[Forrás megnyitása]({source_url})")
+            if not facts and not isinstance(leader, dict):
+                st.info("A mentett pillanatkép nem tartalmaz megjeleníthető tényt.")
+    st.caption("Legfeljebb 20 legutóbbi pillanatkép jelenik meg cégenként.")
 
 def render_audit_admin_page() -> None:
     """Render the audit viewer only after a separately verified Supabase admin login."""
@@ -1527,6 +1678,12 @@ with st.sidebar:
         type="primary" if current_page == "analytics" else "secondary",
         width="stretch",
     )
+    research_clicked = st.button(
+        "⌕   Cégkutatás",
+        key="jarvis_nav_research",
+        type="primary" if current_page == "research" else "secondary",
+        width="stretch",
+    )
     audit_clicked = st.button(
         "▤   Audit napló",
         key="jarvis_nav_audit",
@@ -1552,6 +1709,9 @@ if tasks_clicked:
     st.rerun()
 if analytics_clicked:
     st.session_state["jarvis_page"] = "analytics"
+    st.rerun()
+if research_clicked:
+    st.session_state["jarvis_page"] = "research"
     st.rerun()
 if audit_clicked:
     st.session_state["jarvis_page"] = "audit"
