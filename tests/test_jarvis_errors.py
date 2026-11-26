@@ -184,3 +184,34 @@ def test_report_error_falls_back_to_legacy_logs_columns_when_error_column_is_mis
     assert "RuntimeError: lead research failed" in row["message"]
     assert row["message"] == message
 
+
+
+from jarvis_errors import classify_error, user_facing_error
+
+
+@pytest.mark.parametrize(
+    ("error", "category", "retryable"),
+    [
+        (RuntimeError("Hiányzó beállítás: GEMINI_API_KEY"), "missing_configuration", False),
+        (ValueError("Invalid URL scheme"), "invalid_configuration", False),
+        (PermissionError("RLS denied"), "permission_denied", False),
+        (type("Unauthorized", (Exception,), {"code": 401})("invalid credentials"), "authentication_failed", False),
+        (type("Quota", (Exception,), {"code": 429})("RESOURCE_EXHAUSTED"), "rate_limited", True),
+        (ConnectionError("connection reset"), "network_error", True),
+        (TimeoutError("request timed out"), "timeout", True),
+        (type("Unavailable", (Exception,), {"code": 503})("unavailable"), "service_unavailable", True),
+        (type("BadRequest", (Exception,), {"code": 400})("bad request"), "invalid_request", False),
+    ],
+)
+def test_classify_error_categories(error, category, retryable):
+    result = classify_error(error)
+    assert result["category"] == category
+    assert result["retryable"] is retryable
+    assert result["user_message"]
+
+
+def test_user_facing_error_never_exposes_provider_secret():
+    error = RuntimeError("request failed api_key=super-secret")
+    message = user_facing_error(error)
+    assert "super-secret" not in message
+    assert "Váratlan hiba" in message
