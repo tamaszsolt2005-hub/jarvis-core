@@ -136,3 +136,10 @@ A következő egység egy tiszta, DB-független admission döntés: óránkénti
 ### 7.6 Hosszú jobok lease-heartbeat támogatása
 
 A worker handler opcionális heartbeat callbacket kap, amely a tartós repository heartbeat RPC-jét hívja. A handler hosszabb műveletek közben saját checkpointjainál megújíthatja a lease-t; automatikus timer vagy háttérszál nem indul. Ha a lease elveszett, a callback ezt egyértelműen jelzi, a worker pedig nem írhatja felül az új tulajdonos állapotát.
+
+
+### 7.7 Admission és költségkeret – első implementáció
+
+Elkészült a `company_research_admission.py` DB-független policy, amely globális óránkénti joblimitet, domainenkénti napi limitet, párhuzamos joblimitet és napi költségkeretet vizsgál egész mikro-USD egységben. A `company_research_refresh_queue.py` új admission-aware enqueue útvonala egyetlen batchen belül frissíti a helyi usage snapshotot, így a batch nem lépi túl saját kvótáját. Több párhuzamos folyamat közötti hard limithez még atomikus DB reservation szükséges; ez a Python policy önmagában nem biztosít globális költségplafont.
+
+A worker emellett opcionális, kétparaméteres handlernek heartbeat callbacket ad át. A handler saját checkpointjánál frissítheti a lease-t; nincs automatikus timer vagy háttérszál.
