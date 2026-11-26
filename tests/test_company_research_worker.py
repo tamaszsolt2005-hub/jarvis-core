@@ -4,17 +4,24 @@ from company_research_worker import run_one_company_research_job
 
 
 class FakeRepository:
-    def __init__(self, job=None, complete_result=None, fail_result=None, lose_lease=False):
+    def __init__(self, job=None, complete_result=None, fail_result=None, lose_lease=False, lose_heartbeat=False):
         self.job = deepcopy(job)
         self.complete_result = complete_result
         self.fail_result = fail_result
         self.lose_lease = lose_lease
+        self.lose_heartbeat = lose_heartbeat
         self.calls = []
 
     def claim(self, *, worker_id, lease_seconds=60):
         self.calls.append(("claim", worker_id, lease_seconds))
         job, self.job = self.job, None
         return deepcopy(job)
+
+    def heartbeat(self, *, operation_id, worker_id, lease_seconds=60):
+        self.calls.append(("heartbeat", operation_id, worker_id, lease_seconds))
+        if self.lose_heartbeat:
+            return None
+        return {"operation_id": operation_id, "lease_owner": worker_id}
 
     def complete(self, *, operation_id, worker_id, result=None):
         self.calls.append(("complete", operation_id, worker_id, deepcopy(result)))
@@ -129,3 +136,31 @@ def test_worker_uses_exponential_backoff_based_on_attempt_count():
     )
     assert result["status"] == "retry_scheduled"
     assert repository.calls[-1][-1] == 100
+
+
+
+def test_worker_exposes_heartbeat_callback_to_two_argument_handler():
+    repository = FakeRepository(sample_job())
+    seen = []
+
+    def handler(payload, heartbeat):
+        seen.append(heartbeat())
+        return {"ok": True}
+
+    result = run_one_company_research_job(repository, worker_id="worker-a", handler=handler)
+    assert seen == [True]
+    assert result["status"] == "succeeded"
+    assert any(call[0] == "heartbeat" for call in repository.calls)
+
+
+def test_worker_heartbeat_callback_reports_lost_lease():
+    repository = FakeRepository(sample_job(), lose_lease=True, lose_heartbeat=True)
+    seen = []
+
+    def handler(payload, heartbeat):
+        seen.append(heartbeat())
+        return {"ok": True}
+
+    result = run_one_company_research_job(repository, worker_id="worker-a", handler=handler)
+    assert seen == [False]
+    assert result["status"] == "lease_lost"
