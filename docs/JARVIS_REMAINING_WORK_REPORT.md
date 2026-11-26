@@ -200,3 +200,15 @@ A PR #28 ágán új `company_research_jobs_lifecycle_edges.test.sql` készült 1
 - előző UTC naphoz tartozó foglalás nem fogyasztja az aktuális napi költségkeretet.
 
 A PostgreSQL 17 CI job futtatja az új fájlt, ellenőrzi a 19/19 pgTAP tervet és a hibás assertionök hiányát. A migration-contract unit teszt ellenőrzi a CI bekötést. **Az új tesztcsomag futási eredménye még nincs igazolva**, mert a hozzá tartozó új CI futás befejezésére várunk. A korábbi CI #3136 zöld eredménye nem vonatkozik erre az új tesztkódra.
+
+
+## 11. Worker RPC és RLS biztonsági teszt – 2026-11-26
+
+Elkészült a `supabase/tests/company_research_jobs_security.test.sql` 10 pgTAP assertionnel. Izolált PostgreSQL-en ellenőrzi:
+- RLS bekapcsolását a job, budget reservation és audit táblákon;
+- anon/authenticated közvetlen SELECT/INSERT/UPDATE/DELETE tiltását;
+- service_role szükséges job/budget műveleteit és az audit append-only korlátját;
+- a hat worker RPC végrehajtásának tiltását anon/authenticated szerepkörnek és engedélyezését service_role-nak;
+- a service_role BYPASSRLS tesztfixture-elvárását.
+
+A fájl bekerült a PostgreSQL 17 CI jobba, és a Python migration-contract teszt is ellenőrzi a CI bekötést. **Az új security pgTAP csomag futási eredménye még nem igazolt**; a friss CI futásra várunk. Production jogosultság, RLS vagy adatbázis nem változott.
