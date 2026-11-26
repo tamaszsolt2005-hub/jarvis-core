@@ -66,6 +66,8 @@ def test_company_identity_migration_is_atomic_and_consent_aware():
     assert "consent_confirmed_at is null" in migration
     assert "last_inbound_message_id" in migration
     assert "first_sent_at is not null" in migration
+    assert "followup_sending" in migration
+    assert "send_unknown" in migration
     assert "manual identity review required" in migration
     assert "delete from public.leads" not in migration
 
