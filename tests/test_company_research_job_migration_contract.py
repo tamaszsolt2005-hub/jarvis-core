@@ -95,3 +95,25 @@ def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
     assert "v_waiting >= 2" in concurrency
     assert "global active-lease ceiling" in concurrency
     assert "daily budget lock" in concurrency
+
+
+
+def test_postgres_worker_lifecycle_edge_suite_is_wired_into_ci():
+    root = MIGRATION.parents[2]
+    lifecycle_edges = (
+        root / "supabase" / "tests" / "company_research_jobs_lifecycle_edges.test.sql"
+    ).read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "SELECT plan(19)" in lifecycle_edges
+    for expected in (
+        "lease-owner-old",
+        "lease-owner-new",
+        "retry_wait",
+        "dead_letter",
+        "lease_expired",
+        "budget_date = (now() AT TIME ZONE 'UTC')::date - 1",
+    ):
+        assert expected in lifecycle_edges
+    assert "company_research_jobs_lifecycle_edges.test.sql" in workflow
+    assert "grep -q '1..19' <<< \"$lifecycle_edges_output\"" in workflow
