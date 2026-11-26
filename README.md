@@ -56,17 +56,17 @@ A szükséges környezeti változókat a kód és a telepítési környezet hat�
 A tartós fejlesztési ág a `main`. A production Supabase migrációs eltéréseket rendezni kell; Auth/RBAC aktiválása és production séma-módosítás csak a dokumentált kapuk lezárása és külön jóváhagyás után történhet.
 
 
-## Aktuális fejlesztési állapot – 2026-11-25
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`). A PR nincs merge-ölve. A teljes CI/CodeQL/dependency auditot igazoló commit: `7c8e6970a733884f4423821cddf3731f58e5b392`. Az ezt követő commitok kizárólag dokumentációs korrekciók; ezekhez még nincs visszaigazolt új workflow-eredmény. A mindenkori PR-head a fenti PR oldalon ellenőrizhető.
 
-A headhez tartozó ellenőrzések mind sikeresek:
-- JARVIS CI: tesztek és backup/restore integráció.
-- CodeQL Python statikus elemzés.
-- pip-audit a `requirements-test.txt` alapján (runtime és tesztfüggőségek).
+## Aktuális fejlesztési állapot – 2026-11-26
 
-További repós védelem: heti Dependabot frissítési ellenőrzés Python- és GitHub Actions-függőségekre. A sikeres CI nem igazolja a production deployt, a production Supabase-sémát vagy az SMTP-hitelesítést.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án ellenőrzött head `6ef4020bba3949e02440e97583fc907b6bcb1f00`.
 
-E-mail: a kiválasztott útvonal Gmail SMTP (`EMAIL_PROVIDER=smtp`); a GitHub workflow az `EMAIL_USER` és `EMAIL_PASSWORD` secretneveket használja. A kimenő küldés továbbra is kódszinten hard-disabled, az outbound workflow-lépés tiltott. A Resend adapter alternatív kódútvonal, nem az aktív provider.
+- JARVIS CI: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
+- PostgreSQL 17 izolált migrációs/pgTAP és backup/restore integráció: sikeres.
+- CodeQL: sikeres.
+- pip-audit: sikeres.
 
-Production deploy, adatbázis-migráció, GRANT/REVOKE, Auth/RBAC-változtatás és e-mail-küldés nem történt. A production host továbbra sem igazolt.
+A global lead research név/domain deduplikációja jelenleg alkalmazásszintű; párhuzamos worker-ek között nincs DB-szintű atomikus garancia. Nem alkalmaztunk kockázatos cégnév/domain unique indexet; a tranzakciós DB/RPC claim megoldás tervezése nyitott. A részleteket és a release gate-eket az elsődleges [fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) rögzíti.
+
+A zöld CI nem bizonyít production deployt vagy production Supabase állapotot. Production migráció/írás, GRANT/REVOKE, Auth/RBAC aktiválás, secret-változtatás, SMTP-küldés nem történt. A kimenő e-mail hard-disabled; a PR merge külön jóváhagyást igényel.
