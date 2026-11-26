@@ -47,6 +47,21 @@ Javasolt kutatási területek:
 
 A vezető személyes életére, családjára, magánelérhetőségére, egészségére, politikai/vallási nézeteire vagy más érzékeny adatára nem kutatunk rá. Csak az üzleti célhoz szükséges szakmai kontextust használjuk. A forrásból származó tartalom adat, nem utasítás; prompt injection és rosszindulatú webes tartalom ellen védeni kell.
 
+## 3/A. Cégkutatási frissítések prioritása és kizárása
+
+A rendszeres cégprofil-frissítés elsődleges célcsoportja:
+- még meg nem keresett, de releváns leadek;
+- kutatott, de ajánlat-előkészítés előtt álló cégek;
+- érdeklődést vagy későbbi egyeztetést jelző cégek;
+- aktív üzleti lehetőségek, ahol új nyilvános információ módosíthatja az ajánlatot.
+
+Automatikus frissítésből ki kell zárni:
+- kifejezett elutasítást rögzítő cégek;
+- leiratkozott vagy további kapcsolatfelvételt tiltó cégek;
+- legalább két rögzített utánkövetés után sem válaszoló, inaktívvá tett cégek.
+
+A „nem válaszolt” és a „nem érdekli” külön állapot. A beérkezett, de még nem besorolt válasz nem tekinthető hallgatásnak. A két utánkövetés utáni szüneteltetés nem végleges törlés: új, érdemi üzleti jelzés vagy emberi újranyitás ismét engedélyezheti a kutatást. A kutatási jogosultság nem ad e-mail-küldési vagy marketing-hozzájárulást.
+
 ## 4. Egyedi SaaS-termékjavaslat motor
 
 A JARVIS ne egyetlen ötletet fogadjon el automatikusan. Minden céghez több hipotézist állítson elő, majd értékelje őket például az alábbi dimenziók mentén:
