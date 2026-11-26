@@ -12,6 +12,7 @@ from google.genai import types
 from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
 from lead_identity import upsert_company_lead
+from company_dossier import build_company_dossier, render_company_dossier
 
 
 MAX_RESULTS = 15
@@ -246,7 +247,7 @@ def research_global_companies(
         "Name the evidence behind every score, and never treat absence of evidence as a negative fact. High confidence requires at least two distinct concrete fit-evidence items; one item permits at most medium confidence; no fit evidence or no specific fit explanation requires low confidence and a capped score. "
         "Prefer detailed official-company pages, products, workflows, scale indicators and credible public case studies. "
         "Do not invent companies, domains or facts. "
-        "Do not collect personal names, personal email addresses, phone numbers or private data. "
+        "Do not collect private contact details, personal email addresses, phone numbers or sensitive/private data. A leader's name and background may be included ONLY when explicitly published in a relevant professional/business context and tied to a grounded source URL. "
         "A public business contact address is not consent to marketing. Do not infer consent. "
         "User's business/prospecting brief: " + str(request)[:2000]
     )
@@ -289,7 +290,9 @@ def research_global_companies(
         confidence, fit_score, fit_evidence = _research_quality(item)
         business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
         next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
-        notes = (
+        dossier = build_company_dossier(item, grounded_domains)
+        dossier_text = render_company_dossier(dossier)
+        base_notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
             f"kutatási módszer: Google Search grounding + hivatalos weboldal és forrás-keresztellenőrzés. "
             f"Cégprofil: {summary} Lehetséges illeszkedés: {fit} "
@@ -297,7 +300,8 @@ def research_global_companies(
             f"bizonyosság: {confidence}; megfigyelhető üzleti igény: {business_need}; "
             f"alátámasztó jelek: {'; '.join(fit_evidence)}; javasolt kutatási lépés: {next_step} "
             f"Forrás: {source_url}"
-        )[:3500]
+        )[:2200]
+        notes = (base_notes + (f" Részletes cégdosszié: {dossier_text}" if dossier_text else ""))[:3500]
         # No email, no permission, no outreach status: discovery is not consent.
         # Audit the write before inserting; a research record is still a durable
         # business-data side effect even though it cannot trigger outreach.
@@ -354,7 +358,8 @@ def research_global_companies(
                          "industry": industry, "business_summary": summary, "potential_fit": fit,
                          "business_fit_score": fit_score, "fit_evidence": fit_evidence,
                          "business_need": business_need, "recommended_next_step": next_step,
-                         "research_confidence": confidence, "source_url": source_url})
+                         "research_confidence": confidence, "source_url": source_url,
+                         "company_dossier": dossier})
     result = {
         "searched": True,
         "saved_count": len(inserted),
