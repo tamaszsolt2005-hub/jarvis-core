@@ -187,18 +187,18 @@ A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések.
 | Kapu | Jelenlegi állapot | Bizonyíték / hiány |
 |---|---|---|
 | SMTP hard-disable kód | Implementálva | `EMAIL_DELIVERY_ENABLED = False`; production runtime/deploy nem igazolt |
-| SMTP bizonytalan kimenetel | Implementálva, tesztek hozzáadva | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; a `38693f2` kódcommit CI-je mindkét jobbal sikeres (`45689264377`); az aktuális docs head CI-je még nem zárult le |
+| SMTP bizonytalan kimenetel | Implementálva, CI-vel tesztelve | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; kimenő küldés hard-disabled marad |
 | Belső email operation ID | Implementálva | Stabil lead+sequence kulcs; SMTP provider oldali deduplikációt nem biztosít |
 | Approval + task RPC | Implementálva a branchben | DB approval, principal/payload binding, expiry, atomic consume és operation replay; production migráció/deploy nincs |
-| Audit fail-closed | SQL regressziós teszt hozzáadva | Audit insert hiba esetén tranzakció rollback; a `38693f2` kódcommit CI-je sikeres; az aktuális docs head CI-je még nem zárult le |
-| Approval replay/revoke | SQL teszt hozzáadva | Replay és revoke viselkedés; CI futás még nem zárult le |
-| Párhuzamos approval végrehajtás | Két-session SQL teszt hozzáadva | Azonos operation ID-ra egy task/egy műveleti eredmény elvárás; CI futás még nem zárult le |
+| Audit fail-closed | Implementálva, CI-vel tesztelve | Audit insert hiba esetén a task/operation/approval tranzakció rollbackel |
+| Approval replay/revoke | SQL teszt és CI sikeres | Replay és revoke viselkedés igazolva az izolált PostgreSQL tesztben |
+| Párhuzamos approval végrehajtás | Két-session SQL teszt és CI sikeres | Azonos operation ID-ra egy task/egy műveleti eredmény |
 | Migration drift | Izolált CI fixture bővítve | A két korábbi ledger gap reconciliation már megtörtént; hat későbbi migration productionben nincs alkalmazva |
 | Service-role privilege lock | Blokkolt | Csak RPC app deploy + production smoke után alkalmazható; production DML jog jelenleg nem tekinthető visszavontnak |
-| Production app host | Ismeretlen | A rendelkezésre álló Railway projekt VolleyForm, nem JARVIS |
+| JARVIS app-host | Nincs telepítve / nincs kiválasztva | Helyi Streamlit fejlesztés folyik; a VolleyForm Railway projekt nem JARVIS |
 | Production deploy/migration | Nem történt | Külön jóváhagyás szükséges; semmilyen production DB/app módosítás nem történt |
 
-**CI pillanatkép:** a `38693f2` commiton két workflow run (`45689264377`, `45689247826`) futott a dokumentáció frissítésekor. Amíg mindkettő be nem fejeződik sikeresen, a CI kapu nyitott. [Run 1](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689264377) · [Run 2](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45689247826).
+**Történeti CI-pillanatkép:** a `38693f2` commiton futott `45689264377` és `45689247826` runok a korábbi dokumentációs állapothoz tartoznak; nem ezek az aktuális PR-head checkjei. A mindenkori CI-státuszt a [PR #26 checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26/checks) kell ellenőrizni.
 
 **Kiadási döntés:** a megbízhatósági és biztonsági munkacsomag még nem minősíthető lezártnak. A PR merge, production migration, service-role GRANT/REVOKE, Auth/RBAC aktiválás, app deploy és SMTP engedélyezés nem része az automatikusan végrehajtható CI munkának; ezek külön döntési kapuk maradnak.
 
