@@ -20,7 +20,7 @@ def config(**overrides):
         "max_concurrent_jobs": 3,
         "max_input_tokens_per_attempt": 777,
         "max_output_tokens_per_attempt": 555,
-        "max_attempts": 2,
+        "max_attempts": 1,
         "max_age_days": 14,
         "batch_limit": 9,
     }
@@ -43,14 +43,14 @@ def test_environment_loads_one_explicit_shared_configuration():
         "JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS": "3",
         "JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS": "777",
         "JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS": "555",
-        "JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS": "2",
+        "JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS": "1",
     }
     loaded = CompanyResearchRuntimeConfig.from_env(env)
     assert loaded.input_price_microusd_per_million_tokens == 2_000_000
     assert loaded.output_price_microusd_per_million_tokens == 4_000_000
     assert loaded.max_input_tokens_per_attempt == 777
     assert loaded.max_output_tokens_per_attempt == 555
-    assert loaded.max_attempts == 2
+    assert loaded.max_attempts == 1
     assert loaded.limits == {
         "max_daily_cost_microusd": 900_000,
         "max_jobs_per_hour": 12,
@@ -62,7 +62,7 @@ def test_environment_loads_one_explicit_shared_configuration():
 @pytest.mark.parametrize("kwargs", [
     {"input_price_microusd_per_million_tokens": 0},
     {"max_daily_cost_microusd": 0},
-    {"max_attempts": 4},
+    {"max_attempts": 2},
     {"max_output_tokens_per_attempt": 4097},
     {"max_age_days": True},
 ])
@@ -165,4 +165,17 @@ def test_worker_adapter_uses_shared_pricing_and_concurrency(monkeypatch):
     assert captured["input_price_microusd_per_million_tokens"] == cfg.input_price_microusd_per_million_tokens
     assert captured["output_price_microusd_per_million_tokens"] == cfg.output_price_microusd_per_million_tokens
     assert captured["max_concurrent_jobs"] == cfg.max_concurrent_jobs
+    assert captured["max_attempts"] == 1
     assert isinstance(captured["provider"], TokenBoundedGeminiProvider)
+
+
+def test_worker_adapter_rejects_unmeasured_job_retries(monkeypatch):
+    cfg = config()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: SimpleNamespace(total_tokens=1)
+    ))
+    with pytest.raises(ValueError, match="worker max_attempts"):
+        run_company_research_worker_with_config(
+            object(), client=client, model="gemini-test", snapshot_db=object(),
+            worker_id="worker-a", config=cfg, max_attempts=2,
+        )
