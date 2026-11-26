@@ -278,3 +278,28 @@ def test_create_maps_atomic_rate_limit_errors(database_error, reason):
             max_jobs_per_domain_per_day=3,
         )
     assert caught.value.reason == reason
+
+
+
+def test_complete_passes_actual_cost_to_atomic_settlement_rpc():
+    job = sample_job()
+    client = FakeSupabaseClient({RPC_COMPLETE: [job]})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    repository.complete(
+        operation_id=job["operation_id"],
+        worker_id="worker-a",
+        result={"ok": True},
+        actual_cost_microusd=42_500,
+    )
+    assert client.calls[0][1]["p_actual_cost_microusd"] == 42_500
+
+
+@pytest.mark.parametrize("actual_cost", [True, -1, 1.5, "12"])
+def test_complete_rejects_invalid_actual_cost(actual_cost):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="actual_cost_microusd"):
+        repository.complete(
+            operation_id="research:lead-123",
+            worker_id="worker-a",
+            actual_cost_microusd=actual_cost,
+        )
