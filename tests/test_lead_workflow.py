@@ -181,3 +181,81 @@ def test_recommended_task_action_allows_next_step_after_completed_task():
     )
     assert action is not None
     assert action["lead_id"] == lead_id
+
+
+def test_workflow_advances_after_each_completed_stage_and_stops_at_outcome():
+    lead = _lead("lead-1", "Minta Kft.")
+    first = build_lead_workflow_recommendations([lead], [])[0]
+    assert first["workflow_stage"] == "business_need_validation"
+    assert "[JARVIS_STAGE:business_need_validation]" in first["notes"]
+
+    second = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "done",
+            "notes": "[JARVIS_STAGE:business_need_validation]",
+            "created_at": "2026-11-25T10:00:00Z",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )[0]
+    assert second["workflow_stage"] == "offer_preparation"
+
+    final = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "done",
+            "notes": "[JARVIS_STAGE:outcome_measurement]",
+            "created_at": "2026-11-25T10:00:00Z",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )
+    assert final == []
+
+
+def test_cancelled_workflow_stage_is_recommended_again():
+    lead = _lead("lead-1", "Minta Kft.")
+    plans = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "cancelled",
+            "notes": "[JARVIS_STAGE:offer_review]",
+            "created_at": "2026-11-25T10:00:00Z",
+        }],
+    )
+    assert plans[0]["workflow_stage"] == "offer_review"
+
+
+def test_open_workflow_task_blocks_stage_progression():
+    lead = _lead("lead-1", "Minta Kft.")
+    plans = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "open",
+            "notes": "[JARVIS_STAGE:business_need_validation]",
+        }],
+    )
+    assert plans == []
+
+
+def test_followup_stage_is_review_only_and_outcome_stage_requests_measurement():
+    lead = _lead("lead-1", "Minta Kft.")
+    followup = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "done",
+            "notes": "[JARVIS_STAGE:offer_review]",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )[0]
+    assert followup["workflow_stage"] == "follow_up_review"
+    assert "Ne küldj üzenetet" in followup["notes"]
+    outcome = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "done",
+            "notes": "[JARVIS_STAGE:follow_up_review]",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )[0]
+    assert outcome["workflow_stage"] == "outcome_measurement"
+    assert "mérhető üzleti eredményt" in outcome["notes"]
