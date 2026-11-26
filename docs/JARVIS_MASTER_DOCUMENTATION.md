@@ -278,7 +278,7 @@ A job futtatása előtt determinisztikus admission policy ellenőrizze a globál
 
 ### 10.6 Hosszú jobok heartbeat callbackje
 
-A worker a kétparaméteres handlernek explicit heartbeat callbacket adhat át. Ez csak a handler által meghívott checkpointoknál végez repository heartbeat RPC-t, nem indít saját timert vagy szálat. A lease-vesztés hamis completiont nem eredményezhet; a handlernek a callback hamis eredményét tiszteletben kell tartania.
+A worker a kétparaméteres handlernek explicit heartbeat callbacket ad át. A Gemini provider adapter a szinkron provider kérés teljes ideje alatt külön, leállítható daemon szálból, konfigurálható időközönként meghívja ezt a callbacket. A callback hamis eredménye vagy kivétele lease-vesztést jelez; a provider válaszát ilyenkor nem adja vissza sikeres kutatási eredményként. A heartbeat szál a provider hívás végén leáll és joinolódik. A worker továbbra is csak érvényes lease-szel complete-elhet.
 
 
 ### 10.7 Admission policy és queue integráció
@@ -321,6 +321,11 @@ Minden Python refresh enqueue útvonal kötelezően megadja a becsült költség
 
 ### 10.13 Grounded Gemini provider adapter
 
-A cégkutatási execution réteg most már tartalmaz injektált Gemini klienssel működő Google Search grounding adaptert, strukturált JSON feldolgozást, grounded host alapú tény- és döntéshozó-validációt, legfeljebb három transient retry-t exponenciális backoff-fal, valamint worker-kompatibilis handler factoryt. A provider usage token-számait továbbadja; explicit konfigurált tokenárakkal actual micro-USD költség számítható. API secretet vagy klienst nem olvas/hozz létre önállóan. A szinkron API hívás alatti heartbeat renewal még nincs megoldva, ezért hosszú provider hívásnál lease lejárhat. A dashboard és a tartós snapshot store integrációja még nincs bekötve; nincs automatikus futtatás vagy outbound kommunikáció.
+A cégkutatási execution réteg injektált Gemini klienssel működő Google Search grounding adaptert, strukturált JSON feldolgozást, grounded host alapú tény- és döntéshozó-validációt, legfeljebb három transient retry-t exponenciális backoff-fal, valamint worker-kompatibilis handler factoryt tartalmaz. A provider usage token-számait továbbadja; explicit konfigurált tokenárakkal actual micro-USD költség számítható. API secretet vagy klienst nem olvas/hozz létre önállóan. A szinkron API kérés alatt a provider adapter konfigurálható időközönként háttér-heartbeatet végez; lease-vesztés esetén eldobja a provider eredményét. A dashboard és a tartós snapshot store integrációja még nincs bekötve; nincs automatikus futtatás vagy outbound kommunikáció.
 
 A `company_research_runtime.py` explicit, one-shot composition root a repository + Gemini grounded provider + worker + tokenáras actual-cost extractor bekötésére. A runtime függvény csak explicit híváskor claimel egyetlen jobot; import-time side effect, automatikus scheduler, secret/client létrehozás nincs.
+
+
+### 10.14 Hosszú Gemini-kérések lease-heartbeat javítása
+
+A korábbi megvalósítás csak a provider hívás előtt és után ellenőrizte a lease-t, ezért egy hosszú szinkron Gemini kérés alatt a lease lejárhatott. Javítás: a GeminiGoogleSearchCompanyResearchProvider most konfigurálható időközönként külön, leállítható daemon szálból meghívja a worker heartbeat callbackjét a teljes API-kérés és retry-időszak alatt. Hamis heartbeat-válasz vagy callback-kivétel lease-vesztésnek minősül, és a provider eredménye nem kerül sikeres jobként complete-olásra. A szál a provider hívás végén leáll és joinolódik. Két célzott teszt fedi a periodikus renewal és lease-vesztés esetét. A teszt/CI eredmény csak az új commit SHA-ján ellenőrizhető; korábbi futás nem igazolja ezt a javítást.
