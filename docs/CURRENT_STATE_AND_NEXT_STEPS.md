@@ -27,6 +27,17 @@ A következő fejlesztési munka **helyi, funkciófejlesztési szakaszban** tör
 - Lead/cégazonosítás: a korábban nyitott, alkalmazásszintű global-research race kockázatot a PR #26 közös, tranzakciós RPC-íróútja kezeli; az izolált két-session teszt sikeres.
 - A PostgreSQL 17 migrációs, pgTAP és backup/restore integrációs tesztek CI-ben sikeresek.
 
+## 3/A. Új funkciófejlesztési előrelépés – lead → belső task-javaslat
+
+A PR #26 branchben új, read-only `lead_workflow.py` modul készült, amely a strukturált, forrásolt leadkutatási adatból következő belső ellenőrzési feladatot javasol. A napi briefing már megjeleníti a javaslatot a kutatási prioritással, üzleti illeszkedéssel, bizonyossággal, bizonyítékszámmal és indoklással.
+
+- Már meglévő leadhez kötött task esetén nem ismétli meg az első feladatjavaslatot.
+- Gyenge bizonyosság vagy kevés bizonyíték esetén további kutatást javasol.
+- Nem ír adatbázist, nem hoz létre taskot, nem kér jóváhagyást, nem küld e-mailt, és nem ad kapcsolatfelvételi engedélyt.
+- Az új helperhez és a napi briefing integrációhoz célzott tesztek kerültek a repóba; ezek eredménye a friss PR CI-futásban ellenőrizendő.
+
+Ez az első workflow-szelet, nem a teljes automatizálás. A következő lépés a task létrehozás leadhez kapcsolása az atomikus, jóváhagyásos RPC-n keresztül.
+
 ## 4. Mi maradt még a funkciófejlesztés előtt?
 
 **Nincs olyan igazolt production-host vagy Supabase release-feladat, amely miatt a helyi funkciófejlesztést meg kellene állítani.** A következőket viszont érdemes a funkciók bővítése közben, megfelelő sorrendben kezelni:
