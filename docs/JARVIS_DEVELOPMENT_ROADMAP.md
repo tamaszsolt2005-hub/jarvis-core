@@ -161,3 +161,13 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Provider-specifikus token usage adapter és valós költségmérés még hátravan.
 
 - Minden Python enqueue helper a kötelező budget/hourly/domain limiteket adja át; a korlátokat megkerülő egyszerű queue útvonal megszüntetve.
+
+
+### Phase 1L – grounded provider execution adapter alap implementálva
+
+- Gemini + Google Search grounding provider adapter, injektált klienssel/modellel.
+- Strukturált JSON és provider grounding URL validáció; csak grounded hostra hivatkozó tények kerülnek a dossziéba.
+- Retry maximum 3 próbálkozással, exponenciális backoff.
+- Worker handler factory és lease ellenőrzés provider hívás előtt/után.
+- Provider token usage metadata és konfigurált input/output tokenáras actual cost extractor.
+- Nyitott: hosszú szinkron provider hívás közbeni heartbeat renewal, valós runtime/queue/store integráció, provider hitelesítés és end-to-end futtatás.
