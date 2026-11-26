@@ -220,6 +220,7 @@ DECLARE
   v_stored_hash text;
   v_stored_result jsonb;
   v_task_id uuid;
+  v_lead_id uuid;
   v_title text;
   v_status text;
   v_result jsonb;
@@ -248,7 +249,7 @@ BEGIN
     SELECT 1 FROM jsonb_object_keys(p_action) AS item(key)
      WHERE CASE
        WHEN key IN ('type', 'operation_id') THEN true
-       WHEN v_type = 'create' THEN key IN ('title', 'priority', 'due_at', 'notes')
+       WHEN v_type = 'create' THEN key IN ('title', 'priority', 'due_at', 'notes', 'lead_id')
        WHEN v_type = 'close' THEN key = 'id'
        WHEN v_type = 'update' THEN key IN ('id', 'updates')
        ELSE false
@@ -264,6 +265,11 @@ BEGIN
        OR (p_action ? 'notes' AND (
          jsonb_typeof(p_action -> 'notes') <> 'string'
          OR length(p_action ->> 'notes') > 1000
+       ))
+       OR (p_action ? 'lead_id' AND (
+         jsonb_typeof(p_action -> 'lead_id') IS DISTINCT FROM 'string'
+         OR length(p_action ->> 'lead_id') <> 36
+         OR (p_action ->> 'lead_id') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}'
        ))
        OR (p_action ? 'due_at' AND CASE
          WHEN jsonb_typeof(p_action -> 'due_at') = 'null' THEN false
@@ -291,7 +297,7 @@ BEGIN
        OR p_action -> 'updates' = '{}'::jsonb
        OR EXISTS (
          SELECT 1 FROM jsonb_object_keys(p_action -> 'updates') AS item(key)
-          WHERE key NOT IN ('title', 'priority', 'due_at')
+          WHERE key NOT IN ('title', 'priority', 'due_at', 'notes', 'outcome')
        )
        OR (p_action -> 'updates' ? 'title' AND (
          jsonb_typeof(p_action -> 'updates' -> 'title') IS DISTINCT FROM 'string'
@@ -299,6 +305,14 @@ BEGIN
        ))
        OR (p_action -> 'updates' ? 'priority' AND
          COALESCE(p_action -> 'updates' ->> 'priority', '') NOT IN ('normal', 'high', 'urgent'))
+       OR (p_action -> 'updates' ? 'notes' AND (
+         jsonb_typeof(p_action -> 'updates' -> 'notes') IS DISTINCT FROM 'string'
+         OR length(btrim(p_action -> 'updates' ->> 'notes')) NOT BETWEEN 1 AND 1000
+       ))
+       OR (p_action -> 'updates' ? 'outcome' AND (
+         jsonb_typeof(p_action -> 'updates' -> 'outcome') IS DISTINCT FROM 'string'
+         OR length(btrim(p_action -> 'updates' ->> 'outcome')) NOT BETWEEN 1 AND 500
+       ))
        OR (p_action -> 'updates' ? 'due_at' AND CASE
          WHEN jsonb_typeof(p_action -> 'updates' -> 'due_at') = 'string' THEN
            CASE
@@ -355,6 +369,32 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- Acquire the per-lead lock before the global audit-chain insert. This keeps
+  -- concurrent attempts for one lead serialized without relying on audit-chain
+  -- serialization, while preserving the transaction's fail-closed behavior.
+  IF v_type = 'create' AND p_action ? 'lead_id' THEN
+    v_lead_id := (p_action ->> 'lead_id')::uuid;
+    PERFORM pg_advisory_xact_lock(hashtextextended(v_lead_id::text, 0));
+    IF NOT EXISTS (SELECT 1 FROM public.leads WHERE id = v_lead_id) THEN
+      v_status := 'blocked';
+      v_result := jsonb_build_object(
+        'ok', false, 'status', 'blocked',
+        'message', 'A kapcsolódó lead nem található; nem történt feladat-létrehozás.',
+        'lead_id', v_lead_id
+      );
+    ELSIF EXISTS (
+      SELECT 1 FROM public.tasks
+       WHERE lead_id = v_lead_id AND status = 'open'
+    ) THEN
+      v_status := 'blocked';
+      v_result := jsonb_build_object(
+        'ok', false, 'status', 'blocked',
+        'message', 'Ehhez a leadhez már tartozik nyitott feladat; újabb első lépést nem hoztam létre.',
+        'lead_id', v_lead_id
+      );
+    END IF;
+  END IF;
+
   INSERT INTO public.logs (
     module, level, message, operation_id, action, status,
     result, approved, actor_user_id, created_at
@@ -362,46 +402,52 @@ BEGIN
   VALUES (
     'task_actions', 'info', 'audit:task_' || v_type || '|status=pending',
     p_operation_id, 'task_' || v_type, 'pending',
-    jsonb_build_object('task_id', p_action ->> 'id', 'title', p_action ->> 'title'),
+    jsonb_build_object('task_id', p_action ->> 'id', 'title', p_action ->> 'title', 'lead_id', p_action ->> 'lead_id'),
     true, v_actor, clock_timestamp()
   );
 
   IF v_type = 'create' THEN
     v_title := p_action ->> 'title';
-    BEGIN
-      INSERT INTO public.tasks (
-        title, priority, due_at, notes, status, operation_id
-      )
-      VALUES (
-        v_title,
-        p_action ->> 'priority',
-        CASE WHEN jsonb_typeof(p_action -> 'due_at') = 'string'
-             THEN (p_action ->> 'due_at')::timestamptz ELSE NULL END,
-        NULLIF(p_action ->> 'notes', ''),
-        'open',
-        p_operation_id
-      )
-      RETURNING id INTO v_task_id;
-      v_status := 'success';
-    EXCEPTION WHEN unique_violation THEN
-      SELECT id, title INTO v_task_id, v_title
-        FROM public.tasks
-       WHERE operation_id = p_operation_id
-         AND title = p_action ->> 'title'
-         AND priority = p_action ->> 'priority'
-         AND due_at IS NOT DISTINCT FROM
-             CASE WHEN p_action ? 'due_at' THEN (p_action ->> 'due_at')::timestamptz ELSE NULL END
-         AND notes IS NOT DISTINCT FROM NULLIF(p_action ->> 'notes', '');
-      IF NOT FOUND THEN
-        RAISE;
-      END IF;
-      v_status := 'success';
-    END;
-    v_result := jsonb_build_object(
-      'ok', true, 'status', v_status,
-      'message', 'Feladat létrehozva: ' || v_title || ' (azonosító: ' || v_task_id::text || ').',
-      'task_id', v_task_id
-    );
+
+    IF v_status IS DISTINCT FROM 'blocked' THEN
+      BEGIN
+        INSERT INTO public.tasks (
+          lead_id, title, priority, due_at, notes, status, operation_id
+        )
+        VALUES (
+          v_lead_id,
+          v_title,
+          p_action ->> 'priority',
+          CASE WHEN jsonb_typeof(p_action -> 'due_at') = 'string'
+               THEN (p_action ->> 'due_at')::timestamptz ELSE NULL END,
+          NULLIF(p_action ->> 'notes', ''),
+          'open',
+          p_operation_id
+        )
+        RETURNING id INTO v_task_id;
+        v_status := 'success';
+      EXCEPTION WHEN unique_violation THEN
+        SELECT id, title INTO v_task_id, v_title
+          FROM public.tasks
+         WHERE operation_id = p_operation_id
+           AND lead_id IS NOT DISTINCT FROM v_lead_id
+           AND title = p_action ->> 'title'
+           AND priority = p_action ->> 'priority'
+           AND due_at IS NOT DISTINCT FROM
+               CASE WHEN p_action ? 'due_at' THEN (p_action ->> 'due_at')::timestamptz ELSE NULL END
+           AND notes IS NOT DISTINCT FROM NULLIF(p_action ->> 'notes', '');
+        IF NOT FOUND THEN
+          RAISE;
+        END IF;
+        v_status := 'success';
+      END;
+      v_result := jsonb_build_object(
+        'ok', true, 'status', v_status,
+        'message', 'Feladat létrehozva: ' || v_title || ' (azonosító: ' || v_task_id::text || ').',
+        'task_id', v_task_id,
+        'lead_id', v_lead_id
+      );
+    END IF;
   ELSE
     v_task_id := (p_action ->> 'id')::uuid;
     SELECT title, status INTO v_title, v_status
@@ -453,6 +499,14 @@ BEGIN
                              THEN p_action -> 'updates' ->> 'priority' ELSE priority END,
              due_at = CASE WHEN p_action -> 'updates' ? 'due_at'
                            THEN (p_action -> 'updates' ->> 'due_at')::timestamptz ELSE due_at END,
+             notes = CASE
+               WHEN p_action -> 'updates' ? 'outcome' THEN
+                 left(concat_ws(E'\n', nullif(notes, ''),
+                   'Eredmény: ' || (p_action -> 'updates' ->> 'outcome')), 1000)
+               WHEN p_action -> 'updates' ? 'notes'
+                 THEN p_action -> 'updates' ->> 'notes'
+               ELSE notes
+             END,
              updated_at = clock_timestamp()
        WHERE id = v_task_id AND status = 'open'
       RETURNING title INTO v_title;

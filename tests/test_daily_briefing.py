@@ -29,6 +29,7 @@ class FakeDB:
     def __init__(self):
         self.rows = {
             "leads": [{
+                "id": "123e4567-e89b-42d3-a456-426614174000",
                 "company_name": "Példa Kft.", "website": "https://example.com",
                 "status": "research", "source": "gemini_google_search_grounding:example.com",
                 "created_at": "2026-11-15T06:00:00Z",
@@ -59,6 +60,28 @@ def test_daily_briefing_builds_action_plan_from_overdue_task_and_top_lead():
     assert "Javasolt napi akcióterv" in report
     assert "Rendezd a lejárt feladatot" in report
     assert "Ellenőrizd a legmagasabb kutatási prioritású céget" in report
+
+def test_daily_briefing_adds_evidence_based_lead_task_proposal_without_writing():
+    db = FakeDB()
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Következő belső feladatjavaslatok" in report
+    assert "Üzleti igény és szolgáltatási illeszkedés ellenőrzése – Példa Kft." in report
+    assert "123e4567-e89b-42d3-a456-426614174000" in report
+    assert "kapcsolatfelvételi engedély" in report
+    assert "Hozz létre javasolt feladat: 123e4567-e89b-42d3-a456-426614174000" in report
+    assert db.rows["leads"][0]["status"] == "research"
+    assert db.rows["tasks"][0]["title"] == "Ajánlat ellenőrzése"
+
+
+def test_daily_briefing_does_not_repeat_task_proposal_for_linked_lead():
+    db = FakeDB()
+    db.rows["tasks"].append({
+        "id": "task-linked", "lead_id": "123e4567-e89b-42d3-a456-426614174000",
+        "title": "Kutatás ellenőrzése", "status": "open", "priority": "normal",
+    })
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Nincs olyan strukturált kutatási lead, amelyhez még ne tartozna feladat." in report
+    assert "Üzleti igény és szolgáltatási illeszkedés ellenőrzése – Példa Kft." not in report
 
 
 def test_daily_briefing_prioritizes_urgent_overdue_tasks():
@@ -293,3 +316,53 @@ def test_daily_briefing_main_reports_and_reraises_build_failure(monkeypatch, tmp
     assert reports[0][1]["module"] == "daily_briefing"
     assert reports[0][1]["operation"] == "build_report"
     assert not (tmp_path / "daily_briefing.md").exists()
+
+
+def test_follow_up_queue_only_returns_due_consent_valid_unanswered_leads():
+    from daily_briefing import build_follow_up_queue
+
+    today = date(2026, 11, 15)
+    eligible = {
+        "id": "lead-eligible", "company_name": "Engedélyezett Kft.",
+        "status": "sent", "email": "ok@example.test",
+        "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+        "approved_to_contact": True, "opted_out": False,
+        "reply_category": None, "last_inbound_message_id": None,
+        "follow_up_count": 0, "next_follow_up_at": "2026-11-18T09:00:00Z",
+    }
+    rejected = [
+        {**eligible, "id": "opted-out", "opted_out": True},
+        {**eligible, "id": "no-consent", "consent_basis": None},
+        {**eligible, "id": "replied", "reply_category": "reply"},
+        {**eligible, "id": "already-followed-up", "follow_up_count": 1},
+        {**eligible, "id": "future-consent", "consent_confirmed_at": "2026-11-24T09:00:00Z"},
+        {**eligible, "id": "too-late", "next_follow_up_at": "2026-12-20T09:00:00Z"},
+    ]
+
+    queue = build_follow_up_queue([eligible, *rejected], today=today, days_ahead=7)
+
+    assert queue == [{
+        "lead_id": "lead-eligible",
+        "company_name": "Engedélyezett Kft.",
+        "due": "2026-11-18",
+        "overdue": False,
+    }]
+
+
+def test_follow_up_queue_marks_overdue_items_without_contacting_them():
+    from daily_briefing import build_follow_up_queue
+
+    lead = {
+        "id": "lead-overdue", "company_name": "Lejárt Kft.",
+        "status": "follow_up_sent", "email": "ok@example.test",
+        "consent_basis": "consent", "consent_confirmed_at": "2026-11-10T09:00:00Z",
+        "approved_to_contact": True, "opted_out": False,
+        "reply_category": None, "last_inbound_message_id": None,
+        "follow_up_count": 0, "next_follow_up_at": "2026-11-12T09:00:00Z",
+    }
+
+    queue = build_follow_up_queue([lead], today=date(2026, 11, 15))
+
+    assert len(queue) == 1
+    assert queue[0]["overdue"] is True
+    assert queue[0]["lead_id"] == "lead-overdue"

@@ -1,6 +1,6 @@
 # Production állapot és migrációs terv
 
-**Állapot dátuma:** 2026-11-25. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
+**Állapot dátuma:** 2026-11-26. A JARVIS app nincs telepítve; az app-host kiválasztása későbbi release döntés. A Supabase production DB snapshot 2026-11-26-i read-only megfigyelés; az alkalmazás-host státuszát a legfrissebb felhasználói pontosítás külön tisztázta. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
 **Production adatbázis:** Supabase PostgreSQL 17, project ref: `kiutreccucbegskxowek`.
 
 ## 1. Rövid állapot
@@ -99,3 +99,127 @@ A CI #45656372633 és #45656331519 sikeresen futtatta a 20261117 drift fixture, 
 **Következmény:** a repositoryban előkészített audit/approval/task RPC migrációs lánc productionben nincs telepítve. Az alkalmazás RPC útvonala és az éles auditírás ezért még nem tekinthető productionben igazoltnak. A `20261125170000_enforce_atomic_task_write_privileges.sql` csak RPC-alapú app deploy és sikeres smoke teszt után alkalmazható.
 
 Az audit nem módosította a production adatbázist. Ne futtass `supabase db push`-t, `migration repair`-t, DDL/DML-t vagy GRANT/REVOKE műveletet a drift független egyeztetése és külön jóváhagyás nélkül.
+
+## 2026-11-25 – alacsony nehézségű auditcsomag eredménye
+
+- **JARVIS app host:** a README Streamlit alkalmazást és `streamlit run dashboard.py --server.port 8501` indítást dokumentál; production URL/host nincs a repo-ban igazolva. A hozzáférhető Railway szolgáltatás nem JARVIS, ezért nem használható JARVIS URL-ként.
+- **Build/runtime:** Python 3.11; fő függőségek a `requirements.txt` fájlban. A Streamlit secrets példa kulcsnevei: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `JARVIS_DASHBOARD_PASSWORD`, e-mail fiókhoz `EMAIL_USER` és `EMAIL_PASSWORD`; titokértékek nem kerültek kiolvasásra vagy dokumentálásra.
+- **Health check:** a repository `health_check.run_self_diagnostics()` read-only diagnosztikát ad, beleértve Supabase táblák/oszlopok, Gemini konfiguráció és SMTP biztonsági zár vizsgálatát. Ez nem igazolja a production host futó példányát.
+- **SMTP:** a `email_utils.py` hard-disable konstansa `False`; a `send_email()` az Auth/DB/secret/SMTP hívások előtt RuntimeErrorral leáll. Az `.github/workflows/email-automation.yml` kimenő küldési lépése `if: ${{ false }}`. Ez kód- és workflow-bizonyíték, nem production runtime-bizonyíték.
+- **Production Supabase read-only állapot:** 8 public tábla RLS-enabled, policy nincs; `service_role` INSERT/UPDATE/DELETE jog mind a nyolcon true. Security Advisor: 8 INFO `rls_enabled_no_policy`. A `service_role` production task DML negatív tesztjét ezért nem futtattam éles adatírással.
+- **Izolált jogosultsági teszt:** a PR #26 CI `backup-restore-integration` jobja PostgreSQL 17 + pgTAP környezetben sikeres; benne a structured audit/RBAC katalógus- és task service-role tesztek lefutottak.
+- **GitHub main védelem:** `main.protected=false`; required checks enforcement `off`, üres checklista; repository rulesets üres. A branch protection beállítása még szükséges.
+
+Egyik ellenőrzés sem változtatott production adatbázison, alkalmazáson, secrets értéken vagy GitHub branch protection beállításon.
+
+## SQL migrációs kód előzetes statikus áttekintése
+
+A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
+
+**Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
+
+
+## 2026-11-25 – alkalmazás-host felderítés
+
+A GitHub repository metadata alapján nincs homepage URL és GitHub Pages sincs engedélyezve. A repository Streamlit `dashboard.py` alkalmazást tartalmaz, de nem tartalmaz igazolt Streamlit Cloud/Railway/Render/Fly/Vercel deployment hivatkozást. A hozzáférhető Railway accountban csak a `VolleyForm` projekt (`volleyform-api` szolgáltatás, `volleyform-api-production.up.railway.app` domain) látható; ez nem JARVIS és nem szabad JARVIS production hostként kezelni. A Supabase projekt URL adatbázis/API végpont, nem alkalmazás-host.
+
+**Állapotkorrekció – 2026-11-26:** a JARVIS alkalmazás még nincs telepítve semmilyen app-hostra. Ezért nincs production JARVIS app-host/URL, nem pusztán ismeretlen a már létező host. A korábbi Railway `VolleyForm` projekt nem JARVIS. Jelenleg helyi Streamlit fejlesztés folyik; a host kiválasztása későbbi release döntés. A Supabase production adatbázis ettől külön létező szolgáltatás. Eddig semmilyen új app deploy, domain/DNS, secrets vagy infrastruktúra-módosítás nem történt.
+
+
+## 2026-11-25 – migration ledger reconciliation and full-chain read-only review
+
+A fresh production check was performed against Supabase project `kiutreccucbegskxowek` (PostgreSQL 17.11).
+
+### Reconciled historical ledger entries
+
+The live schema was checked before touching the migration ledger:
+
+- `public.leads.website` exists as nullable `text`, matching `20261117090000_add_leads_website.sql`.
+- `public.logs.level` exists as non-null `text` with default `'info'::text`, matching `20261117100000_add_logs_level.sql`.
+
+Only after those postconditions and the expected migration names were verified, the two missing rows were inserted into `supabase_migrations.schema_migrations`:
+
+- `20261117090000 / add_leads_website`
+- `20261117100000 / add_logs_level`
+
+A fresh `list_migrations` read confirmed both rows, seven total ledger entries, and no duplicate versions. The two schema migrations were **not rerun**. No other production schema, data, grant, RLS, or application change was made.
+
+### Complete repository migration inventory
+
+The branch contains 13 migration files. Seven are now represented in the production ledger; six remain unapplied:
+
+1. `20261120090000_expand_logs_audit_fields`
+2. `20261123093000_admin_audit_access_and_hash_chain`
+3. `20261124130000_shared_workspace_role_access`
+4. `20261125150000_task_creation_idempotency`
+5. `20261125160000_atomic_task_approvals_and_operations`
+6. `20261125170000_enforce_atomic_task_write_privileges`
+
+The earlier 20261117 effects are present and reconciled. The production read-only snapshot confirms the later audit columns, `audit_chain_state`, `tasks.operation_id`, private approval/operation tables, and task RPCs are still absent.
+
+### Dependency and rollout review
+
+- `20261120090000` must precede `20261123093000`, which adds the audit hash-chain schema and trigger.
+- `20261124130000` requires the audit-chain table and the JARVIS workspace tables; it must follow the audit migrations.
+- `20261125150000` adds the task operation key required by `20261125160000`.
+- `20261125160000` depends on the structured audit fields, audit actor field, and task operation key.
+- `20261125170000` removes direct `service_role` task DML. It must remain unapplied until the RPC-enabled application is deployed and a production smoke test proves the new write path works.
+
+The repository directory contains 13 files; there is no `20261124150000` migration file in this branch. Do not invent or ledger an absent migration version.
+
+**Current result:** the two historical ledger gaps are reconciled and verified. The complete file inventory and dependency order are reviewed, but the six later migrations are intentionally not applied. No CI was run, in accordance with the agreed batch-testing workflow. The app host is still unidentified, so the required application deploy/smoke gate for the final privilege-lock migration remains blocked.
+
+
+## 2026-11-25 – RBAC task-read coverage review
+
+A follow-up static review confirmed that the shared-workspace policy-generation loop in `20261124130000_shared_workspace_role_access.sql` already includes `public.tasks`; it creates the `tasks_shared_read` policy for authenticated admin/operator/reader roles. The migration itself did not need a change.
+
+The test suite did not explicitly prove that task rows are visible to reader and operator roles. Added two behavioral assertions to `supabase/tests/shared_workspace_role_access.test.sql` and a catalog postcondition requiring the `tasks_shared_read` SELECT policy. The pgTAP plan was increased from 34 to 36 assertions.
+
+No production changes were made. No CI or database tests were run, in accordance with the agreed batch-testing sequence; the tests remain queued for the consolidated run after the full implementation/review batch.
+
+
+## Branch és production állapot szétválasztása – 2026-11-25, PR #26
+
+A [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán új audit/approval/task RPC migrációk, privilege-lock SQL és hozzájuk tartozó tesztek szerepelnek. Ezek **repository/branch állapotúak**, nem production állapotúak. A aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`; a PR nincs merge-ölve.
+
+A korábbi production snapshot a két `20261117` ledger gap reconciliation után hét migrációs ledger bejegyzést rögzít, míg hat későbbi migráció továbbra is unapplied. A `20261125160000_atomic_task_approvals_and_operations.sql` és `20261125170000_enforce_atomic_task_write_privileges.sql` nem tekinthető productionben telepítettnek. A CI PostgreSQL 17 fixture tesztje nem ír a Supabase production adatbázisba.
+
+**Végrehajtási sorrend változatlan:** független SQL review és teljes izolált PG17 CI siker → a tényleges app host azonosítása → külön jóváhagyott app/RPC rollout és smoke → külön jóváhagyott production migráció/ellenőrzés → csak ezt követően a végső service-role task DML revoke. A production Auth/RBAC flag OFF marad. Sem migration push/repair, sem GRANT/REVOKE, sem deploy nem történt a PR #26 dokumentációs frissítésével.
+
+
+## Email provider státusz – 2026-11-25
+
+A Resend API adapter a PR #26 branchben van, de productionben nincs aktiválva. A GitHub email workflow a RESEND_API_KEY secretet várja és EMAIL_PROVIDER=resend értéket ad át, miközben a küldési lépés if: false és a kódbeli EMAIL_DELIVERY_ENABLED konstans False. Nem történt API-hívás, secretmódosítás vagy levélküldés. A Resend 24 órás idempotencia-retenciója miatt az unknown küldéseket provider-oldalon kell egyeztetni; a hard-disable feloldása külön jóváhagyás nélkül tilos.
+
+
+
+## 2026-11-26 – production bizonyítékok frissessége és PR #26 határ
+
+**Fontos frissességi megjegyzés:** a dokumentum korábbi, 2026-11-25-i Supabase read-only snapshotja történeti megfigyelés. Ebben a munkamenetben nem történt új production Supabase-lekérdezés, ezért a korábbi hét ledger-bejegyzésre, hiányzó objektumokra, RLS/policy állapotra és privilege-ekre vonatkozó számok nem tekinthetők 2026-11-26-i állapotigazolásnak. Production módosítás nem történt.
+
+A PR #26 branch legutóbbi ellenőrzött CI-je (head `6ef4020bba3949e02440e97583fc907b6bcb1f00`) sikeres: 838 passed, 3 skipped, 91.29% coverage; PostgreSQL 17 izolált migráció/pgTAP/backup-restore, CodeQL és pip-audit szintén sikeres. Ezek kizárólag branch/CI bizonyítékok, nem production séma vagy migrációs állapot.
+
+A PR-ben szereplő `20261125180000_unique_normalized_lead_email.sql` és audit/approval/RPC/privilege-lock migrációk productionben történő alkalmazása nincs igazolva, és nem történt meg ebben a munkában. A production migráció előtt friss read-only schema + ledger snapshot, email duplikációs preflight, független SQL review, izolált teljes PG17 replay és külön konkrét jóváhagyás szükséges. A service_role task DML revoke továbbra is csak a tényleges RPC app path deployja és sikeres smoke után jöhet szóba.
+
+A global lead research cég/domain konkurenciakockázatát a PR #26 tranzakciós `upsert_company_lead` RPC-je kezeli; a két-session CI teszt sikeres. Ez branch-kód, nem production telepítés. Ez branchben is nyitott fejlesztési feladat, nem production hotfix.
+
+## 2026-11-26 – release readiness újraellenőrzés
+
+A PR #26 aktuális headjén (a README frissítése előtti `79dfb5b85afaa3ae21405b295bb23880019ec54d` commiton) a GitHub Actions eredményei:
+
+- JARVIS CI: sikeres; 838 passed, 3 skipped; 91,29% coverage.
+- PostgreSQL 17 backup–restore integráció: sikeres.
+- CodeQL: sikeres.
+- Dependency vulnerability audit: sikeres.
+
+Ez kizárólag a repository és az izolált CI bizonyítéka. **2026-11-26-án friss, kizárólag read-only Supabase production audit készült** a `kiutreccucbegskxowek` projekten (PostgreSQL 17.11). A remote migration ledger 7 migrációt tartalmaz, benne a két korábban hiányzónak jelölt 20261117 verzióval. A 8 public tábla mindegyikén RLS enabled, de 0 policy van. `anon` és `authenticated` szerepköröknek nincs közvetlen public táblajogosultságuk; a `service_role` mind a nyolc táblán SELECT/INSERT/UPDATE/DELETE joggal rendelkezik. A `private` schema nem létezik, a public/private alkalmazási RPC-k hiányoznak, az `auth.users` rekordszáma 0. A `leads` táblában 11 rekord van és a normalizált email-duplikációs preflight 0 csoportot talált; a `leads_email_normalized_uidx` index nincs telepítve, és a 20261125180000 migráció nem szerepel a remote ledgerben. Security Advisor: 8 INFO policy nélküli RLS jelzés; Performance Advisor: 7 INFO nem használt index; Health Advisor: nincs találat. Nem történt Auth/RLS smoke, production host ellenőrzés vagy deploy. A 2026-11-25-i snapshot történeti adat, a 2026-11-26-i audit a jelenlegi read-only DB-állapot pillanatképe.
+
+A JARVIS alkalmazás még nincs telepítve, ezért nincs app-hostja vagy URL-je; a hostválasztás későbbi release feladat. A production release ezért blokkolt a host és runtime bizonyíték megszerzéséig, a migration drift független egyeztetéséig, a teljes PG17 replay és SQL review lezárásáig, az Auth/RLS hozzáférési modell rendezéséig, valamint a külön production jóváhagyásig. A read-only audit nem változtatott semmilyen production objektumon vagy adaton. A PR nyitva maradt; production rendszeren nem történt változtatás.
+
+
+## 2026-11-26 – új lead identity migration: PR-ág, nem production
+
+A PR #26 új `20261126120000_atomic_company_lead_identity_and_contact_priority.sql` migrációja létrehozza a cégazonosság-alias registryt és a consenthez kötött kontaktjelölt-táblát, valamint a rögzített search_path-ú SECURITY DEFINER RPC-t. A kompatibilis rollout érdekében ez az első migráció átmenetileg nem vonja vissza a régi app lead INSERT-jogát. A külön `20261126130000_enforce_atomic_company_lead_writes.sql` migrációt csak az RPC-t használó app telepítése és smoke tesztje után szabad futtatni: ez zárolja és újra-backfill-eli a leadeket, majd visszavonja a service_role közvetlen INSERT/DELETE jogait. Mindkét migráció duplikált név/domain/email esetén leáll, meglévő rekordot nem töröl és nem olvaszt össze. A személyes webmail címek prioritása a szerepkörös címek fölé kerül, de csak az adott emailre igazolt, külön consent alapján. Outreach megkezdése után a címválasztás befagy.
+
+Ez a két migráció jelenleg csak a PR-ágban található. **Productionben nem futott le**, és a korábbi 2026-11-26-i read-only snapshotot nem változtatta meg. A `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton az izolált PostgreSQL 17 migráció replay, SQL tesztek, két-session race teszt, teljes Python/AppTest/browser CI, CodeQL és dependency audit sikeres. Production alkalmazás előtt ettől függetlenül szükséges a host/runtime azonosítása, Auth/RLS hozzáférési modell, app deploy és a kétfázisú rollout külön jóváhagyása. A két migrációt nem szabad egyetlen rollout-lépésként futtatni: a write-lockdown kizárólag az új app verzió és a régi worker-ek leállásának igazolása után következhet. Production deploy vagy adatbázis-módosítás külön jóváhagyás nélkül továbbra is tilos.

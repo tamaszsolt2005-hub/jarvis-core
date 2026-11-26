@@ -428,7 +428,7 @@ jobs:
             echo "pgTAP reported failed RBAC assertions."
             exit 1
           fi
-          grep -q '1..34' <<< "$rbac_output"
+          grep -q '1..36' <<< "$rbac_output"
           # Add the stable task-creation idempotency key after the existing
           # RBAC schema is in place; replay to verify forward recovery.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125150000_task_creation_idempotency.sql
@@ -453,6 +453,73 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125170000_enforce_atomic_task_write_privileges.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_service_role.test.sql
+          # A failed final audit append must roll back the task and approval consumption.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_audit_fail_closed.sql
+          # Verify approval replay returns the stored result and revoke blocks execution.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_replay_revoke.test.sql
+          # Verify lead-linked task creation, duplicate-open-task blocking, and sequential workflow progression.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_linkage.test.sql
+          # Race two distinct approved operations for the same lead; the per-lead advisory lock must allow only one open task.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_setup.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_first.sql > "$RUNNER_TEMP/task-lead-race-1.log" &
+          lead_race_pid_1=$!
+          sleep 0.5
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_second.sql > "$RUNNER_TEMP/task-lead-race-2.log" &
+          lead_race_pid_2=$!
+          wait "$lead_race_pid_1"
+          wait "$lead_race_pid_2"
+          cat "$RUNNER_TEMP/task-lead-race-1.log" "$RUNNER_TEMP/task-lead-race-2.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_verify.sql
+          # Add normalized email uniqueness only after a locked, non-destructive duplicate preflight.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_email_uniqueness.test.sql
+          # Install the atomic company identity registry and consent-aware contact ranking.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126120000_atomic_company_lead_identity_and_contact_priority.sql
+          # Replay must be idempotent and preserve all identity/contact records.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126120000_atomic_company_lead_identity_and_contact_priority.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_priority.test.sql
+          # Exercise the identity claim from two overlapping PostgreSQL sessions.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_setup.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_execute.sql > "$RUNNER_TEMP/lead-identity-race-1.log" &
+          identity_race_pid_1=$!
+          for attempt in $(seq 1 50); do
+            if grep -q "created" "$RUNNER_TEMP/lead-identity-race-1.log"; then break; fi
+            sleep 0.1
+          done
+          grep -q "created" "$RUNNER_TEMP/lead-identity-race-1.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_execute.sql > "$RUNNER_TEMP/lead-identity-race-2.log" &
+          identity_race_pid_2=$!
+          wait "$identity_race_pid_1"
+          wait "$identity_race_pid_2"
+          cat "$RUNNER_TEMP/lead-identity-race-1.log" "$RUNNER_TEMP/lead-identity-race-2.log"
+          grep -q "created" "$RUNNER_TEMP/lead-identity-race-1.log"
+          grep -q "existing" "$RUNNER_TEMP/lead-identity-race-2.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_verify.sql
+          # Finalize the rolling deployment only after the RPC path is present.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
+          # Prove duplicate legacy rows stop the migration without modifying data.
+          preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
+          PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
+          PGPASSWORD=postgres psql "$preflight_url" --set ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.leads (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            company_name text NOT NULL,
+            email text
+          );
+          INSERT INTO public.leads (company_name, email) VALUES
+            ('legacy duplicate one', 'same@example.invalid'),
+            ('legacy duplicate two', ' SAME@example.invalid ');
+          SQL
+          if PGPASSWORD=postgres psql "$preflight_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql; then
+            echo "Duplicate legacy emails unexpectedly passed migration preflight."
+            exit 1
+          fi
+          remaining="$(PGPASSWORD=postgres psql "$preflight_url" --no-psqlrc --tuples-only --no-align --command "SELECT count(*) FROM public.leads")"
+          test "$remaining" = "2"
+          index_count="$(PGPASSWORD=postgres psql "$preflight_url" --no-psqlrc --tuples-only --no-align --command "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='leads' AND indexname='leads_email_normalized_uidx'")"
+          test "$index_count" = "0"
       - name: Verify audit and RBAC catalog postconditions
         shell: bash
         run: |

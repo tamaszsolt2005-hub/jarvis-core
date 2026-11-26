@@ -5,15 +5,36 @@ import csv
 import re
 from datetime import datetime, timezone
 import uuid
+from urllib.parse import urlparse
 
 from jarvis_common import audit_event, get_service_supabase, log_event
 from jarvis_errors import report_error
+from lead_identity import upsert_company_lead
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def _truth(value):
     return str(value).strip().lower() in {"true", "1", "yes", "igen"}
+
+
+def _valid_http_url(value):
+    raw = str(value or "").strip()[:2048]
+    if not raw:
+        return None
+    try:
+        parsed = urlparse(raw)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.hostname.lower() in {"localhost", "localhost.localdomain"}
+        ):
+            return None
+    except ValueError:
+        return None
+    return raw
 
 
 def _validated_import_row(row):
@@ -48,7 +69,7 @@ def _validated_import_row(row):
 
     return {
         "company_name": company, "email": address,
-        "website": str(row.get("website") or "").strip()[:2048] or None,
+        "website": _valid_http_url(row.get("website")),
         "notes": str(row.get("notes") or "").strip()[:4000] or None,
         "source": str(row.get("source") or "reviewed_csv").strip()[:120],
         "consent_basis": "consent", "approved_to_contact": True,
@@ -80,10 +101,6 @@ def run(path="data/leads.csv"):
                 if record is None:
                     skipped += 1
                     continue
-                exists = db.table("leads").select("id").ilike("email", record["email"]).limit(1).execute().data
-                if exists:
-                    skipped += 1
-                    continue
                 lead_operation_id = str(uuid.uuid4())
                 lead_write_attempted = False
                 if not audit_event(
@@ -97,16 +114,43 @@ def run(path="data/leads.csv"):
                     raise RuntimeError("Lead mentése leállítva: a pending auditbejegyzés nem menthető.")
                 side_effect_started = True
                 lead_write_attempted = True
-                inserted = db.table("leads").insert(record).execute()
-                inserted_rows = getattr(inserted, "data", None) or []
-                lead_id = inserted_rows[0].get("id") if inserted_rows and isinstance(inserted_rows[0], dict) else None
+                try:
+                    identity_result = upsert_company_lead(
+                        db,
+                        company_name=record["company_name"],
+                        website=record["website"],
+                        email=record["email"],
+                        notes=record["notes"],
+                        source=record["source"],
+                        consent_basis=record["consent_basis"],
+                        approved_to_contact=record["approved_to_contact"],
+                        consent_confirmed_at=record["consent_confirmed_at"],
+                    )
+                except Exception as exc:
+                    # Identity conflicts and cross-company email reuse are not
+                    # silently skipped; the atomic RPC rolls back the whole claim.
+                    audit_event(
+                        db,
+                        module="lead_gen",
+                        action="create_reviewed_lead",
+                        status="failed",
+                        operation_id=lead_operation_id,
+                        error=exc,
+                        result={"reason": "company_identity_or_contact_conflict"},
+                    )
+                    lead_operation_id = None
+                    lead_write_attempted = False
+                    raise
                 if not audit_event(
                     db,
                     module="lead_gen",
                     action="create_reviewed_lead",
                     status="success",
                     operation_id=lead_operation_id,
-                    result={"lead_id": str(lead_id) if lead_id is not None else None},
+                    result={
+                        "lead_id": identity_result["lead_id"],
+                        "outcome": identity_result["outcome"],
+                    },
                 ):
                     raise RuntimeError("A lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
                 lead_operation_id = None
@@ -121,8 +165,8 @@ def run(path="data/leads.csv"):
             result={"imported": imported, "skipped": skipped},
         ):
             raise RuntimeError("A CSV-import befejeződött, de a záró auditbejegyzés nem menthető.")
-        log_event(db, "lead_gen", f"CSV import: {imported} új lead, {skipped} kihagyva.")
-        print(f"Import kész: {imported} új, {skipped} kihagyott rekord.")
+        log_event(db, "lead_gen", f"CSV import: {imported} kapcsolattartói rekord feldolgozva, {skipped} kihagyva.")
+        print(f"Import kész: {imported} kapcsolattartói rekord feldolgozva, {skipped} kihagyva.")
     except Exception as exc:
         if db is not None and lead_operation_id:
             audit_event(

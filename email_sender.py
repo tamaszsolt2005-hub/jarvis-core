@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
-from email_utils import EMAIL_DELIVERY_ENABLED, send_email
+from uuid import NAMESPACE_URL, uuid5
+from email_utils import EMAIL_DELIVERY_ENABLED, EmailDeliveryOutcomeUnknown, send_email
 from jarvis_common import env_bool, env_int, generate_text, get_secret, get_service_supabase, log_event, audit_event
 from jarvis_errors import report_error
 from lead_scoring import score_lead
@@ -65,6 +65,28 @@ def _draft(lead: dict, follow_up: bool = False) -> tuple[str, str]:
     return subject, body
 
 
+def email_idempotency_key(lead: dict, follow_up: bool) -> str:
+    """Return a stable operation key for one lead and one delivery sequence.
+
+    A provider adapter must send this exact value as its idempotency key.
+    The Resend adapter forwards it to the provider; SMTP cannot deduplicate.
+    """
+    lead_id = str(lead.get("id") or "").strip()
+    if not lead_id:
+        raise ValueError("E-mail idempotenciához stabil lead-azonosító szükséges.")
+    if follow_up:
+        try:
+            sequence = int(lead.get("follow_up_count") or 0) + 1
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Érvénytelen utánkövetési sorszám.") from exc
+        if sequence < 1:
+            raise ValueError("Érvénytelen utánkövetési sorszám.")
+        kind = f"follow-up:{sequence}"
+    else:
+        kind = "first-contact:1"
+    return str(uuid5(NAMESPACE_URL, f"jarvis:email:{lead_id}:{kind}"))
+
+
 def _due_follow_up(lead: dict, now: datetime) -> bool:
     if (
         lead.get("status") not in FOLLOW_UP_STATUSES
@@ -92,6 +114,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     allowed_statuses = FOLLOW_UP_STATUSES if follow_up else {"new"}
     if (
         current_status not in allowed_statuses
+        or (follow_up and not _due_follow_up(lead, now))
         or not _valid_consent(lead)
         or not EMAIL_RE.fullmatch(str(lead.get("email") or ""))
         or lead.get("reply_category")
@@ -99,30 +122,41 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     ):
         return False
     claim_status = "follow_up_sending" if follow_up else "sending"
-    claim = (
+    claim_query = (
         db.table("leads").update({"status": claim_status})
         .eq("id", lead["id"]).eq("status", current_status)
         .eq("opted_out", False).eq("approved_to_contact", True)
-        .eq("consent_basis", "consent").select("id").execute()
+        .eq("consent_basis", "consent")
     )
+    if follow_up:
+        claim_query = (
+            claim_query
+            .eq("follow_up_count", lead.get("follow_up_count"))
+            .eq("next_follow_up_at", lead.get("next_follow_up_at"))
+        )
+    claim = claim_query.select("id").execute()
     if not claim.data:
         audit_event(
             db, module="email_sender", action="send_claim", status="blocked",
             result={"reason": "lead_claim_not_acquired"},
         )
         return False
-    smtp_attempted = False
+    delivery_attempted = False
     try:
         subject, body = _draft(lead, follow_up=follow_up)
         # Recheck consent, opt-out and inbound replies immediately before SMTP delivery.
         fresh = (
             db.table("leads")
-            .select("id,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id")
+            .select("id,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,next_follow_up_at,follow_up_count")
             .eq("id", lead["id"]).limit(1).execute().data or []
         )
         if (
             not fresh or fresh[0].get("status") != claim_status
             or not _valid_consent(fresh[0])
+            or (
+                follow_up
+                and not _due_follow_up({**fresh[0], "status": current_status}, now)
+            )
             or fresh[0].get("reply_category")
             or fresh[0].get("last_inbound_message_id")
             or fresh[0].get("email") != lead.get("email")
@@ -133,7 +167,7 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 }).eq("id", lead["id"]).eq("status", claim_status).execute()
             log_event(db, "email_sender", f"Küldés megszakítva: a hozzájárulás vagy a válaszállapot megváltozott ({lead.get('company_name')}).", "warning")
             return False
-        operation_id = str(uuid4())
+        operation_id = email_idempotency_key(lead, follow_up)
         audit_fields = {
             "module": "email_sender",
             "action": "send_follow_up_email" if follow_up else "send_first_contact_email",
@@ -144,10 +178,15 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
         }
         if not audit_event(db, status="pending", **audit_fields):
             raise RuntimeError("E-mailküldés leállítva: az auditnapló nem írható.")
-        # The remote server may accept the message even if its final SMTP response is lost.
-        # From this point onward the outcome is uncertain and automatic retry is forbidden.
-        smtp_attempted = True
-        message_id = send_email(str(lead["email"]), subject, body)
+        # Only an ambiguous provider response (or a completed send followed by a
+        # local persistence failure) is uncertain. Preflight/auth failures and
+        # the hard-disabled guard are known not to have delivered a message.
+        try:
+            message_id = send_email(str(lead["email"]), subject, body, operation_id)
+        except EmailDeliveryOutcomeUnknown:
+            delivery_attempted = True
+            raise
+        delivery_attempted = True
         if follow_up:
             count = int(lead.get("follow_up_count") or 0) + 1
             max_count = env_int("MAX_FOLLOW_UPS", 2, 0, 5)
@@ -169,10 +208,18 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
                 "last_message_id": message_id,
             }
             label = "Első levél elküldve"
-        db.table("leads").update(values).eq("id", lead["id"]).eq("status", claim_status).execute()
+        persisted = (
+            db.table("leads").update(values).eq("id", lead["id"])
+            .eq("status", claim_status).select("id").execute()
+        )
+        if not persisted.data:
+            raise RuntimeError(
+                "A szolgáltató átvette a levelet, de a lead kézbesítési állapota nem menthető; "
+                "a duplikált küldés elkerülése érdekében ellenőrzést igényel."
+            )
         if not audit_event(
             db, status="success", delivery_id=message_id or None,
-            result={"smtp_accepted": True, "follow_up": follow_up},
+            result={"provider_accepted": True, "follow_up": follow_up},
             **audit_fields,
         ):
             raise RuntimeError("Az SMTP átvette a levelet, de a sikeres auditbejegyzés nem menthető.")
@@ -181,19 +228,19 @@ def _send_one(db, lead: dict, follow_up: bool, now: datetime) -> bool:
     except Exception as exc:
         if "audit_fields" in locals():
             audit_event(
-                db, status="unknown" if smtp_attempted else "failed",
+                db, status="unknown" if delivery_attempted else "failed",
                 error=exc, level="error",
-                result={"smtp_attempted": smtp_attempted},
+                result={"delivery_attempted": delivery_attempted},
                 **audit_fields,
             )
         report_error(
             exc, module="email_sender", operation="send_one", severity="error", db=db
         )
         try:
-            db.table("leads").update({"status": "send_unknown" if smtp_attempted else "send_error", "next_follow_up_at": None if smtp_attempted else lead.get("next_follow_up_at")}).eq("id", lead["id"]).eq("status", claim_status).execute()
+            db.table("leads").update({"status": "send_unknown" if delivery_attempted else "send_error", "next_follow_up_at": None if delivery_attempted else lead.get("next_follow_up_at")}).eq("id", lead["id"]).eq("status", claim_status).execute()
         except Exception as state_exc:
             report_error(
-                state_exc, module="email_sender", operation="mark_send_unknown" if smtp_attempted else "mark_send_error",
+                state_exc, module="email_sender", operation="mark_send_unknown" if delivery_attempted else "mark_send_error",
                 severity="critical", db=db,
             )
         return False
@@ -205,7 +252,7 @@ def _run() -> None:
         or not env_bool("AUTO_SEND_ENABLED", False)
         or not env_bool("EMAIL_INBOX_MONITOR_ENABLED", False)
     ):
-        print("Biztonsági mód: az SMTP-küldés, az automatikus küldés és a bejövő levélfigyelés mind szükséges; az e-mail nem kerül kiküldésre.")
+        print("Biztonsági mód: a kimenő e-mailküldés kódszinten tiltott; az e-mail nem kerül kiküldésre.")
         return
     db = get_service_supabase()
     now = datetime.now(timezone.utc)

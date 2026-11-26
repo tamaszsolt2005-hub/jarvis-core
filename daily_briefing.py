@@ -7,6 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from intelligent_lead_scoring import rank_researched_leads
+from lead_workflow import build_lead_workflow_recommendations
 from jarvis_errors import report_error
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
@@ -23,6 +24,56 @@ def _local_date(value: Any) -> date | None:
         return parsed.astimezone(LOCAL_TZ).date()
     except (TypeError, ValueError):
         return None
+
+
+def build_follow_up_queue(
+    leads: list[dict[str, Any]],
+    *,
+    today: date | None = None,
+    days_ahead: int = 7,
+) -> list[dict[str, Any]]:
+    """Return a read-only follow-up review queue for explicitly eligible leads.
+
+    This never sends messages or changes lead state. Missing/invalid consent,
+    opt-out, replies, malformed email addresses and already-used follow-ups fail closed.
+    """
+    reference_day = today or datetime.now(LOCAL_TZ).date()
+    horizon = max(0, min(int(days_ahead), 30))
+    latest_due = reference_day.fromordinal(reference_day.toordinal() + horizon)
+    queue: list[dict[str, Any]] = []
+    for lead in leads:
+        due_date = _local_date(lead.get("next_follow_up_at"))
+        try:
+            consent_at = datetime.fromisoformat(
+                str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
+            )
+            follow_up_count = int(lead.get("follow_up_count") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not (
+            lead.get("status") in {"sent", "follow_up_sent"}
+            and lead.get("consent_basis") == "consent"
+            and lead.get("approved_to_contact") is True
+            and lead.get("opted_out") is False
+            and not lead.get("reply_category")
+            and not lead.get("last_inbound_message_id")
+            and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
+            and consent_at.tzinfo is not None
+            and consent_at.utcoffset() is not None
+            and consent_at.astimezone(LOCAL_TZ).date() <= reference_day
+            and 0 <= follow_up_count < 1
+            and due_date is not None
+            and due_date <= latest_due
+        ):
+            continue
+        queue.append({
+            "lead_id": str(lead.get("id") or ""),
+            "company_name": str(lead.get("company_name") or "Ismeretlen cég"),
+            "due": due_date.isoformat(),
+            "overdue": due_date < reference_day,
+        })
+    queue.sort(key=lambda item: (item["due"], item["company_name"].casefold()))
+    return queue
 
 
 def build_daily_briefing(db: Any, today: date | None = None) -> str:
@@ -48,7 +99,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at,created_at,notes,source"
         ).order("created_at", desc=True).limit(1500).execute().data or []
     tasks = db.table("tasks").select(
-        "id,title,status,priority,due_at,completed_at,lead_id"
+        "id,title,notes,status,priority,due_at,completed_at,created_at,lead_id"
     ).limit(1000).execute().data or []
 
     research_leads = []
@@ -57,12 +108,16 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         note = str(row.get("notes") or "")
         if source.startswith("gemini_google_search_grounding:") and note.startswith("Leadkutatás;"):
             research_leads.append({
+                "id": row.get("id"),
                 "company_name": row.get("company_name"),
                 "website": row.get("website"),
                 "status": row.get("status"),
                 "research_intelligence": note,
             })
     ranked = rank_researched_leads(research_leads, limit=10)
+    workflow_recommendations = build_lead_workflow_recommendations(
+        research_leads, tasks, limit=5
+    )
 
     overdue, due_today, open_tasks = [], [], []
     for task in tasks:
@@ -78,37 +133,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due_date == today:
             due_today.append(item)
 
-    overdue_followups = []
-    for lead in leads:
-        due_date = _local_date(lead.get("next_follow_up_at"))
-        try:
-            consent_at = datetime.fromisoformat(
-                str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
-            )
-            follow_up_count = int(lead.get("follow_up_count") or 0)
-        except (TypeError, ValueError):
-            continue
-        if (
-            lead.get("status") in {"sent", "follow_up_sent"}
-            and lead.get("consent_basis") == "consent"
-            and lead.get("approved_to_contact") is True
-            and lead.get("opted_out") is False
-            and not lead.get("reply_category")
-            and not lead.get("last_inbound_message_id")
-            and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
-            and consent_at.tzinfo is not None
-            and consent_at.utcoffset() is not None
-            # Use the report's reference date, not wall-clock time, so historical
-            # reports and tests do not treat later consent as already granted.
-            and consent_at.astimezone(LOCAL_TZ).date() <= today
-            and 0 <= follow_up_count < 1
-            and due_date is not None
-            and due_date < today
-        ):
-            overdue_followups.append({
-                "company_name": str(lead.get("company_name") or "Ismeretlen cég"),
-                "due": due_date.isoformat(),
-            })
+    follow_up_queue = build_follow_up_queue(leads, today=today, days_ahead=0)
+    overdue_followups = [
+        {"company_name": item["company_name"], "due": item["due"]}
+        for item in follow_up_queue if item["overdue"]
+    ]
 
 
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
@@ -147,6 +176,21 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             )
     else:
         lines.append("- Még nincs elegendő strukturált kutatási adat a rangsoroláshoz.")
+
+    lines += ["", "## Következő belső feladatjavaslatok"]
+    if workflow_recommendations:
+        for item in workflow_recommendations:
+            lines.append(
+                f"- **{item['task_title']}** – prioritás: {item['task_priority']}; "
+                f"kutatási prioritás: {item['priority_score']}/100; "
+                f"üzleti illeszkedés: {item['business_fit_score']}/100; "
+                f"bizonyosság: {item['research_confidence']}; "
+                f"bizonyítékok: {item['evidence_count']}. {item['rationale']} "
+                f"Ez belső ellenőrzési javaslat, nem kapcsolatfelvételi engedély. "
+                f"Előkészítés: Hozz létre javasolt feladat: {item['lead_id']}"
+            )
+    else:
+        lines.append("- Nincs olyan strukturált kutatási lead, amelyhez még ne tartozna feladat.")
 
     lines += ["", "## Kiemelt nyitott feladatok"]
     lines += [f"- {x.get('title') or 'Névtelen feladat'} (prioritás: {x.get('priority')})" for x in priority_tasks[:10]]

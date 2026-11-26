@@ -8,7 +8,8 @@ DECLARE
   bad_count integer;
   expected_tables text[] := ARRAY[
     'leads', 'tasks', 'email_drafts', 'settings', 'logs',
-    'jarvis_memory', 'jarvis_proactive_state', 'posts', 'audit_chain_state'
+    'jarvis_memory', 'jarvis_proactive_state', 'posts', 'audit_chain_state',
+    'lead_company_aliases', 'lead_contact_candidates'
   ];
 BEGIN
   -- All expected application relations exist, are owned by the fixture owner,
@@ -43,6 +44,17 @@ BEGIN
      AND tablename = ANY(expected_tables);
   IF object_count <> 15 THEN
     RAISE EXCEPTION 'expected 15 public RBAC policies, found %', object_count;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename = 'tasks'
+       AND policyname = 'tasks_shared_read'
+       AND cmd = 'SELECT'
+       AND roles @> ARRAY['authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'authenticated shared-workspace task read policy is missing';
   END IF;
 
   SELECT count(*) INTO bad_count
@@ -173,6 +185,53 @@ BEGIN
     RAISE EXCEPTION 'postgres public-schema default ACLs grant privileges to API roles';
   END IF;
 
+  -- Company identity/contact candidate tables are inaccessible directly;
+  -- the service role can use only the narrow SECURITY DEFINER RPC.
+  IF has_table_privilege('service_role', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('service_role', 'public.lead_company_aliases', 'INSERT')
+     OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'SELECT')
+     OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'INSERT')
+     OR has_table_privilege('service_role', 'public.leads', 'INSERT')
+     OR has_table_privilege('service_role', 'public.leads', 'DELETE')
+     OR NOT has_table_privilege('service_role', 'public.leads', 'SELECT')
+     OR has_table_privilege('service_role', 'public.leads', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.leads', 'status', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'company_name', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'website', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'email', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'consent_basis', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'approved_to_contact', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.leads', 'consent_confirmed_at', 'UPDATE')
+     OR has_table_privilege('anon', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('anon', 'public.lead_contact_candidates', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.lead_contact_candidates', 'SELECT') THEN
+    RAISE EXCEPTION 'lead creation bypasses the atomic company RPC or private candidate registry';
+  END IF;
+
+  IF NOT (SELECT prosecdef FROM pg_proc
+       WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
+     OR NOT (SELECT proconfig @> ARRAY['search_path=pg_catalog']
+       FROM pg_proc
+       WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
+     OR NOT has_function_privilege(
+       'service_role',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'anon',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'authenticated',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'company identity RPC execution boundary is incorrect';
+  END IF;
+
   -- Approval state is isolated in an unexposed schema. Application roles
   -- execute only the narrow SECURITY DEFINER RPCs, never table DML.
   IF has_schema_privilege('anon', 'private', 'USAGE')
@@ -227,6 +286,6 @@ BEGIN
     RAISE EXCEPTION 'internal approval principal validator is executable by an API role';
   END IF;
 
-  RAISE NOTICE 'Catalog postconditions passed: ownership, RLS, 15 policies, API grants, audit triggers and private atomic-approval RPC ACLs.';
+  RAISE NOTICE 'Catalog postconditions passed: ownership, RLS, task read policy, 15 policies, API grants, audit triggers and private atomic-approval RPC ACLs.';
 END
 $catalog_postconditions$;

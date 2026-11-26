@@ -129,6 +129,32 @@ def test_follow_up_success_claims_once_and_records_completion(monkeypatch):
     assert db.rows[0]["next_follow_up_at"] is None
 
 
+
+@pytest.mark.parametrize("change", [
+    {"follow_up_count": 1},
+    {"next_follow_up_at": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()},
+])
+def test_follow_up_atomic_claim_rejects_stale_due_snapshot(monkeypatch, change):
+    db = _DB([_lead()])
+    sent = []
+
+    def change_after_candidate_scan():
+        db.rows[0].update(change)
+        return "mock follow-up body"
+
+    _configure_run(
+        monkeypatch, db,
+        draft=change_after_candidate_scan,
+        send=lambda *args: sent.append(args) or "smtp-id",
+    )
+
+    follow_up._run()
+
+    assert sent == []
+    assert db.rows[0]["status"] == "sent"
+    assert db.rows[0].get("follow_up_count", 0) == change.get("follow_up_count", 0)
+
+
 def test_follow_up_does_not_send_without_consent(monkeypatch):
     db = _DB([_lead(approved_to_contact=False)])
     _configure_run(monkeypatch, db, send=lambda *_args: pytest.fail("must not send"))
@@ -136,11 +162,11 @@ def test_follow_up_does_not_send_without_consent(monkeypatch):
     assert db.rows[0]["status"] == "sent"
 
 
-def test_uncertain_smtp_failure_is_not_reset_to_sendable_status(monkeypatch):
+def test_uncertain_provider_failure_is_not_reset_to_sendable_status(monkeypatch):
     db = _DB([_lead()])
 
     def fail_send(*_args):
-        raise OSError("mock SMTP outcome unknown")
+        raise follow_up.EmailDeliveryOutcomeUnknown("mock provider outcome unknown")
 
     _configure_run(monkeypatch, db, send=fail_send)
     follow_up._run()

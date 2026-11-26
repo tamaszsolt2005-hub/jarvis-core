@@ -1,121 +1,95 @@
 # JARVIS – elsődleges fejlesztési útiterv
 
-**Ez a dokumentum a JARVIS fejlesztésének elsődleges iránytűje.** Minden új fejlesztési munkamenet elején ezt kell először elolvasni. A feladatokat az alábbi sorrendben kell végrehajtani; ettől csak a felhasználó kifejezett döntésével térjünk el.
+**Aktuális fejlesztési ág:** docs/pre-feature-readiness-gates  
+**Pull request:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
+**Telepítési állapot:** helyi Streamlit fejlesztés; JARVIS production app nincs deployolva.  
+**Aktuális részletes állapot:** [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md)  
+**Parancsok:** [JARVIS_COMMAND_GUIDE.md](JARVIS_COMMAND_GUIDE.md)  
+**Architektúra:** [JARVIS_DOCUMENTATION.md](JARVIS_DOCUMENTATION.md)
+
+Ez a dokumentum a fejlesztési munka elsődleges iránytűje. A státusz mindig a PR aktuális headjéhez és a ténylegesen ellenőrzött tesztekhez kötendő. A régebbi dátumozott bekezdések történeti pillanatképek, nem jelenlegi állítások.
 
 ## Alapelv
+A JARVIS figyelhet, elemezhet, lehetőséget ismerhet fel és belső műveletet javasolhat. Külső vagy adatbázist módosító végrehajtás csak az adott művelethez tartozó explicit jóváhagyással, megfelelő jogosultsággal és auditálható, idempotens úton történhet. Az automatikus javaslat nem egyenlő végrehajtással.
 
-A JARVIS fokozatosan váljon megbízható, biztonságos és önállóbb üzleti asszisztenssé. Figyelhet, elemezhet, felismerhet lehetőségeket és javasolhat műveleteket, de külső vagy üzleti hatású végrehajtás csak megfelelő jogosultsággal és explicit jóváhagyással történhet.
+## Jelenlegi implementáció – PR #26
 
-## A fejlesztés öt egymásra épülő területe
-
-### 1. Megbízhatóság és biztonság
-
-Cél: a jelenlegi működés legyen kiszámítható, hibákkal és párhuzamos végrehajtással szemben ellenálló.
-
-- Javítsuk ki a backup workflow importhibáját.
-- Tegyük atomikussá az egyszer használatos jóváhagyások felhasználását, beleértve a konkurens kérések kezelését.
-- Egészítsük ki a műveletek idempotenciáját: ismételt kérés vagy bizonytalan külső válasz ne okozzon duplikált feladatot vagy mellékhatást.
-- Az érzékeny műveletek auditálása legyen fail-closed.
-- A kimenő e-mail és más külső mellékhatások maradjanak tiltva, amíg a biztonságos idempotencia és a végponttól végpontig tesztek nem igazolják a működést.
-
-**Lezárási feltétel:** a javítások regressziós és konkurenciatesztekkel igazoltak; a backup teljes friss futása sikeres, beleértve a mentés ellenőrzését és a visszaállítási próbát.
-
-### 2. Supabase és jogosultságkezelés
-
-Cél: az adatbázis állapota, a migrációs előzmények, az Auth és az RLS ellenőrizhetően összhangban legyenek.
-
-- Térképezzük fel és rendezzük a repository és a production migration ledger/séma közötti eltéréseket.
-- A migrációkat production-shape PostgreSQL 17 izolált környezetben játsszuk vissza, adatmegőrzési ellenőrzéssel.
-- Teszteljük az Auth, session refresh, JWT, szerepkörök és RLS működését kizárólag már létező, engedélyezett izolált Supabase környezetben.
-- Válasszuk szét a felhasználói JWT-alapú és a háttérfolyamatok service-role hozzáférését.
-- Készítsünk bizonyítékokon alapuló éles átállási tervet, visszaállási tervvel és ellenőrzési kapukkal.
-
-**Lezárási feltétel:** migrációs eltérésekre jóváhagyott, tesztelt rendezési terv; izolált Auth/JWT/RLS tesztek zöldek; dokumentált production cutover és rollback terv.
-
-**Éles korlát:** production DDL/DML, migration push/repair, ledger-módosítás, GRANT/REVOKE, RLS/Auth módosítás és feature flag bekapcsolás külön, konkrét felhasználói jóváhagyás nélkül tilos. Az izolált tesztek nem jelentenek production engedélyt.
-
-### 3. Önállóbb üzleti asszisztens
-
-Cél: a JARVIS ne csak kérdésekre válaszoljon, hanem proaktívan támogassa az üzleti munkát.
-
-- Figyelje a leadeket és a releváns üzleti változásokat.
-- Ismerje fel és indokolja meg a lehetséges üzleti lehetőségeket.
-- Készítsen javasolt feladatokat, prioritást és következő lépéseket.
-- Mutassa meg a javaslatok forrását, bizonytalanságát és várható üzleti értékét.
-- A feladatok és külső műveletek végrehajtása maradjon explicit jóváhagyáshoz kötött.
-
-**Lezárási feltétel:** a proaktív javaslatok visszakövethetők, tesztelhetők, duplikációmentesek, és jóváhagyás nélkül nem váltanak ki tiltott mellékhatást.
-
-### 4. Üzleti munkafolyamatok automatizálása
-
-Cél: a különálló képességekből mérhető, végigkövethető üzleti folyamat álljon össze.
-
-**Folyamat:** Leadkutatás → minősítés → stratégia → feladat → jóváhagyás → utánkövetés → eredménymérés.
-
-- Minden lépésnek legyen egyértelmű bemenete, kimenete, állapota és felelőse.
-- A folyamat legyen megszakítható, folytatható és idempotens.
-- A jóváhagyási pontok legyenek láthatók; jóváhagyás nélkül ne történjen külső végrehajtás.
-- Mérjük a leadminőséget, a konverziót, az utánkövetés eredményét és a végrehajtás sikerességét.
-
-**Lezárási feltétel:** a teljes folyamat tesztelhető, auditálható, újraindítható és üzleti eredményekkel mérhető.
-
-### 5. Tudás és hosszú távú memória
-
-Cél: olyan tartós üzleti tudásréteg kialakítása, amely összekapcsolja a leadekről, ügyfelekről, interakciókról, döntésekről, feladatokról és eredményekről rendelkezésre álló információkat.
-
-- Őrizze meg a releváns üzleti kontextust és annak forrását.
-- Kapcsolja össze a korábbi döntéseket, végrehajtott lépéseket és azok eredményeit.
-- Tegye visszakereshetővé a tanulságokat, és használja fel őket a későbbi javaslatok javítására.
-- Kezelje az adatok frissességét, bizonytalanságát, hozzáférési jogosultságait és törlési/megőrzési szabályait.
-- Ne tekintse a modell által generált következtetést ellenőrzött ténynek; különítse el a forrást, a tényt és a következtetést.
-
-**Lezárási feltétel:** a tudás visszakereshető, forrásolt, jogosultságkezelt és mérhetően javítja a javaslatok minőségét.
-
-## Haladáskövetés
-
-**Frissítve:** 2026-11-25, `main` commit `71d6a1c` (PR #21 merge). A PR #20 javította az S3 ellenőrző Python-blokk behúzását. A main CI (`45655131500`) sikeres. A production backup workflow-dispatch (`45655512387`) teljesen sikeres: titkosított dump, S3 feltöltés, SSE-KMS és objektumméret ellenőrzés, letöltés, manifest/SHA-256 ellenőrzés, majd külön izolált PostgreSQL 17 restore és táblainventár/rekordszám-ellenőrzés. A restore külön runner-konténerben történt; production DB írás nem történt. [Backup futás](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45655512387).
-
-
-
-A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumozott roadmapeket.
-
-| Sorrend | Terület | Státusz |
+| Terület | Jelenlegi állapot | Korlát |
 |---|---|---|
-| 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; kimenő SMTP hard-disabled; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
-| 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
-| 3 | Önállóbb üzleti asszisztens | Részben implementálva – proaktív monitor/lead és javaslati modulok vannak; minőségi és production bizonyíték hiányzik |
-| 4 | Üzleti munkafolyamatok automatizálása | Részben implementálva – task/approval alapok megvannak; teljes E2E folyamat és üzleti mérés hátra van |
-| 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
+| Magyar chat és Gemini kontextus | Implementált | API-konfiguráció szükséges |
+| Céges leadkutatás és grounding | Implementált | Explicit kutatási kérés és külön jóváhagyás |
+| Cégazonosító/deduplikáció | Implementált, SQL concurrency tesztekkel | Production migráció nincs alkalmazva |
+| Lead scoring és belső workflow-ajánlás | Implementált | Forrásolt kutatás szükséges |
+| Task create/update/close | Approval-gated RPC-vel implementált | Minden művelet külön jóváhagyásos |
+| Feladatközpont | Read-only dashboard oldal | A módosítás a chat approval flow-ban történik |
+| Consent-aware follow-up queue | Read-only, fail-closed szűrés | Nem küld üzenetet |
+| Eredményalapú következő teendő | Implementált | Csak lezárt outcome_measurement task explicit besorolásából |
+| Hosszú távú memória | Explicit save/list/forget | Nem teljes tudásgráf; érzékeny adat tiltott |
+| Napi briefing/analitika/audit | Implementált modulok | Adatminőség és hozzáférés függvénye |
+| Inbound inbox monitor | Kódban/workflow-ban előkészített | Config és futtatási környezet szükséges |
+| Outbound email | Hard-disabled | Nincs küldés |
+| Auth/RBAC | Kódban/migrációkban előkészített | Production flag OFF, live smoke nincs |
+| Általános scheduler/worker | Nincs kész | Külön idempotens claim/worker fejlesztés kell |
+| Production JARVIS app | Nincs deployolva | Host nincs kiválasztva |
 
-A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás és – ahol releváns – engedélyezett integrációs bizonyíték alapján frissítsük. Egy feladat csak akkor tekinthető késznek, ha a lezárási feltétele teljesült. A „kódban implementált”, „automatikusan tesztelt”, „külső integrációval igazolt” és „productionben aktív” állapotokat mindig különböztessük meg.
+## Fejlesztési prioritások
 
-## Munkamenet-szabály
+### 1. Workflow végponttól végpontig
+- Leadkutatás → minősítés → stratégia → belső feladat → jóváhagyás → utánkövetési jogosultság-ellenőrzés → eredménymérés.
+- Task státusz és workflow stage teljes konzisztenciája.
+- Pozitív/negatív/nincs válasz eredménykódok és újraminősítési ciklus.
+- Megszakítás, folytatás, audit és idempotencia E2E tesztjei.
+- Külső outreach továbbra is tiltott, amíg külön engedélyezett és biztonságosan igazolt nincs.
 
-1. Elsőként ezt az útitervet olvasd el.
-2. Ezután olvasd el az `AGENTS.md`-t, a `README.md`-t és az aktuális feladathoz tartozó részletes dokumentációt.
-3. A legkorábbi még nyitott területen dolgozz; ne ugorj későbbi pontra pusztán azért, mert az kényelmesebb.
-4. Minden változtatás után futtasd a releváns teszteket, frissítsd a státuszt és az érintett részletes dokumentációt.
-5. Production műveletet csak a dokumentált biztonsági kapuk és külön, konkrét jóváhagyás alapján végezz.
+### 2. Önálló, idempotens háttérfolyamat
+- Worker belépési pont dashboard sessiontől függetlenül.
+- DB-alapú claim/lease, heartbeat, retry limit, dead-letter és operation ID.
+- Több worker concurrency teszt.
+- Elsőként csak read-only monitor/briefing munka; e-mail küldés nélkül.
 
-## Kapcsolódó részletes dokumentumok
+### 3. Memória és üzleti tudás
+- Forrás, dátum, confidence és jogosultság kezelése.
+- Döntés/eredmény/tanulság összekapcsolása lead/task rekordokkal.
+- Frissesség, inaktiválás, retention és visszakeresési minőség.
+- Tények és modellkövetkeztetések elkülönítése.
 
-- [AI fejlesztési útmutató](../AGENTS.md)
-- [JARVIS képességei és architektúrája](JARVIS_DOCUMENTATION.md)
-- [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md)
-- [Fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md)
-- [Production/release kapuk](REMAINING_WORK_AND_RELEASE_GATES.md)
+### 4. Dashboard teljessége
+- Analitika, audit, memória és üzleti információ oldalak tényleges funkcióinak ellenőrzése.
+- A még dekoratív/hiányos oldalelemeket csak implementáció után dokumentáljuk működőként.
+- UI hibajelzések és adatforrás-hibák egyértelmű kezelése.
+
+### 5. Production release – külön fázis
+- App-host kiválasztása és app deploy terv.
+- Production migration drift és teljes SQL review.
+- Auth/JWT/RLS modell és smoke.
+- RPC-alapú app telepítése, majd csak utána a service-role közvetlen DML lockdown.
+- Backup, rollback, health check, audit és task approval smoke.
+- Kimenő e-mail hard-disable csak külön biztonsági review és konkrét jóváhagyás után oldható fel.
+
+## Kötelező biztonsági kapuk
+- Production DB DDL/DML, migration push/repair, ledger módosítás, GRANT/REVOKE, RLS/Auth flag, secret, deploy, e-mailküldés és PR merge külön konkrét felhasználói jóváhagyás nélkül tilos.
+- Ne olvass vagy jeleníts meg titokértéket.
+- CI zöld státuszt csak az adott commit SHA és teljes workflow eredmény ellenőrzése után állíts.
+- Korábbi zöld CI nem igazolja az újabb commitot.
+- A Supabase production DB létezése nem bizonyít JARVIS app deployt.
+
+## Fejlesztési munkamódszer
+Minden funkcióhoz célzott implementáció, unit/AppTest/SQL teszt, releváns dokumentáció és PR CI szükséges. A fejlesztés PR/branch szinten marad; merge csak külön jóváhagyásra.
 
 
-**Friss audit – 2026-11-25, PR #21 után:** PR #21 merge commit `71d6a1c`; mindkét PR workflow minden jobja zöld. A production read-only snapshot továbbra is 5 ledger verziót, hiányzó 20261117 ledger-bejegyzéseket, nem létező `private` sémát, 8 policy nélküli RLS-es public táblát, legacy `logs` sémát, hiányzó `tasks.operation_id` mezőt és hiányzó audit/approval RPC objektumokat mutat. A CI izolált PostgreSQL 17-en ellenőrzi a migrációs láncot, de nem változtatja meg a production állapotot.
+## Stratégiai cél: önálló kutató és személyre szabott SaaS-ügynök
 
-**Terület 1 – Megbízhatóság és biztonság friss minősítése:** a kódbeli approval/idempotencia, audit fail-closed és SMTP unknown-state megoldások regressziós/CI tesztekkel alátámasztottak; a production backup+restore sikeres. A terület még nem zárható le: production audit/approval RPC-k nincsenek telepítve, a production structured audit mezők hiányoznak, az SMTP-küldés PR #23-ban kódszinten és workflow-szinten letiltásra kerül; a provider oldali idempotencia nincs bizonyítva. E-mailküldés maradjon tiltva a külön validációig.
+A hosszú távú termékvízió és részletes fázisok: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
 
+A JARVIS célja, hogy önállóan cégeket fedezzen fel, forrásolt cégdossziét és szakmai döntéshozói kontextust készítsen, a cég valós problémáiból több egyedi SaaS-ötletet generáljon, ezeket magyarázhatóan rangsorolja, majd a globális és cégenkénti termék-tiltó/negatív ajánlási naplóval ütköztesse. A legjobb ötlethez személyre szabott, forrásolt ajánlatot és e-mail-tervezetet készítsen. Érdeklődés esetén igényfelmérés és szerződéses elfogadás után külön belső jóváhagyással indulhat AI-támogatott termékfejlesztési projekt.
 
-**Kimenő e-mail biztonsági állapot:** a PR #23 kódszintű `EMAIL_DELIVERY_ENABLED = False` tiltást vezet be, amely a runtime környezeti kapcsolóktól független. A scheduled outbound küldési lépés le van tiltva; a bejövő IMAP monitor külön marad. A kimenő e-mail csak külön biztonsági felülvizsgálat, provider idempotencia-igazolás és E2E teszt után engedélyezhető újra.
+### Új stratégiai fejlesztési sorrend
+1. Automatikus, idempotens cégfelderítő worker és kutatási források.
+2. Verziózott cégdosszié, szakmai döntéshozó-kutatás, bizonyíték- és problémahipotézis.
+3. Egyedi SaaS-termékötlet motor, összehasonlítható pontozással.
+4. Globális termék-/ajánlási tiltó napló, elutasítások, ügyfélközi kizárólagosság és hasonlósági ütközésvizsgálat.
+5. Forrásolt, személyre szabott ajánlat és e-mail-tervezet, emberi megfelelőségi kapukkal.
+6. Válaszkezelés, értékesítési pipeline, szerződéses és fejlesztésindítási gate.
+7. AI-támogatott terméképítés, tesztelés, átadás és eredményalapú tanulás.
 
-
-## Megbízhatóság és biztonság – 2026-11-25 frissítés
-
-- SMTP hard-disable mainbe integrálva PR #23 squash merge-dzsel (`c1364e8aaf0741ba2c8ef33360799c744bf1b688`). Production deploy nem történt.
-- Production read-only audit: 8/8 public tábla RLS enabled, 0 policy; anon/authenticated DML tiltva; service_role teljes DML engedélyezett. Private schema/task approval RPC hiányzik; ledger csak 5 20261119-es migrációt tartalmaz.
-- Külső e-mail idempotencia továbbra sincs. SMTP nem hordoz natív idempotency key-t; ehhez API provider, stabil event-key és változatlan request body szükséges. Resend dokumentáltan támogat `Idempotency-Key` fejlécet azonos payload mellett 24 órán keresztül; a provider kiválasztása és hitelesítő adat/domain beállítása még hiányzik.
+Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A meglévő leadkutatás, pontozás, task workflow és memória alapot ad, de a teljes automatikus kutatási és személyre szabott SaaS-folyamat még nincs kész. Outbound e-mail hard-disable és production biztonsági kapuk változatlanok.

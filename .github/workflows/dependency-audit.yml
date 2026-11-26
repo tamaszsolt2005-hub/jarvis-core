@@ -1,0 +1,36 @@
+name: JARVIS dependency vulnerability audit
+
+on:
+  push:
+    branches: ["main", "docs/pre-feature-readiness-gates"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned audit tool
+        run: python -m pip install pip-audit==2.9.0
+
+      - name: Audit runtime and test dependencies
+        run: pip-audit --strict -r requirements-test.txt

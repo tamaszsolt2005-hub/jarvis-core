@@ -3,6 +3,7 @@
 These tests deliberately avoid live Supabase, IMAP, SMTP, and production records.
 """
 from datetime import datetime, timezone
+import smtplib
 
 import pytest
 
@@ -55,7 +56,7 @@ class SenderQuery:
                 "last_inbound_message_id": None,
             }])
         self.db.updates.append(self.payload)
-        if self.payload and self.payload.get("status") == "sending":
+        if self.payload and self.payload.get("status") in {"sending", "sent", "follow_up_sent"}:
             return Result([{"id": "lead-1"}])
         return Result([])
 
@@ -215,7 +216,7 @@ def test_sender_success_records_pending_and_success_audit_after_smtp_acceptance(
     result = email_sender._send_one(db, _approved_lead(), False, datetime.now(timezone.utc))
 
     assert result is True
-    assert sent == [("person@example.test", "Subject", "Body")]
+    assert sent == [("person@example.test", "Subject", "Body", email_sender.email_idempotency_key(_approved_lead(), False))]
     assert audit_statuses == ["pending", "success"]
     assert any(update and update.get("status") == "sending" for update in db.updates)
     assert any(update and update.get("status") == "sent" for update in db.updates)
@@ -233,7 +234,7 @@ def test_sender_smtp_exception_marks_lead_as_error_and_never_reports_success(mon
     )
     monkeypatch.setattr(
         email_sender, "send_email",
-        lambda *_args: (_ for _ in ()).throw(OSError("mock SMTP failure")),
+        lambda *_args: (_ for _ in ()).throw(email_sender.EmailDeliveryOutcomeUnknown("mock SMTP DATA outcome unknown")),
     )
     monkeypatch.setattr(
         email_sender, "report_error",
@@ -396,3 +397,32 @@ def test_sender_pipeline_selects_only_eligible_leads_and_respects_run_limit(monk
     email_sender._run()
 
     assert sent == [("new-lead", False), ("follow-up-lead", True)]
+
+
+
+def test_sender_treats_smtp_recipient_refusal_as_known_failure(monkeypatch):
+    db = SenderDB()
+    audit_statuses = []
+
+    monkeypatch.setattr(email_sender, "_draft", lambda *_args, **_kwargs: ("Subject", "Body"))
+    monkeypatch.setattr(
+        email_sender, "audit_event",
+        lambda _db, **kwargs: audit_statuses.append(kwargs["status"]) or True,
+    )
+    monkeypatch.setattr(
+        email_sender, "send_email",
+        lambda *_args: (_ for _ in ()).throw(
+            smtplib.SMTPRecipientsRefused({
+                "person@example.test": (550, b"mailbox unavailable")
+            })
+        ),
+    )
+    monkeypatch.setattr(email_sender, "report_error", lambda *_args, **_kwargs: None)
+
+    assert email_sender._send_one(
+        db, _approved_lead(), False, datetime.now(timezone.utc)
+    ) is False
+
+    assert audit_statuses == ["pending", "failed"]
+    assert any(update and update.get("status") == "send_error" for update in db.updates)
+    assert not any(update and update.get("status") == "send_unknown" for update in db.updates)

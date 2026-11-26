@@ -98,3 +98,112 @@ def test_smtp_transport_is_hard_disabled_even_when_environment_flag_is_true(monk
         assert "kódszinten letiltva" in str(exc)
     else:
         raise AssertionError("Direct SMTP call must be blocked")
+
+
+def test_smtp_data_submission_failure_is_classified_as_unknown(monkeypatch):
+    import email_utils
+
+    class FakeSMTP:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def ehlo(self):
+            return None
+
+        def starttls(self):
+            return None
+
+        def login(self, *_args):
+            return None
+
+        def send_message(self, _message):
+            raise OSError("connection lost while waiting for SMTP DATA response")
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "get_enforced_user_supabase", lambda *_a, **_k: None)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.com", "EMAIL_PASSWORD": "not-a-real-secret"
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda name, default=None: default)
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(email_utils, "report_error", lambda *_a, **_k: None)
+
+    try:
+        email_utils.send_email("person@example.com", "Subject", "Body", approved=True)
+    except email_utils.EmailDeliveryOutcomeUnknown as exc:
+        assert "automatikus újraküldés tilos" in str(exc)
+    else:
+        raise AssertionError("An uncertain SMTP DATA result must not look successful")
+
+
+def test_smtp_connection_failure_is_not_misclassified_as_delivery_unknown(monkeypatch):
+    import email_utils
+
+    class FailingSMTP:
+        def __init__(self, *_args, **_kwargs):
+            raise OSError("connection refused before SMTP session")
+
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    monkeypatch.setattr(email_utils, "get_enforced_user_supabase", lambda *_a, **_k: None)
+    monkeypatch.setattr(email_utils, "required_secret", lambda name: {
+        "EMAIL_USER": "sender@example.com", "EMAIL_PASSWORD": "not-a-real-secret"
+    }[name])
+    monkeypatch.setattr(email_utils, "get_secret", lambda name, default=None: default)
+    monkeypatch.setattr(email_utils.smtplib, "SMTP", FailingSMTP)
+    monkeypatch.setattr(email_utils, "report_error", lambda *_a, **_k: None)
+
+    try:
+        email_utils.send_email("person@example.com", "Subject", "Body", approved=True)
+    except email_utils.EmailDeliveryOutcomeUnknown:
+        raise AssertionError("A pre-session connection failure is a known non-delivery")
+    except OSError as exc:
+        assert "connection refused" in str(exc)
+    else:
+        raise AssertionError("The simulated SMTP connection must fail")
+
+
+def test_email_idempotency_key_is_stable_for_the_same_delivery_sequence():
+    lead = {"id": "lead-123", "follow_up_count": 0}
+
+    first = email_sender.email_idempotency_key(lead, follow_up=False)
+    assert first == email_sender.email_idempotency_key(lead, follow_up=False)
+    assert first != email_sender.email_idempotency_key(lead, follow_up=True)
+
+    follow_up_one = email_sender.email_idempotency_key(lead, follow_up=True)
+    lead["follow_up_count"] = 1
+    follow_up_two = email_sender.email_idempotency_key(lead, follow_up=True)
+    assert follow_up_one != follow_up_two
+    assert follow_up_two == email_sender.email_idempotency_key(lead, follow_up=True)
+
+
+def test_email_idempotency_key_requires_a_stable_lead_id():
+    try:
+        email_sender.email_idempotency_key({"follow_up_count": 0}, follow_up=False)
+    except ValueError as exc:
+        assert "lead-azonosító" in str(exc)
+    else:
+        raise AssertionError("A delivery without a stable lead ID must be rejected")
+
+
+def test_uncertain_email_delivery_state_is_never_eligible_for_automatic_follow_up():
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc)
+    lead = {
+        "status": "send_unknown",
+        "opted_out": False,
+        "reply_category": None,
+        "last_inbound_message_id": None,
+        "next_follow_up_at": "2026-11-20T12:00:00+00:00",
+        "follow_up_count": 0,
+    }
+
+    assert not email_sender._due_follow_up(lead, now)
+    lead["status"] = "sent"
+    assert email_sender._due_follow_up(lead, now)

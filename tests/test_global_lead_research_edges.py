@@ -78,6 +78,30 @@ class _ResearchDB:
         assert name == "leads"
         return _ResearchQuery(self)
 
+    def rpc(self, _name, params):
+        db = self
+
+        class RPCQuery:
+            def execute(self):
+                db.inserted.append({
+                    "company_name": params["p_company_name"],
+                    "email": params["p_email"],
+                    "website": params["p_website"],
+                    "notes": params["p_notes"],
+                    "source": params["p_source"],
+                    "status": "research" if not params["p_email"] else "new",
+                    "consent_basis": params["p_consent_basis"],
+                    "approved_to_contact": params["p_approved_to_contact"],
+                    "opted_out": False,
+                })
+                return SimpleNamespace(data=[{
+                    "lead_id": "new-lead",
+                    "outcome": "created",
+                    "selected_email": params["p_email"],
+                }])
+
+        return RPCQuery()
+
 
 class _ResearchQuery:
     def __init__(self, db):
@@ -86,6 +110,10 @@ class _ResearchQuery:
     def select(self, *_args, **_kwargs):
         return self
     def limit(self, *_args, **_kwargs):
+        return self
+    def order(self, *_args, **_kwargs):
+        return self
+    def range(self, *_args, **_kwargs):
         return self
     def insert(self, payload):
         self.payload = payload
@@ -143,7 +171,9 @@ def test_research_inserts_only_grounded_new_company_without_contact_permission(m
     assert saved["approved_to_contact"] is False
     assert saved["consent_basis"] is None
     assert saved["opted_out"] is False
-    assert audits[0]["action"] == "research_companies"
+    # The per-company write is audited before insertion; the summary audit is last.
+    assert audits[0]["action"] == "save_researched_company"
+    assert audits[-1]["action"] == "research_companies"
     assert events
 
 

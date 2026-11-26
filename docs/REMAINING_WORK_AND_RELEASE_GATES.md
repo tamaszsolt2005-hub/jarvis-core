@@ -1,8 +1,13 @@
 # JARVIS – production és release gate-ek
 
+ > **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A PR #26 aktuális CI-státuszát a PR Checks oldalon, az aktuális head SHA alapján kell ellenőrizni; a korábbi sikeres futás nem igazolja az újabb dokumentációs commitot.
+
+
 Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás vagy élesítés előtt. A fejlesztési teendők a [fejlesztési backlogban](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) vannak.
 
 ## Jelenlegi döntési állapot
+
+**Aktualizálási szabály:** az alábbi dátumozott main/PR #21/23/25 pillanatképek történeti bejegyzések. A jelenlegi fejlesztési ág a PR #26; aktuális merge/deploy/CI státusz kizárólag a PR aktuális headjéből olvasható ki. A JARVIS alkalmazás nincs production hostra telepítve.
 
 **Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
@@ -70,3 +75,232 @@ A PR #23 kimenő e-mailt letiltó kódmódosítása után az SMTP-küldés nem a
 - Production read-only: 8/8 public táblán RLS enabled, 0 policy; anon/authenticated közvetlen DML jog false; service_role teljes DML true. Private schema, audit chain state, approval táblák és task RPC hiányoznak; tasks.operation_id hiányzik; migration ledger 5 (20261119). Advisor 8 INFO policy nélküli RLS miatt.
 - SMTP main kódban hard-disabled, de production runtime deploy nem történt. Secrets nem módosultak, e-mail nem ment ki.
 - Production migráció, ledger repair, GRANT/REVOKE, Auth provisioning és deploy továbbra is blokkolt külön jóváhagyásig.
+
+## ÚJ FUNKCIÓK ELŐTTI KÉSZÜLTSÉGI KAPU – 2026-11-25
+
+A dokumentum célja egyértelmű: mi az a véges, ellenőrizhető munka, amely nélkül új JARVIS funkció nem kezdhető. A PR #25 utáni `main` commit: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1`; a main CI `45663296144` mindkét jobja sikeres.
+
+### Kötelező P0/P1 lista
+- [ ] **Production célpont:** a tényleges JARVIS app host és URL azonosítása. Repo-ban nincs deploy workflow/app URL; a hozzáférhető Railway projekt VolleyForm, nem JARVIS. Ismeretlen célpontra deploy tilos.
+- [ ] **SMTP hard-disable élesítése:** mainből a valós production appba deploy, majd runtime bizonyíték, hogy semmilyen outbound SMTP útvonal nem küld. Addig a kimenő küldés tiltott.
+- [ ] **Production schema/ledger drift:** a két 20261117 hiányzó ledger bejegyzés reconciliációja; teljes migration lánc PG17 replay és adatmegőrzés; productionben hiányzó audit/approval objektumok migrációs csomagja.
+- [ ] **SQL review és engedélyezés:** független review, pre/post-check és rollback terv; production DDL/DML/ledger/grants/RLS/Auth művelet kizárólag külön konkrét jóváhagyás után.
+- [ ] **Audit és approval:** structured audit/hash chain, `private.task_approvals`, `private.task_action_operations`, `tasks.operation_id`, `execute_approved_task_action` és kapcsolódó RPC-k production működése; audit hiba fail-closed minden érzékeny útvonalon.
+- [ ] **Task jogosultság:** RPC-alapú alkalmazás deploy + smoke; csak utána a `20261125170000` service_role közvetlen task DML lockdown; utána pozitív RPC és negatív direkt DML teszt.
+- [ ] **Auth/JWT/RLS:** live smoke már létező, engedélyezett izolált Supabase környezetben; expired/invalid JWT, session refresh és role negatív esetek. Production Auth/RBAC külön jóváhagyás.
+- [ ] **Provider idempotencia:** külső provider kiválasztása (még nincs döntés), stabil idempotency key, request payload stabilitás, provider ID mentés, `unknown` kezelés, retry határ és E2E. SMTP hard-disable marad.
+- [ ] **Production alkalmazás ellenőrzés:** deploy után health check, DB/RPC/audit/task/approval smoke és rollback útvonal.
+
+### P2 – nem blokkolja önmagában az új funkciók specifikációját
+- [ ] Storage/Auth/Realtime és projektkonfiguráció backup scope tisztázása a már sikeres PostgreSQL logikai backupon túl.
+- [ ] Main branch protection / required checks állapotának ellenőrzése.
+- [ ] Alacsony coverage modulok célzott tesztjei, csak ahol a kockázat indokolja.
+
+### Jelenlegi production tényállás
+- 8/8 public tábla RLS-enabled, 0 policy; anon/authenticated DML grant tiltása igazolt; service_role teljes DML joga megvan.
+- `private` schema, audit-chain state, approval/operation táblák, `tasks.operation_id` és task RPC hiányzik.
+- Migration ledger 5 darab 20261119-es bejegyzést tartalmaz; a két 20261117 sémahatás jelen van, ledger bejegyzés hiányzik.
+- Production deploy, DDL/DML, ledger repair, GRANT/REVOKE és Auth provisioning nem történt.
+- Backup+restore sikeres; ez nem pótolja a migration/release kapukat.
+
+**Nem szabad összekeverni:** a zöld CI, a mainben lévő kód, a production DB séma és a futó production app négy külön állapot. Mindegyikhez saját bizonyíték szükséges.
+
+
+## Feladatonkénti nehézség és végrehajtási csoportosítás
+
+Skála: **1 = könnyű, 10 = nagyon nehéz**; becslés, nem időígéret. Az **5/10 alatti** pontokat közös munkacsomagban végzem, a függőségek betartásával. Az 5/10-es és magasabb feladatok külön, sorrendben haladnak. Production változtatás csak külön konkrét jóváhagyással.
+
+| Feladat | Nehézség |
+|---|:---:|
+| Production host/URL felderítése | **3/10** |
+| SMTP hard-disable deploy és runtime ellenőrzés | **4/10** |
+| Schema/ledger drift, migrációs replay és adatmegőrzés | **6/10** |
+| SQL review, pre/post-check és rollback terv | **4/10** |
+| Audit/approval DB objektumok és fail-closed működés | **7/10** |
+| RPC task write path deploy, majd service_role lockdown és teszt | **7/10** |
+| Auth/JWT/RLS élő smoke | **6/10** |
+| Provider kiválasztás és idempotencia E2E | **8/10** |
+| Production alkalmazás health/smoke/rollback ellenőrzés | **6/10** |
+| Storage/Auth/Realtime backup scope | **5/10** |
+| Main branch protection / required checks | **2/10** |
+| Célzott coverage javítás | **4/10** |
+
+**Közös, 5/10 alatti munkacsomag:** host/URL felderítés, SMTP kódbeli és workflow ellenőrzés (deploy külön jóváhagyással), SQL review előkészítő ellenőrzőlista, backup scope felmérés, branch protection audit és indokolt célzott coverage. A migrációs replay, DB security és provider-integráció nem kerül ebbe az összevont csomagba, mert nagyobb kockázatú és függőségei vannak.
+
+## Frissített állapot a 2026-11-25-i összevont alacsony-nehezségű audit után
+
+A 7 feladatból több csak részben zárható le: a kódszintű ellenőrzés és izolált teszt nem helyettesíti a production deployt vagy a production jogosultságváltozást.
+
+### Lezárt ellenőrzések
+- [x] SMTP hard-disable kódbeli és workflow-szintű ellenőrzése: konstans `False`, korai fail-closed guard, outbound workflow step letiltva.
+- [x] Service-role task jogosultsági teszt izolált PostgreSQL 17 + pgTAP CI-ben: sikeres.
+- [x] RLS/grant read-only felülvizsgálat: 8/8 public tábla RLS-enabled; 0 policy; service_role DML true; anon/authenticated DML tiltás igazolt.
+- [x] Ismert build/secret/health-check adatok dokumentálása: Python 3.11, Streamlit indítóparancs, health self-diagnostics és secretnevek (értékek nélkül).
+- [x] GitHub main branch protection audit: `protected=false`, required checks enforcement `off`, repository rulesets nincs.
+
+### Továbbra is nyitott feladatok
+- [ ] A valódi JARVIS production host/URL azonosítása; hosthoz kötött környezeti konfiguráció és futó példány ellenőrzése.
+- [ ] SMTP hard-disable deploy a tényleges production appba és runtime bizonyíték.
+- [ ] Független SQL review, migrációs pre/post-checkek és rollback/recovery terv jóváhagyása.
+- [ ] Két 20261117 migration-ledger eltérés reconciliation terve és jóváhagyása.
+- [ ] Teljes production-shape PostgreSQL 17 migration replay, adatmegőrzés és migrációs postconditionök.
+- [ ] Productionben hiányzó private schema, audit/hash-chain, approval/operation táblák és RPC-k migrációs csomagjának véglegesítése.
+- [ ] Audit fail-closed útvonal-leltár és minden érzékeny művelet negatív tesztje.
+- [ ] Task RPC write path alkalmazás deployja és smoke tesztje; csak utána külön jóváhagyott service_role task DML lockdown.
+- [ ] Lockdown után production negatív direct-DML és pozitív RPC teszt; jelenleg productionben service_role DML még engedélyezett.
+- [ ] Live Auth/JWT/session/RLS/role smoke engedélyezett izolált Supabase környezetben.
+- [ ] Production migrációk szakaszos alkalmazása külön konkrét jóváhagyás után.
+- [ ] Production app deploy, health check, DB/RPC/task/approval/audit smoke és rollback ellenőrzés.
+- [ ] Storage/Auth/Realtime/platform backup scope tisztázása a már sikeres PostgreSQL backup/restore mellett.
+- [ ] Main branch protection és required checks beállítása, majd újraellenőrzése.
+- [ ] Külső e-mail provider kiválasztása és idempotens API-integráció E2E tesztekkel; SMTP maradjon hard-disabled.
+- [ ] Proaktív lead/üzleti monitor forrás-, minőség-, bizonytalanság- és duplikációmérése.
+- [ ] Leadkutatás→minősítés→stratégia→task→approval→utánkövetés→eredménymérés E2E workflow.
+- [ ] Forrásolt, jogosultságkezelt memória: frissesség, bizonytalanság, retention/deletion és tény/következtetés elkülönítése.
+- [ ] Jóváhagyás nélküli külső/üzleti hatású végrehajtás kizárásának negatív tesztjei.
+- [ ] Kockázat alapján célzott coverage javítás.
+
+A hét feladat közül az URL felderítése továbbra sem sikerült, az SMTP csak kódszinten igazolt, a SQL review elő van készítve, a service-role teszt csak izolált CI-ben zöld, a branch protection audit eredménye pedig azt mutatja, hogy a main jelenleg nincs védve.
+
+## Új coverage ellenőrzési eredmény
+
+A CI coverage artifact összesített line coverage-e 90,75% (3729/4109). A `task_actions.py` 81,4%-on állt, ezért célzott edge tesztek kerültek a PR-ba: hibás parser bemenetek, tiltott payload mezők, approval validáció, hibás RPC válaszok és singleton lista válasz. Az új tesztek CI-eredménye még függőben van.
+
+A `scripts/supabase_auth_rls_smoke.py` 17,3%-os coverage-e nem tekinthető önmagában kódminőségi hibának: ez élő Supabase/Auth integrációs smoke script, amelyhez elkülönített tesztprojekt és érvényes Auth konfiguráció szükséges. Később izolált fake-client/contract tesztekkel érdemes lefedni, nem production hívásokkal.
+
+## SQL migrációs kód előzetes statikus áttekintése
+
+A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20261125170000` migrációk statikus olvasása alapján a fő biztonsági sorrend helyesnek tűnik: append-only audit trigger és hash-chain; trusted `app_metadata.role` alapú RLS; hashed, rövid életű approval; tranzakciós idempotens RPC; végső task DML revoke csak az RPC-enabled app deployja után. A migrációs lánc kódja nem módosult.
+
+**Production előtti kötelező bizonyítékok:** (1) PostgreSQL 17 tiszta és production-shape replay; (2) security-definer függvények tényleges ownerének és EXECUTE-grantjeinek ellenőrzése; (3) párhuzamos azonos operation_id és token replay teszt; (4) audit insert/trigger hiba esetén task tranzakció rollback bizonyítása; (5) legacy logs sorok és settings kulcs/érték adatmegőrzés; (6) migration ledger drift explicit reconciliation. Ez az áttekintés nem helyettesít független SQL review-t és nem engedélyez production alkalmazást.
+
+
+## 2026-11-25 – produkciós host felderítés eredménye
+
+A repository Streamlit appot dokumentál, de a GitHub repo homepage üres, Pages nincs bekapcsolva, és a repo konfigurációjában nem található ellenőrizhető JARVIS deployment URL. A hozzáférhető Railway workspace kizárólag a `VolleyForm` projektet és annak `volleyform-api` szolgáltatását tartalmazza; ez nem JARVIS, ezért domainje nem használható JARVIS production URL-ként. A Supabase URL adatbázis/API, nem dashboard host.
+
+**Nyitott / külső input szükséges:** add meg a tényleges alkalmazás-host szolgáltatóját/projektjét vagy annak dashboard URL-jét. Addig production app deploy, runtime SMTP ellenőrzés és host-specifikus health check nem végezhető el biztonságosan.
+
+
+## Aktuális release állapot – PR #26, 2026-11-25
+
+A fenti korábbi main/PR #21–25 állapotjelentések történeti feljegyzések. A jelenlegi kódváltozás a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) fejlesztési ágán van (`a korábbi státuszfelvételkor aktuális PR-head (történeti adat; a friss állapotot a dokumentum legutolsó 2026-11-26-i blokkja rögzíti)`); a PR nyitott és nem merge-ölt. A kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`.
+
+| Kapu | Jelenlegi állapot | Bizonyíték / hiány |
+|---|---|---|
+| SMTP hard-disable kód | Implementálva | `EMAIL_DELIVERY_ENABLED = False`; production runtime/deploy nem igazolt |
+| SMTP bizonytalan kimenetel | Implementálva, CI-vel tesztelve | `EmailDeliveryOutcomeUnknown`, `send_unknown`, automatikus retry kizárása; kimenő küldés hard-disabled marad |
+| Belső email operation ID | Implementálva | Stabil lead+sequence kulcs; SMTP provider oldali deduplikációt nem biztosít |
+| Approval + task RPC | Implementálva a branchben | DB approval, principal/payload binding, expiry, atomic consume és operation replay; production migráció/deploy nincs |
+| Audit fail-closed | Implementálva, CI-vel tesztelve | Audit insert hiba esetén a task/operation/approval tranzakció rollbackel |
+| Approval replay/revoke | SQL teszt és CI sikeres | Replay és revoke viselkedés igazolva az izolált PostgreSQL tesztben |
+| Párhuzamos approval végrehajtás | Két-session SQL teszt és CI sikeres | Azonos operation ID-ra egy task/egy műveleti eredmény |
+| Migration drift | Izolált CI fixture bővítve | A két korábbi ledger gap reconciliation már megtörtént; hat későbbi migration productionben nincs alkalmazva |
+| Service-role privilege lock | Blokkolt | Csak RPC app deploy + production smoke után alkalmazható; production DML jog jelenleg nem tekinthető visszavontnak |
+| JARVIS app-host | Nincs telepítve / nincs kiválasztva | Helyi Streamlit fejlesztés folyik; a VolleyForm Railway projekt nem JARVIS |
+| Production deploy/migration | Nem történt | Külön jóváhagyás szükséges; semmilyen production DB/app módosítás nem történt |
+
+**Történeti CI-pillanatkép:** a `38693f2` commiton futott `45689264377` és `45689247826` runok a korábbi dokumentációs állapothoz tartoznak; nem ezek az aktuális PR-head checkjei. A mindenkori CI-státuszt a [PR #26 checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26/checks) kell ellenőrizni.
+
+**Kiadási döntés:** a megbízhatósági és biztonsági munkacsomag még nem minősíthető lezártnak. A PR merge, production migration, service-role GRANT/REVOKE, Auth/RBAC aktiválás, app deploy és SMTP engedélyezés nem része az automatikusan végrehajtható CI munkának; ezek külön döntési kapuk maradnak.
+
+
+## E-mail provider és idempotencia – történeti Resend-terv / aktuális Gmail SMTP
+
+A korábbi Resend adapter- és secret-checklist a kódban megmaradt alternatív adapterhez tartozik, nem a jelenlegi aktív konfigurációhoz. A kiválasztott út Gmail SMTP (`EMAIL_PROVIDER=smtp`), `smtp.gmail.com:587` STARTTLS-szel. A GitHub workflow az `EMAIL_USER` és `EMAIL_PASSWORD` secretneveket használja; a nevek meglétét ellenőrizték, a secretértékek és az SMTP kapcsolat nem validált.
+
+A belső lead+sequence operation ID és az unknown állapotkezelés implementált. Ez önmagában nem ad provider-oldali deduplikációt a Gmail SMTP-hez. A `send_unknown` / `followup_unknown` állapot automatikusan nem retry-zható; kézi egyeztetés szükséges.
+
+A kimenő küldés hard-disabled marad: `EMAIL_DELIVERY_ENABLED = False`, a workflow outbound lépése `if: false`. Nincs valódi SMTP-kapcsolatpróba vagy live küldés. Feloldás csak külön security review és konkrét jóváhagyás után történhet.
+
+
+
+## Legfrissebb CI bizonyíték – 2026-11-25
+
+A d83b016 commit push és PR workflow-ja minden jobbal sikeres: Python/AppTest/browser tesztek 806 passed, 3 skipped, 91,19% coverage; PostgreSQL 17 migration drift, audit/approval security, privilege postcondition és encrypted backup/restore job sikeres. [Push run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692894757) · [PR run](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45692878860).
+
+
+## Állapotkorrekció – PR #26 aktuális head, 2026-11-25
+
+Ez a friss szakasz felülírja a dokumentum korábbi PR #26 CI-pillanatképeit és a Resendet aktív providerként megjelölő elavult checklistet.
+
+**Aktuális PR-bizonyíték**
+- PR #26: [nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26).
+- Teljesen ellenőrzött CI/CodeQL/audit commit: `7c8e6970a733884f4423821cddf3731f58e5b392`; az azóta következő commitok dokumentációs módosítások, ezekre új futás még nincs visszaigazolva. A mindenkori PR-head a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) oldalon látható.
+- JARVIS CI [45697839295](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839295): `test` + `backup-restore-integration` sikeres.
+- CodeQL [45697839266](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839266): Python Analyze sikeres.
+- pip-audit [45697839307](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45697839307): sikeres a `requirements-test.txt` (runtime + test) csomaglistán.
+- Dependabot heti Python és GitHub Actions update konfiguráció bekerült.
+
+**E-mail provider helyesbítése**
+- Aktív konfigurációs választás: Gmail SMTP, `EMAIL_PROVIDER=smtp`, `smtp.gmail.com:587` STARTTLS.
+- A GitHub workflow `EMAIL_USER` és `EMAIL_PASSWORD` secretet használ; a secretnevek meglétét ellenőrizték, de a titkos értékek és a tényleges SMTP kapcsolat nem validált.
+- A Resend adapter kódban marad alternatíva; nem aktív provider. A korábbi Resend secret/domain/live E2E checklist nem alkalmazandó a jelenlegi Gmail SMTP választásra.
+- Kimenő küldés továbbra is tiltott: `EMAIL_DELIVERY_ENABLED = False`, outbound workflow step `if: false`. Nincs SMTP kapcsolatpróba vagy live küldés.
+
+**Továbbra is nyitott release gate-ek**
+- Production app host/URL azonosítása és runtime ellenőrzés.
+- Friss, read-only Supabase schema + migration ledger snapshot; a korábbi dokumentált snapshot nem tekinthető frissnek.
+- Migration drift reconciliation, teljes PostgreSQL 17 replay és független SQL review.
+- Production audit/approval/RPC objektumok és RPC app path deployja külön jóváhagyás után; utána service_role task DML lockdown.
+- Auth/JWT/RLS smoke és production release/rollback bizonyíték.
+- CodeQL/Dependabot egyedi riasztáslisták áttekintése külön Security áttekintésben; a sikeres workflow nem egyenlő a riasztásmentesség bizonyításával.
+
+**Biztonsági határ:** production DB/app változtatás, secrets módosítása, Auth/RBAC aktiválás, GRANT/REVOKE, SMTP-küldés és PR merge továbbra sem történt; ezekhez külön, konkrét jóváhagyás kell.
+
+
+
+## 2026-11-26 – ellenőrzött PR #26 állapot és pontosított nyitott kapuk
+
+Ez a friss blokk felülírja a korábbi, elavult PR-head/CI állításokat ebben a dokumentumban. Ellenőrzött head: `6ef4020bba3949e02440e97583fc907b6bcb1f00`; PR #26 nyitott, nem merge-ölt.
+
+**Automatikus ellenőrzések – mind sikeres:**
+- JARVIS CI: **838 passed, 3 skipped, 0 failed**, coverage **91.29%**.
+- PostgreSQL 17 backup/restore és izolált migrációs/pgTAP integráció: sikeres.
+- CodeQL: sikeres.
+- pip-audit: sikeres.
+
+### Global research concurrency – lezárva a PR #26 branchben
+
+A korábbi alkalmazásszintű `_load_existing_company_keys()` előszűrés önmagában nem védte a párhuzamos írásokat. A PR #26 közös tranzakciós `upsert_company_lead` RPC-je a `global_lead_research.py` és `lead_gen.py` útvonalakat közös alias-lockolt íróprotokollra állította át. A két PostgreSQL sessionös concurrency teszt sikeres. Ez branch-szintű lezárás; production migráció és deploy nem történt.
+
+### Release gate státusz – 2026-11-26 korrekció
+
+- [x] PR #26 branch automatikus CI/CodeQL/dependency audit zöld a `2a27a19078e6183c143e775ca9d89ccc776c7bf8` headen.
+- [x] Global lead research cégazonosítási konkurenciavédelem: közös `upsert_company_lead` RPC, mindkét writer integrálva, két-session PostgreSQL teszt sikeres.
+
+- [x] Izolált PostgreSQL 17 migration/pgTAP és backup/restore tesztek zöldek.
+- [ ] Későbbi release előtt JARVIS app-host kiválasztása, első deploy és runtime health bizonyítása (jelenleg nincs telepített app-host).
+- [ ] Friss, read-only production schema + migration ledger snapshot és eltérések egyeztetése.
+- [ ] Független SQL review és engedélyezett Auth/JWT/RLS smoke.
+- [ ] RPC app write path deploy/smoke; csak utána privilege-lock migráció külön jóváhagyással.
+- [x] Global lead research DB-szintű konkurencia-protokoll és két-session teszt a PR #26 branchben; production telepítése későbbi release kapu.
+- [ ] E-mail provider live E2E; addig hard-disable marad.
+
+**Biztonsági határ:** a jelenlegi munkában nem történt production DB-írás/migráció, GRANT/REVOKE, Auth/RBAC módosítás, deploy, secret-változtatás vagy e-mailküldés. A PR merge külön, konkrét jóváhagyást igényel.
+
+## 2026-11-26 – aktuális PR-head ellenőrzés
+
+- A PR #26 aktuális, dokumentációs frissítések előtti headje: `79dfb5b85afaa3ae21405b295bb23880019ec54d`.
+- Ehhez a commit SHA-hoz tartozó JARVIS CI sikeres: **838 passed, 3 skipped**, 91,29% coverage; a `backup-restore-integration` job is sikeres.
+- Ugyanezen a headen a CodeQL és a dependency vulnerability audit sikeres.
+- A korábbi global lead research név/domain race kockázatot a PR #26 közös, tranzakciós `upsert_company_lead` RPC-je kezeli; mindkét writer integrálva, két-session teszt sikeres. A production rollout külön release feladat.
+- 2026-11-26-án friss, read-only Supabase production ellenőrzés történt (`kiutreccucbegskxowek`, PostgreSQL 17.11): a remote migration ledger 7 verziót tartalmaz (a két 20261117 migráció már szerepel); 8/8 public tábla RLS-enabled, 0 policy; `anon` és `authenticated` közvetlen táblajogosultság nélkül, `service_role` teljes DML-joggal rendelkezik; `private` schema és public/private alkalmazási RPC-k nincsenek; `auth.users` száma 0; a `leads` táblában 11 rekord és 0 normalizált email-duplikációs csoport van. A `leads_email_normalized_uidx` index hiányzik, mert a 20261125180000 migráció nincs a remote ledgerben. A régi 2026-11-25-i snapshot történeti adat; a JARVIS app még nincs telepítve, app-host nincs kiválasztva.
+- Security Advisor: 8 INFO `rls_enabled_no_policy`; Performance Advisor: 7 INFO unused-index; Health Advisor: nincs találat. A production lekérdezések kizárólag olvasási műveletek voltak. Production DDL/DML, ledger repair, grants/RLS/Auth változtatás, deploy és merge nem történt. A PR nyitva marad.
+
+
+## 2026-11-26 – atomikus cégazonosítás és email-prioritás implementálva és CI-vel igazolva
+
+A felhasználói üzleti szabály: **egy céghez egy CRM lead tartozik; több emailjelölt közül a legnagyobb várható válaszadási esélyű cím legyen kiválasztva.** A példában a személyes, névhez kötött `xy@gmail.com` előnyt élvez az általános `info@cukraszda.hu` címmel szemben.
+
+A PR #26 ágban elkészült:
+
+- `20261126120000_atomic_company_lead_identity_and_contact_priority.sql`: normalizált cégnév- és webdomain-alias registry, atomikus tranzakciós advisory lock mindkét aliasra, duplikált/ellentmondó régi azonosság esetén fail-closed manuális felülvizsgálat.
+- `upsert_company_lead` SECURITY DEFINER RPC fix `search_path`-tal. A rollout kétfázisú: az első migráció létrehozza az RPC-t, miközben a régi app kompatibilitásához átmenetileg megtartja a lead INSERT-jogot; az új RPC-s app telepítése és smoke ellenőrzése után a második migráció újra-backfill-el, majd visszavonja a service_role közvetlen INSERT/DELETE jogait. Az alias- és kontaktjelölt-táblák közvetlenül nem érhetők el API-szerepkörből.
+- A CSV-import és a global research is ugyanazt az RPC-t használja. A global research továbbra sem gyűjt személyes emailt és nem ad hozzájárulást.
+- `lead_contact_candidates` megőrzi az összes külön-külön, időbélyeges hozzájárulással igazolt emailjelöltet. A prioritás egy determinisztikus heurisztika: általános szerepkörös címek (`info@`, `contact@`, `office@`, `sales@` stb.) 10 pont; névhez kötött üzleti domain 90 pont; személyes webmail-domainen lévő, nem szerepkörös cím 120 pont. Ez kezdeti heurisztika, nem mért válaszarány-előrejelzés; később valós kampányadatok alapján kalibrálható.
+- Hozzájárulás emailcímenként külön kötelező; egy cím engedélye nem öröklődik másik címre. Ha már történt küldés, bejövő válasz, opt-out vagy kommunikációs állapotváltozás, a kiválasztott cím nem cserélhető automatikusan.
+- A migráció lockolja a `leads` táblát az aliasok backfillje alatt; nem töröl és nem egyesít meglévő leadet. Az ütköző legacy név/domain/email adatok megállítják a migrációt.
+- PostgreSQL tesztek lefedik a prioritást, consent fail-closed viselkedést, már megkezdett outreach utáni címfagyasztást, idempotens migrációt és két párhuzamos session cégclaimjét.
+
+A `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton a teljes Python/AppTest/browser tesztjob, a PostgreSQL 17 migráció replay, a két-session concurrency teszt, a backup–restore integráció, a CodeQL és a dependency audit sikeres. A cégszintű konkurenciavédelem branch-szinten implementált és ellenőrzött. A production rollout továbbra is nyitott: első migráció → RPC-t használó app deploy → régi worker-ek leállítása és smoke → második, write-lockdown migráció. Production migráció/deploy nem történt; a production állapotot ez a PR-ág nem változtatta meg.

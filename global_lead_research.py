@@ -11,9 +11,11 @@ from google.genai import types
 
 from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
+from lead_identity import upsert_company_lead
 
 
 MAX_RESULTS = 15
+EXISTING_LEAD_PAGE_SIZE = 1000
 DEFAULT_MARKET = "Hungary"
 MARKET_ALIASES = {
     "magyarország": "Hungary", "magyarorszag": "Hungary", "magyar": "Hungary", "hungary": "Hungary",
@@ -85,6 +87,34 @@ def _domain(url: str) -> str:
     return (urlparse(url).hostname or "").lower().removeprefix("www.")
 
 
+def _load_existing_company_keys(db: Any) -> tuple[set[str], set[str]]:
+    """Load every existing lead key in bounded pages; never silently cap dedupe."""
+    names: set[str] = set()
+    sites: set[str] = set()
+    offset = 0
+    while True:
+        rows = (
+            db.table("leads")
+            .select("id,company_name,website")
+            .order("id")
+            .range(offset, offset + EXISTING_LEAD_PAGE_SIZE - 1)
+            .execute()
+            .data
+            or []
+        )
+        for row in rows:
+            name = str(row.get("company_name") or "").strip().casefold()
+            if name:
+                names.add(name)
+            website = _valid_http_url(row.get("website"))
+            if website:
+                sites.add(_domain(website))
+        if len(rows) < EXISTING_LEAD_PAGE_SIZE:
+            break
+        offset += EXISTING_LEAD_PAGE_SIZE
+    return names, sites
+
+
 def _parse_companies(text: str) -> list[dict[str, Any]]:
     """Parse only a JSON object; tolerate a surrounding Markdown code fence."""
     cleaned = (text or "").strip()
@@ -106,7 +136,9 @@ def get_research_market(db: Any) -> str:
         rows = db.table("settings").select("value").eq("key", "lead_research_market").limit(1).execute().data or []
         value = rows[0].get("value") if rows else None
         if isinstance(value, dict) and isinstance(value.get("country"), str):
-            return value["country"]
+            country = value["country"].strip()
+            if country in set(MARKET_ALIASES.values()):
+                return country
     except Exception as exc:
         # This is an optional read with a safe default; report locally only.
         # Do not write to the database from this fallback path.
@@ -188,8 +220,11 @@ def research_global_companies(
     if enforced is not None:
         db, _ = enforced
 
+    market_country = get_research_market(db) if market_country is None else market_country
+    if not isinstance(market_country, str) or market_country not in set(MARKET_ALIASES.values()):
+        raise ValueError("Nem támogatott vagy nem ismert célország.")
+
     client = client or get_gemini_client()
-    market_country = market_country or get_research_market(db)
     market_instruction = (
         "Focus ONLY on companies operating in " + market_country + ". Prioritize companies headquartered there "
         "or with substantial operations there. Do not return unrelated countries."
@@ -227,9 +262,7 @@ def research_global_companies(
     if not grounded_domains:
         raise RuntimeError("A Google Search nem adott ellenőrizhető forráshivatkozásokat; lead nem került mentésre.")
 
-    existing = db.table("leads").select("company_name,website").limit(5000).execute().data or []
-    known_names = {str(row.get("company_name") or "").strip().casefold() for row in existing}
-    known_sites = {_domain(url) for row in existing if (url := _valid_http_url(row.get("website")))}
+    known_names, known_sites = _load_existing_company_keys(db)
     inserted, skipped = [], 0
 
     for item in companies[:max(1, min(int(max_results), MAX_RESULTS))]:
@@ -266,19 +299,57 @@ def research_global_companies(
             f"Forrás: {source_url}"
         )[:3500]
         # No email, no permission, no outreach status: discovery is not consent.
-        db.table("leads").insert({
-            "company_name": name,
-            "email": None,
-            "website": website,
-            "notes": notes,
-            "source": f"{SOURCE_TAG}:{source_domain}"[:200],
-            "status": "research",
-            "consent_basis": None,
-            "approved_to_contact": False,
-            "opted_out": False,
-        }).execute()
+        # Audit the write before inserting; a research record is still a durable
+        # business-data side effect even though it cannot trigger outreach.
+        insert_operation_id = str(uuid4())
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="save_researched_company",
+            status="pending",
+            operation_id=insert_operation_id,
+            result={"company_domain": site_domain, "source_domain": source_domain},
+        ):
+            raise RuntimeError("A kutatási lead mentése leállítva: a pending auditbejegyzés nem menthető.")
+        try:
+            identity_result = upsert_company_lead(
+                db,
+                company_name=name,
+                website=website,
+                notes=notes,
+                source=f"{SOURCE_TAG}:{source_domain}"[:200],
+            )
+        except Exception as exc:
+            audit_event(
+                db,
+                module="global_lead_research",
+                action="save_researched_company",
+                status="unknown",
+                operation_id=insert_operation_id,
+                error=exc,
+                result={"company_domain": site_domain, "source_domain": source_domain},
+                level="error",
+            )
+            raise
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="save_researched_company",
+            status="success",
+            operation_id=insert_operation_id,
+            result={
+                "company_domain": site_domain,
+                "source_domain": source_domain,
+                "lead_id": identity_result["lead_id"],
+                "outcome": identity_result["outcome"],
+            },
+        ):
+            raise RuntimeError("A kutatási lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
         known_names.add(name.casefold())
         known_sites.add(site_domain)
+        if identity_result["outcome"] == "existing":
+            skipped += 1
+            continue
         inserted.append({"company_name": name, "website": website, "country": country,
                          "industry": industry, "business_summary": summary, "potential_fit": fit,
                          "business_fit_score": fit_score, "fit_evidence": fit_evidence,

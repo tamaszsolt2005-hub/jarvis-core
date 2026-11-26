@@ -29,10 +29,16 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
 
     if lower.startswith(("hozz létre feladat:", "hozz letre feladat:", "új feladat:", "uj feladat:")):
         payload = text.split(":", 1)[1].strip()
-        parts = [part.strip() for part in payload.split(";") if part.strip()]
+        if not payload:
+            return {"error": "A feladat címét add meg."}
+        raw_parts = payload.split(";")
+        if any(not part.strip() for part in raw_parts):
+            return {"error": "A parancs üres mezőt tartalmaz; távolítsd el a felesleges pontosvesszőt."}
+        parts = [part.strip() for part in raw_parts]
         if not parts:
             return {"error": "A feladat címét add meg."}
         fields: dict[str, str] = {"title": parts[0]}
+        explicit_fields: set[str] = set()
         aliases = {
             "cím": "title", "cim": "title", "határidő": "due_date",
             "hatarido": "due_date", "prioritás": "priority", "prioritas": "priority",
@@ -45,6 +51,9 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
             normalized = aliases.get(key.strip().casefold())
             if not normalized or not value.strip():
                 return {"error": f"Ismeretlen vagy üres mező: {key.strip()}."}
+            if normalized in explicit_fields:
+                return {"error": f"A(z) {key.strip()} mező többször szerepel."}
+            explicit_fields.add(normalized)
             fields[normalized] = value.strip()
         if not fields["title"] or len(fields["title"]) > 180:
             return {"error": "A feladat címe 1–180 karakter lehet."}
@@ -77,11 +86,24 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
         if not _UUID.fullmatch(task_id):
             return {"error": "Érvénytelen feladatazonosító."}
         updates: dict[str, Any] = {}
-        for part in payload.split(";"):
+        update_parts = payload.split(";")
+        if any(not part.strip() for part in update_parts):
+            return {"error": "A módosítás üres mezőt tartalmaz; távolítsd el a felesleges pontosvesszőt."}
+        for part in update_parts:
             if "=" not in part:
                 return {"error": f"Nem értelmezhető mező: {part.strip()}."}
             key, value = part.split("=", 1)
             key, value = key.strip().casefold(), value.strip()
+            normalized_key = (
+                "priority" if key in {"prioritás", "prioritas"}
+                else "due_at" if key in {"határidő", "hatarido"}
+                else "title" if key in {"cím", "cim"}
+                else "notes" if key in {"leírás", "leiras", "jegyzet", "notes"}
+                else "outcome" if key in {"eredmény", "eredmeny"}
+                else None
+            )
+            if normalized_key and normalized_key in updates:
+                return {"error": f"A(z) {key} mező többször szerepel."}
             if key in {"prioritás", "prioritas"} and value.casefold() in _PRIORITIES:
                 updates["priority"] = value.casefold()
             elif key in {"határidő", "hatarido"} and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
@@ -92,6 +114,10 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
                 updates["due_at"] = _deadline_iso(value)
             elif key in {"cím", "cim"} and value and len(value) <= 180:
                 updates["title"] = value
+            elif key in {"leírás", "leiras", "jegyzet", "notes"} and value and len(value) <= 1000:
+                updates["notes"] = value
+            elif key in {"eredmény", "eredmeny"} and value and len(value) <= 500:
+                updates["outcome"] = value
             else:
                 return {"error": f"Nem engedélyezett vagy érvénytelen mező: {key}."}
         return {"type": "update", "id": task_id, "updates": updates} if updates else {"error": "Nem adtál meg módosítandó mezőt."}
@@ -108,7 +134,7 @@ def _validate_action(action: Any) -> None:
     if not isinstance(kind, str):
         raise ValueError("Ismeretlen feladatművelet.")
     if kind == "create":
-        if set(action) - {"type", "title", "priority", "due_at", "notes", "operation_id"}:
+        if set(action) - {"type", "title", "priority", "due_at", "notes", "lead_id", "operation_id"}:
             raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
         title = action.get("title")
         priority = action.get("priority")
@@ -122,6 +148,10 @@ def _validate_action(action: Any) -> None:
         operation_id = action.get("operation_id")
         if not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id):
             raise ValueError("Érvénytelen műveletazonosító.")
+        if "lead_id" in action and (
+            not isinstance(action["lead_id"], str) or not _UUID.fullmatch(action["lead_id"])
+        ):
+            raise ValueError("Érvénytelen kapcsolódó leadazonosító.")
         due_at = action.get("due_at")
         if due_at is not None:
             if not isinstance(due_at, str):
@@ -148,7 +178,7 @@ def _validate_action(action: Any) -> None:
         updates = action.get("updates")
         if not isinstance(updates, dict) or not updates:
             raise ValueError("Nem adtál meg módosítandó mezőt.")
-        if set(updates) - {"title", "priority", "due_at"}:
+        if set(updates) - {"title", "priority", "due_at", "notes", "outcome"}:
             raise ValueError("A feladatmódosítás nem engedélyezett mezőt tartalmaz.")
         if "title" in updates and (
             not isinstance(updates["title"], str)
@@ -161,6 +191,18 @@ def _validate_action(action: Any) -> None:
             or updates["priority"] not in _PRIORITIES
         ):
             raise ValueError("Érvénytelen feladatprioritás.")
+        if "notes" in updates and (
+            not isinstance(updates["notes"], str)
+            or not updates["notes"].strip()
+            or len(updates["notes"]) > 1000
+        ):
+            raise ValueError("A feladat leírása 1–1000 karakter lehet.")
+        if "outcome" in updates and (
+            not isinstance(updates["outcome"], str)
+            or not updates["outcome"].strip()
+            or len(updates["outcome"]) > 500
+        ):
+            raise ValueError("A feladat eredménye 1–500 karakter lehet.")
         if "due_at" in updates:
             due_at = updates["due_at"]
             if not isinstance(due_at, str):
@@ -197,7 +239,7 @@ def execute_task_action(
     principal = approval.get("principal")
     if not isinstance(token, str) or len(token) < 32:
         raise PermissionError("A jóváhagyási token hiányzik vagy érvénytelen.")
-    if not isinstance(principal, str) or len(principal) > 100:
+    if not isinstance(principal, str) or not principal.strip() or len(principal) > 100:
         raise PermissionError("A jóváhagyás felhasználói kötése hiányzik vagy érvénytelen.")
 
     # The enforcement helper swaps the legacy service client for a verified

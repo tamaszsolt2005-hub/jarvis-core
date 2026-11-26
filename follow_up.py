@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import re
 import time
-import uuid
 from datetime import datetime, timezone
 
-from email_utils import EMAIL_DELIVERY_ENABLED, send_email
+from email_utils import EMAIL_DELIVERY_ENABLED, EmailDeliveryOutcomeUnknown, send_email
+from email_sender import email_idempotency_key
 from jarvis_common import (
     audit_event, env_bool, env_int, generate_text, get_secret, get_service_supabase,
     log_event,
@@ -88,6 +88,8 @@ def _run() -> None:
                 .eq("consent_basis", "consent")
                 .eq("approved_to_contact", True)
                 .eq("opted_out", False)
+                .eq("follow_up_count", 0)
+                .eq("next_follow_up_at", lead.get("next_follow_up_at"))
                 .select("id")
                 .execute()
             )
@@ -99,7 +101,8 @@ def _run() -> None:
                 db.table("leads")
                 .select(
                     "id,status,email,consent_basis,consent_confirmed_at,"
-                    "approved_to_contact,opted_out,reply_category,last_inbound_message_id"
+                    "approved_to_contact,opted_out,reply_category,last_inbound_message_id,"
+                    "next_follow_up_at,follow_up_count"
                 )
                 .eq("id", lead_id)
                 .limit(1)
@@ -109,7 +112,9 @@ def _run() -> None:
             if (
                 not fresh_rows
                 or fresh_rows[0].get("status") != "followup_sending"
-                or not _has_timestamped_consent(fresh_rows[0], now)
+                or not _eligible_for_follow_up(
+                    {**fresh_rows[0], "status": "sent"}, now
+                )
                 or fresh_rows[0].get("opted_out") is not False
                 or fresh_rows[0].get("reply_category")
                 or fresh_rows[0].get("last_inbound_message_id")
@@ -125,7 +130,7 @@ def _run() -> None:
             audit_fields = {
                 "module": "follow_up",
                 "action": "send_follow_up_email",
-                "operation_id": str(uuid.uuid4()),
+                "operation_id": email_idempotency_key(lead, follow_up=True),
                 "recipient": str(lead["email"]),
                 "subject": subject,
                 "approved": True,
@@ -133,10 +138,17 @@ def _run() -> None:
             if not audit_event(db, status="pending", **audit_fields):
                 raise RuntimeError("Follow-up leállítva: a pending auditbejegyzés nem menthető.")
 
-            # From this point on SMTP delivery may have happened even if the client
-            # reports an error. Never return the lead to the sendable state.
+            # Keep the same stable operation ID at the provider boundary. Only an
+            # ambiguous provider result is marked unknown; a known rejection is safe
+            # to retry later after the failure has been corrected.
+            try:
+                message_id = send_email(
+                    str(lead["email"]), subject, body, audit_fields["operation_id"]
+                )
+            except EmailDeliveryOutcomeUnknown:
+                send_attempted = True
+                raise
             send_attempted = True
-            message_id = send_email(str(lead["email"]), subject, body)
 
             updated = (
                 db.table("leads")
@@ -153,18 +165,18 @@ def _run() -> None:
             )
             if not updated.data:
                 raise RuntimeError(
-                    "Az SMTP-küldési kísérlet után a lead állapota nem frissíthető; "
+                    "A küldési kísérlet után a lead állapota nem frissíthető; "
                     "a duplikált küldés elkerülése érdekében ellenőrzést igényel."
                 )
             if not audit_event(
                 db,
                 status="success",
                 delivery_id=message_id or None,
-                result={"smtp_accepted": True},
+                result={"provider_accepted": True},
                 **audit_fields,
             ):
                 raise RuntimeError(
-                    "Az SMTP átvette a levelet, de a sikeres auditbejegyzés nem menthető."
+                    "A szolgáltató átvette a levelet, de a sikeres auditbejegyzés nem menthető."
                 )
 
             log_event(db, "follow_up", f"Follow-up elküldve: {lead.get('company_name')}")
@@ -176,7 +188,7 @@ def _run() -> None:
                     status="unknown" if send_attempted else "failed",
                     error=exc,
                     level="error",
-                    result={"smtp_attempted": send_attempted},
+                    result={"delivery_attempted": send_attempted},
                     **audit_fields,
                 )
             report_error(
