@@ -58,15 +58,8 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 
 
-## Aktuális fejlesztési állapot – 2026-11-26
+## Aktuális fejlesztési állapot
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. Az új cég-RPC, CSV-kontaktprioritás és kétfázisú lead write-lockdown kódja a `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton teljes CI-vel igazolt.
+A JARVIS még nincs telepítve publikus vagy production app-hostra; jelenleg helyi Streamlit dashboardból fejlesztjük. A Supabase production adatbázis létezése nem jelenti az alkalmazás telepítését. A PR #26 nyitott, nem merge-ölt; a PR-head `2a27a19078e6183c143e775ca9d89ccc776c7bf8` ellenőrzött GitHub checkjei sikeresek. A legfrissebb állapotot és a funkciófejlesztés előtti teendőket az [aktuális állapot és következő lépések](docs/CURRENT_STATE_AND_NEXT_STEPS.md) dokumentum tartalmazza.
 
-- JARVIS CI: Python/AppTest/browser tesztjob sikeres; coverage artifact feltöltve.
-- PostgreSQL 17 migráció replay, SQL/pgTAP, két-session cégclaim és backup/restore integráció: sikeres.
-- CodeQL: sikeres.
-- Dependency vulnerability audit: sikeres.
-
-A PR #26 ágban elkészült a közös, tranzakciós `upsert_company_lead` RPC: a normalizált cégnév és webdomain aliasokat advisory lock védi. A kompatibilis rollout miatt a közvetlen INSERT-jog visszavonása külön, második migrációban történik az új RPC-t használó alkalmazás telepítése után. A CSV-import az összes külön hozzájárulással igazolt emailjelöltet megőrzi, és rangsor alapján választ; a személyes Gmail-jelölt (pl. `xy@gmail.com`) előzi az általános `info@` címet. Már megkezdett kommunikáció után a cím nem cserélhető. A két párhuzamos PostgreSQL session race teszt és a teljes CI még ellenőrzés alatt áll.
-
-A 2026-11-26-i read-only production audit 7 remote migrációt, 8/8 RLS-enabled táblát és 0 RLS-policyt talált; a private schema, alkalmazási RPC-k és production Auth userek hiányoznak. A lead email unique index hiányzik productionből. Az új `20261126120000_atomic_company_lead_identity_and_contact_priority.sql` és `20261126130000_enforce_atomic_company_lead_writes.sql` migrációk kizárólag a PR ágban vannak, productionben nem futottak. A tényleges JARVIS app host/URL továbbra sincs igazolva. Production DDL/DML, GRANT/REVOKE, Auth/RBAC aktiválás, secret-változtatás, deploy és SMTP-küldés nem történt. A kimenő e-mail hard-disabled; a PR merge külön jóváhagyást igényel.
+A PR #26-ban elkészült a közös, tranzakciós `upsert_company_lead` RPC, a normalizált cégnév/domain aliasok zárolása és a CSV/global research íróútvonalak közös használata. A két-session PostgreSQL konkurenciateszt és a PR-head teljes CI-je sikeres. A kimenő e-mail továbbra is hard-disabled. Production deploy, migráció, Auth/RBAC aktiválás vagy PR merge nem történt.
