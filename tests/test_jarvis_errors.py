@@ -247,3 +247,65 @@ def test_provider_api_key_error_body_is_sanitized_before_logging(caplog):
     with caplog.at_level(logging.ERROR, logger="jarvis"):
         report_error(error, module="gemini", operation="generate_content")
     assert "private-provider-key" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("error", "category", "retryable"),
+    [
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                429,
+                {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "quota exhausted"}},
+            ),
+            "rate_limited",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                503,
+                {"error": {"code": 503, "status": "UNAVAILABLE", "message": "temporarily unavailable"}},
+            ),
+            "service_unavailable",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                504,
+                {"error": {"code": 504, "status": "DEADLINE_EXCEEDED", "message": "deadline exceeded"}},
+            ),
+            "timeout",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                403,
+                {"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "permission denied"}},
+            ),
+            "permission_denied",
+            False,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                400,
+                {"error": {"code": 400, "status": "INVALID_ARGUMENT", "message": "API_KEY_INVALID: private-key-value"}},
+            ),
+            "authentication_failed",
+            False,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                500,
+                {"error": {"code": 500, "status": "INTERNAL", "message": "internal server error"}},
+            ),
+            "service_unavailable",
+            True,
+        ),
+    ],
+)
+def test_classify_real_google_genai_sdk_errors(error, category, retryable):
+    result = classify_error(error)
+    assert result["category"] == category
+    assert result["retryable"] is retryable
+    assert result["code"] == str(error.code)
+    if "private-key-value" in str(error):
+        assert "private-key-value" not in user_facing_error(error)
