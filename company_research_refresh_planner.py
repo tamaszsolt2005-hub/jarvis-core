@@ -56,7 +56,8 @@ def _is_uncontacted(lead: dict[str, Any]) -> bool:
         return False
     if any(lead.get(field) for field in (
         "first_contacted_at", "last_outbound_at", "last_contacted_at",
-        "last_outbound_message_id",
+        "last_outbound_message_id", "first_sent_at", "followed_up_at",
+        "last_message_id",
     )):
         return False
     try:
