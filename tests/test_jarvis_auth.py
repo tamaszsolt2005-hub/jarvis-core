@@ -267,3 +267,34 @@ def test_sign_out_user_revokes_verified_session(monkeypatch):
     )
     assert auth.set_session_args == ("access", "refresh")
     assert auth.signed_out is True
+
+
+def test_verified_session_uses_fresh_server_role_not_stored_session_claim():
+    # The browser/session payload may contain a stale or forged role. Only the
+    # freshly verified Auth user's server-managed app_metadata is authoritative.
+    auth = FakeAuth(
+        user=user("reader", user_metadata={"role": "admin"}),
+        session=session(),
+    )
+    client = FakeClient(auth)
+    with pytest.raises(PermissionError, match="current role"):
+        jarvis_auth.verified_user_client(
+            {
+                "access_token": "access",
+                "refresh_token": "refresh",
+                "user_id": "user-1",
+                "role": "admin",
+            },
+            allowed_roles={"admin", "operator"},
+            client_factory=lambda: client,
+        )
+    assert auth.set_session_args == ("access", "refresh")
+
+
+def test_verified_session_rejects_unconfirmed_user_even_with_valid_session_tokens():
+    auth = FakeAuth(user=user("admin", confirmed=False), session=session())
+    with pytest.raises(PermissionError, match="confirmed"):
+        jarvis_auth.verified_user_client(
+            {"access_token": "access", "refresh_token": "refresh", "user_id": "user-1"},
+            client_factory=lambda: FakeClient(auth),
+        )
