@@ -62,7 +62,7 @@ from global_lead_research import (
 from business_strategy import build_market_intelligence
 from jarvis_memory import memory_command, save_memory, get_memories, forget_memories
 from intelligent_lead_scoring import rank_researched_leads
-from daily_briefing import build_daily_briefing
+from daily_briefing import build_daily_briefing, build_follow_up_queue
 from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
 from lead_workflow import parse_recommended_task_command, build_recommended_task_action
@@ -349,6 +349,33 @@ def render_tasks_page(db: Any) -> None:
         })
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
+
+    st.subheader("Utánkövetési sor")
+    st.caption(
+        "Csak a még esedékes vagy a következő 7 napban esedékes, igazolt hozzájárulású, "
+        "válasz és leiratkozás nélküli leadek jelennek meg. Ez belső ellenőrzőlista; "
+        "nem küld e-mailt és nem módosít leadállapotot."
+    )
+    lead_status: dict[str, Any] = {}
+    follow_up_leads = _safe_rows(
+        db, "leads",
+        "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at",
+        1500, status=lead_status,
+    )
+    if lead_status.get("error"):
+        st.warning("Az utánkövetési sor nem érhető el; a leadadatok lekérdezése hibával leállt.")
+    else:
+        follow_up_queue = build_follow_up_queue(follow_up_leads, days_ahead=7)
+        if follow_up_queue:
+            follow_up_rows = [{
+                "Cég": item["company_name"],
+                "Esedékesség": item["due"],
+                "Állapot": "Lejárt" if item["overdue"] else "Következő 7 nap",
+                "Leadazonosító": item["lead_id"],
+            } for item in follow_up_queue]
+            st.dataframe(pd.DataFrame(follow_up_rows), width="stretch", hide_index=True)
+        else:
+            st.info("Nincs olyan utánkövetés, amely megfelelne a hozzájárulási és státuszfeltételeknek.")
 
     with st.expander("Feladatműveletek a chatben"):
         st.markdown(
