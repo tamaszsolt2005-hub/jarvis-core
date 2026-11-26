@@ -1,0 +1,70 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from company_research_refresh_queue import enqueue_company_research_refreshes
+
+
+class FakeRepository:
+    def __init__(self):
+        self.by_operation_id = {}
+
+    def create(self, *, operation_id, lead_id, payload):
+        if operation_id not in self.by_operation_id:
+            self.by_operation_id[operation_id] = {
+                "operation_id": operation_id, "lead_id": lead_id,
+                "payload": payload, "status": "queued",
+            }
+        return self.by_operation_id[operation_id]
+
+
+def test_queue_bridge_enqueues_only_planner_candidates_and_is_idempotent():
+    eligible_id = str(uuid4())
+    rejected_id = str(uuid4())
+    leads = [
+        {"id": eligible_id, "company_name": "Eligible Ltd", "website": "https://eligible.example"},
+        {"id": rejected_id, "company_name": "No Contact Ltd", "website": "https://blocked.example",
+         "status": "opted_out"},
+    ]
+    repository = FakeRepository()
+    now = datetime(2026, 11, 26, tzinfo=timezone.utc)
+
+    first = enqueue_company_research_refreshes(repository, leads, {}, now=now)
+    second = enqueue_company_research_refreshes(repository, leads, {}, now=now)
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert first[0]["operation_id"] == second[0]["operation_id"]
+    assert first[0]["payload"]["reason"] == "missing_dossier"
+    assert first[0]["payload"]["company_domain"] == "eligible.example"
+    assert len(repository.by_operation_id) == 1
+
+
+def test_new_snapshot_version_produces_a_new_refresh_operation_id():
+    lead_id = str(uuid4())
+    leads = [{"id": lead_id, "company_name": "Example", "website": "https://example.com"}]
+    repository = FakeRepository()
+    now = datetime(2026, 11, 26, tzinfo=timezone.utc)
+    old_dossier = {"researched_at": "2026-01-01T00:00:00+00:00"}
+    new_dossier = {"researched_at": "2026-02-01T00:00:00+00:00"}
+
+    old_job = enqueue_company_research_refreshes(repository, leads, {lead_id: old_dossier}, now=now)[0]
+    new_job = enqueue_company_research_refreshes(repository, leads, {lead_id: new_dossier}, now=now)[0]
+
+    assert old_job["operation_id"] != new_job["operation_id"]
+    assert len(repository.by_operation_id) == 2
+
+
+def test_queue_bridge_does_not_enqueue_fresh_or_invalid_domain_leads():
+    repository = FakeRepository()
+    leads = [
+        {"id": str(uuid4()), "company_name": "Fresh", "website": "https://fresh.example"},
+        {"id": str(uuid4()), "company_name": "Invalid", "website": "javascript:alert(1)"},
+    ]
+    fresh_id = leads[0]["id"]
+    result = enqueue_company_research_refreshes(
+        repository, leads,
+        {fresh_id: {"researched_at": "2026-11-25T00:00:00+00:00"}},
+        now=datetime(2026, 11, 26, tzinfo=timezone.utc),
+    )
+    assert result == []
+    assert repository.by_operation_id == {}
