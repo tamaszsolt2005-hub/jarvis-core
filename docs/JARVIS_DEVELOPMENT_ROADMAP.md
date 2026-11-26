@@ -111,3 +111,12 @@ A PR #28 ágban elkészült a `company_research_worker.py` injektált repository
 ### Phase 1E/1F megvalósítási napló
 
 Elkészült a `company_research_admission.py` és az admission-aware planner queue útvonal, valamint az exponenciális, capped retry backoff a workerben. A worker kétparaméteres handler esetén explicit heartbeat callbacket ad át. A policy és a worker viselkedéséhez fake-alapú tesztek kerültek a repositoryba. A több worker közötti globális kvótafoglalás még nincs megoldva; hard budget enforcementhez adatbázis-oldali atomikus reservation kell.
+
+
+### Phase 1G – worker és idempotencia hardening megvalósítva
+
+- Claim/handler eredmény JSON alak- és méretellenőrzés, másolt payload átadása.
+- Hibakód szűrés és kivételüzenet kizárása a tartós jobrekordból.
+- Operation ID újrafelhasználásának ellenőrzése immutable job mezők szerint.
+- Domain napi usage kulcsainak case-insensitive normalizálása.
+- Egész mikro-USD alapú tokenköltség-becslés felfelé kerekítéssel, vendor árak beégetése nélkül.
