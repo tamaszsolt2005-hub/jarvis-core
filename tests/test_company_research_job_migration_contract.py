@@ -37,3 +37,19 @@ def test_worker_lifecycle_transitions_write_append_only_audit_events():
     assert "company_research_job_audit_list" in sql
     assert "REVOKE ALL ON FUNCTION public.company_research_job_audit_list(text, integer) FROM PUBLIC, anon, authenticated" in sql
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_audit_list(text, integer) TO service_role" in sql
+
+
+
+def test_hourly_and_per_domain_quotas_are_checked_atomically_before_insert():
+    sql = MIGRATION.read_text(encoding="utf-8")
+    create_fn = sql.split("CREATE OR REPLACE FUNCTION public.company_research_job_create", 1)[1]
+    create_fn = create_fn.split("\n$$;", 1)[0]
+    assert "pg_advisory_xact_lock(742026, 2)" in create_fn
+    assert "research_hourly_limit_exceeded" in create_fn
+    assert "research_domain_daily_limit_exceeded" in create_fn
+    assert "created_at >= v_hour_start" in create_fn
+    assert "created_at >= v_day_start" in create_fn
+    assert create_fn.index("SELECT * INTO v_existing") < create_fn.index("research_hourly_limit_exceeded")
+    assert create_fn.index("research_domain_daily_limit_exceeded") < create_fn.index("INSERT INTO public.company_research_jobs")
+    assert "lower(COALESCE(payload->>'company_domain', '')) = v_domain" in create_fn
+    assert "GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) TO service_role" in sql
