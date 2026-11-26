@@ -75,7 +75,7 @@ def test_create_rejects_mismatched_operation_id_from_database():
     client = FakeSupabaseClient({RPC_CREATE: sample_job("different:operation")})
     repository = SupabaseCompanyResearchJobRepository(client)
     with pytest.raises(CompanyResearchJobRepositoryError, match="different operation_id"):
-        repository.create(operation_id="research:lead-123", lead_id="lead-123", payload={})
+        repository.create(operation_id="research:lead-123", lead_id="00000000-0000-4000-8000-000000000001", payload={"source": "planner"})
 
 
 def test_claim_calls_single_atomic_database_rpc_and_returns_none_when_empty():
@@ -128,3 +128,25 @@ def test_adapter_requires_injected_rpc_client_and_validates_limits():
         repository.claim(worker_id="worker-a", lease_seconds=True)
     with pytest.raises(ValueError, match="worker_id"):
         repository.claim(worker_id=" ")
+
+
+
+@pytest.mark.parametrize(
+    ("field", "conflicting_value"),
+    [
+        ("lead_id", "00000000-0000-4000-8000-000000000002"),
+        ("payload", {"source": "different"}),
+        ("job_type", "other_job"),
+    ],
+)
+def test_create_rejects_operation_id_reuse_with_conflicting_immutable_data(field, conflicting_value):
+    existing = sample_job()
+    existing[field] = conflicting_value
+    client = FakeSupabaseClient({RPC_CREATE: existing})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="idempotency conflict"):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+        )
