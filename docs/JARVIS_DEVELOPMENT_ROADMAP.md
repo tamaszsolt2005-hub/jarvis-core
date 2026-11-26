@@ -171,3 +171,6 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Worker handler factory és lease ellenőrzés provider hívás előtt/után.
 - Provider token usage metadata és konfigurált input/output tokenáras actual cost extractor.
 - Nyitott: hosszú szinkron provider hívás közbeni heartbeat renewal, valós runtime/queue/store integráció, provider hitelesítés és end-to-end futtatás.
+
+- One-shot runtime composition root: repository, grounded Gemini provider, worker és actual-cost extractor explicit injektált összekötése.
+- Még nincs scheduler, dashboard trigger, credential/client bootstrap vagy automatikus háttérfuttatás.
