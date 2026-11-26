@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS public.company_research_budget_reservations (
   operation_id text PRIMARY KEY REFERENCES public.company_research_jobs(operation_id) ON DELETE RESTRICT,
   budget_date date NOT NULL,
   reserved_cost_microusd bigint NOT NULL CHECK (reserved_cost_microusd >= 0),
+  actual_cost_microusd bigint CHECK (actual_cost_microusd IS NULL OR actual_cost_microusd >= 0),
+  reservation_status text NOT NULL DEFAULT 'reserved'
+    CHECK (reservation_status IN ('reserved', 'settled')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS company_research_budget_reservations_daily_idx
@@ -60,7 +63,7 @@ ALTER TABLE public.company_research_budget_reservations ENABLE ROW LEVEL SECURIT
 ALTER TABLE public.company_research_job_audit ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.company_research_budget_reservations FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.company_research_job_audit FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT ON TABLE public.company_research_budget_reservations TO service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_budget_reservations TO service_role;
 GRANT SELECT, INSERT ON TABLE public.company_research_job_audit TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.company_research_job_audit_event_id_seq TO service_role;
 
@@ -292,7 +295,8 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.company_research_job_complete(
-  p_operation_id text, p_worker_id text, p_result jsonb
+  p_operation_id text, p_worker_id text, p_result jsonb,
+  p_actual_cost_microusd bigint DEFAULT NULL
 ) RETURNS SETOF public.company_research_jobs
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -301,6 +305,10 @@ AS $$
 DECLARE
   v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
+  IF p_actual_cost_microusd IS NOT NULL AND p_actual_cost_microusd < 0 THEN
+    RAISE EXCEPTION 'invalid actual research cost';
+  END IF;
+
   UPDATE public.company_research_jobs
   SET status = 'succeeded', result = COALESCE(p_result, '{}'::jsonb),
       lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
@@ -309,8 +317,19 @@ BEGIN
   RETURNING * INTO v_transition;
 
   IF FOUND THEN
-    INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id)
-    VALUES (p_operation_id, 'succeeded', p_worker_id);
+    IF p_actual_cost_microusd IS NOT NULL THEN
+      UPDATE public.company_research_budget_reservations
+      SET reserved_cost_microusd = p_actual_cost_microusd,
+          actual_cost_microusd = p_actual_cost_microusd,
+          reservation_status = 'settled'
+      WHERE operation_id = p_operation_id AND reservation_status = 'reserved';
+    END IF;
+    INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id, metadata)
+    VALUES (
+      p_operation_id, 'succeeded', p_worker_id,
+      CASE WHEN p_actual_cost_microusd IS NULL THEN '{}'::jsonb
+           ELSE jsonb_build_object('actual_cost_microusd', p_actual_cost_microusd) END
+    );
     RETURN NEXT v_transition;
   END IF;
 END;
@@ -381,14 +400,14 @@ REVOKE ALL ON FUNCTION public.company_research_job_audit_list(text, integer) FRO
 REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_heartbeat(text, text, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb, bigint) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.company_research_job_audit_list(text, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_heartbeat(text, text, integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb, bigint) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) TO service_role;
 
 COMMIT;
