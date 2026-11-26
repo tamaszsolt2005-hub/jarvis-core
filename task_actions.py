@@ -112,6 +112,8 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
                 updates["due_at"] = _deadline_iso(value)
             elif key in {"cím", "cim"} and value and len(value) <= 180:
                 updates["title"] = value
+            elif key in {"leírás", "leiras", "jegyzet", "notes", "eredmény", "eredmeny"} and value and len(value) <= 1000:
+                updates["notes"] = value
             else:
                 return {"error": f"Nem engedélyezett vagy érvénytelen mező: {key}."}
         return {"type": "update", "id": task_id, "updates": updates} if updates else {"error": "Nem adtál meg módosítandó mezőt."}
@@ -172,7 +174,7 @@ def _validate_action(action: Any) -> None:
         updates = action.get("updates")
         if not isinstance(updates, dict) or not updates:
             raise ValueError("Nem adtál meg módosítandó mezőt.")
-        if set(updates) - {"title", "priority", "due_at"}:
+        if set(updates) - {"title", "priority", "due_at", "notes"}:
             raise ValueError("A feladatmódosítás nem engedélyezett mezőt tartalmaz.")
         if "title" in updates and (
             not isinstance(updates["title"], str)
@@ -185,6 +187,12 @@ def _validate_action(action: Any) -> None:
             or updates["priority"] not in _PRIORITIES
         ):
             raise ValueError("Érvénytelen feladatprioritás.")
+        if "notes" in updates and (
+            not isinstance(updates["notes"], str)
+            or not updates["notes"].strip()
+            or len(updates["notes"]) > 1000
+        ):
+            raise ValueError("A feladat eredménye/leírása 1–1000 karakter lehet.")
         if "due_at" in updates:
             due_at = updates["due_at"]
             if not isinstance(due_at, str):
