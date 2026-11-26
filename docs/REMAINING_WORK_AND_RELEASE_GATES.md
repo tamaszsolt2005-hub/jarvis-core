@@ -1,6 +1,6 @@
 # JARVIS – production és release gate-ek
 
-> **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A PR #26 head `2a27a19078e6183c143e775ca9d89ccc776c7bf8` összes ellenőrzött checkje sikeres.
+> **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A 2026-11-26-i ellenőrzéskor a PR #26 összes checkje sikeres volt; a mindenkori állapot a [PR-oldalon](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) látható.
 
 
 Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás vagy élesítés előtt. A fejlesztési teendők a [fejlesztési backlogban](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) vannak.
@@ -258,11 +258,9 @@ Ez a friss blokk felülírja a korábbi, elavult PR-head/CI állításokat ebben
 - CodeQL: sikeres.
 - pip-audit: sikeres.
 
-### Global research concurrency – újraértékelt kockázat
+### Global research concurrency – lezárva a PR #26 branchben
 
-A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-oldalas beolvasást végez, de nem nyit közös tranzakciót a későbbi beszúrással. Két párhuzamos futás azonos hiányállapotot láthat, és mindkettő beillesztheti ugyanazt a céget. Az offset lapozás concurrent insert/delete mellett nem garantál konzisztens snapshotot. A memóriában frissített `known_names/known_sites` csak az adott futásban véd.
-
-**Nyitott, nem productionre kész feladat:** az összes lead-létrehozó útvonal leltára; a company/domain azonosság szabályainak meghatározása; majd közös tranzakciós RPC/claim protokoll, amely minden érintett íróútvonalból használható. Kötelező elfogadási teszt: két külön PostgreSQL session azonos cégnév/domain claimet próbál egyszerre; pontosan egy nyerhet, a másik determinisztikus konfliktus/duplicate eredményt kap; legitim közös domainek és névütközések ne vesszenek el. Független SQL review szükséges. Addig a kockázat dokumentált, nem megoldott.
+A korábbi alkalmazásszintű `_load_existing_company_keys()` előszűrés önmagában nem védte a párhuzamos írásokat. A PR #26 közös tranzakciós `upsert_company_lead` RPC-je a `global_lead_research.py` és `lead_gen.py` útvonalakat közös alias-lockolt íróprotokollra állította át. A két PostgreSQL sessionös concurrency teszt sikeres. Ez branch-szintű lezárás; production migráció és deploy nem történt.
 
 ### Release gate státusz – 2026-11-26 korrekció
 
@@ -270,7 +268,7 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 - [x] Global lead research cégazonosítási konkurenciavédelem: közös `upsert_company_lead` RPC, mindkét writer integrálva, két-session PostgreSQL teszt sikeres.
 
 - [x] Izolált PostgreSQL 17 migration/pgTAP és backup/restore tesztek zöldek.
-- [ ] Production JARVIS host/URL azonosítása és runtime health bizonyítása.
+- [ ] Későbbi release előtt JARVIS app-host kiválasztása, első deploy és runtime health bizonyítása (jelenleg nincs telepített app-host).
 - [ ] Friss, read-only production schema + migration ledger snapshot és eltérések egyeztetése.
 - [ ] Független SQL review és engedélyezett Auth/JWT/RLS smoke.
 - [ ] RPC app write path deploy/smoke; csak utána privilege-lock migráció külön jóváhagyással.
@@ -284,8 +282,8 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 - A PR #26 aktuális, dokumentációs frissítések előtti headje: `79dfb5b85afaa3ae21405b295bb23880019ec54d`.
 - Ehhez a commit SHA-hoz tartozó JARVIS CI sikeres: **838 passed, 3 skipped**, 91,29% coverage; a `backup-restore-integration` job is sikeres.
 - Ugyanezen a headen a CodeQL és a dependency vulnerability audit sikeres.
-- A global lead research név/domain deduplikációja továbbra is alkalmazásszintű. A teljes íróútvonal-felmérés két közvetlen lead insert útvonalat talált: `global_lead_research.py` és `lead_gen.py`. A közös, tranzakciós claim megoldás előtt tisztázni kell, hogy egy vállalat több különböző emailes kapcsolattartóval külön leadként kezelhető-e; enélkül a név/domain alapú kizárás legitim CSV rekordokat is elutasíthat.
-- 2026-11-26-án friss, read-only Supabase production ellenőrzés történt (`kiutreccucbegskxowek`, PostgreSQL 17.11): a remote migration ledger 7 verziót tartalmaz (a két 20261117 migráció már szerepel); 8/8 public tábla RLS-enabled, 0 policy; `anon` és `authenticated` közvetlen táblajogosultság nélkül, `service_role` teljes DML-joggal rendelkezik; `private` schema és public/private alkalmazási RPC-k nincsenek; `auth.users` száma 0; a `leads` táblában 11 rekord és 0 normalizált email-duplikációs csoport van. A `leads_email_normalized_uidx` index hiányzik, mert a 20261125180000 migráció nincs a remote ledgerben. A régi 2026-11-25-i snapshot történeti adat; a tényleges JARVIS host/URL továbbra sincs igazolva.
+- A korábbi global lead research név/domain race kockázatot a PR #26 közös, tranzakciós `upsert_company_lead` RPC-je kezeli; mindkét writer integrálva, két-session teszt sikeres. A production rollout külön release feladat.
+- 2026-11-26-án friss, read-only Supabase production ellenőrzés történt (`kiutreccucbegskxowek`, PostgreSQL 17.11): a remote migration ledger 7 verziót tartalmaz (a két 20261117 migráció már szerepel); 8/8 public tábla RLS-enabled, 0 policy; `anon` és `authenticated` közvetlen táblajogosultság nélkül, `service_role` teljes DML-joggal rendelkezik; `private` schema és public/private alkalmazási RPC-k nincsenek; `auth.users` száma 0; a `leads` táblában 11 rekord és 0 normalizált email-duplikációs csoport van. A `leads_email_normalized_uidx` index hiányzik, mert a 20261125180000 migráció nincs a remote ledgerben. A régi 2026-11-25-i snapshot történeti adat; a JARVIS app még nincs telepítve, app-host nincs kiválasztva.
 - Security Advisor: 8 INFO `rls_enabled_no_policy`; Performance Advisor: 7 INFO unused-index; Health Advisor: nincs találat. A production lekérdezések kizárólag olvasási műveletek voltak. Production DDL/DML, ledger repair, grants/RLS/Auth változtatás, deploy és merge nem történt. A PR nyitva marad.
 
 
