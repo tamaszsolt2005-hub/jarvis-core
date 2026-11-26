@@ -164,9 +164,12 @@ def run_company_research_worker_with_config(
 
     if worker_options.get("max_attempts", 1) != 1:
         raise ValueError("worker max_attempts must be 1 while failed-attempt cost is not measurable")
+    if worker_options.get("max_concurrent_jobs", config.max_concurrent_jobs) != config.max_concurrent_jobs:
+        raise ValueError("max_concurrent_jobs must come from the shared runtime config")
     # Job-level retries would issue additional provider calls outside the
     # reservation's single measured attempt. Fail closed instead.
     worker_options["max_attempts"] = 1
+    worker_options.pop("max_concurrent_jobs", None)
     provider = TokenBoundedGeminiProvider(client=client, model=model, config=config)
     return run_company_research_worker_once(
         repository,
