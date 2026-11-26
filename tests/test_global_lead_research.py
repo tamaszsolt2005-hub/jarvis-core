@@ -146,6 +146,11 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
     monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    saved_snapshots = []
+    monkeypatch.setattr(
+        research, "save_company_research_snapshot",
+        lambda _db, **kwargs: saved_snapshots.append(kwargs) or {"snapshot_id": kwargs["dossier"]["snapshot_id"]},
+    )
     audit_events = []
     monkeypatch.setattr(
         research, "audit_event",
@@ -176,9 +181,13 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     insert_events = [event for event in audit_events if event["action"] == "save_researched_company"]
     assert [event["status"] for event in insert_events] == ["pending", "success"]
     assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
+    assert len(saved_snapshots) == 1
+    assert saved_snapshots[0]["lead_id"] == "inserted-lead-id"
+    assert saved_snapshots[0]["company_domain"] == "acme.example"
+    assert saved_snapshots[0]["dossier"]["snapshot_id"] == dossier["snapshot_id"]
     snapshot_events = [event for event in audit_events if event["action"] == "company_research_snapshot"]
-    assert len(snapshot_events) == 1
-    snapshot_manifest = snapshot_events[0]["result"]
+    assert [event["status"] for event in snapshot_events] == ["pending", "success"]
+    snapshot_manifest = snapshot_events[-1]["result"]
     assert snapshot_manifest["snapshot_id"] == dossier["snapshot_id"]
     assert snapshot_manifest["schema_version"] == 1
     assert snapshot_manifest["company_domain"] == "acme.example"
