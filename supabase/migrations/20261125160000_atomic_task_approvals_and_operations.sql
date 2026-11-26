@@ -297,7 +297,7 @@ BEGIN
        OR p_action -> 'updates' = '{}'::jsonb
        OR EXISTS (
          SELECT 1 FROM jsonb_object_keys(p_action -> 'updates') AS item(key)
-          WHERE key NOT IN ('title', 'priority', 'due_at', 'notes')
+          WHERE key NOT IN ('title', 'priority', 'due_at', 'notes', 'outcome')
        )
        OR (p_action -> 'updates' ? 'title' AND (
          jsonb_typeof(p_action -> 'updates' -> 'title') IS DISTINCT FROM 'string'
@@ -308,6 +308,10 @@ BEGIN
        OR (p_action -> 'updates' ? 'notes' AND (
          jsonb_typeof(p_action -> 'updates' -> 'notes') IS DISTINCT FROM 'string'
          OR length(btrim(p_action -> 'updates' ->> 'notes')) NOT BETWEEN 1 AND 1000
+       ))
+       OR (p_action -> 'updates' ? 'outcome' AND (
+         jsonb_typeof(p_action -> 'updates' -> 'outcome') IS DISTINCT FROM 'string'
+         OR length(btrim(p_action -> 'updates' ->> 'outcome')) NOT BETWEEN 1 AND 500
        ))
        OR (p_action -> 'updates' ? 'due_at' AND CASE
          WHEN jsonb_typeof(p_action -> 'updates' -> 'due_at') = 'string' THEN
@@ -495,8 +499,14 @@ BEGIN
                              THEN p_action -> 'updates' ->> 'priority' ELSE priority END,
              due_at = CASE WHEN p_action -> 'updates' ? 'due_at'
                            THEN (p_action -> 'updates' ->> 'due_at')::timestamptz ELSE due_at END,
-             notes = CASE WHEN p_action -> 'updates' ? 'notes'
-                          THEN p_action -> 'updates' ->> 'notes' ELSE notes END,
+             notes = CASE
+               WHEN p_action -> 'updates' ? 'outcome' THEN
+                 left(concat_ws(E'\\n', nullif(notes, ''),
+                   'Eredmény: ' || (p_action -> 'updates' ->> 'outcome')), 1000)
+               WHEN p_action -> 'updates' ? 'notes'
+                 THEN p_action -> 'updates' ->> 'notes'
+               ELSE notes
+             END,
              updated_at = clock_timestamp()
        WHERE id = v_task_id AND status = 'open'
       RETURNING title INTO v_title;
