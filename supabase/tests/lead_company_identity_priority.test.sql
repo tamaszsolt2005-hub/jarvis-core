@@ -13,7 +13,7 @@ DECLARE
   candidate_count integer;
   consent_rejected boolean := false;
 BEGIN
-  info_email := 'info+' || suffix || '@example.invalid';
+  info_email := 'info@company-' || suffix || '.example.invalid';
   personal_email := 'xy+' || suffix || '@gmail.com';
   later_email := 'new+' || suffix || '@outlook.com';
 
