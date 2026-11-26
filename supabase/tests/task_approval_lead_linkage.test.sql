@@ -8,6 +8,8 @@ DECLARE
   v_first_operation uuid := '73000000-0000-4000-8000-000000000002';
   v_second_operation uuid := '73000000-0000-4000-8000-000000000003';
   v_third_operation uuid := '73000000-0000-4000-8000-000000000004';
+  v_bad_operation uuid := '73000000-0000-4000-8000-000000000008';
+  v_invalid_rejected boolean := false;
   v_first jsonb;
   v_second jsonb;
   v_third jsonb;
@@ -112,12 +114,46 @@ BEGIN
     RAISE EXCEPTION 'A subsequent workflow task was not allowed after completion';
   END IF;
 
+  IF NOT public.issue_pending_approval(
+    repeat('c', 64),
+    'legacy:73000000-0000-4000-8000-000000000009',
+    jsonb_build_object(
+      'type', 'create', 'operation_id', v_bad_operation,
+      'title', 'Invalid lead id fixture', 'priority', 'normal',
+      'due_at', NULL, 'notes', '', 'lead_id', 'not-a-uuid'
+    ),
+    300
+  ) THEN
+    RAISE EXCEPTION 'Could not issue malformed lead-id fixture approval';
+  END IF;
+
+  BEGIN
+    PERFORM public.execute_approved_task_action(
+      repeat('c', 64),
+      'legacy:73000000-0000-4000-8000-000000000009',
+      v_bad_operation,
+      jsonb_build_object(
+        'type', 'create', 'operation_id', v_bad_operation,
+        'title', 'Invalid lead id fixture', 'priority', 'normal',
+        'due_at', NULL, 'notes', '', 'lead_id', 'not-a-uuid'
+      )
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_invalid_rejected := true;
+  END;
+
+  IF NOT v_invalid_rejected OR EXISTS (
+    SELECT 1 FROM private.task_action_operations WHERE operation_id = v_bad_operation
+  ) THEN
+    RAISE EXCEPTION 'Malformed lead_id was not rejected before operation creation';
+  END IF;
+
   DELETE FROM public.tasks
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation);
   DELETE FROM private.task_action_operations
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation);
   DELETE FROM private.task_approvals
-   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64));
+   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64));
   DELETE FROM public.leads WHERE id = v_lead;
 END
 $lead_linked_task$;
