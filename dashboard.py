@@ -298,6 +298,8 @@ def render_tasks_page(db: Any) -> None:
     metric_cols[1].metric("Nyitott", len(open_tasks))
     metric_cols[2].metric("Lejárt", len(overdue_tasks))
     metric_cols[3].metric("Sürgős", len(urgent_tasks))
+    if overdue_tasks:
+        st.warning(f"LEJÁRT FELADATOK: {len(overdue_tasks)} nyitott feladat határideje lejárt.")
 
     if not normalized:
         st.info("Még nincs feladat. A chatben például így hozhatsz létre egyet: Hozz létre feladat: Első feladat; prioritás=normal")
