@@ -17,11 +17,6 @@ def _truth(value):
     return str(value).strip().lower() in {"true", "1", "yes", "igen"}
 
 
-def _escape_like_literal(value: str) -> str:
-    """Escape SQL LIKE metacharacters so an email is matched literally."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def _validated_import_row(row):
     company = str(row.get("company_name") or "").strip()
     address = str(row.get("email") or "").strip().lower()
