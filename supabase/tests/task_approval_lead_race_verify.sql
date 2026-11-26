@@ -39,5 +39,5 @@ DELETE FROM private.task_action_operations
    '74000000-0000-4000-8000-000000000003'::uuid
  );
 DELETE FROM private.task_approvals
- WHERE token_hash IN (repeat('a', 64), repeat('b', 64));
+ WHERE token_hash IN (encode(extensions.digest('jarvis:task-approval:lead-race:first', 'sha256'), 'hex'), encode(extensions.digest('jarvis:task-approval:lead-race:second', 'sha256'), 'hex'));
 DELETE FROM public.leads WHERE id = '74000000-0000-4000-8000-000000000001'::uuid;
