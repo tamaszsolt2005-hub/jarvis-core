@@ -203,3 +203,16 @@ A PR #26 branch legutóbbi ellenőrzött CI-je (head `6ef4020bba3949e02440e97583
 A PR-ben szereplő `20261125180000_unique_normalized_lead_email.sql` és audit/approval/RPC/privilege-lock migrációk productionben történő alkalmazása nincs igazolva, és nem történt meg ebben a munkában. A production migráció előtt friss read-only schema + ledger snapshot, email duplikációs preflight, független SQL review, izolált teljes PG17 replay és külön konkrét jóváhagyás szükséges. A service_role task DML revoke továbbra is csak a tényleges RPC app path deployja és sikeres smoke után jöhet szóba.
 
 A global lead research párhuzamos cég/domain duplikációs kockázata alkalmazásszintű maradt; DB/RPC atomikus claim nincs implementálva. Ez branchben is nyitott fejlesztési feladat, nem production hotfix.
+
+## 2026-11-26 – release readiness újraellenőrzés
+
+A PR #26 aktuális headjén (a README frissítése előtti `79dfb5b85afaa3ae21405b295bb23880019ec54d` commiton) a GitHub Actions eredményei:
+
+- JARVIS CI: sikeres; 838 passed, 3 skipped; 91,29% coverage.
+- PostgreSQL 17 backup–restore integráció: sikeres.
+- CodeQL: sikeres.
+- Dependency vulnerability audit: sikeres.
+
+Ez kizárólag a repository és az izolált CI bizonyítéka. **2026-11-26-án nem történt új production Supabase lekérdezés, migration ledger ellenőrzés, Auth/RLS smoke, production host ellenőrzés vagy deploy.** A 2026-11-25-i production snapshot a saját időpontjához kötött történeti adat, nem tekinthető mai production állapotigazolásnak.
+
+A tényleges JARVIS alkalmazás hostja/URL-je továbbra sincs azonosítva. A production release ezért blokkolt a friss read-only állapotfelvételig, a migration drift független egyeztetéséig, a teljes PG17 replay és SQL review lezárásáig, valamint a külön production jóváhagyásig. A PR nyitva maradt; production rendszeren nem történt változtatás.
