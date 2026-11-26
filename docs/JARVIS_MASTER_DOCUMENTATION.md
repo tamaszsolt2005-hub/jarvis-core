@@ -110,7 +110,7 @@ A későbbi workernek:
 8. változásösszefoglalót és forrásokat adnia emberi ellenőrzésre;
 9. auditálnia a sikert, hibát és kihagyás okát.
 
-A planner jelenleg tiszta, read-only függvény; nem olvassa a DB-t, nem foglal munkát és nem futtat kutatást. A DB-integráció, worker, scheduler, lease és automatikus refresh jelenleg nincs implementálva vagy bekapcsolva.
+A planner továbbra is tiszta, read-only jelöltkiválasztó. A PR #28 ág már tartalmazza a tartós job repository/RPC adaptert, queue bridge-et és egyszeri injektált workert lease/heartbeat/retry támogatással. A planner DB-lekérdezésének integrációja, scheduler, tényleges kutatási handler és automatikus refresh még nincs implementálva vagy bekapcsolva.
 
 ## 6. Hosszú távú SaaS ajánlási folyamat
 
@@ -227,7 +227,7 @@ Az adatbázis-migrációs és pgTAP teszteket a GitHub Actions CI izolált Postg
 
 ## 10. Frissített végrehajtási állapot – 2026-11-26
 
-A PR #28 (feature/company-research-dashboard-readonly) a cégkutatási előzmények read-only Streamlit felületét adja hozzá. A dashboard navigációs útvonalának hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja: a research oldal most a render_company_research_page() függvényt hívja, a meglévő adatbázis-kapcsolatot használja, hibát kezel és a chat helyett dedikált oldalként megáll. A javítás CI-je elindult; a funkció teljes CI-igazolása még függőben van.
+A PR #28 (feature/company-research-dashboard-readonly) a cégkutatási előzmények read-only Streamlit felületét adja hozzá. A dashboard navigációs útvonalának hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja: a research oldal most a render_company_research_page() függvényt hívja, a meglévő adatbázis-kapcsolatot használja, hibát kezel és a chat helyett dedikált oldalként megáll. A javítás utáni korábbi CI-futás eredménye nem igazolja a jelenlegi headet; a legutóbbi headre nem érkezett workflow-run vagy status adat.
 
 A kutatási előzmény UI jelenlegi korlátai: legfeljebb 500 leadből választ céget, és legfeljebb 20 snapshotot kér le; a forrás URL-ek HTTP(S), hostname, credential, localhost és .local ellenőrzésen mennek át; Auth login esetén fail-closed módon jelzi a hiányzó felhasználói SELECT jogosultságot, service-role megkerülés nélkül; productionben nem aktív.
 
