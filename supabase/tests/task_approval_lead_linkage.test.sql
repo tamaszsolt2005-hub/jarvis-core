@@ -118,8 +118,8 @@ BEGIN
 
   -- Outcome notes are editable only through the same one-use approval RPC.
   IF NOT public.issue_pending_approval(
-    repeat('a', 64),
-    'legacy:73000000-0000-4000-8000-000000000011',
+    repeat('d', 64),
+    'legacy:73000000-0000-4000-8000-000000000012',
     jsonb_build_object(
       'type', 'update', 'operation_id', v_update_operation,
       'id', v_third ->> 'task_id',
@@ -131,8 +131,8 @@ BEGIN
   END IF;
 
   v_updated := public.execute_approved_task_action(
-    repeat('a', 64),
-    'legacy:73000000-0000-4000-8000-000000000011',
+    repeat('d', 64),
+    'legacy:73000000-0000-4000-8000-000000000012',
     v_update_operation,
     jsonb_build_object(
       'type', 'update', 'operation_id', v_update_operation,
@@ -188,7 +188,7 @@ BEGIN
   DELETE FROM private.task_action_operations
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation, v_update_operation);
   DELETE FROM private.task_approvals
-   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64), repeat('a', 64));
+   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64), repeat('d', 64));
   DELETE FROM public.leads WHERE id = v_lead;
 END
 $lead_linked_task$;
