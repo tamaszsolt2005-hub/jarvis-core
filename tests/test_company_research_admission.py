@@ -2,6 +2,7 @@ import pytest
 
 from company_research_admission import (
     estimate_research_cost_microusd,
+    estimate_research_cost_ceiling_microusd,
     evaluate_research_admission,
 )
 
@@ -106,3 +107,30 @@ def test_cost_estimator_rounds_any_fraction_up():
 def test_cost_estimator_rejects_invalid_values(kwargs):
     with pytest.raises(ValueError):
         estimate_research_cost_microusd(**kwargs)
+
+
+
+def test_cost_ceiling_reserves_input_and_output_for_each_attempt():
+    assert estimate_research_cost_ceiling_microusd(
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=2_000_000,
+        max_input_tokens_per_attempt=1000,
+        max_output_tokens_per_attempt=500,
+        max_attempts=2,
+    ) == 4_000
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_input_tokens_per_attempt": 0},
+    {"max_output_tokens_per_attempt": 127},
+    {"max_output_tokens_per_attempt": 4097},
+    {"max_attempts": 0},
+    {"max_attempts": 4},
+])
+def test_cost_ceiling_rejects_invalid_provider_bounds(kwargs):
+    with pytest.raises(ValueError):
+        estimate_research_cost_ceiling_microusd(
+            input_price_microusd_per_million_tokens=1,
+            output_price_microusd_per_million_tokens=1,
+            **kwargs,
+        )
