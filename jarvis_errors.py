@@ -138,3 +138,70 @@ def report_error(
             fallback = sanitize_log_text(f"{type(log_exc).__name__}: {log_exc}", max_length=500)
             LOGGER.error("[jarvis_errors] Supabase error logging failed: %s", fallback)
     return message
+
+
+_ERROR_HINTS = {
+    "missing_configuration": "Hiányzik egy szükséges konfiguráció. Ellenőrizd a Beállítások oldalon jelzett elemeket, majd állítsd be őket a helyi secrets fájlban vagy a futtatási környezetben.",
+    "invalid_configuration": "Egy konfigurációs érték hibás vagy nem támogatott. Ellenőrizd a változó nevét, formátumát és a szolgáltatás dokumentációját.",
+    "permission_denied": "A művelethez nincs megfelelő jogosultság. Kérj hozzáférést az adminisztrátortól; a JARVIS nem kerüli meg a jogosultsági szabályokat.",
+    "authentication_failed": "A hitelesítés sikertelen vagy lejárt. Jelentkezz be újra, és ellenőrizd a hozzáférési beállításokat.",
+    "rate_limited": "A szolgáltatás API-korlátot jelzett. Várj, csökkentsd a kérések számát, vagy ellenőrizd a szolgáltatói kvótát és számlázást.",
+    "network_error": "A hálózati kapcsolat nem érhető el. Ellenőrizd az internetkapcsolatot, DNS-t, tűzfalat és a szolgáltatás elérhetőségét.",
+    "timeout": "A szolgáltatás nem válaszolt időben. Próbáld újra később; az ismétlés előtt ellenőrizd, hogy a művelet nem hajtódott-e már végre.",
+    "service_unavailable": "A külső szolgáltatás átmenetileg nem elérhető. A JARVIS korlátozottan újrapróbálkozik; később próbáld újra.",
+    "invalid_request": "A szolgáltatás elutasította a kérést. Ellenőrizd a bemeneti adatokat és a modell vagy API beállításait.",
+    "unknown": "Váratlan hiba történt. A JARVIS biztonságos hibajelzést naplózott; próbáld újra később, vagy add át a hibakódot az adminisztrátornak.",
+}
+
+
+def classify_error(error: BaseException) -> dict[str, Any]:
+    """Map provider/network/auth/config exceptions to stable, secret-free categories."""
+    name = type(error).__name__.casefold()
+    message = str(error).casefold()
+    code = getattr(error, "code", None) or getattr(error, "status_code", None)
+    status = str(getattr(error, "status", "") or "").casefold()
+    text = f"{name} {message} {status}"
+    category = "unknown"
+    retryable = False
+
+    if isinstance(error, PermissionError) or code in (403,) or any(
+        marker in text for marker in ("permission denied", "forbidden", "insufficient permission", "rls")
+    ):
+        category = "permission_denied"
+    elif code == 401 or any(marker in text for marker in ("unauthorized", "invalid api key", "invalid credentials", "unauthenticated")):
+        category = "authentication_failed"
+    elif any(marker in text for marker in ("missing configuration", "hiányzó beállítás", "not configured", "required_secret")):
+        category = "missing_configuration"
+    elif any(marker in text for marker in ("invalid configuration", "invalid url", "malformed url", "unsupported scheme")):
+        category = "invalid_configuration"
+    elif code == 429 or any(marker in text for marker in ("resource_exhausted", "rate limit", "quota exceeded", "too many requests", "429")):
+        category = "rate_limited"
+        retryable = True
+    elif code in (408, 504) or any(marker in text for marker in ("timeout", "timed out", "deadline_exceeded")):
+        category = "timeout"
+        retryable = True
+    elif code in (502, 503) or any(marker in text for marker in ("service unavailable", "unavailable", "bad gateway", "503")):
+        category = "service_unavailable"
+        retryable = True
+    elif isinstance(error, (ConnectionError, OSError)) or any(
+        marker in text for marker in ("connection refused", "connection reset", "name or service not known", "temporary failure in name resolution", "dns", "network is unreachable")
+    ):
+        category = "network_error"
+        retryable = True
+    elif code in (400, 422) or any(marker in text for marker in ("invalid argument", "invalid request", "bad request")):
+        category = "invalid_request"
+
+    return {
+        "category": category,
+        "retryable": retryable,
+        "code": str(code)[:40] if code is not None else None,
+        "user_message": _ERROR_HINTS[category],
+    }
+
+
+def user_facing_error(error: BaseException) -> str:
+    """Return a stable Hungarian hint without exposing provider response bodies."""
+    result = classify_error(error)
+    code = result.get("code")
+    suffix = f" (hibakód: {code})" if code else ""
+    return result["user_message"] + suffix
