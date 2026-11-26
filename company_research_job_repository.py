@@ -27,9 +27,17 @@ class CompanyResearchBudgetExceeded(CompanyResearchJobRepositoryError):
     """Raised when the atomic daily cost reservation would exceed its ceiling."""
 
 
+class CompanyResearchAdmissionRejected(CompanyResearchJobRepositoryError):
+    """Raised when an atomic database-backed admission quota is exhausted."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
 @runtime_checkable
 class CompanyResearchJobRepository(Protocol):
-    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None) -> dict[str, Any]: ...
+    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None, max_jobs_per_hour: int | None = None, max_jobs_per_domain_per_day: int | None = None) -> dict[str, Any]: ...
     def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None: ...
     def heartbeat(self, *, operation_id: str, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
     def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None) -> dict[str, Any] | None: ...
@@ -81,12 +89,17 @@ class SupabaseCompanyResearchJobRepository:
             response = self._client.rpc(name, params).execute()
         except Exception as exc:
             # Expose only this fixed, non-sensitive database error marker.
-            if "research_daily_budget_exceeded" in str(exc):
+            message = str(exc)
+            if "research_daily_budget_exceeded" in message:
                 raise CompanyResearchBudgetExceeded("Daily research budget exceeded.") from exc
+            if "research_hourly_limit_exceeded" in message:
+                raise CompanyResearchAdmissionRejected("global_hourly_limit") from exc
+            if "research_domain_daily_limit_exceeded" in message:
+                raise CompanyResearchAdmissionRejected("domain_daily_limit") from exc
             raise CompanyResearchJobRepositoryError(f"{name} RPC failed.") from exc
         return _one_row(response, operation=name, allow_none=allow_none)
 
-    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None) -> dict[str, Any]:
+    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None, max_jobs_per_hour: int | None = None, max_jobs_per_domain_per_day: int | None = None) -> dict[str, Any]:
         # Reuse the canonical validation and serialization rules.
         job = create_research_job(operation_id=operation_id, lead_id=lead_id, payload=payload)
         try:
@@ -101,10 +114,20 @@ class SupabaseCompanyResearchJobRepository:
             or daily_budget_microusd < 1
         ):
             raise ValueError("daily_budget_microusd must be a positive integer or None")
+        for value, name in (
+            (max_jobs_per_hour, "max_jobs_per_hour"),
+            (max_jobs_per_domain_per_day, "max_jobs_per_domain_per_day"),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 1
+            ):
+                raise ValueError(f"{name} must be a positive integer or None")
         row = self._rpc(RPC_CREATE, {
             "p_job": job,
             "p_estimated_cost_microusd": estimated_cost_microusd,
             "p_daily_budget_microusd": daily_budget_microusd,
+            "p_max_jobs_per_hour": max_jobs_per_hour,
+            "p_max_jobs_per_domain_per_day": max_jobs_per_domain_per_day,
         })
         if row.get("operation_id") != job["operation_id"]:
             raise CompanyResearchJobRepositoryError("Create RPC returned a different operation_id.")
