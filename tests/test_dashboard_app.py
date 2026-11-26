@@ -836,3 +836,49 @@ def test_streamlit_settings_diagnostics_only_run_after_explicit_click(monkeypatc
     assert not app.exception
     assert calls == [None]
     assert any("APPT_SETTINGS_DIAGNOSTICS" in value for value in _markdown_values(app))
+
+
+
+def test_streamlit_task_center_keeps_follow_up_queue_visible_without_tasks(monkeypatch):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    due = (datetime.now(ZoneInfo("Europe/Budapest")) - timedelta(days=1)).isoformat()
+    consent_at = (datetime.now(ZoneInfo("Europe/Budapest")) - timedelta(days=2)).isoformat()
+    lead = {
+        "id": "123e4567-e89b-42d3-a456-426614174000",
+        "company_name": "Utánkövetési teszt Kft.",
+        "status": "sent",
+        "email": "contact@example.com",
+        "consent_basis": "consent",
+        "consent_confirmed_at": consent_at,
+        "approved_to_contact": True,
+        "opted_out": False,
+        "reply_category": None,
+        "last_inbound_message_id": None,
+        "follow_up_count": 0,
+        "next_follow_up_at": due,
+        "notes": "",
+        "source": "manual",
+    }
+
+    class TaskQueueDB:
+        def table(self, name):
+            if name == "tasks":
+                return _Query([])
+            if name == "leads":
+                return _Query([lead])
+            raise AssertionError(f"Unexpected table access: {name}")
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: TaskQueueDB())
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_tasks").click().run()
+
+    assert not app.exception
+    assert any("Még nincs feladat" in item.value for item in app.info)
+    assert any("Utánkövetési sor" in item.value for item in app.markdown)
+    assert len(app.get("dataframe")) == 1
+    assert any("Utánkövetési teszt Kft." in value for value in _markdown_values(app)) is False
