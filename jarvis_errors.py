@@ -199,7 +199,7 @@ def classify_error(error: BaseException) -> dict[str, Any]:
     elif numeric_code in (408, 504) or any(marker in text for marker in ("timeout", "timed out", "deadline_exceeded")):
         category = "timeout"
         retryable = True
-    elif numeric_code in (502, 503) or any(marker in text for marker in ("service unavailable", "unavailable", "bad gateway", "503")):
+    elif numeric_code in (500, 502, 503) or any(marker in text for marker in ("internal", "service unavailable", "unavailable", "bad gateway", "500", "503")):
         category = "service_unavailable"
         retryable = True
     elif isinstance(error, (ConnectionError, OSError)) or any(
