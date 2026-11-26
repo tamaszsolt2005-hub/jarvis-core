@@ -17,6 +17,16 @@ _RECOMMENDED_TASK_PREFIXES = ("hozz létre javasolt feladat:", "hozz letre javas
 _INDUSTRY = re.compile(r"tényleges ország:\s*(.*?);\s*iparág:\s*(.*?)\.\s", re.I)
 _NEED = re.compile(r"megfigyelhető üzleti igény:\s*(.*?);\s*alátámasztó jelek:", re.I)
 
+_WORKFLOW_STAGES = (
+    ("research_validation", "Kutatási bizonyítékok ellenőrzése"),
+    ("business_need_validation", "Üzleti igény és szolgáltatási illeszkedés ellenőrzése"),
+    ("offer_preparation", "Ajánlati koncepció előkészítése"),
+    ("offer_review", "Ajánlati koncepció emberi felülvizsgálata"),
+    ("follow_up_review", "Utánkövetési jogosultság és következő lépés ellenőrzése"),
+    ("outcome_measurement", "Eredmény és üzleti hatás rögzítésének ellenőrzése"),
+)
+_STAGE_MARKER = re.compile(r"\[JARVIS_STAGE:([a-z_]+)\]")
+
 
 def _clean(value: Any, limit: int = 240) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
