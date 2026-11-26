@@ -93,3 +93,8 @@ A PR #28 a cégkutatási előzmények read-only dashboardját vezeti be. A navig
 A következő munkacsomag a biztonságos háttérmotor. Első lépésként DB-től független job lifecycle modult készítünk stabil operation ID-val, lease/claim és heartbeat szabályokkal, véges retry-val, dead-letter állapottal és fake repository tesztekkel. Ezt követi a planner DB-adaptere és a scheduler. A scheduler nem aktiválható automatikusan; production DB, migráció, deploy és outbound e-mail változatlanul tiltott külön jóváhagyásig.
 
 A felhasználó kérése szerint a kisebb módosítások után nem állunk meg külön ellenőrzési körre: több összefüggő funkció elkészülte után futtatunk átfogó ellenőrzést.
+
+
+### 7.1 Háttérmotor első implementációja
+
+A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás, atomi claim, scheduler és kutatási végrehajtás még nincs bekötve. A kapcsolódó teszteket a következő összesített ellenőrzési körben futtatjuk.
