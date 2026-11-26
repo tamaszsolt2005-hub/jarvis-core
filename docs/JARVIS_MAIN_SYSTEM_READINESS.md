@@ -38,7 +38,7 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 | Task-kezelés | Jóváhagyásos create/update/close út és atomikus SQL szerződés implementált | Teljes chat → approval → DB → audit E2E; jogosultsági és visszajátszási teszt |
 | Task center | Read-only oldal; üres tasklista mellett is megjelenik az utánkövetési sor | Szűrés/rendezés/határidő, üres/hibaállapot és jogosultsági kézi smoke |
 | Kutatási dosszié és előzmény | Dosszié, snapshot store és read-only előzmény UI implementált; legacy dashboard módban elérhető | A store és worker közti tartós mentési adatút igazolása; Auth/RLS olvasási jogosultság és UI smoke |
-| Kutatási job/worker | Job lifecycle, RPC repository, queue, worker, Gemini adapter és one-shot runtime kódban | Izolált PostgreSQL konkurenciateszt, end-to-end job → provider → snapshot, lease/retry/költség tesztek |
+| Kutatási job/worker | Job lifecycle, RPC repository, queue, worker, Gemini adapter és one-shot runtime kódban; két új PostgreSQL SQL tesztcsomag elkészült | Az izolált pgTAP/dblink tesztek futtatása még hátra van; job → provider → snapshot E2E, lease/retry és teljes költségelszámolás igazolása szükséges |
 | Memória | Explicit mentési/listázási/inaktiválási funkció | Kategória-, jogosultság-, adatmegőrzési és valós DB smoke |
 | Napi briefing és analitika | Implementált komponensek | Helyi, adatbázissal végzett smoke és helyességellenőrzés |
 | Audit | Külön Supabase Auth-admin belépéssel védett megjelenítés/export és SQL hash-chain alapok | Valós admin belépés, szerepkör, láncintegritás és export smoke; a közös dashboard-jelszó nem elegendő |
@@ -70,7 +70,7 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 
 ### P1 – megbízható belső használat és későbbi release előfeltétele
 
-6. **Izolált PostgreSQL worker tesztek.** A job create idempotencia, párhuzamos claim, concurrency plafon, lease expiry/reclaim, heartbeat, retry/dead-letter, atomikus budget/hourly/domain kvóta, actual-cost settlement és audit tranzakciók valós PG17 tesztjei. A fake repository teszt önmagában nem bizonyít SQL konkurenciát.
+6. **Izolált PostgreSQL worker tesztek – forrás elkészült, futtatás hátra van.** A `company_research_jobs.test.sql` 15 pgTAP ellenőrzést tartalmaz a create idempotenciára, napi/óránkénti/domain kvótára, claim plafonra, heartbeat-re, actual-cost settlementre és auditra. A `company_research_jobs_concurrency.test.sql` 12 pgTAP assertionnel két független `dblink` sessionben vizsgálja a párhuzamos budget reservationt és claimet. A helyi `supabase test db` futás eredménye még nem igazolt. A lease expiry/reclaim és retry/dead-letter SQL-életciklus célzott lefedése még szükséges.
 7. **Kutatási adatút lezárása.** A job handler eredményének snapshot store-ba mentése, a lead rekordhoz kapcsolás, audit esemény és hiba esetén konzisztens retry/rollback legyen E2E tesztelve. Jelenleg a provider/runtime önmagában még nem bizonyít teljes, tartós cégkutatási adatfolyamot.
 8. **Valós provider smoke izolált tesztkörnyezetben.** Injektált Gemini klienssel, tesztkulccsal és szigorú költségkerettel ellenőrizni a grounding metaadatokat, usage adatokat, timeoutot, retryt és heartbeatet. Production secret vagy production DB nem használható ehhez.
 9. **Auth/RLS és szerepkör tesztek.** Az alkalmazás tényleges felhasználói hozzáférése, service-role határok és read/write RPC-k jogosultságai legyenek dokumentálva és izolált tesztben igazolva.
