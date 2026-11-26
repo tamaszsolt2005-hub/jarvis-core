@@ -278,3 +278,14 @@ def test_company_inputs_are_whitespace_normalized_before_prompting():
         market="Hungary",
     )
     assert '"Example Ltd Group"' in prompt
+
+
+
+def test_execution_accepts_markdown_fenced_json_response():
+    response = grounded_response()
+    response["research"] = "\\x60\\x60\\x60json\\n" + __import__("json").dumps(response["research"]) + "\\n\\x60\\x60\\x60"
+    result = execute_company_research(
+        {"company_name": "Example Ltd", "company_domain": "example.com"},
+        provider=FakeProvider(response),
+    )
+    assert result["accepted_fact_count"] == 2
