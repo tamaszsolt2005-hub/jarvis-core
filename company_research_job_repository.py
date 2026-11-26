@@ -25,7 +25,7 @@ class CompanyResearchJobRepositoryError(RuntimeError):
 @runtime_checkable
 class CompanyResearchJobRepository(Protocol):
     def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any]) -> dict[str, Any]: ...
-    def claim(self, *, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
+    def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None: ...
     def heartbeat(self, *, operation_id: str, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
     def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None) -> dict[str, Any] | None: ...
     def fail(
@@ -102,14 +102,17 @@ class SupabaseCompanyResearchJobRepository:
                 )
         return row
 
-    def claim(self, *, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None:
+    def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None:
         if not isinstance(worker_id, str) or not worker_id.strip():
             raise ValueError("worker_id is required")
         if isinstance(lease_seconds, bool) or not isinstance(lease_seconds, int) or lease_seconds < 1:
             raise ValueError("lease_seconds must be a positive integer")
+        if isinstance(max_concurrent_jobs, bool) or not isinstance(max_concurrent_jobs, int) or max_concurrent_jobs < 1:
+            raise ValueError("max_concurrent_jobs must be a positive integer")
         return self._rpc(
             RPC_CLAIM,
-            {"p_worker_id": worker_id.strip(), "p_lease_seconds": lease_seconds},
+            {"p_worker_id": worker_id.strip(), "p_lease_seconds": lease_seconds,
+             "p_max_concurrent_jobs": max_concurrent_jobs},
             allow_none=True,
         )
 
