@@ -3,7 +3,7 @@
 -- final-attempt lease expiry and UTC daily budget rollover.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(19);
+SELECT plan(20);
 
 INSERT INTO public.leads (id, company_name, status)
 VALUES ('74000000-0000-4000-8000-000000000003', 'Worker lifecycle edge fixture', 'research')
@@ -51,6 +51,12 @@ SELECT is(
     'research-lease-reclaim-0001', 'lease-owner-old', '{}'::jsonb, NULL
   )),
   0::bigint, 'previous owner cannot complete after lease replacement'
+);
+SELECT is(
+  (SELECT count(*) FROM public.company_research_job_complete(
+    'research-lease-reclaim-0001', 'lease-owner-new', '{}'::jsonb, NULL
+  )),
+  1::bigint, 'current lease owner can complete and release the concurrency slot'
 );
 
 -- Retryable failure schedules a retry, then max_attempts forces dead-letter.
