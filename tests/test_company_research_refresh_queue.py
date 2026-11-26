@@ -276,7 +276,7 @@ def test_admission_queue_reports_database_rate_limit_rejection(reason, expected)
             "max_jobs_per_hour": 10,
             "max_jobs_per_domain_per_day": 10,
             "max_concurrent_jobs": 2,
-            "max_daily_cost_microusd": 500,
+            "max_daily_cost_microusd": 50_000,
         },
         usage_snapshot={
             "jobs_last_hour": 0, "jobs_by_domain_today": {},
