@@ -323,6 +323,9 @@ BEGIN
           actual_cost_microusd = p_actual_cost_microusd,
           reservation_status = 'settled'
       WHERE operation_id = p_operation_id AND reservation_status = 'reserved';
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'research_budget_reservation_missing_or_settled';
+      END IF;
     END IF;
     INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id, metadata)
     VALUES (
