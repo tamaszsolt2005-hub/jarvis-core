@@ -128,7 +128,7 @@ def _validate_action(action: Any) -> None:
     if not isinstance(kind, str):
         raise ValueError("Ismeretlen feladatművelet.")
     if kind == "create":
-        if set(action) - {"type", "title", "priority", "due_at", "notes", "operation_id"}:
+        if set(action) - {"type", "title", "priority", "due_at", "notes", "lead_id", "operation_id"}:
             raise ValueError("A létrehozási művelet nem támogatott mezőt tartalmaz.")
         title = action.get("title")
         priority = action.get("priority")
@@ -142,6 +142,11 @@ def _validate_action(action: Any) -> None:
         operation_id = action.get("operation_id")
         if not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id):
             raise ValueError("Érvénytelen műveletazonosító.")
+        lead_id = action.get("lead_id")
+        if lead_id is not None and (
+            not isinstance(lead_id, str) or not _UUID.fullmatch(lead_id)
+        ):
+            raise ValueError("Érvénytelen kapcsolódó leadazonosító.")
         due_at = action.get("due_at")
         if due_at is not None:
             if not isinstance(due_at, str):
