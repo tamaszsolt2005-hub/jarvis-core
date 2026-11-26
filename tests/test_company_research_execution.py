@@ -6,6 +6,7 @@ from company_research_execution import (
     CompanyResearchExecutionError,
     CompanyResearchLeaseLost,
     GeminiGoogleSearchCompanyResearchProvider,
+    make_gemini_actual_cost_extractor,
     build_company_research_prompt,
     execute_company_research,
     make_company_research_handler,
@@ -243,3 +244,27 @@ def test_gemini_adapter_does_not_retry_non_transient_errors():
     with pytest.raises(AuthError):
         provider.research_company(prompt="research", heartbeat=None)
     assert models.calls == 1
+
+
+
+def test_gemini_cost_extractor_uses_injected_prices_and_integer_ceiling():
+    extractor = make_gemini_actual_cost_extractor(
+        input_price_microusd_per_million_tokens=2_000_000,
+        output_price_microusd_per_million_tokens=4_000_000,
+    )
+    assert extractor({"provider_usage": {"prompt_tokens": 10, "output_tokens": 5}}) == 40
+    assert extractor({"provider_usage": {}}) is None
+
+
+def test_gemini_cost_extractor_rejects_invalid_usage_or_pricing():
+    extractor = make_gemini_actual_cost_extractor(
+        input_price_microusd_per_million_tokens=2_000_000,
+        output_price_microusd_per_million_tokens=4_000_000,
+    )
+    with pytest.raises(ValueError):
+        extractor({"provider_usage": {"prompt_tokens": True, "output_tokens": 5}})
+    with pytest.raises(ValueError):
+        make_gemini_actual_cost_extractor(
+            input_price_microusd_per_million_tokens=0,
+            output_price_microusd_per_million_tokens=4_000_000,
+        )({"provider_usage": {"prompt_tokens": 1, "output_tokens": 1}})
