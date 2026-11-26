@@ -8,7 +8,8 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
-from typing import Any, Protocol
+import time
+from typing import Any, Callable, Protocol
 from urllib.parse import urlparse
 
 from company_dossier import build_company_dossier, stamp_company_dossier
@@ -28,7 +29,7 @@ class CompanyResearchProvider(Protocol):
 class GeminiGoogleSearchCompanyResearchProvider:
     """Google Gemini adapter using Search grounding; client and model are injected."""
 
-    def __init__(self, *, client: Any, model: str, max_attempts: int = 3) -> None:
+    def __init__(self, *, client: Any, model: str, max_attempts: int = 3, sleep: Callable[[float], None] = time.sleep) -> None:
         if client is None or not callable(getattr(getattr(client, "models", None), "generate_content", None)):
             raise CompanyResearchExecutionError("invalid_gemini_client")
         if not isinstance(model, str) or not model.strip() or len(model) > 120:
@@ -37,7 +38,10 @@ class GeminiGoogleSearchCompanyResearchProvider:
             raise CompanyResearchExecutionError("invalid_provider_attempt_limit")
         self._client = client
         self._model = model.strip()
+        if not callable(sleep):
+            raise CompanyResearchExecutionError("invalid_provider_sleep_callback")
         self._max_attempts = max_attempts
+        self._sleep = sleep
 
     def research_company(self, *, prompt: str, heartbeat: Any) -> dict[str, Any]:
         from google.genai import types
@@ -59,6 +63,7 @@ class GeminiGoogleSearchCompanyResearchProvider:
                     retryable = any(token in message for token in ("timeout", "timed out", "temporarily unavailable", "connection reset", "connection aborted", "rate limit", "resource exhausted", "server error"))
                 if not retryable or attempt >= self._max_attempts:
                     raise
+                self._sleep(min(2 ** (attempt - 1), 4))
         grounded_sources: list[str] = []
         for candidate in getattr(response, "candidates", None) or []:
             metadata = getattr(candidate, "grounding_metadata", None)
