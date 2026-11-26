@@ -1,4 +1,5 @@
 from copy import deepcopy
+from threading import Event, Thread
 
 import pytest
 
@@ -306,3 +307,97 @@ def test_internal_and_non_public_grounding_hosts_are_rejected(source):
             {"company_name": "Example Ltd", "company_domain": "example.com"},
             provider=FakeProvider(response),
         )
+
+
+
+def test_gemini_adapter_renews_lease_while_provider_request_is_blocked():
+    from types import SimpleNamespace
+    import time
+
+    started = Event()
+    release = Event()
+    heartbeat_calls = []
+
+    response = SimpleNamespace(text='{"company_facts":[]}', candidates=[], usage_metadata=None)
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            started.set()
+            assert release.wait(timeout=2)
+            return response
+
+    provider = GeminiGoogleSearchCompanyResearchProvider(
+        client=SimpleNamespace(models=FakeModels()),
+        model="gemini-test",
+        heartbeat_interval_seconds=0.01,
+    )
+    result = []
+    errors = []
+
+    def heartbeat():
+        heartbeat_calls.append(True)
+        return True
+
+    def invoke():
+        try:
+            result.append(provider.research_company(prompt="research", heartbeat=heartbeat))
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = Thread(target=invoke)
+    thread.start()
+    assert started.wait(timeout=1)
+    deadline = time.monotonic() + 1
+    while len(heartbeat_calls) < 2 and time.monotonic() < deadline:
+        time.sleep(0.005)
+    release.set()
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert not errors
+    assert len(heartbeat_calls) >= 2
+    assert result[0]["research"] == response.text
+
+
+def test_gemini_adapter_aborts_result_when_background_heartbeat_loses_lease():
+    from types import SimpleNamespace
+    import time
+
+    started = Event()
+    release = Event()
+    heartbeat_called = Event()
+    response = SimpleNamespace(text='{"company_facts":[]}', candidates=[], usage_metadata=None)
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            started.set()
+            assert release.wait(timeout=2)
+            return response
+
+    provider = GeminiGoogleSearchCompanyResearchProvider(
+        client=SimpleNamespace(models=FakeModels()),
+        model="gemini-test",
+        heartbeat_interval_seconds=0.01,
+    )
+    errors = []
+
+    def heartbeat():
+        heartbeat_called.set()
+        return False
+
+    def invoke():
+        try:
+            provider.research_company(prompt="research", heartbeat=heartbeat)
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = Thread(target=invoke)
+    thread.start()
+    assert started.wait(timeout=1)
+    assert heartbeat_called.wait(timeout=1)
+    release.set()
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], CompanyResearchLeaseLost)
