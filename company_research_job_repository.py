@@ -8,14 +8,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from company_research_jobs import (
-    JOB_STATES,
-    _now,
-    complete_research_job,
-    create_research_job,
-    fail_research_job,
-    heartbeat_research_job,
-)
+from company_research_jobs import create_research_job
 
 TABLE_NAME = "company_research_jobs"
 RPC_CREATE = "company_research_job_create"
@@ -87,6 +80,10 @@ class SupabaseCompanyResearchJobRepository:
     def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         # Reuse the canonical validation and serialization rules.
         job = create_research_job(operation_id=operation_id, lead_id=lead_id, payload=payload)
+        try:
+            job["lead_id"] = str(UUID(job["lead_id"]))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise ValueError("lead_id must be a UUID for durable storage") from exc
         row = self._rpc(RPC_CREATE, {"p_job": job})
         if row.get("operation_id") != job["operation_id"]:
             raise CompanyResearchJobRepositoryError("Create RPC returned a different operation_id.")
