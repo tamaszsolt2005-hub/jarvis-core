@@ -112,9 +112,8 @@ def run_company_research_refresh_cycle(
         outcomes[status] = outcomes.get(status, 0) + 1
         processed += 1
     return {
-        "candidate_leads": len(leads),
+        "scanned_leads": len(leads),
         "queued": len(enqueued),
-        "rejected": len(enqueued) - len(enqueued),
         "processed": processed,
         "worker_outcomes": outcomes,
         "contact_permission": "unchanged",
