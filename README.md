@@ -20,9 +20,10 @@ A `feature/company-research-phase-1` ág a következőket tartalmazza:
 - snapshot UUID, időbélyeg és SHA-256 tartalomlenyomat;
 - append-only kutatási előzménytároló és repository migráció;
 - fail-closed dosszié-frissességi szabály;
+- read-only refresh candidate planner: stale dossziék kiválasztása, meg nem keresett cégek előresorolása, elutasítások és opt-out kizárása;
 - kutatási frissítési jogosultsági policy: elutasítás/opt-out kizárása, két válasz nélküli follow-up utáni szüneteltetés, meg nem keresett leadek megtartása.
 
-A snapshot tároló migrációja csak a feature branchben és a CI izolált adatbázisában szerepel. A refresh policy még nincs schedulerbe vagy workerbe kötve. A teljes SaaS-ötletmotor, globális termék-tiltó napló és automatikus outreach célfunkció, nem kész rendszer.
+A snapshot tároló migrációja csak a feature branchben és a CI izolált adatbázisában szerepel. A refresh policy és a read-only candidate planner még nincs schedulerbe, DB-lekérdező folyamatba vagy workerbe kötve. A teljes SaaS-ötletmotor, globális termék-tiltó napló és automatikus outreach célfunkció, nem kész rendszer.
 
 ## Helyi indítás
 
