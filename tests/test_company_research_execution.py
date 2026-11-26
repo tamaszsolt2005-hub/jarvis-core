@@ -289,3 +289,21 @@ def test_execution_accepts_markdown_fenced_json_response():
         provider=FakeProvider(response),
     )
     assert result["accepted_fact_count"] == 2
+
+
+
+@pytest.mark.parametrize("source", [
+    "http://127.0.0.1/private",
+    "http://localhost/private",
+    "https://internal.local/data",
+    "https://host.invalid/source",
+])
+def test_internal_and_non_public_grounding_hosts_are_rejected(source):
+    response = grounded_response()
+    response["grounded_sources"] = [source]
+    result = execute_company_research(
+        {"company_name": "Example Ltd", "company_domain": "example.com"},
+        provider=FakeProvider(response),
+    )
+    assert result["accepted_fact_count"] == 0
+    assert result["company_dossier"]["decision_maker"] == {}
