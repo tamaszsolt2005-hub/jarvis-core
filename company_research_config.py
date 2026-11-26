@@ -13,6 +13,7 @@ from typing import Any, Mapping
 class CompanyResearchRuntimeConfig:
     input_price_microusd_per_million_tokens: int
     output_price_microusd_per_million_tokens: int
+    pricing_model: str
     max_daily_cost_microusd: int
     max_jobs_per_hour: int
     max_jobs_per_domain_per_day: int
@@ -24,6 +25,8 @@ class CompanyResearchRuntimeConfig:
     batch_limit: int = 50
 
     def __post_init__(self) -> None:
+        if not isinstance(self.pricing_model, str) or not self.pricing_model.strip() or len(self.pricing_model.strip()) > 120:
+            raise ValueError("pricing_model must be a non-empty model identifier")
         positive = (
             "input_price_microusd_per_million_tokens",
             "output_price_microusd_per_million_tokens",
@@ -48,6 +51,10 @@ class CompanyResearchRuntimeConfig:
             raise ValueError("max_attempts must be 1 until every provider attempt is billable-measured")
         if isinstance(self.max_age_days, bool) or not isinstance(self.max_age_days, int) or self.max_age_days < 0:
             raise ValueError("max_age_days must be a non-negative integer")
+
+    def validate_model(self, model: str) -> None:
+        if not isinstance(model, str) or model.strip() != self.pricing_model.strip():
+            raise ValueError("configured Gemini model does not match the model used for pricing")
 
     @property
     def limits(self) -> dict[str, int]:
@@ -79,6 +86,7 @@ class CompanyResearchRuntimeConfig:
         return cls(
             input_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
             output_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
+            pricing_model=str(source.get("JARVIS_COMPANY_RESEARCH_PRICING_MODEL") or "").strip(),
             max_daily_cost_microusd=integer("JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD"),
             max_jobs_per_hour=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR"),
             max_jobs_per_domain_per_day=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY"),
@@ -162,6 +170,7 @@ def run_company_research_worker_with_config(
     """Run one worker claim using the same immutable settings as queue admission."""
     from company_research_runtime import run_company_research_worker_once
 
+    config.validate_model(model)
     if worker_options.get("max_attempts", 1) != 1:
         raise ValueError("worker max_attempts must be 1 while failed-attempt cost is not measurable")
     if worker_options.get("max_concurrent_jobs", config.max_concurrent_jobs) != config.max_concurrent_jobs:
