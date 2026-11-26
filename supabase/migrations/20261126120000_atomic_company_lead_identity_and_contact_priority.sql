@@ -195,7 +195,7 @@ DECLARE
   v_domain text;
   v_alias record;
   v_lead_id uuid;
-  v_match_count integer;
+  v_match_count bigint;
   v_match_ids uuid[];
   v_candidate_email text;
   v_candidate_score integer;
