@@ -9,6 +9,7 @@ import ipaddress
 import json
 import re
 import time
+from threading import Event, Thread
 from typing import Any, Callable, Protocol
 from urllib.parse import urlparse
 
@@ -29,7 +30,7 @@ class CompanyResearchProvider(Protocol):
 class GeminiGoogleSearchCompanyResearchProvider:
     """Google Gemini adapter using Search grounding; client and model are injected."""
 
-    def __init__(self, *, client: Any, model: str, max_attempts: int = 3, sleep: Callable[[float], None] = time.sleep) -> None:
+    def __init__(self, *, client: Any, model: str, max_attempts: int = 3, heartbeat_interval_seconds: float = 30.0, sleep: Callable[[float], None] = time.sleep) -> None:
         if client is None or not callable(getattr(getattr(client, "models", None), "generate_content", None)):
             raise CompanyResearchExecutionError("invalid_gemini_client")
         if not isinstance(model, str) or not model.strip() or len(model) > 120:
@@ -40,30 +41,63 @@ class GeminiGoogleSearchCompanyResearchProvider:
         self._model = model.strip()
         if not callable(sleep):
             raise CompanyResearchExecutionError("invalid_provider_sleep_callback")
+        if isinstance(heartbeat_interval_seconds, bool) or not isinstance(heartbeat_interval_seconds, (int, float)) or heartbeat_interval_seconds <= 0:
+            raise CompanyResearchExecutionError("invalid_heartbeat_interval")
         self._max_attempts = max_attempts
+        self._heartbeat_interval_seconds = float(heartbeat_interval_seconds)
         self._sleep = sleep
 
     def research_company(self, *, prompt: str, heartbeat: Any) -> dict[str, Any]:
         from google.genai import types
 
         config = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())])
-        for attempt in range(1, self._max_attempts + 1):
-            try:
-                response = self._client.models.generate_content(model=self._model, contents=prompt, config=config)
-                break
-            except Exception as exc:
-                status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        stop_heartbeat = Event()
+        lease_lost = Event()
+        heartbeat_thread: Thread | None = None
+
+        if heartbeat is not None:
+            if not callable(heartbeat):
+                raise CompanyResearchExecutionError("invalid_heartbeat_callback")
+
+            def renew_lease() -> None:
+                while not stop_heartbeat.wait(self._heartbeat_interval_seconds):
+                    try:
+                        if not heartbeat():
+                            lease_lost.set()
+                            return
+                    except Exception:
+                        lease_lost.set()
+                        return
+
+            heartbeat_thread = Thread(target=renew_lease, name="company-research-lease-heartbeat", daemon=True)
+            heartbeat_thread.start()
+
+        try:
+            for attempt in range(1, self._max_attempts + 1):
+                if lease_lost.is_set():
+                    raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
                 try:
-                    status = int(status)
-                except (TypeError, ValueError):
-                    status = None
-                retryable = status in {408, 425, 429, 500, 502, 503, 504}
-                if status is None:
-                    message = str(exc).casefold()
-                    retryable = any(token in message for token in ("timeout", "timed out", "temporarily unavailable", "connection reset", "connection aborted", "rate limit", "resource exhausted", "server error"))
-                if not retryable or attempt >= self._max_attempts:
-                    raise
-                self._sleep(min(2 ** (attempt - 1), 4))
+                    response = self._client.models.generate_content(model=self._model, contents=prompt, config=config)
+                    break
+                except Exception as exc:
+                    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                    try:
+                        status = int(status)
+                    except (TypeError, ValueError):
+                        status = None
+                    retryable = status in {408, 425, 429, 500, 502, 503, 504}
+                    if status is None:
+                        message = str(exc).casefold()
+                        retryable = any(token in message for token in ("timeout", "timed out", "temporarily unavailable", "connection reset", "connection aborted", "rate limit", "resource exhausted", "server error"))
+                    if not retryable or attempt >= self._max_attempts:
+                        raise
+                    self._sleep(min(2 ** (attempt - 1), 4))
+            if lease_lost.is_set():
+                raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
+        finally:
+            stop_heartbeat.set()
+            if heartbeat_thread is not None:
+                heartbeat_thread.join(timeout=max(1.0, self._heartbeat_interval_seconds * 2))
         grounded_sources: list[str] = []
         for candidate in getattr(response, "candidates", None) or []:
             metadata = getattr(candidate, "grounding_metadata", None)
