@@ -102,7 +102,7 @@ A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független j
 
 ### 7.2 Tartós háttérmotor – repository adapter szerződés
 
-A következő kódszelet a job-lifecycle tiszta függvényeire épülő tartós repository-réteg. A szerződés DB-független `CompanyResearchJobRepository` protokollt és injektált Supabase klienst használó adaptert határoz meg. A Supabase adapter nem hozhat létre saját klienst, nem olvashat környezeti service-role secretet, és importáláskor sem kapcsolódhat adatbázishoz.
+A tartós repository-réteg kódja és a planner-queue híd már hozzáadva a PR #28 branchhez. A szerződés DB-független `CompanyResearchJobRepository` protokollt és injektált Supabase klienst használó adaptert határoz meg. A Supabase adapter nem hozhat létre saját klienst, nem olvashat környezeti service-role secretet, és importáláskor sem kapcsolódhat adatbázishoz.
 
 Kötelező adattárolási invariánsok:
 - `operation_id` adatbázis-oldali UNIQUE kulcs; az ismételt create idempotensen a már létező jobot adja vissza.
@@ -113,3 +113,6 @@ Kötelező adattárolási invariánsok:
 - A fake repository tesztek a protokoll és az adapter leképezését ellenőrzik; az SQL/RPC konkurencia-viselkedés külön izolált adatbázis-integrációs tesztet igényel.
 
 Az SQL migration csak verziókezelt repository-fájl lehet. A job tábla belső worker-adat: RLS bekapcsolva, PUBLIC/anon/authenticated hozzáférés tiltva, kizárólag backend service role számára engedélyezett műveletek. A migrationt és RPC-kat production Supabase-re nem alkalmazzuk. Ez a fázis nem tartalmaz scheduler-t, Gemini kutatás-végrehajtást vagy outbound mellékhatást.
+
+
+A megvalósított fájlok: `company_research_job_repository.py` (Protocol + injektált Supabase RPC adapter), `company_research_refresh_queue.py` (planner jelöltek idempotens jobként sorba állítása), `supabase/migrations/20261126153000_company_research_jobs.sql` (service-role-only job tábla és tranzakciós RPC-kontraktus), valamint fake kliens/repository tesztek. A migration kizárólag repository-fájl, nem lett futtatva. A teljes funkciócsomag CI-ellenőrzése most következik; addig a tesztek eredménye nem tekinthető igazoltnak.
