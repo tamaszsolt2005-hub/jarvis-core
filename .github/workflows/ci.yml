@@ -461,6 +461,24 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_email_uniqueness.test.sql
+          # Install the atomic company identity registry and consent-aware contact ranking.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126120000_atomic_company_lead_identity_and_contact_priority.sql
+          # Replay must be idempotent and preserve all identity/contact records.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126120000_atomic_company_lead_identity_and_contact_priority.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_priority.test.sql
+          # Exercise the identity claim from two overlapping PostgreSQL sessions.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_setup.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_execute.sql > "$RUNNER_TEMP/lead-identity-race-1.log" &
+          identity_race_pid_1=$!
+          sleep 0.25
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_execute.sql > "$RUNNER_TEMP/lead-identity-race-2.log" &
+          identity_race_pid_2=$!
+          wait "$identity_race_pid_1"
+          wait "$identity_race_pid_2"
+          cat "$RUNNER_TEMP/lead-identity-race-1.log" "$RUNNER_TEMP/lead-identity-race-2.log"
+          grep -q "created" "$RUNNER_TEMP/lead-identity-race-1.log"
+          grep -q "existing" "$RUNNER_TEMP/lead-identity-race-2.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_verify.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
