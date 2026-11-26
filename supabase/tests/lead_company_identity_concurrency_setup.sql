@@ -9,3 +9,5 @@ VALUES (
   'JARVIS concurrency fixture ' || replace(gen_random_uuid()::text, '-', ''),
   'https://race-' || replace(gen_random_uuid()::text, '-', '') || '.example.invalid'
 );
+
+GRANT SELECT ON public.lead_identity_race_control TO service_role;
