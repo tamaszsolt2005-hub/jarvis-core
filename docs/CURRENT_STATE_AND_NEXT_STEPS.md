@@ -220,3 +220,12 @@ A hozzáadott tesztek lefedik a hibakategóriákat, a secret UI-ból való kizá
 
 
 A korábbi CI #3019 run (45875325010) részletes naplója alapján két AppTest hibás elvárása javítva: az e-mail-küldési zár szövegének ellenőrzése és a jogosultság miatt el nem renderelt diagnosztikai gomb hiányának ellenőrzése. A futásban a PostgreSQL backup/restore integráció sikeres volt; a teszt job 2 dashboard AppTest miatt bukott el. Az új javítások után a teljes aktuális HEAD CI-jét újra kell futtatni.
+
+
+## 9. Következő munka és ellenőrzési terv – 2026-11-26
+
+A felhasználói tesztelési elvárás szerint nem ismételjük meg minden commit után a teljes, már korábban igazolt tesztcsomagot. A célzott tesztelési szabályokat és a még hiányzó ellenőrzéseket a [JARVIS_REMAINING_WORK_REPORT.md](JARVIS_REMAINING_WORK_REPORT.md) tartalmazza.
+
+A konfigurációs és runtime hibakezelési kód bekerült: hiányzó/hibás kötelező secret, hibás Supabase HTTP(S) URL, hálózati hiba, timeout, API rate limit/kvóta, szolgáltatáskiesés, hitelesítési és jogosultsági hiba kategorizálása. A Gemini modellváltás kizárólag rate-limit/szolgáltatás-túlterhelés esetén engedélyezett; hitelesítési és permission hiba esetén nincs fallback. A felhasználói felület kategorizált, titokmentes segítséget mutat.
+
+A CI #3019 korábbi tesztjobja 1104 tesztet sikeresen teljesített, 3 tesztet kihagyott, 2 Settings AppTesten elbukott; a coverage 90,24% volt. A backup–restore job sikeres volt. A két AppTest elvárást javítottuk, de a javítások utáni aktuális HEAD célzott teszteredménye még nincs igazolva. Ezért a következő ellenőrzés elsődlegesen az érintett tesztmodulokra korlátozandó, nem kell a változatlan backup–restore tesztet újra futtatni.
