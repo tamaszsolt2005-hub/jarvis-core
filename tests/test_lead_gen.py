@@ -110,10 +110,12 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
     assert events and "2 kapcsolattartói rekord feldolgozva, 1 kihagyva" in events[0][2]
     assert [item["action"] for item in audits] == [
         "import_reviewed_csv", "create_reviewed_lead",
+        "create_reviewed_lead", "create_reviewed_lead",
         "create_reviewed_lead", "import_reviewed_csv",
     ]
     assert [item["status"] for item in audits] == ["pending", "pending", "success", "pending", "success", "success"]
     assert audits[1]["operation_id"] == audits[2]["operation_id"]
+    assert audits[3]["operation_id"] == audits[4]["operation_id"]
     assert audits[0]["operation_id"] == audits[-1]["operation_id"]
     assert "Import kész: 2 kapcsolattartói rekord feldolgozva, 1 kihagyva." in capsys.readouterr().out
 
