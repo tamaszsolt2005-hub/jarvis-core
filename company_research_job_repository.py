@@ -22,6 +22,10 @@ class CompanyResearchJobRepositoryError(RuntimeError):
     """Raised when durable job storage returns an invalid or failed response."""
 
 
+class CompanyResearchBudgetExceeded(CompanyResearchJobRepositoryError):
+    """Raised when the atomic daily cost reservation would exceed its ceiling."""
+
+
 @runtime_checkable
 class CompanyResearchJobRepository(Protocol):
     def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None) -> dict[str, Any]: ...
@@ -74,6 +78,9 @@ class SupabaseCompanyResearchJobRepository:
         try:
             response = self._client.rpc(name, params).execute()
         except Exception as exc:
+            # Expose only this fixed, non-sensitive database error marker.
+            if "research_daily_budget_exceeded" in str(exc):
+                raise CompanyResearchBudgetExceeded("Daily research budget exceeded.") from exc
             raise CompanyResearchJobRepositoryError(f"{name} RPC failed.") from exc
         return _one_row(response, operation=name, allow_none=allow_none)
 
