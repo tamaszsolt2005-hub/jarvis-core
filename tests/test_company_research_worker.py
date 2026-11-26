@@ -12,8 +12,8 @@ class FakeRepository:
         self.lose_heartbeat = lose_heartbeat
         self.calls = []
 
-    def claim(self, *, worker_id, lease_seconds=60):
-        self.calls.append(("claim", worker_id, lease_seconds))
+    def claim(self, *, worker_id, lease_seconds=60, max_concurrent_jobs=3):
+        self.calls.append(("claim", worker_id, lease_seconds, max_concurrent_jobs))
         job, self.job = self.job, None
         return deepcopy(job)
 
@@ -58,7 +58,7 @@ def test_worker_claims_at_most_one_job_and_completes_handler_result():
         "status": "succeeded", "operation_id": "research:lead:123456",
         "result": {"snapshot_id": "snap-1", "lead_id": "lead-1"},
     }
-    assert repository.calls[0] == ("claim", "worker-a", 120)
+    assert repository.calls[0] == ("claim", "worker-a", 120, 3)
     assert repository.calls[1][0] == "complete"
 
 
@@ -69,7 +69,7 @@ def test_worker_returns_idle_without_calling_handler():
         handler=lambda payload: (_ for _ in ()).throw(AssertionError("must not run")),
     )
     assert result == {"status": "idle"}
-    assert repository.calls == [("claim", "worker-a", 120)]
+    assert repository.calls == [("claim", "worker-a", 120, 3)]
 
 
 def test_worker_schedules_bounded_retry_without_persisting_exception_text():
@@ -223,3 +223,19 @@ def test_worker_handles_malformed_claim_response():
         repository, worker_id="worker-a", handler=lambda _payload: {"ok": True},
     )
     assert result == {"status": "invalid_job", "error_code": "invalid_claim_response"}
+
+
+
+def test_worker_rejects_invalid_concurrency_ceiling_before_claim():
+    repository = FakeRepository(sample_job())
+    try:
+        run_one_company_research_job(
+            repository, worker_id="worker-a",
+            handler=lambda _payload: {"ok": True},
+            max_concurrent_jobs=0,
+        )
+    except ValueError as exc:
+        assert "max_concurrent_jobs" in str(exc)
+    else:
+        raise AssertionError("expected validation error")
+    assert repository.calls == []
