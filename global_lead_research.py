@@ -13,7 +13,7 @@ from google.genai import types
 from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
 from lead_identity import upsert_company_lead
-from company_dossier import build_company_dossier, render_company_dossier
+from company_dossier import build_company_dossier, render_company_dossier, stamp_company_dossier
 
 
 MAX_RESULTS = 15
@@ -329,7 +329,7 @@ def research_global_companies(
         confidence, fit_score, fit_evidence = _research_quality(item)
         business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
         next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
-        dossier = build_company_dossier(item, grounded_domains)
+        dossier = stamp_company_dossier(build_company_dossier(item, grounded_domains))
         dossier_text = render_company_dossier(dossier)
         base_notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
@@ -388,6 +388,26 @@ def research_global_companies(
             },
         ):
             raise RuntimeError("A kutatási lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
+        # Keep a compact, append-only snapshot manifest in the existing audit log.
+        # Full facts remain in the lead dossier; the manifest makes versions traceable
+        # without expanding the production schema or storing personal contact data.
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="company_research_snapshot",
+            status="success",
+            operation_id=dossier["snapshot_id"],
+            result={
+                "snapshot_id": dossier["snapshot_id"],
+                "schema_version": dossier["schema_version"],
+                "researched_at": dossier["researched_at"],
+                "content_sha256": dossier["content_sha256"],
+                "company_domain": site_domain,
+                "fact_count": len(dossier["facts"]),
+                "decision_maker_profiled": bool(dossier["decision_maker"]),
+            },
+        ):
+            raise RuntimeError("A cégdosszié mentése megtörtént, de a snapshot-audit nem menthető.")
         known_names.add(name.casefold())
         known_sites.add(site_domain)
         if identity_result["outcome"] == "existing":
