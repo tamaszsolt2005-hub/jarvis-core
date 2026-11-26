@@ -131,3 +131,8 @@ Következő kódszelet: determinisztikus, exponenciális és felső korláttal v
 ### 7.5 Kutatási admission policy
 
 A következő egység egy tiszta, DB-független admission döntés: óránkénti globális joblimit, domainenkénti napi limit, párhuzamos joblimit és napi költségkeret ellenőrzése. A költség egész mikro-USD egységben szerepel, lebegőpontos kerekítési hibák nélkül. A policy csak a megadott usage snapshot alapján dönt; tartós számlálást és atomikus foglalást későbbi repository/RPC réteg biztosít.
+
+
+### 7.6 Hosszú jobok lease-heartbeat támogatása
+
+A worker handler opcionális heartbeat callbacket kap, amely a tartós repository heartbeat RPC-jét hívja. A handler hosszabb műveletek közben saját checkpointjainál megújíthatja a lease-t; automatikus timer vagy háttérszál nem indul. Ha a lease elveszett, a callback ezt egyértelműen jelzi, a worker pedig nem írhatja felül az új tulajdonos állapotát.
