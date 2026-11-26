@@ -335,3 +335,12 @@ A korábbi megvalósítás csak a provider hívás előtt és után ellenőrizte
 ## 10.15 Főrendszer-készültségi felmérés
 
 Elkészült a `JARVIS_MAIN_SYSTEM_READINESS.md`, amely különválasztja a belső főrendszer készre jelentését a hosszú távú autonóm SaaS-ügynök víziójától. Funkciónként megadja az implementációs állapotot, a P0/P1 lezárási feladatokat, a nem blokkoló P2 termékfázisokat és a külön production release kapukat. A jelenlegi minősítés: a főrendszer még nem tekinthető késznek, mert az aktuális CI futás és a teljes core E2E/smoke bizonyítékok hiányoznak.
+
+
+## 10.16 Dashboard navigáció és Beállítások audit
+
+A PR #28 dashboardjának teljes navigációs útvonala áttekintve: Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások. A korábbi statikus, nem kattintható Beállítások menüpont helyett dedikált read-only Settings oldal működik, amely csak konfigurációs jelenlétet mutat (titokértékeket nem), jelzi az Auth módot és a biztonsági kapukat, a rendszerdiagnosztikát pedig kizárólag kézi indításra futtatja. A Gemini próbakérés lehetséges API-költségét a UI előre jelzi.
+
+A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”. A Feladatközpont üres tasklista esetén korábban korai visszatéréssel kihagyta az utánkövetési sort; ez javítva, regressziós AppTesttel fedve. A Cégkutatás Auth/RLS módban továbbra is fail-closed, amíg az olvasási jogosultság nincs kivezetve; az Audit külön Supabase Auth-admin belépést igényel. A Settings jelenleg nem módosítja a runtime secretet, Auth/RLS-t vagy adatbázis-konfigurációt, és nem tárol felhasználói preferenciákat.
+
+A dashboard audit után új AppTestek kerültek a branchre. A korábbi `36d615f` core workflow commit CI-je zöld volt, de az új dashboard commitok teljes CI-ellenőrzése külön szükséges.
