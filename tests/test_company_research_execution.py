@@ -217,7 +217,7 @@ def test_gemini_adapter_retries_only_transient_errors():
 
     models = FakeModels()
     provider = GeminiGoogleSearchCompanyResearchProvider(
-        client=SimpleNamespace(models=models), model="gemini-test"
+        client=SimpleNamespace(models=models), model="gemini-test", sleep=lambda _delay: None
     )
     result = provider.research_company(prompt="research", heartbeat=None)
     assert models.calls == 2
