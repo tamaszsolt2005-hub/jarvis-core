@@ -111,3 +111,9 @@ Production Supabase módosítás, migration futtatás, GRANT/REVOKE, Auth/RBAC, 
 - [Fejlesztési roadmap](JARVIS_DEVELOPMENT_ROADMAP.md)
 - [Release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md)
 - [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md)
+
+## 7. Konfigurációs, hálózati, API-limit és jogosultsági hibák
+
+A `jarvis_errors.py` egységes `classify_error()` kategóriákat és magyar `user_facing_error()` útmutatót ad. A chat nem mutatja meg a provider teljes kivételszövegét, csak a biztonságos teendőt és – ha rendelkezésre áll – a nem érzékeny HTTP hibakódot. A Gemini kliens korlátozott retryt használ átmeneti hálózati, timeout, rate-limit és szolgáltatás-elérhetőségi hibákra; 401/403 és RLS/jogosultsági hibák esetén nincs újrapróbálkozás és nincs service-role fallback. A konfigurációs hibaüzenetek a helyi secrets/runtime konfiguráció ellenőrzésére irányítanak, de titokértéket nem kérnek.
+
+A kategorizálás és a retry viselkedés célzott unit tesztekkel lefedett. A jelenlegi fejlesztési HEAD teljes CI-eredményét külön kell igazolni; a korábbi CI #3019 teszt jobja sikertelen volt, ezért annak zöld státusza nem állítható. Production rendszeren nem történt változtatás.
