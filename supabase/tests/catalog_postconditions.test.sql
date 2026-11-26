@@ -185,19 +185,21 @@ BEGIN
     RAISE EXCEPTION 'postgres public-schema default ACLs grant privileges to API roles';
   END IF;
 
-  -- Company identity/contact candidate tables are service-role only.
-  IF NOT has_table_privilege('service_role', 'public.lead_company_aliases', 'SELECT')
-     OR NOT has_table_privilege('service_role', 'public.lead_company_aliases', 'INSERT')
-     OR NOT has_table_privilege('service_role', 'public.lead_contact_candidates', 'SELECT')
-     OR NOT has_table_privilege('service_role', 'public.lead_contact_candidates', 'INSERT')
+  -- Company identity/contact candidate tables are inaccessible directly;
+  -- the service role can use only the narrow SECURITY DEFINER RPC.
+  IF has_table_privilege('service_role', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('service_role', 'public.lead_company_aliases', 'INSERT')
+     OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'SELECT')
+     OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'INSERT')
+     OR has_table_privilege('service_role', 'public.leads', 'INSERT')
      OR has_table_privilege('anon', 'public.lead_company_aliases', 'SELECT')
      OR has_table_privilege('authenticated', 'public.lead_company_aliases', 'SELECT')
      OR has_table_privilege('anon', 'public.lead_contact_candidates', 'SELECT')
      OR has_table_privilege('authenticated', 'public.lead_contact_candidates', 'SELECT') THEN
-    RAISE EXCEPTION 'company identity/contact candidate table grants are broader than service-role only';
+    RAISE EXCEPTION 'lead creation bypasses the atomic company RPC or private candidate registry';
   END IF;
 
-  IF (SELECT prosecdef FROM pg_proc
+  IF NOT (SELECT prosecdef FROM pg_proc
        WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
      OR NOT has_function_privilege(
        'service_role',
