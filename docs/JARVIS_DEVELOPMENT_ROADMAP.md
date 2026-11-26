@@ -78,3 +78,8 @@ Elkészült a háttérmotor első, DB-független kódszelete: company_research_j
 ### Phase 1B megvalósítási napló
 
 A PR #28 branchben elkészült a `CompanyResearchJobRepository` Protocol és az injektált Supabase adapter (`company_research_job_repository.py`), a planner és repository közötti idempotens enqueue híd (`company_research_refresh_queue.py`), a service-role-only job tábla és tranzakciós RPC-k migrationje, valamint a fake adapter/queue tesztek. Az RPC claim `FOR UPDATE SKIP LOCKED` mintát alkalmaz; heartbeat/complete/fail csak aktív lease tulajdonostól fogad el módosítást. Production DB-re nem csatlakozott, a migration nem futott le. A teljes CI-ellenőrzés a csomag elkészülte után esedékes.
+
+
+### Phase 1C – egyszeri worker-orchestration
+
+A PR #28 ágban elkészült a `company_research_worker.py` injektált repository + handler alapú egyszeri végrehajtója. Egy hívás legfeljebb egy jobot claimel, handler eredményét complete-eli, hibáját bounded retry/dead-letter útvonalra küldi, és lease-vesztésnél nem állít sikert. A kivételszöveg nem kerül a tartós jobrekordba. A tényleges cégkutatási handler, scheduler, Gemini/API-integráció és automatikus futtatás továbbra sincs engedélyezve vagy implementálva.
