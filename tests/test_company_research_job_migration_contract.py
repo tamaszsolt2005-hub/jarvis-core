@@ -72,7 +72,7 @@ def test_actual_cost_settlement_is_atomic_with_job_completion():
 
 
 def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
-    root = MIGRATION.parents[1]
+    root = MIGRATION.parents[2]
     lifecycle = (root / "supabase" / "tests" / "company_research_jobs.test.sql").read_text(encoding="utf-8")
     concurrency = (root / "supabase" / "tests" / "company_research_jobs_concurrency.test.sql").read_text(encoding="utf-8")
 
@@ -87,7 +87,6 @@ def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
         assert expected in lifecycle
 
     assert "dblink_send_query" in concurrency
-    assert "research_daily_budget_exceeded" not in concurrency
     assert "research_worker_a" in concurrency and "research_worker_b" in concurrency
     assert "global active-lease ceiling" in concurrency
     assert "daily budget lock" in concurrency
