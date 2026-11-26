@@ -91,3 +91,11 @@ A PR #28 ágban elkészült a `company_research_worker.py` injektált repository
 - Pozitív egész bemenetek validálása, overflow-biztos számítás.
 - Worker-integráció és determinisztikus tesztek.
 - Nem helyettesíti a globális provider rate limitet, concurrency limitet vagy költségkeretet.
+
+
+### Phase 1E – admission policy és költségvédelmi döntés
+
+- Globális óránkénti joblimit, domainenkénti napi limit és párhuzamos futási limit.
+- Napi költségkeret egész mikro-USD-ben.
+- Determinisztikus, DB-független döntési függvény és határérték tesztek.
+- A policy önmagában nem foglal kvótát; konkurens hard limithez később atomikus DB/RPC reservation szükséges.
