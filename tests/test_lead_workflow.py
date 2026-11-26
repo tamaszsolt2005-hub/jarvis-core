@@ -79,3 +79,70 @@ def test_recommendations_are_ranked_and_bounded():
         limit=1,
     )
     assert [item["lead_id"] for item in plans] == ["high"]
+
+
+def test_recommended_task_command_requires_a_valid_lead_uuid():
+    from lead_workflow import parse_recommended_task_command
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    assert parse_recommended_task_command(
+        f"Hozz létre javasolt feladat: {lead_id}"
+    ) == {"lead_id": lead_id}
+    assert parse_recommended_task_command(
+        f"hozz letre javasolt feladat: {lead_id.upper()}"
+    ) == {"lead_id": lead_id}
+    assert "error" in parse_recommended_task_command(
+        "Hozz létre javasolt feladat: nem-uuid"
+    )
+    assert parse_recommended_task_command("Szia JARVIS") is None
+
+
+def test_recommended_task_action_is_grounded_linked_and_not_outreach():
+    from lead_workflow import build_recommended_task_action
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    action = build_recommended_task_action(
+        {
+            "id": lead_id,
+            "company_name": "Minta Kft.",
+            "source": "gemini_google_search_grounding:example.test",
+            "notes": (
+                "Leadkutatás; tényleges ország: Hungary; iparág: Manufacturing. "
+                "AI üzleti illeszkedési becslés: 88/100; bizonyosság: high; "
+                "megfigyelhető üzleti igény: manuális adminisztráció csökkentése; "
+                "alátámasztó jelek: termékoldal; esettanulmány; "
+                "javasolt kutatási lépés: folyamatellenőrzés"
+            ),
+        },
+        [],
+    )
+
+    assert action is not None
+    assert action["type"] == "create"
+    assert action["lead_id"] == lead_id
+    assert action["priority"] == "high"
+    assert "Minta Kft." in action["title"]
+    assert "nem kapcsolatfelvételi engedély" in action["notes"]
+
+
+def test_recommended_task_action_rejects_unverified_and_already_linked_leads():
+    from lead_workflow import build_recommended_task_action
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    lead = {
+        "id": lead_id,
+        "company_name": "Minta Kft.",
+        "source": "gemini_google_search_grounding:example.test",
+        "notes": (
+            "Leadkutatás; tényleges ország: Hungary; iparág: Manufacturing. "
+            "AI üzleti illeszkedési becslés: 88/100; bizonyosság: high; "
+            "megfigyelhető üzleti igény: adminisztráció; "
+            "alátámasztó jelek: termékoldal; esettanulmány"
+        ),
+    }
+    assert build_recommended_task_action(
+        {**lead, "source": "manual"}, []
+    ) is None
+    assert build_recommended_task_action(
+        lead, [{"lead_id": lead_id, "status": "open"}]
+    ) is None
