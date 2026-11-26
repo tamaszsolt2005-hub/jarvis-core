@@ -73,3 +73,13 @@ def test_malformed_followup_count_does_not_suppress_company():
         "status": "follow_up_sent", "follow_up_count": "unknown",
     })
     assert decision["eligible"] is True
+
+
+
+@pytest.mark.parametrize("status", ["contacted", "no_response", "follow_up_due", "followup_due"])
+def test_two_unanswered_followups_pause_refresh_for_contacted_statuses(status):
+    decision = company_research_refresh_decision({
+        "status": status, "follow_up_count": 2,
+    })
+    assert decision["eligible"] is False
+    assert decision["reason"] == "unanswered_follow_up_limit_reached"
