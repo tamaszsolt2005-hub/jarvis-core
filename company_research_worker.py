@@ -1,12 +1,14 @@
 """Single-job worker orchestration for prepared company research jobs.
 
 Execution is dependency-injected. This module has no Gemini/API integration,
-scheduler, database client construction, logging of exception text, or outbound
-communication. A caller supplies the handler and repository.
+scheduler, database client construction, or outbound communication.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from inspect import Parameter, signature
+import json
+import re
 from typing import Any, Callable
 
 from company_research_job_repository import CompanyResearchJobRepository
@@ -24,13 +26,9 @@ def run_one_company_research_job(
     retry_delay_seconds: int = 60,
     max_attempts: int = 3,
     max_retry_delay_seconds: int = 3600,
+    max_result_bytes: int = 262144,
 ) -> dict[str, Any]:
-    """Claim and process at most one prepared job.
-
-    Handler exceptions are reduced to a safe error code and generic message;
-    exception text is deliberately not copied into durable job records because
-    it may contain credentials, personal data, or provider response fragments.
-    """
+    """Claim and process at most one prepared job."""
     if not callable(handler):
         raise ValueError("handler must be callable")
     if not isinstance(worker_id, str) or not worker_id.strip():
@@ -39,21 +37,26 @@ def run_one_company_research_job(
         raise ValueError("retry_delay_seconds must be a positive integer")
     if isinstance(max_retry_delay_seconds, bool) or not isinstance(max_retry_delay_seconds, int) or max_retry_delay_seconds < retry_delay_seconds:
         raise ValueError("max_retry_delay_seconds must be an integer at least retry_delay_seconds")
+    if isinstance(max_result_bytes, bool) or not isinstance(max_result_bytes, int) or max_result_bytes < 1:
+        raise ValueError("max_result_bytes must be a positive integer")
 
-    job = repository.claim(worker_id=worker_id.strip(), lease_seconds=lease_seconds)
+    worker_id = worker_id.strip()
+    job = repository.claim(worker_id=worker_id, lease_seconds=lease_seconds)
     if job is None:
         return {"status": "idle"}
+    if not isinstance(job, dict):
+        return {"status": "invalid_job", "error_code": "invalid_claim_response"}
 
     operation_id = job.get("operation_id")
-    payload = job.get("payload")
     if not isinstance(operation_id, str) or not operation_id.strip():
         return {"status": "invalid_job", "error_code": "missing_operation_id"}
+    payload = job.get("payload")
     if not isinstance(payload, dict):
         failed = repository.fail(
             operation_id=operation_id,
-            worker_id=worker_id.strip(),
+            worker_id=worker_id,
             error_code="invalid_job_payload",
-            error_message="Stored job is missing its operation identifier or object payload.",
+            error_message="Stored job payload is not an object.",
             retryable=False,
             retry_delay_seconds=retry_delay_seconds,
             max_attempts=max_attempts,
@@ -64,7 +67,7 @@ def run_one_company_research_job(
         """Renew this job's lease at an explicit handler checkpoint."""
         renewed = repository.heartbeat(
             operation_id=operation_id,
-            worker_id=worker_id.strip(),
+            worker_id=worker_id,
             lease_seconds=lease_seconds,
         )
         return renewed is not None
@@ -80,27 +83,39 @@ def run_one_company_research_job(
             ]) >= 2
         except (TypeError, ValueError):
             accepts_heartbeat = False
-        result = handler(payload, heartbeat) if accepts_heartbeat else handler(payload)
+
+        handler_payload = deepcopy(payload)
+        result = handler(handler_payload, heartbeat) if accepts_heartbeat else handler(handler_payload)
         if not isinstance(result, dict):
             raise TypeError("handler_result_must_be_object")
+        try:
+            serialized_result = json.dumps(
+                result, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("handler_result_must_be_json_serializable") from exc
+        if len(serialized_result.encode("utf-8")) > max_result_bytes:
+            raise ValueError("handler_result_exceeds_size_limit")
+        result = json.loads(serialized_result)
     except Exception as exc:
         error_code = getattr(exc, "code", None)
-        if not isinstance(error_code, str) or not error_code.strip():
-            error_code = type(exc).__name__.casefold()[:80] or "handler_error"
+        if not isinstance(error_code, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", error_code):
+            error_code = re.sub(r"[^a-z0-9_.-]", "_", type(exc).__name__.casefold())[:80]
+            error_code = error_code or "handler_error"
         retryable = getattr(exc, "retryable", not isinstance(exc, (TypeError, ValueError)))
         if not isinstance(retryable, bool):
             retryable = False
-        try:
-            attempt_count = int(job.get("attempt_count", 1))
-        except (TypeError, ValueError, OverflowError):
+        attempt_count = job.get("attempt_count", 1)
+        if isinstance(attempt_count, bool) or not isinstance(attempt_count, int) or attempt_count < 1:
             attempt_count = 1
         delay = retry_backoff_seconds(
-            max(1, attempt_count), base_delay_seconds=retry_delay_seconds,
+            attempt_count,
+            base_delay_seconds=retry_delay_seconds,
             max_delay_seconds=max_retry_delay_seconds,
         )
         failed = repository.fail(
             operation_id=operation_id,
-            worker_id=worker_id.strip(),
+            worker_id=worker_id,
             error_code=error_code,
             error_message="Research job handler failed; sensitive exception details were not persisted.",
             retryable=retryable,
@@ -116,9 +131,15 @@ def run_one_company_research_job(
 
     completed = repository.complete(
         operation_id=operation_id,
-        worker_id=worker_id.strip(),
+        worker_id=worker_id,
         result=result,
     )
     if completed is None:
         return {"status": "lease_lost", "operation_id": operation_id}
-    return {"status": "succeeded", "operation_id": operation_id, "result": completed.get("result", result)}
+    if not isinstance(completed, dict):
+        return {"status": "invalid_repository_response", "operation_id": operation_id}
+    return {
+        "status": "succeeded",
+        "operation_id": operation_id,
+        "result": completed.get("result", result),
+    }
