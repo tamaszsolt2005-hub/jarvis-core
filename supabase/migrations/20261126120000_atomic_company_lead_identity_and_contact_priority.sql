@@ -326,6 +326,10 @@ BEGIN
       OR l.last_message_id IS NOT NULL
       OR l.last_inbound_message_id IS NOT NULL
       OR l.reply_category IS NOT NULL
+      OR l.status IN (
+        'sending', 'followup_sending', 'sent', 'followed_up',
+        'send_unknown', 'followup_unknown', 'send_blocked', 'followup_blocked'
+      )
       OR l.opted_out
     ) INTO v_has_outreach
     FROM public.leads l WHERE l.id = v_lead_id FOR UPDATE;
