@@ -188,8 +188,8 @@ CREATE OR REPLACE FUNCTION public.upsert_company_lead(
 RETURNS TABLE(lead_id uuid, outcome text, selected_email text)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $
+SET search_path = pg_catalog
+AS $$
 DECLARE
   v_name text;
   v_domain text;
