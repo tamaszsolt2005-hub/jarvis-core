@@ -203,7 +203,9 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 
 **Már implementált a PR #27 branchben:** grounding-alapú strukturált cégkutatás; forrásdomain-ellenőrzött tények; nyilvános szakmai döntéshozói kontextus; snapshot UUID/időbélyeg/schema version/SHA-256; append-only `company_research_snapshots` store és repository migráció; fail-closed freshness policy; refresh eligibility policy az elutasított, opt-out és legalább két válasz nélküli follow-up állapot kizárására. A meg nem keresett lead kutatható marad, de ez nem jelent kapcsolatfelvételi engedélyt.
 
-**Még hátravan:** a refresh policy CRM/outreach eseményekkel való megbízható integrációja; stale candidate planner; idempotens claim/lease worker, heartbeat, retry limit és dead-letter; költség- és domain rate limit; kutatási UI és emberi ellenőrzés. A snapshot migráció kizárólag repository/CI szinten van; productionben nem futott le.
+**Már elkészült a PR #27-ben:** a stale candidate planner tiszta, read-only függvényként, amely a policy és a snapshot-frissesség alapján szűr, a meg nem keresett cégeket előre sorolja, deduplikál és limitál.
+
+**Még hátravan:** a planner DB-lekérdezéshez kötése; a refresh policy CRM/outreach eseményekkel való megbízható integrációja; idempotens claim/lease worker, heartbeat, retry limit és dead-letter; költség- és domain rate limit; kutatási UI és emberi ellenőrzés. A snapshot migráció kizárólag repository/CI szinten van; productionben nem futott le.
 
 **Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden megőrzött tény grounding-forráshoz köthető; hiányzó adat nem kitalált; rate/cost limit és audit működik; a kutatás nem kapcsolhat outreach-t.
 
