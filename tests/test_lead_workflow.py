@@ -204,12 +204,23 @@ def test_workflow_advances_after_each_completed_stage_and_stops_at_outcome():
         [lead],
         [{
             "lead_id": "lead-1", "status": "done",
-            "notes": "[JARVIS_STAGE:outcome_measurement]",
+            "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: pozitív: igazolt üzleti igény",
             "created_at": "2026-11-25T10:00:00Z",
             "completed_at": "2026-11-25T11:00:00Z",
         }],
     )
-    assert final == []
+    assert final[0]["workflow_stage"] == "outcome_positive_review"
+
+    unclassified = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-1", "status": "done",
+            "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: további vizsgálat szükséges",
+            "created_at": "2026-11-25T10:00:00Z",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )
+    assert unclassified[0]["workflow_stage"] == "outcome_classification_review"
 
 
 def test_cancelled_workflow_stage_is_recommended_again():
