@@ -1,14 +1,17 @@
 # JARVIS – fejlesztési backlog
 
+> **Aktuális munkamód – 2026-11-26:** a JARVIS még nincs telepítve; helyi Streamlit fejlesztés zajlik. A production release feladatok nem blokkolják a helyi funkciófejlesztést. A PR #26-ban az atomikus task approval/operation, audit fail-closed és a cégazonosítás tranzakciós RPC-je CI-vel tesztelt; a két-session cégclaim teszt sikeres. Az aktuális összefoglaló: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
+
+
 **Alapág:** `main`  
 **Szabály:** ez a részletes technikai backlog az [elsődleges fejlesztési útitervet](JARVIS_DEVELOPMENT_ROADMAP.md) szolgálja ki. A munkát mindig a roadmap sorrendje vezérli; a backlog nem jogosít fel későbbi területek előrehozására.
 
 ## 1. Megbízhatóság és biztonság
 
 1. **Backup workflow javítása és igazolása – KÉSZ.** A CLI importútvonal, S3 shell quoting és Python indentation hibák javítva PR #18–#20-ban. A `main` CI `45655131500` sikeres. A production backup workflow `45655512387` minden lépése sikeres: titkosított dump, S3/SSE-KMS feltöltés és ellenőrzés, letöltés/visszafejtés/hash, külön PostgreSQL 17 restore és táblainventár/rekordszám ellenőrzés. Ez a backup gate teljesült.
-2. **Task approval race.** Az egyszer használatos jóváhagyás jelenlegi UI-session kezelése nem garantál atomikus, több processz közötti one-use fogyasztást. Vezess be DB-szintű atomikus consume műveletet, lejáratot, principal- és payload-kötést, konkurens teszteket.
+2. **Task approval race – KÉSZ a PR #26 branchben.** DB-szintű, lejáró, principal- és payload-kötött approval token, atomikus consume és konkurenciatesztek elkészültek; a PR CI-ben sikeresek.
 3. **Teljes műveleti idempotencia.** A task approval/execute RPC operation ID-val és concurrency-védelemmel implementált és tesztelt. A task update/close teljes műveleti lefedettségét és a külső szolgáltatók idempotenciáját még külön igazolni kell.
-4. **Audit fail-closed lefedettség.** Készíts érzékeny műveleti útvonal-leltárt, majd bizonyítsd teszttel, hogy auditírási hiba esetén minden kritikus művelet leáll.
+4. **Audit fail-closed – a task műveleti útvonalon KÉSZ és CI-vel tesztelt.** A teljes érzékeny műveleti útvonal-leltár és az esetlegesen még nem fedett műveletek külön minőségi bővítési feladatként maradnak.
 5. **Külső e-mail integritás.** SMTP unknown kimenetel után nincs bizonyított szolgáltatói idempotencia; az automatikus retry duplikált küldést okozhat. Kimenő küldés maradjon tiltott, amíg a deduplikáció és a végponttól végpontig tesztek nincsenek készen.
 
 ## 2. Supabase és jogosultságkezelés
