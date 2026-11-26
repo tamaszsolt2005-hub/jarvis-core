@@ -83,7 +83,7 @@ def enqueue_company_research_refreshes_with_admission(
     )
     usage = {
         "jobs_last_hour": usage_snapshot.get("jobs_last_hour", 0),
-        "jobs_by_domain_today": dict(domain_usage),
+        "jobs_by_domain_today": {str(key).strip().casefold(): value for key, value in domain_usage.items()},
         "running_jobs": usage_snapshot.get("running_jobs", 0),
         "spent_today_microusd": usage_snapshot.get("spent_today_microusd", 0),
     }
