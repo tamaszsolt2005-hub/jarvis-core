@@ -146,3 +146,38 @@ def test_recommended_task_action_rejects_unverified_and_already_linked_leads():
     assert build_recommended_task_action(
         lead, [{"lead_id": lead_id, "status": "open"}]
     ) is None
+
+
+def test_completed_or_cancelled_linked_task_does_not_block_next_recommendation():
+    lead = _lead("lead-1", "Minta Kft.")
+    plans = build_lead_workflow_recommendations(
+        [lead],
+        [
+            {"lead_id": "lead-1", "status": "done", "title": "Korábbi ellenőrzés"},
+            {"lead_id": "lead-1", "status": "cancelled", "title": "Visszavont feladat"},
+        ],
+    )
+    assert len(plans) == 1
+    assert plans[0]["lead_id"] == "lead-1"
+
+
+def test_recommended_task_action_allows_next_step_after_completed_task():
+    from lead_workflow import build_recommended_task_action
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    lead = {
+        "id": lead_id,
+        "company_name": "Minta Kft.",
+        "source": "gemini_google_search_grounding:example.test",
+        "notes": (
+            "Leadkutatás; tényleges ország: Hungary; iparág: Manufacturing. "
+            "AI üzleti illeszkedési becslés: 88/100; bizonyosság: high; "
+            "megfigyelhető üzleti igény: adminisztráció; "
+            "alátámasztó jelek: termékoldal; esettanulmány"
+        ),
+    }
+    action = build_recommended_task_action(
+        lead, [{"lead_id": lead_id, "status": "done", "title": "Elvégzett ellenőrzés"}]
+    )
+    assert action is not None
+    assert action["lead_id"] == lead_id
