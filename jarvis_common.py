@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from jarvis_errors import report_error, sanitize_log_text, register_secret_value
+from jarvis_errors import report_error, sanitize_log_text, register_secret_value, classify_error
 
 from google import genai
 from google.genai import types
@@ -256,21 +256,13 @@ def generate_text(
                 return answer, None
             except Exception as exc:
                 last_error = exc
+                classification = classify_error(exc)
                 code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
                 status = str(getattr(exc, "status", "") or "").upper()
                 message = str(exc).upper()
-                is_overloaded = (
-                    code in (429, 503)
-                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-                    or any(marker in message for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
-                )
-                transient = (
-                    code in (408, 429, 500, 502, 503, 504)
-                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
-                    or any(marker in message for marker in (
-                        "408", "429", "500", "502", "503", "504", "UNAVAILABLE",
-                        "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED",
-                    ))
+                is_overloaded = classification["category"] in {"rate_limited", "service_unavailable"}
+                transient = classification["retryable"] or code == 500 or status == "INTERNAL" or any(
+                    marker in message for marker in ("500", "INTERNAL")
                 )
                 if not transient or attempt >= attempts - 1:
                     if is_overloaded:
@@ -285,11 +277,7 @@ def generate_text(
     answer, error = request_model(primary_model, max_attempts)
     if answer:
         return answer
-    if error is not None and not (
-        (getattr(error, "code", None) or getattr(error, "status_code", None)) in (429, 503)
-        or str(getattr(error, "status", "")).upper() in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-        or any(marker in str(error).upper() for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
-    ):
+    if error is not None and classify_error(error)["category"] not in {"rate_limited", "service_unavailable"}:
         raise error
 
     tried = {primary_model}
@@ -304,11 +292,7 @@ def generate_text(
             return answer
         error = fallback_error or error
         if error is not None:
-            code = getattr(error, "code", None) or getattr(error, "status_code", None)
-            status = str(getattr(error, "status", "") or "").upper()
-            message = str(error).upper()
-            if not (code in (429, 503) or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-                    or any(marker in message for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))):
+            if classify_error(error)["category"] not in {"rate_limited", "service_unavailable"}:
                 raise error
 
     if error is not None:
