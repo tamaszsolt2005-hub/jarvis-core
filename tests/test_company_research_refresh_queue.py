@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from company_research_refresh_queue import enqueue_company_research_refreshes
+from company_research_refresh_queue import (
+    enqueue_company_research_refreshes,
+    enqueue_company_research_refreshes_with_admission,
+)
 
 
 class FakeRepository:
@@ -67,4 +70,57 @@ def test_queue_bridge_does_not_enqueue_fresh_or_invalid_domain_leads():
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result == []
+    assert repository.by_operation_id == {}
+
+
+
+def test_admission_aware_queue_limits_batch_and_tracks_cost_estimates():
+    leads = [
+        {"id": str(uuid4()), "company_name": "Alpha", "website": "https://alpha.example"},
+        {"id": str(uuid4()), "company_name": "Beta", "website": "https://beta.example"},
+    ]
+    repository = FakeRepository()
+    result = enqueue_company_research_refreshes_with_admission(
+        repository, leads, {},
+        limits={
+            "max_jobs_per_hour": 1,
+            "max_jobs_per_domain_per_day": 2,
+            "max_concurrent_jobs": 2,
+            "max_daily_cost_microusd": 1_000_000,
+        },
+        usage_snapshot={
+            "jobs_last_hour": 0, "jobs_by_domain_today": {},
+            "running_jobs": 0, "spent_today_microusd": 0,
+        },
+        estimated_cost_microusd_per_job=600_000,
+        now=datetime(2026, 11, 26, tzinfo=timezone.utc),
+    )
+    assert len(result["jobs"]) == 1
+    assert len(result["rejected"]) == 1
+    assert result["rejected"][0]["reason"] == "global_hourly_limit"
+    assert result["jobs"][0]["payload"]["estimated_cost_microusd"] == 600_000
+
+
+def test_admission_aware_queue_rejects_job_over_remaining_daily_budget():
+    lead_id = str(uuid4())
+    repository = FakeRepository()
+    result = enqueue_company_research_refreshes_with_admission(
+        repository,
+        [{"id": lead_id, "company_name": "Costly", "website": "https://costly.example"}],
+        {},
+        limits={
+            "max_jobs_per_hour": 10,
+            "max_jobs_per_domain_per_day": 2,
+            "max_concurrent_jobs": 2,
+            "max_daily_cost_microusd": 1_000_000,
+        },
+        usage_snapshot={
+            "jobs_last_hour": 0, "jobs_by_domain_today": {},
+            "running_jobs": 0, "spent_today_microusd": 900_000,
+        },
+        estimated_cost_microusd_per_job=100_001,
+        now=datetime(2026, 11, 26, tzinfo=timezone.utc),
+    )
+    assert result["jobs"] == []
+    assert result["rejected"] == [{"lead_id": lead_id, "reason": "daily_cost_limit"}]
     assert repository.by_operation_id == {}
