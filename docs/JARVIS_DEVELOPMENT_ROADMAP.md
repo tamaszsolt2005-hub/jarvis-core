@@ -106,3 +106,8 @@ A PR #28 ágban elkészült a `company_research_worker.py` injektált repository
 - Opcionális callback hosszú handler műveletek közbeni lease-megújításhoz.
 - Kizárólag explicit handler checkpointból fut, automatikus timer/worker thread nélkül.
 - Lease-vesztés és stale worker tesztek.
+
+
+### Phase 1E/1F megvalósítási napló
+
+Elkészült a `company_research_admission.py` és az admission-aware planner queue útvonal, valamint az exponenciális, capped retry backoff a workerben. A worker kétparaméteres handler esetén explicit heartbeat callbacket ad át. A policy és a worker viselkedéséhez fake-alapú tesztek kerültek a repositoryba. A több worker közötti globális kvótafoglalás még nincs megoldva; hard budget enforcementhez adatbázis-oldali atomikus reservation kell.
