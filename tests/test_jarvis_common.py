@@ -85,6 +85,65 @@ def test_generate_text_does_not_retry_auth_errors(monkeypatch):
     assert sleeps == []
 
 
+def test_generate_text_retries_gemini_deadline_exceeded(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 2)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    deadline_error = type(
+        "APIError", (Exception,), {"code": 504, "status": "DEADLINE_EXCEEDED"}
+    )("deadline exceeded")
+    client = FakeClient([deadline_error, "recovered"])
+
+    assert jarvis_common.generate_text("hello", client) == "recovered"
+    assert client.models.calls == 2
+    assert sleeps == [1]
+
+
+def test_generate_text_retries_gemini_internal_server_error(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 2)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    internal_error = type(
+        "APIError", (Exception,), {"code": 500, "status": "INTERNAL"}
+    )("internal server error")
+    client = FakeClient([internal_error, "recovered"])
+
+    assert jarvis_common.generate_text("hello", client) == "recovered"
+    assert client.models.calls == 2
+    assert sleeps == [1]
+
+
+def test_generate_text_does_not_retry_invalid_gemini_api_key(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 4)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    invalid_key = type(
+        "APIError", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"}
+    )("API_KEY_INVALID: API key not valid")
+    client = FakeClient([invalid_key])
+
+    with pytest.raises(type(invalid_key)):
+        jarvis_common.generate_text("hello", client)
+    assert client.models.calls == 1
+    assert sleeps == []
+
+
+def test_generate_text_does_not_retry_invalid_configuration(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 4)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    client = FakeClient([ValueError("Invalid URL scheme")])
+
+    with pytest.raises(ValueError):
+        jarvis_common.generate_text("hello", client)
+    assert client.models.calls == 1
+    assert sleeps == []
+
+
 def test_generate_text_rejects_empty_response(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
     client = FakeClient(["   "])
