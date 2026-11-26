@@ -1630,7 +1630,7 @@ if prompt:
                     requested_lead = requested_leads[0]
                     linked_tasks = (
                         db.table("tasks")
-                        .select("id,lead_id,status")
+                        .select("id,lead_id,status,title,notes,created_at,completed_at")
                         .eq("lead_id", recommended_task_request["lead_id"])
                         .limit(50).execute().data or []
                     )
