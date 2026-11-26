@@ -64,12 +64,13 @@ def required_http_url(name: str) -> str:
     value = required_secret(name)
     try:
         parsed = urlsplit(value)
+        # Accessing .port also validates the numeric range and syntax.
+        _ = parsed.port
         valid = (
             parsed.scheme in {"http", "https"}
             and bool(parsed.hostname)
             and parsed.username is None
             and parsed.password is None
-            and parsed.port is None or parsed.port is not None
         )
     except ValueError:
         valid = False
