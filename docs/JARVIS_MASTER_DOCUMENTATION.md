@@ -57,7 +57,7 @@ A PR #27 a PR #26-ra épülő stacked pull request. A #26-nak kell előbb integr
 - A migráció repository/CI szintű artefaktum; productionben nem futott le.
 
 ### 3.4 Kutatási frissítési jogosultság
-A `company_research_policy.py` read-only döntést ad arról, hogy egy lead alkalmas-e automatikus kutatási frissítésre.
+A `company_research_policy.py` read-only döntést ad arról, hogy egy lead alkalmas-e automatikus kutatási frissítésre. A `company_research_refresh_planner.py` ezt a szabályt a snapshot frissességével kombinálja, és rendezett, limitált jelöltlistát állít elő.
 
 | Lead helyzete | Kutatási frissítés |
 |---|---|
