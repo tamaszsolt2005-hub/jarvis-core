@@ -82,7 +82,7 @@ A CI PostgreSQL 17 izolált környezetben migrációs replayt, pgTAP teszteket, 
 
 ## 7. Következő fejlesztési irány
 
-A következő legfontosabb lépés nem újabb funkció, hanem megbízható működés: task approval race és idempotencia, külső szolgáltatások hibatűrése, e-mail-küldés biztonsága, migration drift rendezése, Auth/RLS izolált élő validációja, majd production release csak külön engedélyezett terv alapján.
+A jelenlegi szakaszban a helyi funkciófejlesztés folytatható. A task approval/idempotencia és a cégazonosítás tranzakciós alapjai a PR #26 branchben CI-vel igazoltak. Továbbra is nyitott a külső e-mail provider live E2E (a küldés hard-disabled marad), a teljes üzleti workflow E2E és mérés, valamint a forrásolt/jogosultságkezelt memória lifecycle. A migration drift, Auth/RLS smoke és app-host kiválasztás későbbi production release feladat, nem a helyi funkciófejlesztés előfeltétele.
 
 A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) tartalmazzák.
 
@@ -117,7 +117,7 @@ A korábbi, PR #20/21/23 és régebbi PR #26 CI-headre hivatkozó bekezdések t�
 - CodeQL: sikeres.
 - pip-audit: sikeres.
 
-A global lead research jelenlegi duplikációja alkalmazásszintű: teljes meglévő leadállomány beolvasása rendezett 1000-es offset-oldalakkal, majd név/domain összevetés és az adott futáson belüli halmazfrissítés. Ez nem garantál konkurens worker-ek közötti egyediséget, és az offset oldalak sem egyetlen konzisztens snapshotot garantálnak. Cégnév- vagy domain-indexet üzleti normalizációs szabály és teljes íróútvonal-leltár nélkül nem szabad hozzáadni. A race kockázat nyitott; részletes döntés a [fejlesztési útitervben](JARVIS_DEVELOPMENT_ROADMAP.md) található.
+A korábban alkalmazásszintű global lead research deduplikációt a PR #26 közös, tranzakciós `upsert_company_lead` RPC-je váltotta fel. Mindkét lead writer ugyanazt a protokollt használja; a PostgreSQL két-session concurrency teszt sikeres. A cégclaim race fejlesztési kockázat lezárt a branchben; production migráció még nem történt.
 
 A CSV import normalizált email unique indexe ettől külön védelmi réteg. Az email-egyediség migráció izolált PostgreSQL CI-ben tesztelt, de production alkalmazása nem történt.
 
