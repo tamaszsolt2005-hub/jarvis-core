@@ -24,9 +24,9 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 
 ### Ellenőrzési státusz
 
-- A GitHub Actions `JARVIS CI` futása a vizsgált commiton elindult: run `45872355721`.
-- A legutóbbi lekérdezéskor a `test` és a `backup-restore-integration` job is `in_progress` állapotú volt; a böngészőtelepítés, illetve az izolált PostgreSQL/pgTAP lépések még futottak.
-- A teljes teszt sikeressége ezért még nem igazolt. A futás lezárása után az aktuális head SHA-hoz tartozó eredményt kell újra lekérdezni.
+- A core lead → scoring → task approval → PostgreSQL → audit javításokat tartalmazó `36d615f6770ce097ba7a69954a7748ad237b8fd0` commiton a push- és PR-triggerelt teljes JARVIS CI sikeres volt: run `45873698960` és `45873705730`.
+- A két futás Python/AppTest/Playwright tesztjei, PostgreSQL 17 integrációs/pgTAP ellenőrzései, backup–restore lépései és a build ellenőrzések sikeresek.
+- A dashboard navigációs audit után újabb módosítások kerültek a branchre (Settings oldal, AppTestek, üres tasklista melletti utánkövetési sor javítása); ezek a későbbi commitok még nem szerepelnek a fenti zöld futásokban. A teljes zöld minősítéshez az új aktuális HEAD-en ismételt teljes CI szükséges.
 
 ## 3. Főrendszer-funkciók állapotképe
 
@@ -49,7 +49,7 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 
 ### P0 – kötelező lezárás
 
-1. **Aktuális CI zöldre futtatása.** A Python/unit/AppTest/browser tesztek, PostgreSQL 17 migration/pgTAP és concurrency tesztek, backup–restore, CodeQL és dependency audit eredményét az aktuális PR headhez kell kötni. Sikertelen jobokat javítani, majd teljes releváns futást ismételni.
+1. **Aktuális CI zöldre futtatása.** A korábbi core workflow commit teljes CI-je zöld, de a dashboard audit utáni aktuális HEAD-et még újra kell ellenőrizni. A Python/unit/AppTest/browser tesztek, PostgreSQL 17 migration/pgTAP és concurrency tesztek, backup–restore, CodeQL és dependency audit eredményét az aktuális PR headhez kell kötni.
 2. **Teljes helyi smoke teszt.** Friss, dokumentált fejlesztői környezetben telepítés, konfigurációellenőrzés, Streamlit indulás, chat, leadkutatás, lead lista, task approval, task center, memória, briefing, analitika, audit és kutatási előzmény végigpróbálása.
 3. **Végponttól végpontig tartó core workflow teszt.** Lead létrehozás/azonosítás → scoring → task javaslat → approval → atomikus DB művelet → audit → outcome feldolgozás. Ellenőrizni kell a duplikált kérés, timeout, visszajátszás, párhuzamos kérés és audit-hiba viselkedését.
 4. **Dashboard navigációs leltár – részben lezárva.** A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások mind valódi Streamlit navigációs gomb és dedikált útvonal. A Beállítások read-only konfigurációs áttekintést és kézi diagnosztikát ad. A cégkutatási előzmény Auth/RLS módban szándékosan fail-closed, az Audit külön admin Auth-belépést kér. A valós Auth/RLS és manuális smoke továbbra is szükséges.
