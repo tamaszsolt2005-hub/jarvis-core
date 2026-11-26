@@ -42,8 +42,21 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 | Memória | Explicit mentési/listázási/inaktiválási funkció | Kategória-, jogosultság-, adatmegőrzési és valós DB smoke |
 | Napi briefing és analitika | Implementált komponensek | Helyi, adatbázissal végzett smoke és helyességellenőrzés |
 | Audit | Külön Supabase Auth-admin belépéssel védett megjelenítés/export és SQL hash-chain alapok | Valós admin belépés, szerepkör, láncintegritás és export smoke; a közös dashboard-jelszó nem elegendő |
-| Beállítások és konfiguráció | Működő, read-only Settings oldal: konfiguráció jelenlétét jelzi titokérték nélkül; kézi diagnosztika külön indítható | Tartós felhasználói preferenciák és biztonságos, mentett beállításkezelés még nincs; titkok/Auth/RLS/e-mail-zár nem szerkeszthető a UI-ból |
+| Beállítások és konfiguráció | Működő, read-only Settings oldal: konfiguráció jelenlétét jelzi titokérték nélkül; settings.read jogosultság; diagnosztika kézi indítású és Auth módban admin-only | Tartós felhasználói preferenciák és biztonságos, mentett beállításkezelés még nincs; titkok/Auth/RLS/e-mail-zár nem szerkeszthető a UI-ból |
 | E-mail | Outbound hard-disabled | Ez szándékos biztonsági korlát; küldés nem része a főrendszer készre jelentésének |
+
+
+
+### 3.1 Dashboard navigációs és jogosultsági mátrix
+
+| Oldal | Funkció | Hozzáférés és korlát |
+|---|---|---|
+| Chat | Magyar nyelvű beszélgetés és jóváhagyásos művelet-előkészítés | A bejelentkezett munkamenet adatbázis-kliense; a módosítások külön jóváhagyási és backend jogosultsági kapun mennek át |
+| Feladatok | Read-only feladatközpont, szűrés/rendezés, utánkövetési sor | Auth módban tasks.read; a módosítás továbbra is a chat jóváhagyási útján történik |
+| Analitika | Naplóalapú mutatók és grafikonok | Auth módban analytics.read; adatforráshiba nem jelenik meg üres adatként |
+| Cégkutatás | Read-only, forrásolt snapshot előzmények | Legacy dashboard módban olvasható; Auth módban fail-closed, amíg a snapshot RLS olvasási jogosultság nincs kivezetve |
+| Audit napló | Auditlapozás, hash-lánc ellenőrzés és auditált CSV export | Külön, ellenőrzött Supabase Auth admin belépés szükséges; a közös dashboard-jelszó nem elegendő |
+| Beállítások | Runtime konfigurációs státuszok és kézi rendszerdiagnosztika | Auth módban settings.read; teljes diagnosztika admin-only; titokértékek nem jelennek meg, beállítások nem módosíthatók |
 
 ## 4. Mi hiányzik a főrendszer készre jelentéséhez?
 
@@ -87,7 +100,7 @@ Production Supabase módosítás, migration futtatás, GRANT/REVOKE, Auth/RBAC, 
 5. Végezzen a fejlesztői környezetben egy dokumentált teljes manuális smoke tesztet.
 6. Ezek után adjunk külön minősítést: „helyi főrendszer kész”, „belső használatra kész”, illetve „production release-re kész”.
 
-**Dashboard-audit megállapítás (2026-11-26):** a korábban dekoratív, nem kattintható Beállítások menüpont valódi oldalt kapott. A Settings csak konfigurációs jelenlétet mutat, titokértéket nem; a Gemini diagnosztikai próbakérés kizárólag kézi gombnyomásra fut. A Feladatközpont korábban korai `return` miatt üres tasklista esetén elrejtette a jogosultsági feltételeknek megfelelő utánkövetési sort; ezt javítottuk és regressziós AppTestet adtunk hozzá. A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”.
+**Dashboard-audit megállapítás (2026-11-26):** a korábban dekoratív, nem kattintható Beállítások menüpont valódi oldalt kapott. A Settings csak konfigurációs jelenlétet mutat, titokértéket nem; Auth módban settings.read jogosultság szükséges, a Gemini diagnosztikai próbakérés pedig kizárólag kézi gombnyomásra és admin szerepkörrel fut. A Feladatközpont korábban korai `return` miatt üres tasklista esetén elrejtette a jogosultsági feltételeknek megfelelő utánkövetési sort; ezt javítottuk és regressziós AppTestet adtunk hozzá. A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”.
 
 **Jelenlegi minősítés:** a JARVIS főrendszerének több alapfunkciója implementált, de a valós Auth/RLS hozzáférés, manuális teljes smoke és az aktuális commit teljes CI bizonyítéka továbbra is szükséges. A teljes autonóm SaaS-ügynök ettől függetlenül további, nagyobb fejlesztési fázisokat igényel.
 
