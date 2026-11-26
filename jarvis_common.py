@@ -8,6 +8,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 from jarvis_errors import report_error, sanitize_log_text, register_secret_value, classify_error
 
@@ -50,12 +51,33 @@ def get_secret(name: str, default: str | None = None) -> str | None:
 
 def required_secret(name: str) -> str:
     value = get_secret(name)
-    if not value:
+    if value is None or not str(value).strip():
         raise RuntimeError(
-            f"Hiányzó beállítás: {name}. Add hozzá Codespaces secretként (környezeti változóként) "
-            "vagy a .streamlit/secrets.toml fájlban."
+            f"Hiányzó beállítás: {name}. Add hozzá a helyi környezeti változókhoz "
+            "vagy a .streamlit/secrets.toml fájlhoz."
         )
-    return value
+    return str(value).strip()
+
+
+def required_http_url(name: str) -> str:
+    """Read and validate a required public HTTP(S) service endpoint."""
+    value = required_secret(name)
+    try:
+        parsed = urlsplit(value)
+        valid = (
+            parsed.scheme in {"http", "https"}
+            and bool(parsed.hostname)
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.port is None or parsed.port is not None
+        )
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError(
+            f"Hibás konfiguráció: {name} csak érvényes http:// vagy https:// projekt URL lehet."
+        )
+    return value.rstrip("/")
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -76,7 +98,7 @@ def env_int(name: str, default: int, minimum: int = 0, maximum: int = 100000) ->
 
 def get_service_supabase() -> Client:
     """Create the privileged server-side client for trusted background/ops code only."""
-    url = required_secret("SUPABASE_URL")
+    url = required_http_url("SUPABASE_URL")
     key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or required_secret("SUPABASE_KEY")
     return create_client(url, key)
 
