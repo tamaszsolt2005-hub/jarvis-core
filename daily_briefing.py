@@ -26,6 +26,56 @@ def _local_date(value: Any) -> date | None:
         return None
 
 
+def build_follow_up_queue(
+    leads: list[dict[str, Any]],
+    *,
+    today: date | None = None,
+    days_ahead: int = 7,
+) -> list[dict[str, Any]]:
+    """Return a read-only follow-up review queue for explicitly eligible leads.
+
+    This never sends messages or changes lead state. Missing/invalid consent,
+    opt-out, replies, malformed email addresses and already-used follow-ups fail closed.
+    """
+    reference_day = today or datetime.now(LOCAL_TZ).date()
+    horizon = max(0, min(int(days_ahead), 30))
+    latest_due = reference_day.fromordinal(reference_day.toordinal() + horizon)
+    queue: list[dict[str, Any]] = []
+    for lead in leads:
+        due_date = _local_date(lead.get("next_follow_up_at"))
+        try:
+            consent_at = datetime.fromisoformat(
+                str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
+            )
+            follow_up_count = int(lead.get("follow_up_count") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not (
+            lead.get("status") in {"sent", "follow_up_sent"}
+            and lead.get("consent_basis") == "consent"
+            and lead.get("approved_to_contact") is True
+            and lead.get("opted_out") is False
+            and not lead.get("reply_category")
+            and not lead.get("last_inbound_message_id")
+            and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
+            and consent_at.tzinfo is not None
+            and consent_at.utcoffset() is not None
+            and consent_at.astimezone(LOCAL_TZ).date() <= reference_day
+            and 0 <= follow_up_count < 1
+            and due_date is not None
+            and due_date <= latest_due
+        ):
+            continue
+        queue.append({
+            "lead_id": str(lead.get("id") or ""),
+            "company_name": str(lead.get("company_name") or "Ismeretlen cég"),
+            "due": due_date.isoformat(),
+            "overdue": due_date < reference_day,
+        })
+    queue.sort(key=lambda item: (item["due"], item["company_name"].casefold()))
+    return queue
+
+
 def build_daily_briefing(db: Any, today: date | None = None) -> str:
     """Build a concise daily report; this function never writes to Supabase."""
     today = today or datetime.now(LOCAL_TZ).date()
@@ -83,37 +133,11 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         elif due_date == today:
             due_today.append(item)
 
-    overdue_followups = []
-    for lead in leads:
-        due_date = _local_date(lead.get("next_follow_up_at"))
-        try:
-            consent_at = datetime.fromisoformat(
-                str(lead.get("consent_confirmed_at")).replace("Z", "+00:00")
-            )
-            follow_up_count = int(lead.get("follow_up_count") or 0)
-        except (TypeError, ValueError):
-            continue
-        if (
-            lead.get("status") in {"sent", "follow_up_sent"}
-            and lead.get("consent_basis") == "consent"
-            and lead.get("approved_to_contact") is True
-            and lead.get("opted_out") is False
-            and not lead.get("reply_category")
-            and not lead.get("last_inbound_message_id")
-            and _EMAIL_RE.fullmatch(str(lead.get("email") or ""))
-            and consent_at.tzinfo is not None
-            and consent_at.utcoffset() is not None
-            # Use the report's reference date, not wall-clock time, so historical
-            # reports and tests do not treat later consent as already granted.
-            and consent_at.astimezone(LOCAL_TZ).date() <= today
-            and 0 <= follow_up_count < 1
-            and due_date is not None
-            and due_date < today
-        ):
-            overdue_followups.append({
-                "company_name": str(lead.get("company_name") or "Ismeretlen cég"),
-                "due": due_date.isoformat(),
-            })
+    follow_up_queue = build_follow_up_queue(leads, today=today, days_ahead=0)
+    overdue_followups = [
+        {"company_name": item["company_name"], "due": item["due"]}
+        for item in follow_up_queue if item["overdue"]
+    ]
 
 
     priority_tasks = [x for x in open_tasks if str(x.get("priority") or "normal").casefold() in {"urgent", "high"}]
