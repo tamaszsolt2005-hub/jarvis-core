@@ -86,3 +86,16 @@ A PR #26 ágban a korábban csak vizuális oldalsávbeli Feladatok menüpont mű
 - AppTest lefedi az üres állapotot, navigációt, a chat input elrejtését és a lejárt/sürgős feladatok megjelenítését.
 
 **Állapot:** kódban implementálva és célzott AppTest hozzáadva; az új PR-head CI eredménye még ellenőrizendő. Production DB, konfiguráció, Auth/RBAC és deploy nem változott.
+
+
+### Feladatközpont – utánkövetési sor
+
+A Feladatközpont második funkciószelete egy belső, read-only utánkövetési sort jelenít meg a következő 7 nap esedékes és már lejárt elemeiből.
+
+- Csak sent vagy follow_up_sent státuszú, érvényes e-mail-formátumú, kifejezett consent alappal, időbélyeges hozzájárulással és approved_to_contact=true értékkel rendelkező lead kerülhet be.
+- Opt-out, bejövő válasz, reply kategória, hiányzó/hibás hozzájárulás, jövőbeli hozzájárulás és már felhasznált follow-up kizárja a leadet.
+- A nézet csak cégnév, esedékesség, státusz és lead UUID mezőt mutat; e-mail-címet nem jelenít meg.
+- A sor nem küld e-mailt, nem módosít lead státuszt és nem ad új kapcsolatfelvételi engedélyt. Az outbound email workflow továbbra is letiltott.
+- A napi briefing ugyanazt a közös, tesztelt queue-szűrőt használja a lejárt utánkövetések számításához.
+
+**Állapot:** kód és célzott unit tesztek hozzáadva; az új PR-head teljes CI-je még ellenőrizendő.
