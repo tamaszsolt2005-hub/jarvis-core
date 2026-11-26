@@ -1,10 +1,10 @@
 # JARVIS – kutatásvezérelt, személyre szabott SaaS-értékesítési és termékfejlesztési modell
 
 **Státusz:** célarchitektúra és fejlesztési specifikáció; nem jelenleg teljesen megvalósított funkció.  
-**Aktuális implementációs ág:** PR #27 – `feature/company-research-phase-1` (a PR #26-ra épülő stacked PR).  
+**Aktuális implementációs ág:** `main`; PR #26–#28 merge-ölve.  
 **Állapot és pontos implementáció:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
 
-> **Aktuális implementációs megjegyzés (2026-11-26):** a cégdosszié-építés, snapshot tároló és refresh-eligibility policy első kódszelete már a PR #27-ben szerepel. A policy még nincs automatikus workerhez kötve. A teljes SaaS-ötletmotor, termék-tiltó napló, outreach és AI-delivery továbbra is célarchitektúra, nem kész funkció.
+> **Aktuális implementációs megjegyzés (2026-11-26):** a cégdosszié, snapshot tároló, worker lifecycle, queue bridge és injektálható provider adapter a main ágon implementált. Az automatikus scheduleres indítás és az élő provider-validáció még hiányzik. A teljes SaaS-ötletmotor, termék-tiltó napló, outreach és AI-delivery továbbra is célarchitektúra, nem kész funkció.
 
 ## 1. Termékvízió
 
