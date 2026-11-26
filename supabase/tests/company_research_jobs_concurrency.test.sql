@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(10);
+SELECT plan(12);
 
 INSERT INTO public.leads (id, company_name, status)
 VALUES ('74000000-0000-4000-8000-000000000002', 'Worker concurrency fixture', 'research')
@@ -65,8 +65,8 @@ INSERT INTO _research_create_race
 SELECT 'b', created
 FROM extensions.dblink_get_result('research_worker_b', false) AS result(created integer);
 -- Drain each connection's completion marker before reusing it.
-PERFORM extensions.dblink_get_result('research_worker_a', false);
-PERFORM extensions.dblink_get_result('research_worker_b', false);
+SELECT * FROM extensions.dblink_get_result('research_worker_a', false) AS result(created integer);
+SELECT * FROM extensions.dblink_get_result('research_worker_b', false) AS result(created integer);
 
 SELECT is(
   (SELECT count(*) FROM _research_create_race WHERE created = 1),
@@ -83,12 +83,7 @@ SELECT is(
 
 -- Ensure at least two jobs are ready, then race two independent workers with
 -- a global active lease ceiling of one.
-INSERT INTO public.company_research_job_create(
-  p_job, p_estimated_cost_microusd, p_daily_budget_microusd,
-  p_max_jobs_per_hour, p_max_jobs_per_domain_per_day
-)
-VALUES
-(
+SELECT * FROM public.company_research_job_create(
   jsonb_build_object(
     'operation_id', 'research-race-claim-a-0001',
     'job_type', 'company_research_refresh',
@@ -96,8 +91,8 @@ VALUES
     'status', 'queued',
     'payload', jsonb_build_object('company_domain', 'claim-a.example')
   ), 0, NULL, NULL, NULL
-),
-(
+);
+SELECT * FROM public.company_research_job_create(
   jsonb_build_object(
     'operation_id', 'research-race-claim-b-0001',
     'job_type', 'company_research_refresh',
@@ -130,8 +125,8 @@ FROM extensions.dblink_get_result('research_worker_a', false) AS result(claimed 
 INSERT INTO _research_claim_race
 SELECT 'b', claimed
 FROM extensions.dblink_get_result('research_worker_b', false) AS result(claimed integer);
-PERFORM extensions.dblink_get_result('research_worker_a', false);
-PERFORM extensions.dblink_get_result('research_worker_b', false);
+SELECT * FROM extensions.dblink_get_result('research_worker_a', false) AS result(claimed integer);
+SELECT * FROM extensions.dblink_get_result('research_worker_b', false) AS result(claimed integer);
 
 SELECT is(
   (SELECT COALESCE(sum(claimed), 0) FROM _research_claim_race),
