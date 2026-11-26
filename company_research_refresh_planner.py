@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -10,7 +11,7 @@ from company_research_policy import company_research_refresh_decision
 
 _OUTREACH_STATUSES = {
     "contacted", "sent", "follow_up_sent", "followed_up", "followup_sent",
-    "replied", "responded", "meeting_booked", "qualified",
+    "replied", "responded", "meeting_booked", "qualified", "no_response", "follow_up_due", "followup_due",
 }
 
 
@@ -18,12 +19,24 @@ def _domain(lead: dict[str, Any]) -> str:
     explicit = str(lead.get("company_domain") or "").strip().casefold()
     website = str(lead.get("website") or "").strip()
     if explicit:
-        return explicit.removeprefix("www.")
-    try:
-        host = (urlparse(website).hostname or "").casefold()
-    except ValueError:
+        host = explicit.removeprefix("www.")
+    else:
+        try:
+            parsed = urlparse(website)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                return ""
+            host = parsed.hostname.casefold().removeprefix("www.")
+        except ValueError:
+            return ""
+    if (
+        len(host) > 253
+        or not re.fullmatch(r"[a-z0-9.-]+", host)
+        or host.startswith(".")
+        or host.endswith(".")
+        or ".." in host
+    ):
         return ""
-    return host.removeprefix("www.")
+    return host
 
 
 def _dossier_value(value: Any) -> dict[str, Any]:
@@ -35,7 +48,7 @@ def _dossier_value(value: Any) -> dict[str, Any]:
 
 def _is_uncontacted(lead: dict[str, Any]) -> bool:
     status = str(lead.get("status") or "").strip().casefold()
-    if status in _OUTREACH_STATUSES:
+    if status in _OUTREACH_STATUSES or lead.get("reply_category") or lead.get("last_inbound_message_id"):
         return False
     if any(lead.get(field) for field in (
         "first_contacted_at", "last_outbound_at", "last_contacted_at",
@@ -93,10 +106,10 @@ def plan_company_research_refresh_candidates(
         lead_id = str(lead.get("id") or lead.get("lead_id") or "").strip()
         if not lead_id or lead_id in seen_leads:
             continue
-        seen_leads.add(lead_id)
         domain = _domain(lead)
         if not domain:
             continue
+        seen_leads.add(lead_id)
 
         decision = company_research_refresh_decision(lead)
         if not decision["eligible"]:
