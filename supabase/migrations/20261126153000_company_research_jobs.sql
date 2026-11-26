@@ -80,11 +80,21 @@ BEGIN
     RAISE EXCEPTION 'invalid claim arguments';
   END IF;
 
+  -- A worker that vanished on its final permitted attempt must not be
+  -- reclaimed indefinitely. Move those expired leases to the terminal queue.
+  UPDATE public.company_research_jobs
+  SET status = 'dead_letter', lease_owner = NULL, lease_expires_at = NULL,
+      last_error_code = COALESCE(last_error_code, 'lease_expired'),
+      last_error_message = COALESCE(last_error_message, 'Worker lease expired after final attempt.'),
+      updated_at = now()
+  WHERE status = 'running' AND lease_expires_at <= now()
+    AND attempt_count >= max_attempts;
+
   SELECT job_id INTO v_job_id
   FROM public.company_research_jobs
   WHERE (
     (status IN ('queued', 'retry_wait') AND available_at <= now())
-    OR (status = 'running' AND lease_expires_at <= now())
+    OR (status = 'running' AND lease_expires_at <= now() AND attempt_count < max_attempts)
   )
   ORDER BY available_at, created_at, job_id
   FOR UPDATE SKIP LOCKED
