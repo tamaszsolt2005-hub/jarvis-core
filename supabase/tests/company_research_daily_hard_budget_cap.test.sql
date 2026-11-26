@@ -12,7 +12,7 @@ SELECT is(
     jsonb_build_object('operation_id','hard-budget-op-0001','job_type','company_research_refresh',
       'lead_id','75000000-0000-4000-8000-000000000001','status','queued',
       'payload',jsonb_build_object('company_domain','hard-budget-a.example'),
-      'available_at',(now()-interval '1 minute')::text), 600, 1000, NULL, NULL)),
+      'available_at',(now()-interval '2 minutes')::text), 600, 1000, NULL, NULL)),
   1::bigint, 'first job reserves against the persisted daily ceiling'
 );
 
