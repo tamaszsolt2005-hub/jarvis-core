@@ -105,3 +105,20 @@ A `38693f2` kódcommiton a `45689264377` mindkét CI jobja sikeres; a párhuzamo
 A Resend HTTPS API adapter elkészült. A stabil lead + sequence operation ID az API Idempotency-Key fejlécébe kerül; a legacy follow_up.py útvonal is ugyanazt a kulcsot használja. A workflow EMAIL_PROVIDER=resend és RESEND_API_KEY secret bindinggal elő van készítve. A globális EMAIL_DELIVERY_ENABLED=False és az outbound workflow if: false változatlan, tehát a provider nem küldhet levelet.
 
 A Resend 24 órán át őrzi az idempotenciakulcsot. A hálózati hiba, 409, 429 és 5xx bizonytalan eredmény; automatikus retry nincs. A send_unknown / followup_unknown állapotot tilos automatikusan visszaállítani küldhető állapotba. Live API-kulcs, ellenőrzött feladói domain és provider E2E még nincs igazolva. Részletek: [Email provider idempotency](EMAIL_PROVIDER_IDEMPOTENCY.md).
+
+
+
+## 2026-11-26 – PR #26 frissített implementációs és ellenőrzési állapot
+
+A korábbi, PR #20/21/23 és régebbi PR #26 CI-headre hivatkozó bekezdések történeti pillanatképek. Az ellenőrzött PR #26 head `6ef4020bba3949e02440e97583fc907b6bcb1f00` CI-eredménye:
+
+- Python/AppTest/browser: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
+- PostgreSQL 17 izolált migrációs, pgTAP, audit/RBAC catalog, encrypted backup/restore: sikeres.
+- CodeQL: sikeres.
+- pip-audit: sikeres.
+
+A global lead research jelenlegi duplikációja alkalmazásszintű: teljes meglévő leadállomány beolvasása rendezett 1000-es offset-oldalakkal, majd név/domain összevetés és az adott futáson belüli halmazfrissítés. Ez nem garantál konkurens worker-ek közötti egyediséget, és az offset oldalak sem egyetlen konzisztens snapshotot garantálnak. Cégnév- vagy domain-indexet üzleti normalizációs szabály és teljes íróútvonal-leltár nélkül nem szabad hozzáadni. A race kockázat nyitott; részletes döntés a [fejlesztési útitervben](JARVIS_DEVELOPMENT_ROADMAP.md) található.
+
+A CSV import normalizált email unique indexe ettől külön védelmi réteg. Az email-egyediség migráció izolált PostgreSQL CI-ben tesztelt, de production alkalmazása nem történt.
+
+**Production állapot:** a PR #26 továbbra is nyitott és nem merge-ölt. A CI nem bizonyítja a production Supabase séma/Auth/RLS állapotát, az alkalmazás hostját, az SMTP hitelesítést vagy a deployt. A kimenő e-mail hard-disabled. Production DB, deploy, jogosultságok, secret-ek és e-mailküldés változatlan.
