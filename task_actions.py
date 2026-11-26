@@ -112,8 +112,10 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
                 updates["due_at"] = _deadline_iso(value)
             elif key in {"cím", "cim"} and value and len(value) <= 180:
                 updates["title"] = value
-            elif key in {"leírás", "leiras", "jegyzet", "notes", "eredmény", "eredmeny"} and value and len(value) <= 1000:
+            elif key in {"leírás", "leiras", "jegyzet", "notes"} and value and len(value) <= 1000:
                 updates["notes"] = value
+            elif key in {"eredmény", "eredmeny"} and value and len(value) <= 500:
+                updates["outcome"] = value
             else:
                 return {"error": f"Nem engedélyezett vagy érvénytelen mező: {key}."}
         return {"type": "update", "id": task_id, "updates": updates} if updates else {"error": "Nem adtál meg módosítandó mezőt."}
@@ -174,7 +176,7 @@ def _validate_action(action: Any) -> None:
         updates = action.get("updates")
         if not isinstance(updates, dict) or not updates:
             raise ValueError("Nem adtál meg módosítandó mezőt.")
-        if set(updates) - {"title", "priority", "due_at", "notes"}:
+        if set(updates) - {"title", "priority", "due_at", "notes", "outcome"}:
             raise ValueError("A feladatmódosítás nem engedélyezett mezőt tartalmaz.")
         if "title" in updates and (
             not isinstance(updates["title"], str)
@@ -192,7 +194,13 @@ def _validate_action(action: Any) -> None:
             or not updates["notes"].strip()
             or len(updates["notes"]) > 1000
         ):
-            raise ValueError("A feladat eredménye/leírása 1–1000 karakter lehet.")
+            raise ValueError("A feladat leírása 1–1000 karakter lehet.")
+        if "outcome" in updates and (
+            not isinstance(updates["outcome"], str)
+            or not updates["outcome"].strip()
+            or len(updates["outcome"]) > 500
+        ):
+            raise ValueError("A feladat eredménye 1–500 karakter lehet.")
         if "due_at" in updates:
             due_at = updates["due_at"]
             if not isinstance(due_at, str):
