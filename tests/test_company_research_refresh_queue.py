@@ -48,11 +48,13 @@ def test_queue_bridge_enqueues_only_planner_candidates_and_is_idempotent():
     }
     first = enqueue_company_research_refreshes(
         repository, leads, {}, limits=enqueue_limits,
-        estimated_cost_microusd_per_job=100, now=now,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000, now=now,
     )
     second = enqueue_company_research_refreshes(
         repository, leads, {}, limits=enqueue_limits,
-        estimated_cost_microusd_per_job=100, now=now,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000, now=now,
     )
 
     assert len(first) == 1
@@ -62,7 +64,7 @@ def test_queue_bridge_enqueues_only_planner_candidates_and_is_idempotent():
     assert first[0]["payload"]["company_domain"] == "eligible.example"
     assert len(repository.by_operation_id) == 1
     assert repository.create_kwargs[0] == {
-        "estimated_cost_microusd": 100,
+        "estimated_cost_microusd": 14_048,
         "daily_budget_microusd": 1_000_000,
         "max_jobs_per_hour": 10,
         "max_jobs_per_domain_per_day": 10,
@@ -85,11 +87,13 @@ def test_new_snapshot_version_produces_a_new_refresh_operation_id():
     }
     old_job = enqueue_company_research_refreshes(
         repository, leads, {lead_id: old_dossier}, limits=enqueue_limits,
-        estimated_cost_microusd_per_job=100, now=now,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000, now=now,
     )[0]
     new_job = enqueue_company_research_refreshes(
         repository, leads, {lead_id: new_dossier}, limits=enqueue_limits,
-        estimated_cost_microusd_per_job=100, now=now,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000, now=now,
     )[0]
 
     assert old_job["operation_id"] != new_job["operation_id"]
@@ -112,7 +116,8 @@ def test_queue_bridge_does_not_enqueue_fresh_or_invalid_domain_leads():
             "max_concurrent_jobs": 2,
             "max_daily_cost_microusd": 1_000_000,
         },
-        estimated_cost_microusd_per_job=100,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result == []
@@ -138,15 +143,16 @@ def test_admission_aware_queue_limits_batch_and_tracks_cost_estimates():
             "jobs_last_hour": 0, "jobs_by_domain_today": {},
             "running_jobs": 0, "spent_today_microusd": 0,
         },
-        estimated_cost_microusd_per_job=600_000,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert len(result["jobs"]) == 1
     assert len(result["rejected"]) == 1
     assert result["rejected"][0]["reason"] == "global_hourly_limit"
-    assert result["jobs"][0]["payload"]["estimated_cost_microusd"] == 600_000
+    assert result["jobs"][0]["payload"]["estimated_cost_microusd"] == 14_048
     assert repository.create_kwargs[0] == {
-        "estimated_cost_microusd": 600_000,
+        "estimated_cost_microusd": 14_048,
         "daily_budget_microusd": 1_000_000,
         "max_jobs_per_hour": 1,
         "max_jobs_per_domain_per_day": 2,
@@ -168,9 +174,10 @@ def test_admission_aware_queue_rejects_job_over_remaining_daily_budget():
         },
         usage_snapshot={
             "jobs_last_hour": 0, "jobs_by_domain_today": {},
-            "running_jobs": 0, "spent_today_microusd": 900_000,
+            "running_jobs": 0, "spent_today_microusd": 990_000,
         },
-        estimated_cost_microusd_per_job=100_001,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result["jobs"] == []
@@ -183,7 +190,8 @@ def test_admission_aware_queue_rejects_malformed_usage_snapshot():
     with pytest.raises(ValueError, match="usage_snapshot"):
         enqueue_company_research_refreshes_with_admission(
             repository, [], {}, limits={}, usage_snapshot=None,
-            estimated_cost_microusd_per_job=0,
+            input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         )
 
 
@@ -207,7 +215,8 @@ def test_admission_queue_matches_domain_usage_case_insensitively():
             "running_jobs": 0,
             "spent_today_microusd": 0,
         },
-        estimated_cost_microusd_per_job=10,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result["jobs"] == []
@@ -235,7 +244,8 @@ def test_admission_queue_reports_atomic_database_budget_rejection():
             "jobs_last_hour": 0, "jobs_by_domain_today": {},
             "running_jobs": 0, "spent_today_microusd": 0,
         },
-        estimated_cost_microusd_per_job=250,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result == {
@@ -272,7 +282,8 @@ def test_admission_queue_reports_database_rate_limit_rejection(reason, expected)
             "jobs_last_hour": 0, "jobs_by_domain_today": {},
             "running_jobs": 0, "spent_today_microusd": 0,
         },
-        estimated_cost_microusd_per_job=250,
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
         now=datetime(2026, 11, 26, tzinfo=timezone.utc),
     )
     assert result == {
