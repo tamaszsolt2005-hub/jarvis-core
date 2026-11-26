@@ -84,7 +84,7 @@ DECLARE
   v_reserved bigint;
   v_budget_date date := (now() AT TIME ZONE 'UTC')::date;
 BEGIN
-  IF jsonb_typeof(p_job) <> 'object'
+  IF p_job IS NULL OR jsonb_typeof(p_job) <> 'object'
      OR p_estimated_cost_microusd IS NULL OR p_estimated_cost_microusd < 0
      OR (p_daily_budget_microusd IS NOT NULL AND p_daily_budget_microusd < 1) THEN
     RAISE EXCEPTION 'invalid research job reservation arguments';
@@ -159,6 +159,7 @@ AS $$
 DECLARE
   v_job_id uuid;
   v_running_count integer;
+  v_claimed public.company_research_jobs%ROWTYPE;
 BEGIN
   IF p_worker_id IS NULL OR length(btrim(p_worker_id)) = 0
      OR p_lease_seconds IS NULL OR p_lease_seconds < 1
@@ -202,16 +203,20 @@ BEGIN
     RETURN;
   END IF;
 
-  RETURN QUERY
-    UPDATE public.company_research_jobs
-    SET status = 'running',
-        attempt_count = attempt_count + 1,
-        lease_owner = btrim(p_worker_id),
-        lease_expires_at = now() + make_interval(secs => p_lease_seconds),
-        heartbeat_at = now(),
-        updated_at = now()
-    WHERE job_id = v_job_id
-    RETURNING *;
+  UPDATE public.company_research_jobs
+  SET status = 'running',
+      attempt_count = attempt_count + 1,
+      lease_owner = btrim(p_worker_id),
+      lease_expires_at = now() + make_interval(secs => p_lease_seconds),
+      heartbeat_at = now(),
+      updated_at = now()
+  WHERE job_id = v_job_id
+  RETURNING * INTO v_claimed;
+
+  INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id, metadata)
+  VALUES (v_claimed.operation_id, 'claimed', btrim(p_worker_id),
+          jsonb_build_object('attempt_count', v_claimed.attempt_count));
+  RETURN NEXT v_claimed;
 END;
 $$;
 
@@ -221,16 +226,23 @@ CREATE OR REPLACE FUNCTION public.company_research_job_heartbeat(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $$
+AS $
+DECLARE
+  v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
   IF p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN RAISE EXCEPTION 'invalid lease duration'; END IF;
-  RETURN QUERY
-    UPDATE public.company_research_jobs
-    SET lease_expires_at = now() + make_interval(secs => p_lease_seconds),
-        heartbeat_at = now(), updated_at = now()
-    WHERE operation_id = p_operation_id AND status = 'running'
-      AND lease_owner = p_worker_id AND lease_expires_at > now()
-    RETURNING *;
+  UPDATE public.company_research_jobs
+  SET lease_expires_at = now() + make_interval(secs => p_lease_seconds),
+      heartbeat_at = now(), updated_at = now()
+  WHERE operation_id = p_operation_id AND status = 'running'
+    AND lease_owner = p_worker_id AND lease_expires_at > now()
+  RETURNING * INTO v_transition;
+
+  IF FOUND THEN
+    INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id)
+    VALUES (p_operation_id, 'heartbeat', p_worker_id);
+    RETURN NEXT v_transition;
+  END IF;
 END;
 $$;
 
@@ -240,11 +252,12 @@ CREATE OR REPLACE FUNCTION public.company_research_job_complete(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $$
+AS $
+DECLARE
+  v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
-  RETURN QUERY
-    UPDATE public.company_research_jobs
-    SET status = 'succeeded', result = COALESCE(p_result, '{}'::jsonb),
+  UPDATE public.company_research_jobs
+  SET status = 'succeeded', result = COALESCE(p_result, '{}'::jsonb),
         lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
     WHERE operation_id = p_operation_id AND status = 'running'
       AND lease_owner = p_worker_id AND lease_expires_at > now()
@@ -260,25 +273,36 @@ CREATE OR REPLACE FUNCTION public.company_research_job_fail(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $$
+AS $
+DECLARE
+  v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
   IF p_retryable IS NULL OR p_retry_delay_seconds IS NULL OR p_max_attempts IS NULL
      OR p_retry_delay_seconds < 1 OR p_max_attempts < 1 THEN
     RAISE EXCEPTION 'invalid retry arguments';
   END IF;
-  RETURN QUERY
-    UPDATE public.company_research_jobs
-    SET status = CASE
-          WHEN p_retryable AND attempt_count < LEAST(max_attempts, p_max_attempts)
-            THEN 'retry_wait' ELSE 'dead_letter' END,
-        available_at = now() + make_interval(secs => p_retry_delay_seconds),
-        lease_owner = NULL, lease_expires_at = NULL,
-        last_error_code = left(COALESCE(NULLIF(p_error_code, ''), 'unknown'), 80),
-        last_error_message = left(COALESCE(p_error_message, ''), 1000),
-        updated_at = now()
-    WHERE operation_id = p_operation_id AND status = 'running'
-      AND lease_owner = p_worker_id AND lease_expires_at > now()
-    RETURNING *;
+  UPDATE public.company_research_jobs
+  SET status = CASE
+        WHEN p_retryable AND attempt_count < LEAST(max_attempts, p_max_attempts)
+          THEN 'retry_wait' ELSE 'dead_letter' END,
+      available_at = now() + make_interval(secs => p_retry_delay_seconds),
+      lease_owner = NULL, lease_expires_at = NULL,
+      last_error_code = left(COALESCE(NULLIF(p_error_code, ''), 'unknown'), 80),
+      last_error_message = left(COALESCE(p_error_message, ''), 1000),
+      updated_at = now()
+  WHERE operation_id = p_operation_id AND status = 'running'
+    AND lease_owner = p_worker_id AND lease_expires_at > now()
+  RETURNING * INTO v_transition;
+
+  IF FOUND THEN
+    INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id, metadata)
+    VALUES (p_operation_id,
+            CASE WHEN v_transition.status = 'retry_wait' THEN 'retry_scheduled' ELSE 'dead_letter' END,
+            p_worker_id,
+            jsonb_build_object('error_code', v_transition.last_error_code,
+                               'attempt_count', v_transition.attempt_count));
+    RETURN NEXT v_transition;
+  END IF;
 END;
 $$;
 
