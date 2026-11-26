@@ -117,3 +117,14 @@ Production Supabase módosítás, migration futtatás, GRANT/REVOKE, Auth/RBAC, 
 A `jarvis_errors.py` egységes `classify_error()` kategóriákat és magyar `user_facing_error()` útmutatót ad. A chat nem mutatja meg a provider teljes kivételszövegét, csak a biztonságos teendőt és – ha rendelkezésre áll – a nem érzékeny HTTP hibakódot. A Gemini kliens korlátozott retryt használ átmeneti hálózati, timeout, rate-limit és szolgáltatás-elérhetőségi hibákra; 401/403 és RLS/jogosultsági hibák esetén nincs újrapróbálkozás és nincs service-role fallback. A konfigurációs hibaüzenetek a helyi secrets/runtime konfiguráció ellenőrzésére irányítanak, de titokértéket nem kérnek.
 
 A kategorizálás és a retry viselkedés célzott unit tesztekkel lefedett. A jelenlegi fejlesztési HEAD teljes CI-eredményét külön kell igazolni; a korábbi CI #3019 teszt jobja sikertelen volt, ezért annak zöld státusza nem állítható. Production rendszeren nem történt változtatás.
+
+
+## 8. Konfigurációs és runtime hibakezelés – implementálva, célzott ellenőrzés hátra
+
+A jarvis_errors.py egységesen kategorizálja a hiányzó/hibás konfigurációt, jogosultsági és hitelesítési hibát, rate limitet/kvótát, hálózati hibát, timeoutot, szolgáltatáskiesést és hibás kérést. A required_secret() az üres/whitespace értéket is hiányzónak tekinti, a Supabase URL required_http_url() útvonalon HTTP(S) és host validációt kapott. A chat és a diagnosztikai UI biztonságos magyar útmutatót mutat, nem a szolgáltató nyers kivételszövegét.
+
+A Gemini kliens korlátozott retryt használ átmeneti hibákra, és csak rate-limit/szolgáltatás-túlterhelés esetén próbál tartalék modellt. 401/403, RLS és más jogosultsági hiba nem retry-zik és nem vált át service-role útra. Az implementációhoz célzott unit/AppTestek készültek; az új commiton ezek eredménye még nincs igazolva.
+
+## 9. Tesztelési elv
+
+A már sikeresen ellenőrzött, azóta nem módosított területeket nem teszteljük újra minden commit után. A célzott tesztelés a módosított modulokra és azok közvetlen integrációira terjed ki. Teljes CI csak nagyobb integrációs mérföldkőnél vagy merge/release előtt szükséges. A részletes, commit-SHA-hoz kötött tesztbizonyíték és fennmaradó feladatlista a JARVIS_REMAINING_WORK_REPORT.md dokumentumban van.
