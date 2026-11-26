@@ -65,6 +65,7 @@ from intelligent_lead_scoring import rank_researched_leads
 from daily_briefing import build_daily_briefing
 from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
+from lead_workflow import parse_recommended_task_command, build_recommended_task_action
 from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
@@ -1612,7 +1613,43 @@ if prompt:
             if pending_action:
                 _revoke_pending_action(db)
                 approval_notice = "A korábbi jóváhagyásra váró műveletet töröltem, mert új kérést adtál meg."
-            requested_task_action = parse_task_command(prompt)
+            recommended_task_request = parse_recommended_task_command(prompt)
+            task_lead_label = None
+            if recommended_task_request and recommended_task_request.get("error"):
+                requested_task_action = {"error": recommended_task_request["error"]}
+            elif recommended_task_request:
+                requested_leads = (
+                    db.table("leads")
+                    .select("id,company_name,notes,source")
+                    .eq("id", recommended_task_request["lead_id"])
+                    .limit(1).execute().data or []
+                )
+                if not requested_leads:
+                    requested_task_action = {"error": "A megadott lead nem található."}
+                else:
+                    requested_lead = requested_leads[0]
+                    linked_tasks = (
+                        db.table("tasks")
+                        .select("id,lead_id,status")
+                        .eq("lead_id", recommended_task_request["lead_id"])
+                        .limit(50).execute().data or []
+                    )
+                    requested_task_action = build_recommended_task_action(
+                        requested_lead, linked_tasks
+                    )
+                    if requested_task_action is None:
+                        requested_task_action = {
+                            "error": (
+                                "A leadhez nem készíthető új javasolt feladat: "
+                                "ellenőrizd a kutatási forrást, a bizonyítékokat és a meglévő feladatokat."
+                            )
+                        }
+                    else:
+                        task_lead_label = str(
+                            requested_lead.get("company_name") or recommended_task_request["lead_id"]
+                        )
+            else:
+                requested_task_action = parse_task_command(prompt)
             requested_market = detect_market_change(prompt)
             requested_research = prompt if _wants_global_research(prompt) else None
             requested_chat_email = is_chat_email_request(prompt)
@@ -1659,7 +1696,15 @@ if prompt:
                         "market": None, "research_prompt": None, "task_action": task_action,
                     }, db)
                     descriptions = {
-                        "create": f"új feladat létrehozása: {task_action['title']} (prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})",
+                        "create": (
+                            f"új feladat létrehozása: {task_action['title']} "
+                            f"(prioritás: {task_action['priority']}, határidő: {task_action.get('due_at') or 'nincs'})"
+                            + (
+                                f"; kapcsolódó lead: {task_lead_label}; "
+                                f"indoklás: {task_action.get('notes', '')[:500]}"
+                                if task_lead_label else ""
+                            )
+                        ),
                         "close": f"feladat lezárása: **{task_title}** (azonosító: {task_action['id']})",
                         "update": f"feladat módosítása: **{task_title}** (azonosító: {task_action['id']}) – {task_action['updates']}",
                     }
