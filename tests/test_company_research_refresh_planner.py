@@ -117,3 +117,15 @@ def test_planner_validates_max_age(age):
 def test_planner_requires_timezone_aware_now():
     with pytest.raises(ValueError, match="timezone-aware"):
         plan_company_research_refresh_candidates([], {}, now=datetime(2026, 11, 26))
+
+
+
+def test_planner_treats_snapshot_row_without_dossier_payload_as_missing():
+    item = lead()
+    rows = plan_company_research_refresh_candidates(
+        [item],
+        {item["id"]: {"researched_at": (NOW - timedelta(days=1)).isoformat(), "dossier": None}},
+        now=NOW,
+    )
+    assert len(rows) == 1
+    assert rows[0]["reason"] == "missing_dossier"
