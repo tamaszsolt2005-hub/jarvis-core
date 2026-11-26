@@ -3,8 +3,7 @@
 Magyar nyelvű, Streamlit-alapú üzleti asszisztens, jelenleg helyi fejlesztés alatt.
 
 **Központi dokumentáció:** [JARVIS Master Documentation](docs/JARVIS_MASTER_DOCUMENTATION.md)  
-**Aktuális fejlesztési PR:** [#28 – company research dashboard and worker](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28) – nyitott, nem merge-ölt.  
-**Alap PR:** [#26 – readiness gates és termékvízió](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) – nyitott, nem merge-ölt.
+**Aktuális állapot:** a PR #26, #27 és #28 merge-ölve a `main` ágba. Lásd az [aktuális állapotjelentést](docs/CURRENT_STATE_AND_NEXT_STEPS.md).
 
 ## Mi a JARVIS?
 
@@ -23,7 +22,7 @@ A `feature/company-research-phase-1` ág a következőket tartalmazza:
 - read-only refresh candidate planner: stale dossziék kiválasztása, meg nem keresett cégek előresorolása, elutasítások és opt-out kizárása;
 - kutatási frissítési jogosultsági policy: elutasítás/opt-out kizárása, két válasz nélküli follow-up utáni szüneteltetés, meg nem keresett leadek megtartása.
 
-A snapshot tároló migrációja csak a feature branchben és a CI izolált adatbázisában szerepel. A refresh policy és a read-only candidate planner még nincs schedulerbe, DB-lekérdező folyamatba vagy workerbe kötve. A teljes SaaS-ötletmotor, globális termék-tiltó napló és automatikus outreach célfunkció, nem kész rendszer.
+A snapshot- és worker-migrációk a main ágon vannak; CI-ben izolált PostgreSQL 17 adatbázisban teszteltek. A worker/queue/provider kód implementált, de ütemezett automatikus indítás és élő Gemini/staging futás még nincs bekapcsolva. A teljes SaaS-ötletmotor, globális termék-tiltó napló és automatikus outreach célfunkció, nem kész rendszer.
 
 ## Helyi indítás
 
@@ -67,44 +66,20 @@ python -m pytest -q
 - A `.env*` és `.streamlit/secrets.toml` fájlok titkokat tartalmazhatnak; ezeket ne commitold és ne másold chatbe.
 
 
-## README státuszfrissítés – 2026-11-26
+## Aktuális implementációs állapot – 2026-11-26
 
-**Aktuális PR #28 HEAD:** `39fa60c1b448036665a475106dc97bbdd95e7150`. **CI:** [Run #3121](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45880962637) – mindkét job sikeres (test: `140120013677`, backup/restore integration: `140120014052`). A tesztösszesítő: **1140 passed, 3 skipped, 0 failed**, teljes coverage **90,29%** (80% minimum); `python -m compileall -q .` sikeres. Ez az eredmény az itt megadott HEAD-hez kötött, a korábbi dokumentumban szereplő 1126/1 failed és korábbi CI-megjegyzések elavultak.
+> **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A legutóbbi main commit: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
+>
+> **Implementált és CI-vel tesztelt:** cégdosszié és append-only snapshot tárolás; read-only előzmény-dashboard; worker job lifecycle, repository/RPC adapter, queue bridge és worker; injektálható grounded Gemini provider adapter; snapshot mentés a job sikeres lezárása előtt; idempotencia; lease/heartbeat/retry/dead-letter; PostgreSQL lifecycle, kvóta, security és két-session konkurenciatesztek. A CI izolált adatbázist használ, nem productiont.
+>
+> **Még nincs élesben igazolva / nincs bekapcsolva:** ütemezett automatikus futtatás; a worker schedulerből történő indítása; élő Gemini API/staging smoke; Auth-os snapshot SELECT (a dashboard Auth módban fail-closed, a snapshot tábla service_role-only); teljes manuális helyi dashboard smoke; production app-host és deploy.
+>
+> **Költségkorlát:** a becsült költségfoglalás, actual-cost settlement callback és tranzakciós elszámolás kódban megvan. A provider adapter nincs élő szolgáltatói hívással validálva, és az actual cost a becslést meghaladhatja; ezért a napi hard cap teljes kikényszerítése még külön feladat.
+>
+> **Biztonsági határ:** production Supabase migráció/DDL/DML, grant/RLS/Auth módosítás, secret-változtatás, deploy és outbound e-mail nem történt. A kimenő e-mail hard-disabled. A CI-zöld állapot önmagában nem production readiness.
+>
+> **Következő fókusz:** (1) napi hard budget cap és reservation-overrun védelem; (2) scheduler/operációs vezérlés és worker futtatási életciklus; (3) izolált Auth/JWT/RLS jogosultsági tesztek, különösen snapshot history hozzáférés; (4) élő, nem production Gemini staging smoke usage/grounding/retry/heartbeat ellenőrzéssel; (5) teljes helyi dashboard manuális smoke; (6) production migration drift és hozzáférési modell független felülvizsgálata, majd külön release-döntés.
+>
+> A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
 
-### P0 – fejlesztési csomag állapota
 
-A Gemini és külső szolgáltatások hibakezelési P0 kódcsomag **elkészült és a fenti teljes CI zölden ellenőrizte**. Ide tartozik a Google GenAI státuszkódok normalizálása, központi retry-besorolás, korlátozott exponenciális retry, 429/503 fallback, auth/config/invalid-request no-retry, biztonságos provider-kód allowlist, titokmentesített hibajelzés és az SMTP duplikált újraküldésének kizárása. A Settings AppTest korábbi hibája is javítva van.
-
-**Korlát:** valódi Google Gemini API-val végzett élő/staging smoke nem történt. A CI a mockolt/tesztelt viselkedést igazolja, nem a szolgáltató élő válaszát. Ez a külső integrációs ellenőrzés továbbra is hátralévő feladat.
-
-### Jelenlegi termékképességek – mi van ma a JARVIS-ban?
-
-- Magyar nyelvű, Gemini-alapú üzleti chat (működéséhez helyi API-konfiguráció szükséges).
-- Kifejezett felhasználói kérésre indított, Google Search groundingre épülő lead/cégkutatás; dokumentált korlátja legfeljebb 15 új cég egy futásban.
-- Cégazonosítás és duplikációszűrés; lead scoring, kutatási bizonyosság és belső workflow-ajánlások.
-- Jóváhagyáshoz kötött task létrehozás/módosítás/lezárás; read-only Feladatok központ és utánkövetési sor.
-- Üzleti memória, napi briefing, analitika és audit funkciók.
-- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a teljes worker→provider→snapshot→lead→audit tartós E2E út még nincs igazolva. Auth módban a snapshot oldal fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
-- Read-only Beállítások oldal, konfigurációs státuszok és kézi diagnosztika; titokértékek nem jelennek meg és nem szerkeszthetők.
-- Bejövő inbox/e-mail komponensek konfigurációtól függően rendelkezésre állhatnak; **kimenő e-mail küldés hard-disabled**.
-
-### Ami még NINCS kész – a SaaS-vízió és a tényleges termék közötti különbség
-
-A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Nincs kész automatikus piacfigyelő/cégfelderítő scheduler, folyamatos háttérkutatás, teljesen bekötött és bizonyított worker adatút, automatikus SaaS-termékötlet- és versenytárselemző motor, globális/cégenkénti termék-tiltó és ütközésnapló, automatikus személyre szabott outreach, outbound e-mail, illetve AI-alapú teljes termékfejlesztési/build/release pipeline. Ezek célfunkciók, nem jelenlegi kész képességek.
-
-### Következő javítások és lezárási sorrend
-
-**P1 – következő fő fejlesztési szakasz:**
-1. A cégkutatási adatút E2E bekötése és igazolása: queue → claim → grounded Gemini provider → dossier validáció → snapshot mentés → lead-kapcsolat → audit; hiba/retry, lease-loss, duplicate operation ID és rollback viselkedéssel.
-2. A két előkészített SQL tesztcsomag futtatása izolált PostgreSQL/Supabase környezetben: `company_research_jobs.test.sql` (15 pgTAP assertion) és `company_research_jobs_concurrency.test.sql` (14 pgTAP assertion, `dblink`). A futtatás jelenleg NEM igazolt; lokális Supabase konfiguráció és `dblink` elérhetőség szükséges.
-3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
-4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
-5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.
-6. Teljes helyi manuális dashboard smoke: Chat, Feladatok, Analitika, Cégkutatás, Audit, Beállítások; üres adat, hiányzó/hibás konfiguráció, hálózat, kvóta és permission állapotok.
-7. Chat gyorsműveletek valódi kattintható műveletté alakítása; user preference mentés csak jóváhagyott adattárolási modell alapján, a titkok és biztonsági zárak változtathatatlanul hagyásával.
-
-**P2 – későbbi terméképítési szakasz:** scheduler/automatikus háttérkutatás; SaaS-ötletmotor és piaci alternatívaelemzés; globális és cégenkénti tiltó/ütközésnapló; ajánlatgenerálás és outreach workflow; jogszerű marketing-hozzájárulás/suppression modell; outbound e-mail külön engedélyezés után; AI-assisted termékfejlesztés és build/test/release pipeline.
-
-### PR és környezeti állapot
-
-PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
