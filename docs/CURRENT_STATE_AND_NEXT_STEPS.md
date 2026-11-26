@@ -4,8 +4,7 @@
 **Aktív fejlesztési ág:** `feature/company-research-phase-1`  
 **Aktuális PR:** [#27 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27)  
 **Alap PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
-**Aktuális head SHA:** `209654dbf658de0751f894187d4299f61e94c5f2`  
-**CI:** a fenti SHA-hoz tartozó push és pull_request futások ellenőrzéskor folyamatban voltak; sikeresnek még nem minősíthetők.
+**Aktuális head és CI:** mindig a [PR #27 aktuális headjén és Checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27/checks) ellenőrizendő. Csak az aktuális headhez tartozó, befejezett és sikeres futás tekinthető igazolásnak; régebbi futás nem.
 
 A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
 
