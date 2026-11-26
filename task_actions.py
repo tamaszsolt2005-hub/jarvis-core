@@ -98,6 +98,8 @@ def parse_task_command(message: str) -> dict[str, Any] | None:
                 "priority" if key in {"prioritás", "prioritas"}
                 else "due_at" if key in {"határidő", "hatarido"}
                 else "title" if key in {"cím", "cim"}
+                else "notes" if key in {"leírás", "leiras", "jegyzet", "notes"}
+                else "outcome" if key in {"eredmény", "eredmeny"}
                 else None
             )
             if normalized_key and normalized_key in updates:
