@@ -812,7 +812,7 @@ def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkey
     assert "SUPABASE_URL" in rendered
     assert "GEMINI_API_KEY" in rendered
     assert "E-mail-küldés" in rendered
-    assert any("kódszinten tiltott" in item.value for item in app.info)
+    assert any("biztonsági zárja aktív" in item.value for item in app.info)
     assert len(app.button(key="jarvis_settings_run_diagnostics")) == 1
 
 
@@ -974,4 +974,7 @@ def test_streamlit_company_research_fails_closed_in_individual_auth_mode(monkeyp
     assert not app.exception
     assert app.session_state["jarvis_page"] == "settings"
     assert any("beállítások megtekintéséhez nincs megfelelő jogosultság" in item.value for item in app.error)
-    assert len(app.button(key="jarvis_settings_run_diagnostics")) == 0
+    assert not any(
+        button.key == "jarvis_settings_run_diagnostics"
+        for button in app.button
+    )
