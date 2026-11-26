@@ -1,5 +1,8 @@
 # JARVIS – projektállapot, hátralévő feladatok és lefedettség
 
+> **Történeti jelentés:** a fájlnév és a korábbi fejezetek 2026-11-25-i pillanatfelvételt rögzítenek. A JARVIS app még nincs telepítve, jelenleg helyi Streamlit dashboardból fejlesztjük; ezért nincs kiválasztott JARVIS app-host/URL. Az aktuális státusz és teendők egyetlen irányadó összefoglalója: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A korábbi host- és release-felderítési feladatokat ne értelmezd helyi funkciófejlesztési blokkolóként.
+
+
 **Állapotfelvétel:** 2026-11-25 (frissítve a PR #20 merge és backup/restore után)  
 **Repository:** `tamaszsolt2005-hub/jarvis-core`  
 **Main:** `71d6a1cdc755607a9598bf9b2c19c50730f5e036` (PR #21 squash merge)  
@@ -238,7 +241,7 @@ Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
 - A production Supabase projekt csak adatbázis/API végpont; nem azonos a Streamlit dashboard hostjával.
 - Nyilvános webes keresés sem adott ellenőrizhető JARVIS production URL-t.
 
-**Eredmény: a host/URL nem azonosítható a jelenleg hozzáférhető bizonyítékokból.** Nem próbáltam a JARVIS-t a VolleyForm Railway szolgáltatásra telepíteni, nem hoztam létre új szolgáltatást, nem módosítottam DNS-t, változókat vagy secrets értékeket. A feladat blokkoló bemenete: a tényleges host/projekt megnevezése vagy a szolgáltatóhoz tartozó dashboard/deployment hivatkozás megadása.
+**Történeti eredmény (2026-11-25): akkor még nem volt azonosított app-host. A 2026-11-26-i pontosítás szerint a JARVIS app nincs telepítve, tehát nincs host/URL, amit fel kellene deríteni.** Nem próbáltam a JARVIS-t a VolleyForm Railway szolgáltatásra telepíteni, nem hoztam létre új szolgáltatást, nem módosítottam DNS-t, változókat vagy secrets értékeket. A feladat blokkoló bemenete: a tényleges host/projekt megnevezése vagy a szolgáltatóhoz tartozó dashboard/deployment hivatkozás megadása.
 
 
 ## Legfrissebb állapot – PR #26, 2026-11-25
@@ -253,7 +256,7 @@ Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
 - A dokumentáció frissítésekor a `38693f2` kódcommiton a `45689264377` mindkét jobja sikeres; a párhuzamos `45689247826` futás megszakadt. Az aktuális dokumentációs PR-head CI-je még nincs zöldként igazolva.
 
 ### Production állapot
-A branchben lévő változtatások nincsenek productionbe telepítve. A legutóbbi dokumentált production read-only snapshot változatlan kiindulópont; a későbbi audit/approval/RPC és privilege-lock migrációk nincsenek alkalmazva. A JARVIS app host nem azonosított; a csatlakoztatott Railway projekt VolleyForm, nem JARVIS. Nincs production DDL/DML, ledger repair, GRANT/REVOKE, Auth flag aktiválás, app deploy vagy PR merge.
+A branchben lévő változtatások nincsenek productionbe telepítve. A legutóbbi dokumentált production read-only snapshot változatlan kiindulópont; a későbbi audit/approval/RPC és privilege-lock migrációk nincsenek alkalmazva. A JARVIS app akkor még nem volt deployolva; a csatlakoztatott Railway projekt VolleyForm, nem JARVIS. Nincs production DDL/DML, ledger repair, GRANT/REVOKE, Auth flag aktiválás, app deploy vagy PR merge.
 
 **Aktuális értékelés:** a megbízhatóság/biztonság munkacsomag jelentős kódbeli része elkészült, de CI-véglegesítés, provider oldali e-mail idempotencia, production host/deploy és production DB integráció hiányában nem zárható le. A teljes JARVIS projekt nem kész.
 
@@ -286,7 +289,7 @@ Ez a szakasz felülírja a dokumentum korábbi, PR #26-ra vonatkozó „CI még 
 
 **E-mail:** a GitHub workflow `EMAIL_PROVIDER=smtp` beállítással a meglévő Gmail SMTP utat választja. Az `EMAIL_USER` és `EMAIL_PASSWORD` secretnevek meglétét a repo tulajdonosa ellenőrizte; értékük és az SMTP hitelesítés nem lett ellenőrizve. A küldés kódszinten hard-disabled, az outbound workflow-lépés tiltott. Resend adapter csak alternatív kódútvonal.
 
-**Production:** továbbra sincs igazolt JARVIS app host/URL. Production deploy, migráció, ledger repair, DDL/DML, GRANT/REVOKE, Auth/RBAC változtatás és live e-mail-küldés nem történt. A korábban dokumentált Supabase snapshot időponthoz kötött, read-only történeti állapot; friss lekérdezés nélkül nem szabad aktuálisnak tekinteni.
+**Production:** a JARVIS app nincs telepítve; nincs kiválasztott app-host/URL. Production deploy, migráció, ledger repair, DDL/DML, GRANT/REVOKE, Auth/RBAC változtatás és live e-mail-küldés nem történt. A korábban dokumentált Supabase snapshot időponthoz kötött, read-only történeti állapot; friss lekérdezés nélkül nem szabad aktuálisnak tekinteni.
 
 
 
