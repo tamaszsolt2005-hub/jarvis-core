@@ -200,4 +200,11 @@ A Gemini provider adapter most a teljes szinkron API-kérés és retry-időszak 
 
 ## 8. Főrendszer-készültségi felmérés – 2026-11-26
 
-A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadási feltételei, valamint a P0/P1/P2 és production release teendők külön dokumentumban szerepelnek: [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md). Röviden: a főbb üzleti modulok implementáltak, de az aktuális PR #28 CI még fut, a teljes lead → task approval → audit E2E, a worker SQL konkurencia és a kutatási snapshot E2E, valamint a teljes helyi smoke még nem tekinthető igazoltnak. Emiatt a főrendszer még nem minősíthető késznek.
+A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadási feltételei, valamint a P0/P1/P2 és production release teendők külön dokumentumban szerepelnek: [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md). Röviden: a lead → scoring → task approval → PostgreSQL → audit E2E és a `36d615f` core commit teljes CI-je sikeres. A dashboard navigációs audit és read-only Settings oldal elkészült, de az ezt követő aktuális HEAD CI-je, a valós Auth/RLS hozzáférés, a worker SQL konkurencia és a kutatási snapshot E2E, valamint a teljes helyi smoke még nem tekinthető igazoltnak. Emiatt a főrendszer még nem minősíthető késznek.
+
+
+## 9. Dashboard navigációs audit – 2026-11-26
+
+A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások navigációs útvonalait áttekintettük. A Settings korábban csak dekoratív HTML volt; most dedikált, kattintható, read-only konfigurációs oldal, titokértékek megjelenítése nélkül. A rendszerdiagnosztika csak kézi indításra fut, és jelzi a Gemini próbakérés lehetséges költségét. A runtime titkok, Auth/RBAC, RLS és outbound e-mail zár UI-ból nem módosítható.
+
+A Feladatközpont üres tasklista esetén korábban elrejtette az utánkövetési sort; a korai visszatérést javítottuk és AppTestet adtunk hozzá. A Cégkutatás Auth/RLS módban továbbra is fail-closed, az Audit külön Supabase Auth-admin belépést kér. A dashboard tesztcsomag két Settings teszttel és egy üres tasklista/utánkövetés regressziós teszttel bővült. Az audit utáni új HEAD teljes CI-ellenőrzése még szükséges.
