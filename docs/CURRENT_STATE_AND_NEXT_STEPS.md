@@ -155,3 +155,12 @@ A költségbecsléshez elkészült az `estimate_research_cost_microusd()` egész
 ### 7.9 Atomikus worker concurrency limit
 
 A claim RPC most már tranzakciós advisory lockkal sorosítja a claim döntéseket, megszámolja az aktív, le nem járt lease-eket, és csak a konfigurált párhuzamossági plafon alatt vesz fel új jobot. A Python repository és az egyszeri worker a `max_concurrent_jobs` értéket átadja az RPC-nek. Ez a korlát a claim műveletnél érvényesül, nem pusztán az enqueue előtti usage snapshotban. A SQL migration repository-fájl marad, production adatbázisra nem futott le; izolált PostgreSQL konkurenciateszt még szükséges.
+
+
+### 7.10 Atomikus költségfoglalás és tartós worker-audit
+
+A job létrehozása most `company_research_job_create(jsonb,bigint,bigint)` RPC-n keresztül történik. A tranzakció napi UTC budget advisory lockot vesz fel, összeadja az adott nap tartós költségfoglalásait, és a job rekorddal egy tranzakcióban rögzíti az új reservationt. A budget túllépés rögzített, nem érzékeny hibakóddal utasítja el az enqueue-t; a queue ezt `daily_cost_limit` okként jelzi. Az operation ID idempotens újraküldése nem foglal újra költséget.
+
+Elkészült a `company_research_budget_reservations` tábla, valamint az append-only `company_research_job_audit`. A létrehozás, claim, heartbeat, sikeres lezárás, retry/dead-letter és végső lease-expiry események tranzakciósan auditálódnak. Az audit tábla service_role számára SELECT/INSERT jogosultságú; UPDATE/DELETE nincs adva. A reservation az előzetesen becsült összeget foglalja; tényleges provider-költség elszámolása és visszatérítés még nincs bekötve. A globális óránkénti és domain napi limit továbbra is csak a jelenlegi snapshotos admission rétegben érvényesül, nem atomikus DB reservation.
+
+A migration továbbra is csak repository fájl, production DB-re nem lett alkalmazva. Izolált PostgreSQL tranzakciós/konkurenciateszt szükséges a tényleges adatbázis-garancia igazolásához.
