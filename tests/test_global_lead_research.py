@@ -54,6 +54,32 @@ class FakeDB:
     def table(self, _name):
         return Query(self)
 
+    def rpc(self, _name, params):
+        db = self
+
+        class RPCQuery:
+            def execute(self):
+                if db.lose_insert_response:
+                    return Result([])
+                row = {
+                    "company_name": params["p_company_name"],
+                    "email": params["p_email"],
+                    "website": params["p_website"],
+                    "notes": params["p_notes"],
+                    "source": params["p_source"],
+                    "status": "research" if not params["p_email"] else "new",
+                    "consent_basis": params["p_consent_basis"],
+                    "approved_to_contact": params["p_approved_to_contact"],
+                }
+                db.inserted.append(row)
+                return Result([{
+                    "lead_id": "inserted-lead-id",
+                    "outcome": "created",
+                    "selected_email": params["p_email"],
+                }])
+
+        return RPCQuery()
+
 
 class FakeModels:
     def __init__(self, response):
