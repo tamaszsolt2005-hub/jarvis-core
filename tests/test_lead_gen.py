@@ -58,6 +58,13 @@ def test_csv_import_bounds_free_text_fields():
     assert len(result["website"]) == 2048
 
 
+def test_csv_import_drops_invalid_company_website_without_losing_consented_contact():
+    result = _validated_import_row(_row(website="file:///etc/passwd"))
+    assert result is not None
+    assert result["website"] is None
+    assert result["email"] == "contact@example.com"
+
+
 def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, capsys):
     import csv
     import lead_gen
