@@ -44,8 +44,10 @@ def _domain(lead: dict[str, Any]) -> str:
 def _dossier_value(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
-    nested = value.get("dossier")
-    return nested if isinstance(nested, dict) else value
+    if "dossier" in value:
+        nested = value.get("dossier")
+        return nested if isinstance(nested, dict) else {}
+    return value
 
 
 def _is_uncontacted(lead: dict[str, Any]) -> bool:
