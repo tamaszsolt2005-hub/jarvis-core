@@ -238,7 +238,7 @@ A zöld CI kizárólag a vizsgált branch automatikus tesztjeit igazolja. Produc
 
 ## 2026-11-26 – cégszintű lead deduplikáció és email-prioritás
 
-A korábbi, csak alkalmazásszintű global research deduplikációt a PR #26 ágban közös DB/RPC protokoll váltja fel. A céget normalizált név- és webdomain-aliasok azonosítják; mindkét aliasra tranzakciós advisory lock kerül. A két íróút (`global_lead_research.py`, `lead_gen.py`) ugyanazt a `upsert_company_lead` RPC-t használja, és a service role közvetlen lead INSERT joga vissza van vonva.
+A korábbi, csak alkalmazásszintű global research deduplikációt a PR #26 ágban közös DB/RPC protokoll váltja fel. A céget normalizált név- és webdomain-aliasok azonosítják; mindkét aliasra tranzakciós advisory lock kerül. A két íróút (`global_lead_research.py`, `lead_gen.py`) ugyanazt a `upsert_company_lead` RPC-t használja. A rollout kétlépcsős: először az RPC és az aliasok kerülnek fel, a régi app kompatibilitásához az INSERT átmenetileg megmarad; az RPC-t használó app deployja és smoke ellenőrzése után a második migráció újra-backfill-el és visszavonja a közvetlen INSERT/DELETE jogokat.
 
 Egy cég több, külön hozzájárulással rendelkező emailjelöltet tárolhat, de a CRM lead egy marad. A kiválasztás kezdeti heurisztikája a szerepkörös címeket (info/contact/office/sales) hátrasorolja, a személyes webmail címet (pl. xy@gmail.com) előnyben részesíti. A jelöltek külön táblában megmaradnak; hozzájárulás nem öröklődik címek között. Küldés, válasz vagy opt-out után a kiválasztott cím nem módosítható automatikusan. Azonos cégnévhez eltérő, már regisztrált webdomain esetén a rendszer nem olvaszt össze automatikusan, hanem manuális felülvizsgálatot kér.
 
