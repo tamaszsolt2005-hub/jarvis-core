@@ -22,33 +22,58 @@ def _clean(value: Any, limit: int = 240) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
 
+def _task_stage(task: dict[str, Any]) -> str | None:
+    match = _STAGE_MARKER.search(str(task.get("notes") or ""))
+    stage = match.group(1) if match else None
+    return stage if stage in {item[0] for item in _WORKFLOW_STAGES} else None
+
+
+def _next_stage(tasks: list[dict[str, Any]], initial_stage: str) -> str | None:
+    """Return the next safe stage; open work blocks, cancelled work is retryable."""
+    if any(str(task.get("status") or "open").casefold() == "open" for task in tasks):
+        return None
+
+    staged = [task for task in tasks if _task_stage(task)]
+    if not staged:
+        return initial_stage
+
+    latest = max(
+        staged,
+        key=lambda task: str(task.get("completed_at") or task.get("created_at") or ""),
+    )
+    stage = _task_stage(latest)
+    status = str(latest.get("status") or "open").casefold()
+    stage_index = next(i for i, item in enumerate(_WORKFLOW_STAGES) if item[0] == stage)
+    if status == "cancelled":
+        return stage
+    if status != "done":
+        return None
+    next_index = stage_index + 1
+    return _WORKFLOW_STAGES[next_index][0] if next_index < len(_WORKFLOW_STAGES) else None
+
+
 def build_lead_workflow_recommendations(
     leads: list[dict[str, Any]],
     tasks: list[dict[str, Any]],
     *,
     limit: int = 5,
 ) -> list[dict[str, Any]]:
-    """Suggest one evidence-based internal next task per lead, without side effects.
+    """Suggest the next internal workflow stage from grounded lead research.
 
-    Any existing task linked to a lead suppresses another first-stage suggestion.
-    This deliberately avoids creating repeated tasks until the workflow has explicit
-    stage transitions and completion outcomes.
+    Stage history is encoded in task notes. This function is read-only and never
+    grants outreach consent or sends messages.
     """
-    # Match the atomic creation RPC: only an open task blocks another
-    # first-stage recommendation. Completed/cancelled tasks are historical
-    # workflow records and must not suppress the next review opportunity.
-    linked_lead_ids = {
-        str(task.get("lead_id"))
-        for task in tasks
-        if task.get("lead_id")
-        and str(task.get("status") or "open").casefold() == "open"
-    }
-    recommendations: list[dict[str, Any]] = []
+    tasks_by_lead: dict[str, list[dict[str, Any]]] = {}
+    for task in tasks:
+        lead_id = _clean(task.get("lead_id"), 64)
+        if lead_id:
+            tasks_by_lead.setdefault(lead_id, []).append(task)
 
+    recommendations: list[dict[str, Any]] = []
     for lead in leads:
         lead_id = _clean(lead.get("id"), 64)
         company = _clean(lead.get("company_name"), 180) or "Ismeretlen cég"
-        if not lead_id or lead_id in linked_lead_ids:
+        if not lead_id:
             continue
 
         research = _clean(lead.get("research_intelligence"), 3500)
@@ -65,38 +90,54 @@ def build_lead_workflow_recommendations(
         confidence = score["research_confidence"]
         evidence_count = score["evidence_count"]
         priority_score = score["priority_score"]
+        initial_stage = (
+            "research_validation"
+            if confidence == "low" or evidence_count < 2
+            else "business_need_validation"
+        )
+        stage = _next_stage(tasks_by_lead.get(lead_id, []), initial_stage)
+        if stage is None:
+            continue
 
-        if confidence == "low" or evidence_count < 2:
-            task_title = f"Kutatási bizonyítékok kiegészítése – {company}"[:180]
-            task_priority = "normal"
-            rationale = "A bizonyosság vagy a nyilvános bizonyítékok száma még nem elég erős üzleti döntéshez."
-        else:
-            task_title = f"Üzleti igény és szolgáltatási illeszkedés ellenőrzése – {company}"[:180]
-            task_priority = "high" if priority_score >= 85 else "normal"
-            rationale = "A kutatási jelzések alapján indokolt a konkrét üzleti igény emberi ellenőrzése."
-
+        stage_label = dict(_WORKFLOW_STAGES)[stage]
+        task_title = f"{stage_label} – {company}"[:180]
+        task_priority = (
+            "high" if stage == "business_need_validation" and priority_score >= 85
+            else "normal"
+        )
+        stage_guidance = {
+            "research_validation": "Ellenőrizd a forrásokat, dátumokat és a bizonyítékok valódiságát.",
+            "business_need_validation": "Emberi ellenőrzéssel pontosítsd a problémát, döntéshozói szerepet és szolgáltatási illeszkedést.",
+            "offer_preparation": "Készíts belső ajánlati vázlatot; ne küldd el és ne ígérj vállalást.",
+            "offer_review": "Ellenőrizd az árazást, teljesíthetőséget, kockázatokat és az ajánlat pontosságát; külső küldéshez külön jóváhagyás kell.",
+            "follow_up_review": "Csak meglévő, érvényes hozzájárulás, jóváhagyott cím és leiratkozás hiánya esetén készíts utánkövetési javaslatot. Ne küldj üzenetet.",
+            "outcome_measurement": "Rögzítsd a döntést, az ügyfél reakcióját, a következő lépést és a mérhető üzleti eredményt a feladat lezárása előtt.",
+        }[stage]
         evidence = score.get("evidence", [])
+        marker = f"[JARVIS_STAGE:{stage}]"
         notes = (
-            f"Leadazonosító: {lead_id}. Kutatási prioritás: {priority_score}/100; "
+            f"{marker} Leadazonosító: {lead_id}. Kutatási prioritás: {priority_score}/100; "
             f"üzleti illeszkedés: {score['business_fit_score']}/100; "
             f"bizonyosság: {confidence}; bizonyítékok: {evidence_count}. "
             f"Iparág: {industry or 'nincs strukturált adat'}. "
             f"Megfigyelt igény: {business_need or 'nincs strukturált adat'}. "
             f"Nyilvános jelek: {', '.join(evidence) if evidence else 'nincs részletezve'}. "
-            f"Következő lépés: {rationale} Ez nem kapcsolatfelvételi engedély."
+            f"Szakaszfeladat: {stage_guidance} Ez nem kapcsolatfelvételi engedély."
         )[:1000]
         recommendations.append({
             "lead_id": lead_id,
             "company_name": company,
             "task_title": task_title,
             "task_priority": task_priority,
+            "workflow_stage": stage,
+            "workflow_stage_label": stage_label,
             "priority_score": priority_score,
             "business_fit_score": score["business_fit_score"],
             "research_confidence": confidence,
             "evidence_count": evidence_count,
             "industry": industry or "Ismeretlen",
             "business_need": business_need,
-            "rationale": rationale,
+            "rationale": stage_guidance,
             "notes": notes,
             "outreach_allowed": False,
         })
