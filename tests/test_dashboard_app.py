@@ -311,12 +311,13 @@ def test_streamlit_chat_email_pending_audit_failure_never_calls_smtp(monkeypatch
 
 def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
     audit_statuses = []
-    app, _smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
+    app, smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
 
     def audit(*_args, **kwargs):
         audit_statuses.append(kwargs["status"])
         return True
     def fail_smtp(*_args, **_kwargs):
+        smtp_calls.append("attempt")
         raise OSError("mock SMTP failure")
     monkeypatch.setattr(jarvis_common, "audit_event", audit)
     monkeypatch.setattr(email_utils, "send_email", fail_smtp)
@@ -329,6 +330,7 @@ def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
     _submit_chat(app, "Jóváhagyom")
 
     assert audit_statuses == ["pending", "unknown"]
+    assert smtp_calls == ["attempt"], "ambiguous SMTP failure must never trigger an automatic duplicate send"
     assert any("JARVIS művelet" in item.value for item in app.error)
     assert any("hálózati kapcsolat" in item.value for item in app.warning)
     assert not any("mock SMTP failure" in item.value for item in app.warning)
