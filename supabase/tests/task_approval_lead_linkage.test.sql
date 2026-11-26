@@ -21,7 +21,7 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   IF NOT public.issue_pending_approval(
-    repeat('7', 64),
+    encode(extensions.digest('jarvis:task-linked:first', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000005',
     jsonb_build_object(
       'type', 'create', 'operation_id', v_first_operation,
@@ -35,7 +35,7 @@ BEGIN
   END IF;
 
   v_first := public.execute_approved_task_action(
-    repeat('7', 64),
+    encode(extensions.digest('jarvis:task-linked:first', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000005',
     v_first_operation,
     jsonb_build_object(
@@ -52,7 +52,7 @@ BEGIN
   END IF;
 
   IF NOT public.issue_pending_approval(
-    repeat('8', 64),
+    encode(extensions.digest('jarvis:task-linked:second', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000006',
     jsonb_build_object(
       'type', 'create', 'operation_id', v_second_operation,
@@ -66,7 +66,7 @@ BEGIN
   END IF;
 
   v_second := public.execute_approved_task_action(
-    repeat('8', 64),
+    encode(extensions.digest('jarvis:task-linked:second', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000006',
     v_second_operation,
     jsonb_build_object(
@@ -86,7 +86,7 @@ BEGIN
    WHERE operation_id = v_first_operation;
 
   IF NOT public.issue_pending_approval(
-    repeat('9', 64),
+    encode(extensions.digest('jarvis:task-linked:third', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000007',
     jsonb_build_object(
       'type', 'create', 'operation_id', v_third_operation,
@@ -100,7 +100,7 @@ BEGIN
   END IF;
 
   v_third := public.execute_approved_task_action(
-    repeat('9', 64),
+    encode(extensions.digest('jarvis:task-linked:third', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000007',
     v_third_operation,
     jsonb_build_object(
@@ -118,7 +118,7 @@ BEGIN
 
   -- Outcome notes are editable only through the same one-use approval RPC.
   IF NOT public.issue_pending_approval(
-    repeat('d', 64),
+    encode(extensions.digest('jarvis:task-linked:outcome', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000012',
     jsonb_build_object(
       'type', 'update', 'operation_id', v_update_operation,
@@ -131,7 +131,7 @@ BEGIN
   END IF;
 
   v_updated := public.execute_approved_task_action(
-    repeat('d', 64),
+    encode(extensions.digest('jarvis:task-linked:outcome', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000012',
     v_update_operation,
     jsonb_build_object(
@@ -150,7 +150,7 @@ BEGIN
   END IF;
 
   IF NOT public.issue_pending_approval(
-    repeat('c', 64),
+    encode(extensions.digest('jarvis:task-linked:invalid', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000009',
     jsonb_build_object(
       'type', 'create', 'operation_id', v_bad_operation,
@@ -164,7 +164,7 @@ BEGIN
 
   BEGIN
     PERFORM public.execute_approved_task_action(
-      repeat('c', 64),
+      encode(extensions.digest('jarvis:task-linked:invalid', 'sha256'), 'hex'),
       'legacy:73000000-0000-4000-8000-000000000009',
       v_bad_operation,
       jsonb_build_object(
@@ -188,7 +188,7 @@ BEGIN
   DELETE FROM private.task_action_operations
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation, v_update_operation);
   DELETE FROM private.task_approvals
-   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64), repeat('d', 64));
+   WHERE token_hash IN (encode(extensions.digest('jarvis:task-linked:first', 'sha256'), 'hex'), encode(extensions.digest('jarvis:task-linked:second', 'sha256'), 'hex'), encode(extensions.digest('jarvis:task-linked:third', 'sha256'), 'hex'), encode(extensions.digest('jarvis:task-linked:invalid', 'sha256'), 'hex'), encode(extensions.digest('jarvis:task-linked:outcome', 'sha256'), 'hex'));
   DELETE FROM public.leads WHERE id = v_lead;
 END
 $lead_linked_task$;
