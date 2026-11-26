@@ -14,6 +14,7 @@ def config(**overrides):
     values = {
         "input_price_microusd_per_million_tokens": 2_000_000,
         "output_price_microusd_per_million_tokens": 4_000_000,
+        "pricing_model": "gemini-test",
         "max_daily_cost_microusd": 900_000,
         "max_jobs_per_hour": 12,
         "max_jobs_per_domain_per_day": 2,
@@ -37,6 +38,7 @@ def test_environment_loads_one_explicit_shared_configuration():
     env = {
         "JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS": "2000000",
         "JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS": "4000000",
+        "JARVIS_COMPANY_RESEARCH_PRICING_MODEL": "gemini-test",
         "JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD": "900000",
         "JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR": "12",
         "JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY": "2",
@@ -194,4 +196,17 @@ def test_worker_adapter_rejects_runtime_limit_override(monkeypatch):
         run_company_research_worker_with_config(
             object(), client=client, model="gemini-test", snapshot_db=object(),
             worker_id="worker-a", config=cfg, max_concurrent_jobs=99,
+        )
+
+
+def test_runtime_rejects_model_that_does_not_match_pricing_schedule(monkeypatch):
+    cfg = config()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: SimpleNamespace(total_tokens=1),
+        generate_content=lambda **_: None,
+    ))
+    with pytest.raises(ValueError, match="does not match"):
+        run_company_research_worker_with_config(
+            object(), client=client, model="different-model", snapshot_db=object(),
+            worker_id="worker-a", config=cfg,
         )
