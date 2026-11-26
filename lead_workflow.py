@@ -34,10 +34,14 @@ def build_lead_workflow_recommendations(
     This deliberately avoids creating repeated tasks until the workflow has explicit
     stage transitions and completion outcomes.
     """
+    # Match the atomic creation RPC: only an open task blocks another
+    # first-stage recommendation. Completed/cancelled tasks are historical
+    # workflow records and must not suppress the next review opportunity.
     linked_lead_ids = {
         str(task.get("lead_id"))
         for task in tasks
-        if task.get("lead_id") and str(task.get("status") or "open").casefold() != "cancelled"
+        if task.get("lead_id")
+        and str(task.get("status") or "open").casefold() == "open"
     }
     recommendations: list[dict[str, Any]] = []
 
