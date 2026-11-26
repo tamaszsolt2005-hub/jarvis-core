@@ -4,10 +4,11 @@ from company_research_worker import run_one_company_research_job
 
 
 class FakeRepository:
-    def __init__(self, job=None, complete_result=None, fail_result=None):
+    def __init__(self, job=None, complete_result=None, fail_result=None, lose_lease=False):
         self.job = deepcopy(job)
         self.complete_result = complete_result
         self.fail_result = fail_result
+        self.lose_lease = lose_lease
         self.calls = []
 
     def claim(self, *, worker_id, lease_seconds=60):
@@ -17,6 +18,8 @@ class FakeRepository:
 
     def complete(self, *, operation_id, worker_id, result=None):
         self.calls.append(("complete", operation_id, worker_id, deepcopy(result)))
+        if self.lose_lease:
+            return None
         return deepcopy(self.complete_result if self.complete_result is not None else {
             "operation_id": operation_id, "status": "succeeded", "result": result,
         })
@@ -98,7 +101,7 @@ def test_worker_rejects_non_object_handler_result():
 
 
 def test_worker_does_not_report_success_if_lease_was_lost():
-    repository = FakeRepository(sample_job(), complete_result=None)
+    repository = FakeRepository(sample_job(), lose_lease=True)
     result = run_one_company_research_job(
         repository, worker_id="worker-a", handler=lambda _payload: {"ok": True},
     )
