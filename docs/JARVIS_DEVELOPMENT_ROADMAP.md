@@ -128,3 +128,13 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Aktív, le nem járt lease-ek számlálása és plafon ellenőrzése a job felvétele előtt.
 - A repository/worker explicit concurrency ceiling paramétert ad át.
 - Fake adapter teszt lefedi az RPC-paraméterezést; valódi konkurenciateszt izolált PostgreSQL környezetben még szükséges.
+
+
+### Phase 1I – tartós budget reservation és worker audit implementálva
+
+- Atomikus napi UTC cost reservation a job-create RPC tranzakciójában, advisory lockkal.
+- Idempotens operation ID replay nem foglal újra költséget.
+- Túllépéskor kontrollált `daily_cost_limit` elutasítás.
+- Tartós budget reservation tábla és append-only lifecycle audit tábla.
+- Audit események: enqueue, claim, heartbeat, success, retry, dead-letter és final lease expiry.
+- Production migration nem futott; PostgreSQL konkurencia-/tranzakcióteszt, actual-cost settlement, reservation release és atomikus hourly/domain rate quota még szükséges.
