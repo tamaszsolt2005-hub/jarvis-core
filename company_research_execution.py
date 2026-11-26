@@ -140,15 +140,10 @@ def _grounded_domain(url: Any) -> str | None:
             or not parsed.hostname
             or parsed.username
             or parsed.password
-            or parsed.hostname.casefold() in {"localhost", "localhost.localdomain"}
         ):
             return None
-        host = parsed.hostname.encode("idna").decode("ascii").casefold().removeprefix("www.")
-        ipaddress.ip_address(host)
-        return None
-    except ValueError:
-        return host if "host" in locals() else None
-    except (UnicodeError, TypeError):
+        return _normalize_domain(parsed.hostname)
+    except (ValueError, UnicodeError):
         return None
 
 
