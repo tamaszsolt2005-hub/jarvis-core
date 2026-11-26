@@ -77,6 +77,8 @@ def _next_stage(
 
 def _outcome_recommendation_stage(tasks: list[dict[str, Any]]) -> str | None:
     """Map an explicitly recorded outcome to one internal, approval-gated next task."""
+    if any(str(task.get("status") or "open").casefold() == "open" for task in tasks):
+        return None
     measurement_tasks = [
         task for task in tasks
         if _task_stage(task) == "outcome_measurement"
