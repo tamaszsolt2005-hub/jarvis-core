@@ -76,7 +76,7 @@ def test_lead_write_lockdown_is_a_separate_post_rollout_migration():
         / "20261126130000_enforce_atomic_company_lead_writes.sql"
     ).read_text(encoding="utf-8").lower()
     assert "lock table public.leads in share row exclusive mode" in migration
-    assert "revoke insert, delete, truncate" in migration
+    assert "revoke insert, update, delete, truncate" in migration
     assert "insert into public.lead_company_aliases" in migration
     assert "insert into public.lead_contact_candidates" in migration
     assert "delete from public.leads" not in migration
