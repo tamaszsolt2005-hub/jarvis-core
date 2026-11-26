@@ -1,6 +1,10 @@
 -- Prepare two independently approved operations for the same lead.
 SET request.jwt.claims = '{"role":"service_role"}';
 
+-- Avoid the global append-only audit-chain row lock masking the per-lead lock
+-- under test. The trigger is restored by the verification script.
+ALTER TABLE public.logs DISABLE TRIGGER logs_audit_hash_chain;
+
 INSERT INTO public.leads (id, company_name, status)
 VALUES ('74000000-0000-4000-8000-000000000001', 'Lead task race fixture', 'research');
 
