@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from company_research_job_repository import CompanyResearchJobRepository
+from company_research_admission import evaluate_research_admission
 from company_research_refresh_planner import plan_company_research_refresh_candidates
 
 
@@ -51,3 +52,62 @@ def enqueue_company_research_refreshes(
             },
         ))
     return jobs
+
+
+
+def enqueue_company_research_refreshes_with_admission(
+    repository: CompanyResearchJobRepository,
+    leads: list[dict[str, Any]],
+    latest_dossiers: dict[str, Any],
+    *,
+    limits: dict[str, int],
+    usage_snapshot: dict[str, Any],
+    estimated_cost_microusd_per_job: int,
+    now: datetime | None = None,
+    max_age_days: int = 30,
+    limit: int = 50,
+) -> dict[str, list[dict[str, Any]]]:
+    """Enqueue only candidates admitted by a bounded in-call usage snapshot.
+
+    Counters are advanced locally for each accepted candidate so one batch
+    cannot oversubscribe its own supplied snapshot. Concurrent invocations still
+    require a future atomic database reservation to enforce hard global limits.
+    """
+    candidates = plan_company_research_refresh_candidates(
+        leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
+    )
+    usage = {
+        "jobs_last_hour": usage_snapshot.get("jobs_last_hour", 0),
+        "jobs_by_domain_today": dict(usage_snapshot.get("jobs_by_domain_today", {})),
+        "running_jobs": usage_snapshot.get("running_jobs", 0),
+        "spent_today_microusd": usage_snapshot.get("spent_today_microusd", 0),
+    }
+    jobs: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for candidate in candidates:
+        domain = candidate["company_domain"]
+        decision = evaluate_research_admission(
+            domain=domain,
+            estimated_cost_microusd=estimated_cost_microusd_per_job,
+            limits=limits,
+            usage=usage,
+        )
+        if not decision["allowed"]:
+            rejected.append({"lead_id": candidate["lead_id"], "reason": decision["reason"]})
+            continue
+        jobs.append(repository.create(
+            operation_id=_operation_id(candidate),
+            lead_id=candidate["lead_id"],
+            payload={
+                "lead_id": candidate["lead_id"],
+                "company_domain": domain,
+                "company_name": candidate["company_name"],
+                "reason": candidate["reason"],
+                "researched_at": candidate["researched_at"],
+                "estimated_cost_microusd": estimated_cost_microusd_per_job,
+            },
+        ))
+        usage["jobs_last_hour"] += 1
+        usage["jobs_by_domain_today"][domain] = usage["jobs_by_domain_today"].get(domain, 0) + 1
+        usage["spent_today_microusd"] += estimated_cost_microusd_per_job
+    return {"jobs": jobs, "rejected": rejected}
