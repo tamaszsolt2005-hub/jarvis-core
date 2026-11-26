@@ -235,6 +235,6 @@ A CI #3019 korábbi tesztjobja 1104 tesztet sikeresen teljesített, 3 tesztet ki
 
 A PR #28 ágon elkészült két új SQL tesztfájl, de futtatási eredmény még nincs:
 - `supabase/tests/company_research_jobs.test.sql`: 15 pgTAP assertion az idempotenciára, napi költségfoglalásra, óránkénti/domain kvótára, claim plafonra, heartbeat-re, actual-cost settlementre és auditra.
-- `supabase/tests/company_research_jobs_concurrency.test.sql`: 12 pgTAP assertion két független `dblink` PostgreSQL sessionnel. Valódi párhuzamos budget reservation és párhuzamos worker claim versenyt indít.
+- `supabase/tests/company_research_jobs_concurrency.test.sql`: 14 pgTAP assertion két független `dblink` PostgreSQL sessionnel. Valódi párhuzamos budget reservation és párhuzamos worker claim versenyt indít.
 
 Következő lépés: a helyi Supabase/PostgreSQL elindítása után `supabase test db` futtatása izolált környezetben, majd az esetleges hibák javítása és az eredmény commit SHA-hoz kötött dokumentálása. A concurrency teszthez `dblink` extension kell. A production DB-n sem tesztet, sem migrációt nem futtatunk.
