@@ -47,6 +47,105 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  company-research-postgres-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install PostgreSQL 17 client and pgTAP/dblink
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          container_id="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -n1)"
+          test -n "$container_id"
+          docker exec -u root "$container_id" bash -lc 'apt-get update && apt-get install --yes postgresql-17-pgtap postgresql-contrib-17'
+      - name: Create isolated worker test database and minimal lead fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres company_research_test
+          PGPASSWORD=postgres psql "postgresql://postgres:postgres@127.0.0.1:5432/company_research_test" --set ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN BYPASSRLS;
+          CREATE SCHEMA extensions;
+          CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
+          CREATE EXTENSION pgtap WITH SCHEMA extensions;
+          CREATE EXTENSION dblink WITH SCHEMA extensions;
+          CREATE TABLE public.leads (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            company_name text NOT NULL,
+            status text DEFAULT 'new',
+            website text
+          );
+          ALTER DATABASE company_research_test SET search_path = public, extensions;
+          SQL
+      - name: Apply snapshot and worker migrations to isolated PostgreSQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          db_url="postgresql://postgres:postgres@127.0.0.1:5432/company_research_test"
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126153000_company_research_jobs.sql
+      - name: Run snapshot, worker lifecycle/quota and true multi-session race tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          db_url="postgresql://postgres:postgres@127.0.0.1:5432/company_research_test"
+          export PGOPTIONS="-c search_path=public,extensions"
+          snapshot_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_snapshots.test.sql)"
+          printf '%s\n' "$snapshot_output"
+          security_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_security.test.sql)"
+          printf '%s\n' "$security_output"
+          if grep -q '^not ok ' <<< "$security_output"; then
+            echo "pgTAP reported failed company research worker security assertions."
+            exit 1
+          fi
+          grep -q '1..12' <<< "$security_output"
+          lifecycle_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs.test.sql)"
+          printf '%s\n' "$lifecycle_output"
+          if grep -q '^not ok ' <<< "$lifecycle_output"; then
+            echo "pgTAP reported failed company research lifecycle/quota assertions."
+            exit 1
+          fi
+          grep -q '1..15' <<< "$lifecycle_output"
+          lifecycle_edges_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_lifecycle_edges.test.sql)"
+          printf '%s\n' "$lifecycle_edges_output"
+          if grep -q '^not ok ' <<< "$lifecycle_edges_output"; then
+            echo "pgTAP reported failed company research lifecycle edge assertions."
+            exit 1
+          fi
+          grep -q '1..20' <<< "$lifecycle_edges_output"
+          concurrency_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_concurrency.test.sql)"
+          printf '%s\n' "$concurrency_output"
+          if grep -q '^not ok ' <<< "$concurrency_output"; then
+            echo "pgTAP reported failed company research concurrency assertions."
+            exit 1
+          fi
+          grep -q '1..14' <<< "$concurrency_output"
+
   backup-restore-integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

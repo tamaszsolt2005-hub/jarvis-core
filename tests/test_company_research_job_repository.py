@@ -1,0 +1,305 @@
+from __future__ import annotations
+
+from copy import deepcopy
+
+import pytest
+
+from company_research_job_repository import (
+    CompanyResearchAdmissionRejected,
+    CompanyResearchBudgetExceeded,
+    CompanyResearchJobRepositoryError,
+    RPC_AUDIT_LIST,
+    RPC_CLAIM,
+    RPC_COMPLETE,
+    RPC_CREATE,
+    RPC_FAIL,
+    RPC_HEARTBEAT,
+    SupabaseCompanyResearchJobRepository,
+)
+
+
+class Response:
+    def __init__(self, data):
+        self.data = data
+
+
+class FakeRpcCall:
+    def __init__(self, client, name, params):
+        self.client, self.name, self.params = client, name, params
+
+    def execute(self):
+        self.client.calls.append((self.name, deepcopy(self.params)))
+        value = self.client.responses.get(self.name)
+        if isinstance(value, Exception):
+            raise value
+        return Response(deepcopy(value))
+
+
+class FakeSupabaseClient:
+    def __init__(self, responses=None):
+        self.responses = responses or {}
+        self.calls = []
+
+    def rpc(self, name, params):
+        return FakeRpcCall(self, name, params)
+
+
+def sample_job(operation_id="research:lead-123"):
+    return {
+        "operation_id": operation_id,
+        "job_type": "company_research_refresh",
+        "lead_id": "00000000-0000-4000-8000-000000000001",
+        "payload": {"source": "planner"},
+        "status": "queued",
+    }
+
+
+def test_create_uses_injected_client_and_is_idempotent_by_rpc_contract():
+    client = FakeSupabaseClient({RPC_CREATE: sample_job()})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    payload = {"source": "planner"}
+    result = repository.create(operation_id="research:lead-123", lead_id="00000000-0000-4000-8000-000000000001", payload=payload)
+    payload["source"] = "mutated"
+    assert result["operation_id"] == "research:lead-123"
+    assert client.calls[0][0] == RPC_CREATE
+    assert client.calls[0][1]["p_job"]["payload"] == {"source": "planner"}
+    assert client.calls[0][1]["p_estimated_cost_microusd"] == 0
+    assert client.calls[0][1]["p_daily_budget_microusd"] is None
+    assert client.calls[0][1]["p_max_jobs_per_hour"] is None
+    assert client.calls[0][1]["p_max_jobs_per_domain_per_day"] is None
+
+
+@pytest.mark.parametrize("operation_id", ["short", "", None])
+def test_create_validates_operation_id_before_rpc(operation_id):
+    client = FakeSupabaseClient()
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(ValueError):
+        repository.create(operation_id=operation_id, lead_id="00000000-0000-4000-8000-000000000001", payload={})
+    assert client.calls == []
+
+
+def test_create_rejects_mismatched_operation_id_from_database():
+    client = FakeSupabaseClient({RPC_CREATE: sample_job("different:operation")})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="different operation_id"):
+        repository.create(operation_id="research:lead-123", lead_id="00000000-0000-4000-8000-000000000001", payload={"source": "planner"})
+
+
+def test_claim_calls_single_atomic_database_rpc_and_returns_none_when_empty():
+    client = FakeSupabaseClient({RPC_CLAIM: []})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    assert repository.claim(worker_id="worker-a", lease_seconds=45) is None
+    assert client.calls == [(RPC_CLAIM, {"p_worker_id": "worker-a", "p_lease_seconds": 45, "p_max_concurrent_jobs": 3})]
+
+
+def test_heartbeat_complete_and_fail_are_delegated_to_conditional_rpcs():
+    job = sample_job()
+    client = FakeSupabaseClient({
+        RPC_HEARTBEAT: [job], RPC_COMPLETE: [job], RPC_FAIL: [job],
+    })
+    repository = SupabaseCompanyResearchJobRepository(client)
+    assert repository.heartbeat(operation_id=job["operation_id"], worker_id="worker-a")
+    assert repository.complete(operation_id=job["operation_id"], worker_id="worker-a", result={"ok": True})
+    assert repository.fail(
+        operation_id=job["operation_id"], worker_id="worker-a",
+        error_code="temporary", error_message="retry", retryable=True,
+        retry_delay_seconds=30, max_attempts=4,
+    )
+    assert [call[0] for call in client.calls] == [RPC_HEARTBEAT, RPC_COMPLETE, RPC_FAIL]
+    assert client.calls[1][1]["p_result"] == {"ok": True}
+    assert client.calls[2][1]["p_retryable"] is True
+
+
+def test_transition_rpc_empty_result_means_lease_or_state_conflict():
+    client = FakeSupabaseClient({RPC_COMPLETE: []})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    assert repository.complete(operation_id="research:lead-123", worker_id="stale-worker") is None
+
+
+def test_unexpected_rpc_shape_and_database_errors_are_wrapped():
+    client = FakeSupabaseClient({RPC_CLAIM: [{"a": 1}, {"b": 2}]})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="response shape"):
+        repository.claim(worker_id="worker-a")
+    client = FakeSupabaseClient({RPC_CLAIM: RuntimeError("private connection detail")})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="RPC failed"):
+        repository.claim(worker_id="worker-a")
+
+
+def test_adapter_requires_injected_rpc_client_and_validates_limits():
+    with pytest.raises(ValueError, match="injected"):
+        SupabaseCompanyResearchJobRepository(None)
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="positive integer"):
+        repository.claim(worker_id="worker-a", lease_seconds=True)
+    with pytest.raises(ValueError, match="worker_id"):
+        repository.claim(worker_id=" ")
+
+
+
+@pytest.mark.parametrize(
+    ("field", "conflicting_value"),
+    [
+        ("lead_id", "00000000-0000-4000-8000-000000000002"),
+        ("payload", {"source": "different"}),
+        ("job_type", "other_job"),
+    ],
+)
+def test_create_rejects_operation_id_reuse_with_conflicting_immutable_data(field, conflicting_value):
+    existing = sample_job()
+    existing[field] = conflicting_value
+    client = FakeSupabaseClient({RPC_CREATE: existing})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="idempotency conflict"):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+        )
+
+
+
+def test_claim_validates_concurrency_limit():
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="max_concurrent_jobs"):
+        repository.claim(worker_id="worker-a", max_concurrent_jobs=True)
+
+
+
+def test_create_passes_atomic_budget_reservation_values():
+    client = FakeSupabaseClient({RPC_CREATE: sample_job()})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    repository.create(
+        operation_id="research:lead-123",
+        lead_id="00000000-0000-4000-8000-000000000001",
+        payload={"source": "planner"},
+        estimated_cost_microusd=250_000,
+        daily_budget_microusd=1_000_000,
+        max_jobs_per_hour=20,
+        max_jobs_per_domain_per_day=5,
+    )
+    assert client.calls[0][1]["p_max_jobs_per_hour"] == 20
+    assert client.calls[0][1]["p_max_jobs_per_domain_per_day"] == 5
+    assert client.calls[0][1]["p_estimated_cost_microusd"] == 250_000
+    assert client.calls[0][1]["p_daily_budget_microusd"] == 1_000_000
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"estimated_cost_microusd": True},
+    {"estimated_cost_microusd": -1},
+    {"daily_budget_microusd": 0},
+    {"daily_budget_microusd": True},
+])
+def test_create_rejects_invalid_budget_values(kwargs):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+            **kwargs,
+        )
+
+
+def test_create_maps_only_fixed_daily_budget_database_marker():
+    client = FakeSupabaseClient({RPC_CREATE: RuntimeError("research_daily_budget_exceeded")})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchBudgetExceeded):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+            estimated_cost_microusd=10,
+            daily_budget_microusd=10,
+        )
+
+
+
+def test_audit_list_uses_bounded_read_only_rpc():
+    events = [{"event_id": 1, "event_type": "enqueued"}]
+    client = FakeSupabaseClient({RPC_AUDIT_LIST: events})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    assert repository.list_audit(operation_id="research:lead-123", limit=20) == events
+    assert client.calls == [(
+        RPC_AUDIT_LIST,
+        {"p_operation_id": "research:lead-123", "p_limit": 20},
+    )]
+
+
+@pytest.mark.parametrize("limit", [0, -1, 1001, True])
+def test_audit_list_rejects_unbounded_limits(limit):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="limit"):
+        repository.list_audit(operation_id="research:lead-123", limit=limit)
+
+
+def test_audit_list_rejects_unexpected_response_shape():
+    client = FakeSupabaseClient({RPC_AUDIT_LIST: {"not": "a list"}})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="response shape"):
+        repository.list_audit(operation_id="research:lead-123")
+
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_jobs_per_hour": 0},
+    {"max_jobs_per_hour": True},
+    {"max_jobs_per_domain_per_day": -1},
+])
+def test_create_rejects_invalid_atomic_quota_values(kwargs):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner", "company_domain": "example.com"},
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
+    ("database_error", "reason"),
+    [
+        ("research_hourly_limit_exceeded", "global_hourly_limit"),
+        ("research_domain_daily_limit_exceeded", "domain_daily_limit"),
+    ],
+)
+def test_create_maps_atomic_rate_limit_errors(database_error, reason):
+    repository = SupabaseCompanyResearchJobRepository(
+        FakeSupabaseClient({RPC_CREATE: RuntimeError(database_error)})
+    )
+    with pytest.raises(CompanyResearchAdmissionRejected) as caught:
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner", "company_domain": "example.com"},
+            max_jobs_per_hour=10,
+            max_jobs_per_domain_per_day=3,
+        )
+    assert caught.value.reason == reason
+
+
+
+def test_complete_passes_actual_cost_to_atomic_settlement_rpc():
+    job = sample_job()
+    client = FakeSupabaseClient({RPC_COMPLETE: [job]})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    repository.complete(
+        operation_id=job["operation_id"],
+        worker_id="worker-a",
+        result={"ok": True},
+        actual_cost_microusd=42_500,
+    )
+    assert client.calls[0][1]["p_actual_cost_microusd"] == 42_500
+
+
+@pytest.mark.parametrize("actual_cost", [True, -1, 1.5, "12"])
+def test_complete_rejects_invalid_actual_cost(actual_cost):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="actual_cost_microusd"):
+        repository.complete(
+            operation_id="research:lead-123",
+            worker_id="worker-a",
+            actual_cost_microusd=actual_cost,
+        )

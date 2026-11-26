@@ -1,5 +1,6 @@
 """Tests for centralized, secret-safe error reporting."""
 import logging
+import pytest
 
 from jarvis_errors import report_error, sanitize_log_text
 
@@ -184,3 +185,127 @@ def test_report_error_falls_back_to_legacy_logs_columns_when_error_column_is_mis
     assert "RuntimeError: lead research failed" in row["message"]
     assert row["message"] == message
 
+
+
+from jarvis_errors import classify_error, user_facing_error
+
+
+@pytest.mark.parametrize(
+    ("error", "category", "retryable"),
+    [
+        (RuntimeError("Hiányzó beállítás: GEMINI_API_KEY"), "missing_configuration", False),
+        (ValueError("Invalid URL scheme"), "invalid_configuration", False),
+        (PermissionError("RLS denied"), "permission_denied", False),
+        (type("Unauthorized", (Exception,), {"code": 401})("invalid credentials"), "authentication_failed", False),
+        (type("Quota", (Exception,), {"code": 429})("RESOURCE_EXHAUSTED"), "rate_limited", True),
+        (ConnectionError("connection reset"), "network_error", True),
+        (TimeoutError("request timed out"), "timeout", True),
+        (type("Unavailable", (Exception,), {"code": 503})("unavailable"), "service_unavailable", True),
+        (type("BadRequest", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"})("bad request"), "invalid_request", False),
+        (type("GeminiQuotaError", (Exception,), {"code": 429, "status": "RESOURCE_EXHAUSTED"})("quota"), "rate_limited", True),
+        (type("GeminiSymbolicQuotaError", (Exception,), {"code": "RESOURCE_EXHAUSTED", "status": "RESOURCE_EXHAUSTED"})("quota"), "rate_limited", True),
+        (type("GeminiUnavailableError", (Exception,), {"code": 503, "status": "UNAVAILABLE"})("temporarily unavailable"), "service_unavailable", True),
+        (type("GeminiDeadlineError", (Exception,), {"code": 504, "status": "DEADLINE_EXCEEDED"})("deadline exceeded"), "timeout", True),
+        (type("GeminiPermissionError", (Exception,), {"code": 403, "status": "PERMISSION_DENIED"})("denied"), "permission_denied", False),
+        (type("GeminiAPIKeyError", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"})("API_KEY_INVALID: API key not valid"), "authentication_failed", False),
+        (type("GeminiInternalError", (Exception,), {"code": 500, "status": "INTERNAL"})("internal server error"), "service_unavailable", True),
+    ],
+)
+def test_classify_error_categories(error, category, retryable):
+    result = classify_error(error)
+    assert result["category"] == category
+    assert result["retryable"] is retryable
+    assert result["user_message"]
+
+
+def test_user_facing_error_never_exposes_provider_secret():
+    error = RuntimeError("request failed api_key=super-secret")
+    message = user_facing_error(error)
+    assert "super-secret" not in message
+    assert "Váratlan hiba" in message
+
+
+
+def test_classify_audit_log_write_failure_as_fail_closed():
+    error = RuntimeError("Az e-mailt nem küldtem el: az auditnapló nem írható.")
+    result = classify_error(error)
+    assert result["category"] == "audit_unavailable"
+    assert result["retryable"] is False
+    assert "auditnapló nem írható" in user_facing_error(error)
+
+
+
+def test_provider_error_code_is_not_echoed_when_it_is_not_a_safe_status():
+    error = type("ProviderError", (Exception,), {"code": "secret=do-not-show"})("provider failed")
+    result = classify_error(error)
+    assert result["code"] is None
+    assert "do-not-show" not in user_facing_error(error)
+
+
+def test_provider_api_key_error_body_is_sanitized_before_logging(caplog):
+    error = RuntimeError("API_KEY_INVALID: x-goog-api-key: private-provider-key")
+    with caplog.at_level(logging.ERROR, logger="jarvis"):
+        report_error(error, module="gemini", operation="generate_content")
+    assert "private-provider-key" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("error", "category", "retryable"),
+    [
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                429,
+                {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "quota exhausted"}},
+            ),
+            "rate_limited",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                503,
+                {"error": {"code": 503, "status": "UNAVAILABLE", "message": "temporarily unavailable"}},
+            ),
+            "service_unavailable",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                504,
+                {"error": {"code": 504, "status": "DEADLINE_EXCEEDED", "message": "deadline exceeded"}},
+            ),
+            "timeout",
+            True,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                403,
+                {"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "permission denied"}},
+            ),
+            "permission_denied",
+            False,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                400,
+                {"error": {"code": 400, "status": "INVALID_ARGUMENT", "message": "API_KEY_INVALID: private-key-value"}},
+            ),
+            "authentication_failed",
+            False,
+        ),
+        (
+            __import__("google.genai.errors", fromlist=["ServerError"]).ServerError(
+                500,
+                {"error": {"code": 500, "status": "INTERNAL", "message": "internal server error"}},
+            ),
+            "service_unavailable",
+            True,
+        ),
+    ],
+)
+def test_classify_real_google_genai_sdk_errors(error, category, retryable):
+    result = classify_error(error)
+    assert result["category"] == category
+    assert result["retryable"] is retryable
+    assert result["code"] == str(error.code)
+    if "private-key-value" in str(error):
+        assert "private-key-value" not in user_facing_error(error)

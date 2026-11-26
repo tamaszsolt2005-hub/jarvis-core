@@ -111,12 +111,33 @@ class _SnapshotQuery:
     def __init__(self, db):
         self.db = db
         self.payload = None
+        self.filters = {}
+        self.limit_value = 1
+
+    def select(self, *_args, **_kwargs):
+        return self
+
+    def eq(self, key, value):
+        self.filters[key] = value
+        return self
+
+    def limit(self, value):
+        self.limit_value = value
+        return self
+
     def insert(self, payload):
         self.payload = payload
         return self
+
     def execute(self):
-        self.db.snapshots.append(self.payload)
-        return SimpleNamespace(data=[{"snapshot_id": self.payload["snapshot_id"]}])
+        if self.payload is not None:
+            self.db.snapshots.append(self.payload)
+            return SimpleNamespace(data=[{"snapshot_id": self.payload["snapshot_id"]}])
+        rows = [
+            row for row in self.db.snapshots
+            if all(row.get(key) == value for key, value in self.filters.items())
+        ]
+        return SimpleNamespace(data=rows[:self.limit_value])
 
 
 class _ResearchQuery:

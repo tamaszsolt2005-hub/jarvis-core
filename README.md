@@ -3,7 +3,7 @@
 Magyar nyelvű, Streamlit-alapú üzleti asszisztens, jelenleg helyi fejlesztés alatt.
 
 **Központi dokumentáció:** [JARVIS Master Documentation](docs/JARVIS_MASTER_DOCUMENTATION.md)  
-**Aktuális fejlesztési PR:** [#27 – company research phase 1](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27) – nyitott, nem merge-ölt.  
+**Aktuális fejlesztési PR:** [#28 – company research dashboard and worker](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28) – nyitott, nem merge-ölt.  
 **Alap PR:** [#26 – readiness gates és termékvízió](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) – nyitott, nem merge-ölt.
 
 ## Mi a JARVIS?
@@ -53,6 +53,7 @@ python -m pytest -q
 | [Fejlesztési backlog](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) | Technikai hiányok és következő feladatok |
 | [Release gate-ek](docs/REMAINING_WORK_AND_RELEASE_GATES.md) | Production előtti kötelező ellenőrzések |
 | [Production állapot](docs/PRODUCTION_STATE_AND_MIGRATION_PLAN.md) | Időbélyegzett, read-only production megfigyelések |
+| [Főrendszer-készültségi felmérés](docs/JARVIS_MAIN_SYSTEM_READINESS.md) | Core funkciók, készre jelentési kritériumok, hátralévő P0/P1/P2 feladatok |
 | [E-mail idempotencia](docs/EMAIL_PROVIDER_IDEMPOTENCY.md) | E-mail provider és retry-korlátok |
 
 ## Biztonsági és release szabályok
@@ -64,3 +65,46 @@ python -m pytest -q
 - PR merge külön jóváhagyást igényel.
 - CI státuszt mindig az aktuális PR head SHA alapján kell ellenőrizni.
 - A `.env*` és `.streamlit/secrets.toml` fájlok titkokat tartalmazhatnak; ezeket ne commitold és ne másold chatbe.
+
+
+## README státuszfrissítés – 2026-11-26
+
+**Aktuális PR #28 HEAD:** `39fa60c1b448036665a475106dc97bbdd95e7150`. **CI:** [Run #3121](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45880962637) – mindkét job sikeres (test: `140120013677`, backup/restore integration: `140120014052`). A tesztösszesítő: **1140 passed, 3 skipped, 0 failed**, teljes coverage **90,29%** (80% minimum); `python -m compileall -q .` sikeres. Ez az eredmény az itt megadott HEAD-hez kötött, a korábbi dokumentumban szereplő 1126/1 failed és korábbi CI-megjegyzések elavultak.
+
+### P0 – fejlesztési csomag állapota
+
+A Gemini és külső szolgáltatások hibakezelési P0 kódcsomag **elkészült és a fenti teljes CI zölden ellenőrizte**. Ide tartozik a Google GenAI státuszkódok normalizálása, központi retry-besorolás, korlátozott exponenciális retry, 429/503 fallback, auth/config/invalid-request no-retry, biztonságos provider-kód allowlist, titokmentesített hibajelzés és az SMTP duplikált újraküldésének kizárása. A Settings AppTest korábbi hibája is javítva van.
+
+**Korlát:** valódi Google Gemini API-val végzett élő/staging smoke nem történt. A CI a mockolt/tesztelt viselkedést igazolja, nem a szolgáltató élő válaszát. Ez a külső integrációs ellenőrzés továbbra is hátralévő feladat.
+
+### Jelenlegi termékképességek – mi van ma a JARVIS-ban?
+
+- Magyar nyelvű, Gemini-alapú üzleti chat (működéséhez helyi API-konfiguráció szükséges).
+- Kifejezett felhasználói kérésre indított, Google Search groundingre épülő lead/cégkutatás; dokumentált korlátja legfeljebb 15 új cég egy futásban.
+- Cégazonosítás és duplikációszűrés; lead scoring, kutatási bizonyosság és belső workflow-ajánlások.
+- Jóváhagyáshoz kötött task létrehozás/módosítás/lezárás; read-only Feladatok központ és utánkövetési sor.
+- Üzleti memória, napi briefing, analitika és audit funkciók.
+- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a teljes worker→provider→snapshot→lead→audit tartós E2E út még nincs igazolva. Auth módban a snapshot oldal fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
+- Read-only Beállítások oldal, konfigurációs státuszok és kézi diagnosztika; titokértékek nem jelennek meg és nem szerkeszthetők.
+- Bejövő inbox/e-mail komponensek konfigurációtól függően rendelkezésre állhatnak; **kimenő e-mail küldés hard-disabled**.
+
+### Ami még NINCS kész – a SaaS-vízió és a tényleges termék közötti különbség
+
+A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Nincs kész automatikus piacfigyelő/cégfelderítő scheduler, folyamatos háttérkutatás, teljesen bekötött és bizonyított worker adatút, automatikus SaaS-termékötlet- és versenytárselemző motor, globális/cégenkénti termék-tiltó és ütközésnapló, automatikus személyre szabott outreach, outbound e-mail, illetve AI-alapú teljes termékfejlesztési/build/release pipeline. Ezek célfunkciók, nem jelenlegi kész képességek.
+
+### Következő javítások és lezárási sorrend
+
+**P1 – következő fő fejlesztési szakasz:**
+1. A cégkutatási adatút E2E bekötése és igazolása: queue → claim → grounded Gemini provider → dossier validáció → snapshot mentés → lead-kapcsolat → audit; hiba/retry, lease-loss, duplicate operation ID és rollback viselkedéssel.
+2. A két előkészített SQL tesztcsomag futtatása izolált PostgreSQL/Supabase környezetben: `company_research_jobs.test.sql` (15 pgTAP assertion) és `company_research_jobs_concurrency.test.sql` (14 pgTAP assertion, `dblink`). A futtatás jelenleg NEM igazolt; lokális Supabase konfiguráció és `dblink` elérhetőség szükséges.
+3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
+4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
+5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.
+6. Teljes helyi manuális dashboard smoke: Chat, Feladatok, Analitika, Cégkutatás, Audit, Beállítások; üres adat, hiányzó/hibás konfiguráció, hálózat, kvóta és permission állapotok.
+7. Chat gyorsműveletek valódi kattintható műveletté alakítása; user preference mentés csak jóváhagyott adattárolási modell alapján, a titkok és biztonsági zárak változtathatatlanul hagyásával.
+
+**P2 – későbbi terméképítési szakasz:** scheduler/automatikus háttérkutatás; SaaS-ötletmotor és piaci alternatívaelemzés; globális és cégenkénti tiltó/ütközésnapló; ajánlatgenerálás és outreach workflow; jogszerű marketing-hozzájárulás/suppression modell; outbound e-mail külön engedélyezés után; AI-assisted termékfejlesztés és build/test/release pipeline.
+
+### PR és környezeti állapot
+
+PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.

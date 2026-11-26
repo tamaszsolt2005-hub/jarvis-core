@@ -8,8 +8,9 @@ import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
-from jarvis_errors import report_error, sanitize_log_text, register_secret_value
+from jarvis_errors import report_error, sanitize_log_text, register_secret_value, classify_error
 
 from google import genai
 from google.genai import types
@@ -50,12 +51,34 @@ def get_secret(name: str, default: str | None = None) -> str | None:
 
 def required_secret(name: str) -> str:
     value = get_secret(name)
-    if not value:
+    if value is None or not str(value).strip():
         raise RuntimeError(
-            f"Hiányzó beállítás: {name}. Add hozzá Codespaces secretként (környezeti változóként) "
-            "vagy a .streamlit/secrets.toml fájlban."
+            f"Hiányzó beállítás: {name}. Add hozzá a helyi környezeti változókhoz "
+            "vagy a .streamlit/secrets.toml fájlhoz."
         )
-    return value
+    return str(value).strip()
+
+
+def required_http_url(name: str) -> str:
+    """Read and validate a required public HTTP(S) service endpoint."""
+    value = required_secret(name)
+    try:
+        parsed = urlsplit(value)
+        # Accessing .port also validates the numeric range and syntax.
+        _ = parsed.port
+        valid = (
+            parsed.scheme in {"http", "https"}
+            and bool(parsed.hostname)
+            and parsed.username is None
+            and parsed.password is None
+        )
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError(
+            f"Hibás konfiguráció: {name} csak érvényes http:// vagy https:// projekt URL lehet."
+        )
+    return value.rstrip("/")
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -76,7 +99,7 @@ def env_int(name: str, default: int, minimum: int = 0, maximum: int = 100000) ->
 
 def get_service_supabase() -> Client:
     """Create the privileged server-side client for trusted background/ops code only."""
-    url = required_secret("SUPABASE_URL")
+    url = required_http_url("SUPABASE_URL")
     key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or required_secret("SUPABASE_KEY")
     return create_client(url, key)
 
@@ -217,7 +240,7 @@ def generate_text(
     on_status: Any | None = None,
     max_output_tokens: int = 8192,
 ) -> str:
-    """Generate with bounded retries and current fallback models for temporary overloads."""
+    """Generate model output with bounded retries; never execute business side effects here."""
     client = client or get_gemini_client()
     primary_model = get_model_name()
     fallback_models = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
@@ -256,22 +279,13 @@ def generate_text(
                 return answer, None
             except Exception as exc:
                 last_error = exc
-                code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-                status = str(getattr(exc, "status", "") or "").upper()
-                message = str(exc).upper()
-                is_overloaded = (
-                    code in (429, 503)
-                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-                    or any(marker in message for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
-                )
-                transient = (
-                    code in (408, 429, 500, 502, 503, 504)
-                    or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
-                    or any(marker in message for marker in (
-                        "408", "429", "500", "502", "503", "504", "UNAVAILABLE",
-                        "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED",
-                    ))
-                )
+                classification = classify_error(exc)
+                is_overloaded = classification["category"] in {"rate_limited", "service_unavailable"}
+                # This helper performs model inference only. It is safe to retry
+                # transient inference failures, but callers must keep external
+                # mutations (SMTP, database writes, task actions) outside this path
+                # and protect them with their own durable idempotency keys.
+                transient = classification["retryable"]
                 if not transient or attempt >= attempts - 1:
                     if is_overloaded:
                         return "", exc
@@ -285,11 +299,7 @@ def generate_text(
     answer, error = request_model(primary_model, max_attempts)
     if answer:
         return answer
-    if error is not None and not (
-        (getattr(error, "code", None) or getattr(error, "status_code", None)) in (429, 503)
-        or str(getattr(error, "status", "")).upper() in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-        or any(marker in str(error).upper() for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
-    ):
+    if error is not None and classify_error(error)["category"] not in {"rate_limited", "service_unavailable"}:
         raise error
 
     tried = {primary_model}
@@ -304,11 +314,7 @@ def generate_text(
             return answer
         error = fallback_error or error
         if error is not None:
-            code = getattr(error, "code", None) or getattr(error, "status_code", None)
-            status = str(getattr(error, "status", "") or "").upper()
-            message = str(error).upper()
-            if not (code in (429, 503) or status in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}
-                    or any(marker in message for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))):
+            if classify_error(error)["category"] not in {"rate_limited", "service_unavailable"}:
                 raise error
 
     if error is not None:

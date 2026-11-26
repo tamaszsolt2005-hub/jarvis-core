@@ -6,6 +6,7 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import chat_email
+import dashboard
 import email_utils
 import global_lead_research
 import jarvis_common
@@ -85,6 +86,8 @@ def _prepare_dashboard(monkeypatch):
         lambda *_args, **_kwargs: ("APPT tárgy", "APPT levéltörzs"),
     )
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    # dashboard imports the hard lock as a module constant; enable only in mocked delivery tests.
+    monkeypatch.setattr(dashboard, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
         email_utils, "send_email",
         lambda *args, **kwargs: (smtp_calls.append((args, kwargs)) or "mock-smtp-id"),
@@ -308,12 +311,13 @@ def test_streamlit_chat_email_pending_audit_failure_never_calls_smtp(monkeypatch
 
 def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
     audit_statuses = []
-    app, _smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
+    app, smtp_calls, email_switch = _prepare_dashboard(monkeypatch)
 
     def audit(*_args, **kwargs):
         audit_statuses.append(kwargs["status"])
         return True
     def fail_smtp(*_args, **_kwargs):
+        smtp_calls.append("attempt")
         raise OSError("mock SMTP failure")
     monkeypatch.setattr(jarvis_common, "audit_event", audit)
     monkeypatch.setattr(email_utils, "send_email", fail_smtp)
@@ -326,8 +330,10 @@ def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
     _submit_chat(app, "Jóváhagyom")
 
     assert audit_statuses == ["pending", "unknown"]
+    assert smtp_calls == ["attempt"], "ambiguous SMTP failure must never trigger an automatic duplicate send"
     assert any("JARVIS művelet" in item.value for item in app.error)
-    assert any("OSError" in item.value for item in app.warning)
+    assert any("hálózati kapcsolat" in item.value for item in app.warning)
+    assert not any("mock SMTP failure" in item.value for item in app.warning)
 
 
 def test_streamlit_chat_email_final_audit_failure_warns_against_duplicate_send(monkeypatch):
@@ -732,3 +738,255 @@ def test_streamlit_task_center_renders_task_metrics_and_due_dates(monkeypatch):
     assert any("Feladatközpont" in item.value for item in app.title)
     assert len(app.get("dataframe")) == 1
     assert any("LEJÁRT FELADATOK" in item.value for item in app.warning)
+
+
+
+def test_streamlit_company_research_page_renders_read_only_snapshot_history(monkeypatch):
+    from datetime import datetime, timezone
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    snapshot = {
+        "snapshot_id": "223e4567-e89b-42d3-a456-426614174001",
+        "company_domain": "example.com",
+        "schema_version": 1,
+        "researched_at": datetime.now(timezone.utc).isoformat(),
+        "content_sha256": "a" * 64,
+        "dossier": {
+            "decision_maker": {
+                "name": "Teszt Vezető",
+                "role": "Ügyvezető",
+                "professional_background": "Nyilvános szakmai háttér.",
+                "source_url": "https://example.com/leadership",
+            },
+            "facts": [{
+                "category": "business_model",
+                "fact": "A vállalat B2B szolgáltatást nyújt.",
+                "source_url": "https://example.com/about",
+            }],
+        },
+    }
+
+    class ResearchQuery(_Query):
+        def __init__(self, rows):
+            super().__init__(rows)
+
+    class ResearchDB:
+        def table(self, name):
+            if name == "leads":
+                return ResearchQuery([{
+                    "id": lead_id,
+                    "company_name": "Teszt Vállalat",
+                    "source": "gemini_google_search_grounding:google",
+                }])
+            if name == "company_research_snapshots":
+                return ResearchQuery([snapshot])
+            raise AssertionError(f"Unexpected table access: {name}")
+
+    db = ResearchDB()
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
+
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_research").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "research"
+    assert any("Cégkutatási előzmények" in item.value for item in app.title)
+    rendered = " ".join(_markdown_values(app))
+    assert "Teszt Vezető" in rendered
+    assert "A vállalat B2B szolgáltatást nyújt." in rendered
+    assert "example.com/about" in rendered
+    assert len(app.chat_input) == 0
+
+
+
+def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    # Settings must display the production hard lock, not the mocked send-enabled test state.
+    monkeypatch.setattr(dashboard, "EMAIL_DELIVERY_ENABLED", False)
+    # AppTest executes dashboard.py as a fresh script; patch the source module too.
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", False)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "settings"
+    assert any("Beállítások" in item.value for item in app.title)
+    assert len(app.chat_input) == 0
+    rendered = " ".join(_markdown_values(app)) + " ".join(item.value for item in app.caption)
+    assert "SUPABASE_URL" in rendered
+    assert "GEMINI_API_KEY" in rendered
+    assert "E-mail-küldés" in rendered
+    assert any("biztonsági zárja aktív" in item.value for item in app.info)
+    diagnostics_button = app.button(key="jarvis_settings_run_diagnostics")
+    assert diagnostics_button is not None
+    assert diagnostics_button.key == "jarvis_settings_run_diagnostics"
+
+
+def test_streamlit_settings_diagnostics_only_run_after_explicit_click(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        health_check, "run_self_diagnostics",
+        lambda *, auth_session=None: (
+            calls.append(auth_session) or "APPT_SETTINGS_DIAGNOSTICS"
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert calls == []
+    app.button(key="jarvis_settings_run_diagnostics").click().run()
+
+    assert not app.exception
+    assert calls == [None]
+    assert any("APPT_SETTINGS_DIAGNOSTICS" in value for value in _markdown_values(app))
+
+
+
+def test_streamlit_task_center_keeps_follow_up_queue_visible_without_tasks(monkeypatch):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    due = (datetime.now(ZoneInfo("Europe/Budapest")) - timedelta(days=1)).isoformat()
+    consent_at = (datetime.now(ZoneInfo("Europe/Budapest")) - timedelta(days=2)).isoformat()
+    lead = {
+        "id": "123e4567-e89b-42d3-a456-426614174000",
+        "company_name": "Utánkövetési teszt Kft.",
+        "status": "sent",
+        "email": "contact@example.com",
+        "consent_basis": "consent",
+        "consent_confirmed_at": consent_at,
+        "approved_to_contact": True,
+        "opted_out": False,
+        "reply_category": None,
+        "last_inbound_message_id": None,
+        "follow_up_count": 0,
+        "next_follow_up_at": due,
+        "notes": "",
+        "source": "manual",
+    }
+
+    class TaskQueueDB:
+        def table(self, name):
+            if name == "tasks":
+                return _Query([])
+            if name == "leads":
+                return _Query([lead])
+            raise AssertionError(f"Unexpected table access: {name}")
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: TaskQueueDB())
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_tasks").click().run()
+
+    assert not app.exception
+    assert any("Még nincs feladat" in item.value for item in app.info)
+    assert any("Utánkövetési sor" in item.value for item in app.subheader)
+    assert len(app.get("dataframe")) == 1
+
+
+
+def test_streamlit_audit_page_renders_verified_admin_view_and_integrity_result(monkeypatch):
+    import audit_admin
+
+    session = {
+        "access_token": "verified-audit-access",
+        "refresh_token": "verified-audit-refresh",
+        "user_id": "10000000-0000-0000-0000-000000000001",
+        "email": "audit-admin@example.com",
+        "role": "admin",
+    }
+    db = object()
+    monkeypatch.setattr(audit_admin, "verified_admin_client", lambda _session: (db, session))
+    monkeypatch.setattr(
+        audit_admin, "fetch_audit_page",
+        lambda *_args, **_kwargs: ({
+            "events": [{
+                "module": "task_actions",
+                "action": "task_create",
+                "status": "success",
+                "operation_id": "audit-operation-1",
+            }],
+            "next_cursor": None,
+        }),
+    )
+    monkeypatch.setattr(
+        audit_admin, "verify_audit_integrity",
+        lambda _db: {"ok": True, "total_entries": 1},
+    )
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.session_state["_jarvis_audit_admin_session"] = session
+    app.button(key="jarvis_nav_audit").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "audit"
+    assert len(app.get("dataframe")) == 1
+
+    app.button(key="jarvis_audit_integrity_check").click().run()
+
+    assert not app.exception
+    assert any("hash-lánc ellenőrzése sikeres" in item.value for item in app.success)
+
+
+def test_streamlit_company_research_fails_closed_in_individual_auth_mode(monkeypatch):
+    import pytest
+    import jarvis_auth
+
+    session = {
+        "access_token": "verified-access",
+        "refresh_token": "verified-refresh",
+        "user_id": "10000000-0000-0000-0000-000000000001",
+        "email": "reader@example.com",
+        "role": "reader",
+    }
+    user_db = _ReadOnlyDB()
+    monkeypatch.setattr(
+        jarvis_common, "env_bool",
+        lambda name, default=False: name in {
+            "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED", "CHAT_EMAIL_ENABLED"
+        } if name == "JARVIS_SUPABASE_AUTH_LOGIN_ENABLED" else default,
+    )
+    monkeypatch.setattr(jarvis_auth, "sign_in_user", lambda _email, _password: session.copy())
+    monkeypatch.setattr(
+        jarvis_common, "get_user_supabase",
+        lambda supplied, *, allowed_roles: (user_db, session.copy()),
+    )
+    monkeypatch.setattr(
+        jarvis_common, "get_legacy_dashboard_supabase",
+        lambda: pytest.fail("Research Auth mode must never fall back to a legacy/service-role client"),
+    )
+
+    app = AppTest.from_file(str(ROOT / "dashboard.py"), default_timeout=20)
+    app.run()
+    app.text_input[0].set_value("reader@example.com")
+    app.text_input[1].set_value("test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_research").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "research"
+    assert any("olvasási jogosultsága még nincs kivezetve" in item.value for item in app.info)
+
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "settings"
+    assert any("beállítások megtekintéséhez nincs megfelelő jogosultság" in item.value for item in app.error)
+    assert not any(
+        button.key == "jarvis_settings_run_diagnostics"
+        for button in app.button
+    )

@@ -23,7 +23,7 @@ import jarvis_common
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_user_supabase, get_service_supabase, get_enforced_user_supabase, get_model_name, log_event, env_bool
 from jarvis_auth import sign_in_user, sign_out_user, has_permission
 import jarvis_errors
-from jarvis_errors import sanitize_log_text
+from jarvis_errors import sanitize_log_text, user_facing_error
 import audit_admin
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
@@ -72,6 +72,7 @@ from lead_workflow import (
 from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
+from company_research_store import get_company_research_history
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -306,54 +307,54 @@ def render_tasks_page(db: Any) -> None:
 
     if not normalized:
         st.info("Még nincs feladat. A chatben például így hozhatsz létre egyet: Hozz létre feladat: Első feladat; prioritás=normal")
-        return
 
-    filter_col, sort_col = st.columns([2, 2])
-    with filter_col:
-        selected_status = st.selectbox(
-            "Feladatok szűrése",
-            ["Aktív és lejárt", "Összes", "Lezárt", "Csak lejárt", "Sürgős"],
-            key="jarvis_task_filter",
-        )
-    with sort_col:
-        sort_order = st.selectbox(
-            "Rendezés",
-            ["Határidő szerint", "Prioritás szerint", "Legújabb elöl"],
-            key="jarvis_task_sort",
-        )
+    if normalized:
+        filter_col, sort_col = st.columns([2, 2])
+        with filter_col:
+            selected_status = st.selectbox(
+                "Feladatok szűrése",
+                ["Aktív és lejárt", "Összes", "Lezárt", "Csak lejárt", "Sürgős"],
+                key="jarvis_task_filter",
+            )
+        with sort_col:
+            sort_order = st.selectbox(
+                "Rendezés",
+                ["Határidő szerint", "Prioritás szerint", "Legújabb elöl"],
+                key="jarvis_task_sort",
+            )
 
-    visible = normalized
-    if selected_status == "Aktív és lejárt":
-        visible = open_tasks
-    elif selected_status == "Lezárt":
-        visible = [item for item in normalized if item["_closed"]]
-    elif selected_status == "Csak lejárt":
-        visible = overdue_tasks
-    elif selected_status == "Sürgős":
-        visible = urgent_tasks
+        visible = normalized
+        if selected_status == "Aktív és lejárt":
+            visible = open_tasks
+        elif selected_status == "Lezárt":
+            visible = [item for item in normalized if item["_closed"]]
+        elif selected_status == "Csak lejárt":
+            visible = overdue_tasks
+        elif selected_status == "Sürgős":
+            visible = urgent_tasks
 
-    if sort_order == "Határidő szerint":
-        visible = sorted(visible, key=lambda item: (pd.isna(item["_due"]), item["_due"].timestamp() if pd.notna(item["_due"]) else float("inf")))
-    elif sort_order == "Prioritás szerint":
-        priority_rank = {"urgent": 0, "high": 1, "normal": 2}
-        visible = sorted(visible, key=lambda item: priority_rank.get(str(item.get("priority") or "").casefold(), 3))
-    else:
-        visible = sorted(visible, key=lambda item: str(item.get("created_at") or ""), reverse=True)
+        if sort_order == "Határidő szerint":
+            visible = sorted(visible, key=lambda item: (pd.isna(item["_due"]), item["_due"].timestamp() if pd.notna(item["_due"]) else float("inf")))
+        elif sort_order == "Prioritás szerint":
+            priority_rank = {"urgent": 0, "high": 1, "normal": 2}
+            visible = sorted(visible, key=lambda item: priority_rank.get(str(item.get("priority") or "").casefold(), 3))
+        else:
+            visible = sorted(visible, key=lambda item: str(item.get("created_at") or ""), reverse=True)
 
-    rows = []
-    for item in visible:
-        due = item["_due"]
-        rows.append({
-            "Feladat": str(item.get("title") or "Névtelen feladat")[:180],
-            "Státusz": str(item.get("status") or "open"),
-            "Prioritás": str(item.get("priority") or "normal"),
-            "Határidő": due.tz_convert("Europe/Budapest").strftime("%Y-%m-%d %H:%M") if pd.notna(due) else "Nincs",
-            "Figyelmeztetés": "LEJÁRT" if item["_overdue"] else "",
-            "Kapcsolt lead": str(item.get("lead_id") or "—"),
-            "Feladatazonosító": str(item.get("id") or ""),
-        })
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-    st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
+        rows = []
+        for item in visible:
+            due = item["_due"]
+            rows.append({
+                "Feladat": str(item.get("title") or "Névtelen feladat")[:180],
+                "Státusz": str(item.get("status") or "open"),
+                "Prioritás": str(item.get("priority") or "normal"),
+                "Határidő": due.tz_convert("Europe/Budapest").strftime("%Y-%m-%d %H:%M") if pd.notna(due) else "Nincs",
+                "Figyelmeztetés": "LEJÁRT" if item["_overdue"] else "",
+                "Kapcsolt lead": str(item.get("lead_id") or "—"),
+                "Feladatazonosító": str(item.get("id") or ""),
+            })
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+        st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
 
     st.subheader("Utánkövetési sor")
     st.caption(
@@ -434,6 +435,262 @@ def render_tasks_page(db: Any) -> None:
             "Külső e-mail vagy kapcsolatfelvétel ebből az oldalból nem indul."
         )
 
+
+
+def _safe_research_source_url(value: Any) -> str | None:
+    """Allow only public-looking HTTP(S) source links from stored dossier data."""
+    from urllib.parse import urlparse
+
+    raw = str(value or "").strip()
+    if not raw or len(raw) > 2048:
+        return None
+    try:
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").casefold()
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not host
+            or parsed.username
+            or parsed.password
+            or host in {"localhost", "localhost.localdomain"}
+            or host.endswith(".localhost")
+            or host.endswith(".local")
+        ):
+            return None
+        return raw
+    except ValueError:
+        return None
+
+
+def render_settings_page() -> None:
+    """Render safe, read-only runtime settings and explicitly triggered diagnostics."""
+    st.title("Beállítások")
+    st.caption(
+        "A futó JARVIS-konfiguráció áttekintése. A titkok értékét soha nem jelenítjük meg, "
+        "és ezen az oldalon nem módosítunk környezeti változókat vagy adatbázis-beállításokat."
+    )
+
+    auth_mode = _auth_login_enabled()
+    role = str(st.session_state.get("_jarvis_user_role") or "legacy dashboard")
+    if auth_mode and not has_permission(role, "settings.read"):
+        st.error("A beállítások megtekintéséhez nincs megfelelő jogosultság.")
+        return
+    supabase_url_ready = bool((get_secret("SUPABASE_URL") or "").strip())
+    if auth_mode:
+        supabase_key_ready = bool(
+            (get_secret("SUPABASE_PUBLISHABLE_KEY") or "").strip()
+            or (get_secret("SUPABASE_ANON_KEY") or "").strip()
+        )
+        auth_label = "Egyéni Supabase Auth + RBAC"
+    else:
+        supabase_key_ready = bool(
+            (get_secret("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+            or (get_secret("SUPABASE_KEY") or "").strip()
+        )
+        auth_label = "Megosztott dashboard-jelszó"
+    gemini_ready = bool((get_secret("GEMINI_API_KEY") or "").strip())
+    dashboard_password_ready = auth_mode or bool(
+        (get_secret("JARVIS_DASHBOARD_PASSWORD") or "").strip()
+    )
+    try:
+        model_name = str(get_model_name())
+    except Exception:
+        model_name = "Nem olvasható"
+
+    st.subheader("Alkalmazás és hozzáférés")
+    access_rows = [
+        ("Bejelentkezési mód", auth_label),
+        ("Aktuális szerepkör", role),
+        ("Munkamenet", "Hitelesített" if st.session_state.get("authenticated") else "Nem hitelesített"),
+        ("Gemini modell", model_name),
+        ("Időzóna", "Europe/Budapest"),
+        ("Kutatási worker", "One-shot runtime modul elérhető; automatikus scheduler nincs bekapcsolva"),
+    ]
+    for label, value in access_rows:
+        left, right = st.columns([1, 2])
+        left.markdown(f"**{label}**")
+        right.write(value)
+
+    st.subheader("Integrációk és biztonsági kapuk")
+    configuration_rows = [
+        ("SUPABASE_URL", supabase_url_ready, "Supabase projekt URL"),
+        (
+            "Supabase API-kulcs",
+            supabase_key_ready,
+            "Auth módban publishable/anon kulcs; legacy módban szerveroldali kulcs",
+        ),
+        ("GEMINI_API_KEY", gemini_ready, "AI chat és kutatási szolgáltatás"),
+        ("Dashboard hitelesítés", dashboard_password_ready, "Megosztott jelszó vagy egyéni Auth"),
+        ("Chat e-mail funkciókapcsoló", env_bool("CHAT_EMAIL_ENABLED", False), "Piszkozat/jóváhagyási út; önmagában nem enged küldést"),
+        ("E-mail-küldési kódzár", EMAIL_DELIVERY_ENABLED is False, "Az e-mail-küldés kódszinten tiltott"),
+    ]
+    for label, configured, description in configuration_rows:
+        left, middle, right = st.columns([1.25, 1, 2])
+        left.write(label)
+        if configured:
+            middle.success("Beállítva")
+        else:
+            middle.warning("Hiányzik / ellenőrizendő")
+        right.caption(description)
+
+    if EMAIL_DELIVERY_ENABLED is False:
+        st.info("A kimenő e-mail-küldés biztonsági zárja aktív. A beállítások oldal ezt nem tudja feloldani.")
+    else:
+        st.error("A kimenő e-mail-küldés kódszintű zárja nincs aktív. Ne használd a rendszert outbound küldésre.")
+
+    st.subheader("Rendszerdiagnosztika")
+    st.caption(
+        "A diagnosztika korlátozott, olvasási Supabase-próbákat végez. "
+        "A Gemini próbakérés külső API-használatot és költséget okozhat; csak külön indításra fut."
+    )
+    if auth_mode and role != "admin":
+        st.warning("Egyéni Supabase Auth módban a teljes rendszerdiagnosztika csak admin szerepkörrel indítható.")
+    elif st.button("Rendszerdiagnosztika futtatása", key="jarvis_settings_run_diagnostics", type="primary"):
+        try:
+            diagnostic_report = run_self_diagnostics(
+                auth_session=st.session_state.get("_jarvis_auth_session") if auth_mode else None
+            )
+            st.session_state["jarvis_settings_diagnostics_report"] = str(diagnostic_report)
+        except Exception as exc:
+            report_error(exc, module="dashboard", operation="settings_diagnostics", severity="warning")
+            st.error("A rendszerdiagnosztika nem futott le.")
+            st.warning(user_facing_error(exc))
+    diagnostic_report = st.session_state.get("jarvis_settings_diagnostics_report")
+    if diagnostic_report:
+        st.markdown(str(diagnostic_report))
+
+    with st.expander("Módosítható beállítások – jelenlegi korlátozások"):
+        st.markdown(
+            "- A Supabase- és Gemini-kulcsok, jelszavak és SMTP-adatok a futtatási környezet titkos konfigurációjában kezelendők.\n"
+            "- Az Auth/RBAC, RLS, e-mail-küldési zár és adatbázis-kapcsolat nem módosítható a dashboardról.\n"
+            "- A felület jelenleg nem tárol felhasználói preferenciákat; nem mutatunk olyan kapcsolót, amely nem mentene tartósan.\n"
+            "- A kutatási worker és az automatikus ütemezés nincs innen elindítva."
+        )
+
+
+def render_company_research_page(db: Any) -> None:
+    """Render bounded, read-only company dossier history for existing researched leads."""
+    st.title("Cégkutatási előzmények")
+    st.caption(
+        "Forrásolt cégdossziék és korábbi kutatási pillanatképek. Ez az oldal kizárólag olvas; "
+        "nem indít új kutatást, nem módosít leadet és nem kezdeményez kapcsolatfelvételt."
+    )
+    if _auth_login_enabled():
+        st.info(
+            "Az egyéni Supabase Auth-munkamenetekhez a cégkutatási előzménytábla "
+            "olvasási jogosultsága még nincs kivezetve. A hozzáférést nem kerülöm meg "
+            "service-role klienssel; külön RLS- és jogosultsági tervezés szükséges."
+        )
+        return
+
+    lead_status: dict[str, Any] = {}
+    leads = _safe_rows(
+        db, "leads", "id,company_name,source", 500, status=lead_status
+    )
+    if lead_status.get("error"):
+        st.error("A céglista nem érhető el; az adatbázishibát nem tekintem üres eredménynek.")
+        st.caption(f"Hibatípus: {lead_status.get('error_type') or 'ismeretlen'}")
+        return
+
+    researched = [
+        lead for lead in leads
+        if lead.get("id")
+        and str(lead.get("source") or "").startswith("gemini_google_search_grounding:")
+    ]
+    if not researched:
+        st.info("Még nincs megjeleníthető, forrásolt cégkutatási lead.")
+        st.caption("Legfeljebb 500 lead kerül ellenőrzésre.")
+        return
+
+    labels = {
+        str(lead["id"]): str(lead.get("company_name") or "Névtelen cég")
+        for lead in researched
+    }
+    selected_lead_id = st.selectbox(
+        "Vizsgált cég",
+        options=list(labels),
+        format_func=lambda value: labels.get(str(value), str(value)),
+        key="jarvis_company_research_lead",
+    )
+    try:
+        history = get_company_research_history(
+            db, lead_id=str(selected_lead_id), limit=20
+        )
+    except Exception as exc:
+        report_error(
+            exc, module="dashboard", operation="company_research_history_read",
+            severity="warning", db=db,
+        )
+        st.error("A cégkutatási előzmények nem olvashatók. A hozzáférési hibát nem kerültem meg.")
+        st.caption(user_facing_error(exc))
+        return
+
+    st.metric("Mentett kutatási pillanatképek", len(history))
+    if not history:
+        st.info("Ehhez a céghez még nem található mentett kutatási pillanatkép.")
+        return
+
+    for index, snapshot in enumerate(history):
+        if not isinstance(snapshot, dict):
+            continue
+        dossier = snapshot.get("dossier")
+        if not isinstance(dossier, dict):
+            dossier = {}
+        raw_date = str(snapshot.get("researched_at") or dossier.get("researched_at") or "")
+        try:
+            parsed_date = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            if parsed_date.tzinfo is None:
+                raise ValueError("naive timestamp")
+            date_label = parsed_date.astimezone(ZoneInfo("Europe/Budapest")).strftime("%Y-%m-%d %H:%M")
+        except (TypeError, ValueError, OverflowError):
+            date_label = "Ismeretlen dátum"
+        domain = str(snapshot.get("company_domain") or "ismeretlen domain")[:253]
+        with st.expander(
+            f"{date_label} · {domain}",
+            expanded=index == 0,
+        ):
+            st.caption(
+                f"Snapshot: {str(snapshot.get('snapshot_id') or '—')} · "
+                f"Séma: {snapshot.get('schema_version', '—')} · "
+                f"SHA-256: {str(snapshot.get('content_sha256') or '')[:16] or '—'}"
+            )
+            leader = dossier.get("decision_maker")
+            if isinstance(leader, dict) and any(
+                leader.get(key) for key in ("name", "role", "professional_background")
+            ):
+                st.markdown("**Nyilvános szakmai döntéshozó**")
+                identity = " · ".join(
+                    str(leader.get(key)).strip()
+                    for key in ("name", "role")
+                    if leader.get(key)
+                )
+                if identity:
+                    st.write(identity)
+                if leader.get("professional_background"):
+                    st.write(str(leader["professional_background"]))
+                leader_url = _safe_research_source_url(leader.get("source_url"))
+                if leader_url:
+                    st.markdown(f"[Vezetői forrás megnyitása]({leader_url})")
+
+            facts = dossier.get("facts")
+            facts = facts if isinstance(facts, list) else []
+            if facts:
+                st.markdown("**Forrásolt céginformációk**")
+                for fact in facts[:12]:
+                    if not isinstance(fact, dict):
+                        continue
+                    category = str(fact.get("category") or "Egyéb")[:60]
+                    statement = str(fact.get("fact") or "").strip()[:1000]
+                    if not statement:
+                        continue
+                    st.markdown(f"**{category}**")
+                    st.write(statement)
+                    source_url = _safe_research_source_url(fact.get("source_url"))
+                    if source_url:
+                        st.markdown(f"[Forrás megnyitása]({source_url})")
+            if not facts and not isinstance(leader, dict):
+                st.info("A mentett pillanatkép nem tartalmaz megjeleníthető tényt.")
+    st.caption("Legfeljebb 20 legutóbbi pillanatkép jelenik meg cégenként.")
 
 def render_audit_admin_page() -> None:
     """Render the audit viewer only after a separately verified Supabase admin login."""
@@ -1527,19 +1784,28 @@ with st.sidebar:
         type="primary" if current_page == "analytics" else "secondary",
         width="stretch",
     )
+    research_clicked = st.button(
+        "⌕   Cégkutatás",
+        key="jarvis_nav_research",
+        type="primary" if current_page == "research" else "secondary",
+        width="stretch",
+    )
     audit_clicked = st.button(
         "▤   Audit napló",
         key="jarvis_nav_audit",
         type="primary" if current_page == "audit" else "secondary",
         width="stretch",
     )
+    settings_clicked = st.button(
+        "⚙   Beállítások",
+        key="jarvis_nav_settings",
+        type="primary" if current_page == "settings" else "secondary",
+        width="stretch",
+    )
     st.markdown(
-        '<div class="jarvis-nav">'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">⚙</span><span>Beállítások</span></div>'
-        '</div>'
         '<div class="jarvis-sidebar-status">'
-        '<span class="jarvis-status-dot"></span><strong>Rendszer Online</strong>'
-        '<div class="jarvis-sidebar-version">v2.0.0</div>'
+        '<span class="jarvis-status-dot"></span><strong>Munkamenet aktív</strong>'
+        '<div class="jarvis-sidebar-version">JARVIS · belső munkaterület</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -1553,9 +1819,20 @@ if tasks_clicked:
 if analytics_clicked:
     st.session_state["jarvis_page"] = "analytics"
     st.rerun()
+if research_clicked:
+    st.session_state["jarvis_page"] = "research"
+    st.rerun()
 if audit_clicked:
     st.session_state["jarvis_page"] = "audit"
     st.rerun()
+if settings_clicked:
+    st.session_state["jarvis_page"] = "settings"
+    st.rerun()
+
+if st.session_state.get("jarvis_page") == "settings":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    render_settings_page()
+    st.stop()
 
 if st.session_state.get("jarvis_page") == "audit":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
@@ -1578,7 +1855,7 @@ if st.session_state.get("jarvis_page") == "tasks":
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_tasks_page", severity="error")
         st.error("A Feladatok oldal nem tudott betöltődni.")
-        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+        st.caption(user_facing_error(exc) + " A Chat működését ez nem érinti.")
     st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
@@ -1598,6 +1875,20 @@ if st.session_state.get("jarvis_page") == "analytics":
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_analytics", severity="error", db=analytics_db if "analytics_db" in locals() else None)
         st.error("Az Analitika oldal nem tudott betöltődni.")
+        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "research":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        research_db = st.session_state.get("_jarvis_db")
+        if research_db is None:
+            research_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = research_db
+        render_company_research_page(research_db)
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_company_research_page", severity="error", db=research_db if "research_db" in locals() else None)
+        st.error("A Cégkutatás oldal nem tudott betöltődni.")
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
 
@@ -2088,9 +2379,9 @@ if prompt:
             exc, module="dashboard", operation=f"chat_request:{stage}",
             severity="error", db=db,
         )
-        detail = sanitize_log_text(exc, max_length=500) or "Nincs további hibaüzenet."
+        guidance = user_facing_error(exc)
         st.error(f"A JARVIS művelet a következő szakaszban állt meg: {stage}.")
-        st.warning(f"Hiba típusa: {type(exc).__name__} · Részlet: {detail}")
-        st.info("A fenti hibaüzenet alapján célzottan javítható a kapcsolat vagy a konfiguráció. API-kulcsot és jelszót ne küldj be.")
-        st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. Hibatípus: {type(exc).__name__}. A részletes hiba a képernyőn látható."))
+        st.warning(guidance)
+        st.info("A részletes technikai hiba csak a titokmentesített naplóba kerül. API-kulcsot, jelszót vagy teljes hozzáférési tokent ne küldj be.")
+        st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. {guidance}"))
 

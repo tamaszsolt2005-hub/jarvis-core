@@ -1,3 +1,5 @@
+import pytest
+
 from lead_workflow import build_lead_workflow_recommendations
 
 
@@ -369,3 +371,85 @@ def test_cancelled_outcome_recommendation_repeats_but_completed_one_stops():
     assert build_lead_workflow_recommendations([lead], [measurement, cancelled])[0]["workflow_stage"] == "outcome_positive_review"
     completed = {**cancelled, "status": "done"}
     assert build_lead_workflow_recommendations([lead], [measurement, completed]) == []
+
+
+
+def test_end_to_end_researched_lead_to_approved_atomic_task_and_audit_rpc(monkeypatch):
+    """Connect grounded scoring and task planning to the one-use approval RPC contract."""
+    import hashlib
+    from types import SimpleNamespace
+    import task_actions
+    from lead_workflow import build_recommended_task_action
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    operation_id = "223e4567-e89b-42d3-a456-426614174001"
+    approval_token = "one-use-approval-token-for-e2e-contract-test"
+    principal = "legacy:323e4567-e89b-42d3-a456-426614174002"
+    lead = {
+        "id": lead_id,
+        "company_name": "Minta Kft.",
+        "source": "gemini_google_search_grounding:example.test",
+        "notes": (
+            "Leadkutatás; tényleges ország: Hungary; iparág: Manufacturing. "
+            "AI üzleti illeszkedési becslés: 92/100; bizonyosság: high; "
+            "megfigyelhető üzleti igény: manuális adminisztráció csökkentése; "
+            "alátámasztó jelek: termékoldal; esettanulmány; "
+            "javasolt kutatási lépés: folyamatellenőrzés"
+        ),
+    }
+    linked_tasks = []
+    action = build_recommended_task_action(lead, linked_tasks)
+    assert action is not None
+    assert action["lead_id"] == lead_id
+    assert action["priority"] == "high"
+    action["operation_id"] = operation_id
+
+    # No database call is possible before explicit user confirmation and a
+    # separately issued, principal-bound, one-use approval token.
+    class AtomicTaskDatabase:
+        def __init__(self):
+            self.calls = []
+
+        def rpc(self, name, params):
+            self.calls.append((name, params))
+            return SimpleNamespace(execute=lambda: SimpleNamespace(data={
+                "ok": True,
+                "status": "success",
+                "message": "Feladat létrehozva és auditálva.",
+                "lead_id": lead_id,
+                "task_id": "423e4567-e89b-42d3-a456-426614174003",
+            }))
+
+    db = AtomicTaskDatabase()
+    monkeypatch.setattr(
+        task_actions, "get_enforced_user_supabase",
+        lambda *_args, **_kwargs: None,
+    )
+
+    with pytest.raises(PermissionError):
+        task_actions.execute_task_action(
+            db, action, approved=False,
+            approval={"token": approval_token, "principal": principal},
+        )
+    assert db.calls == []
+
+    result = task_actions.execute_task_action(
+        db,
+        action,
+        approved=True,
+        approval={"token": approval_token, "principal": principal},
+    )
+
+    assert result == "Feladat létrehozva és auditálva."
+    assert len(db.calls) == 1
+    rpc_name, rpc_params = db.calls[0]
+    assert rpc_name == "execute_approved_task_action"
+    assert rpc_params["p_token_hash"] == hashlib.sha256(
+        approval_token.encode("utf-8")
+    ).hexdigest()
+    assert rpc_params["p_principal"] == principal
+    assert rpc_params["p_operation_id"] == operation_id
+    assert rpc_params["p_action"] == action
+    assert rpc_params["p_action"]["lead_id"] == lead_id
+    assert rpc_params["p_action"]["notes"].startswith("[JARVIS_STAGE:business_need_validation]")
+    assert "nem kapcsolatfelvételi engedély" in rpc_params["p_action"]["notes"]

@@ -51,6 +51,35 @@ BEGIN
     RAISE EXCEPTION 'Created task was not linked to its lead';
   END IF;
 
+  -- The task row, consumed approval, operation result, and both audit entries
+  -- must commit together under the same operation ID.
+  IF (SELECT count(*) FROM public.logs
+       WHERE operation_id = v_first_operation
+         AND module = 'task_actions'
+         AND action = 'task_create'
+         AND status IN ('pending', 'success')
+         AND approved IS TRUE) <> 2 THEN
+    RAISE EXCEPTION 'Successful lead-linked task did not persist both audit events';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM private.task_approvals
+     WHERE token_hash = encode(extensions.digest('jarvis:task-linked:first', 'sha256'), 'hex')
+       AND consumed_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Successful task execution did not consume its one-use approval';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM private.task_action_operations
+     WHERE operation_id = v_first_operation
+       AND completed_at IS NOT NULL
+       AND result ->> 'status' = 'success'
+       AND result ->> 'lead_id' = v_lead::text
+  ) THEN
+    RAISE EXCEPTION 'Successful task execution did not persist its idempotent result';
+  END IF;
+
   IF NOT public.issue_pending_approval(
     encode(extensions.digest('jarvis:task-linked:second', 'sha256'), 'hex'),
     'legacy:73000000-0000-4000-8000-000000000006',
