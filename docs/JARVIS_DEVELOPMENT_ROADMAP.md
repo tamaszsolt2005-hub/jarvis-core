@@ -90,6 +90,7 @@ A meglévő `global_lead_research.py` + `global_lead_research_job.py` és a napi
 - nyilvános, szakmai döntéshozói név/szerepkör/háttér, kizárólag groundinggal igazolt forrás esetén;
 - `company_dossier.py` validáció: csak engedélyezett üzleti kategória és a Google groundingben szereplő domain maradhat;
 - a rövid dosszié a meglévő lead `notes` mezőjébe kerül, séma-/production-migráció nélkül;
+- a Gemini-kutatási hívás átmeneti hálózati/szerverhibánál legfeljebb 3 alkalommal, növekvő várakozással újrapróbálkozik; hitelesítési és más nem átmeneti hibánál azonnal leáll;
 - személyes e-mail/telefon, érzékeny vagy magánéleti adat nem kerül a dossziéba; kutatás nem ad kapcsolatfelvételi engedélyt.
 
 **A Phase 1 még nincs kész:** külön, újrafuttatható worker claim/lease és retry/dead-letter protokoll, kutatási futások és tények normalizált, verziózott tárolása, adatfrissesség és célzott emberi ellenőrző UI még hátravan. A meglévő napi GitHub Actions workflow léte nem bizonyít production worker futást.
