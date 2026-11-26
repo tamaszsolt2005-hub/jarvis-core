@@ -158,7 +158,10 @@ def test_worker_adapter_uses_shared_pricing_and_concurrency(monkeypatch):
     monkeypatch.setattr("company_research_runtime.run_company_research_worker_once", run)
     cfg = config()
     result = run_company_research_worker_with_config(
-        object(), client=SimpleNamespace(models=SimpleNamespace(count_tokens=lambda **_: SimpleNamespace(total_tokens=1))),
+        object(), client=SimpleNamespace(models=SimpleNamespace(
+            count_tokens=lambda **_: SimpleNamespace(total_tokens=1),
+            generate_content=lambda **_: None,
+        )),
         model="gemini-test", snapshot_db=object(), worker_id="worker-a", config=cfg,
     )
     assert result == {"status": "idle"}
