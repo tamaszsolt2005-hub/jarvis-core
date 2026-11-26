@@ -501,7 +501,7 @@ BEGIN
                            THEN (p_action -> 'updates' ->> 'due_at')::timestamptz ELSE due_at END,
              notes = CASE
                WHEN p_action -> 'updates' ? 'outcome' THEN
-                 left(concat_ws(E'\\n', nullif(notes, ''),
+                 left(concat_ws(E'\n', nullif(notes, ''),
                    'Eredmény: ' || (p_action -> 'updates' ->> 'outcome')), 1000)
                WHEN p_action -> 'updates' ? 'notes'
                  THEN p_action -> 'updates' ->> 'notes'
