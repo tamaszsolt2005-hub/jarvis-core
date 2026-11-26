@@ -762,6 +762,9 @@ ON CONFLICT (email_normalized) DO NOTHING;
 -- The deployed application uses the RPC for inserts; direct writes are closed.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.leads FROM service_role;
+REVOKE UPDATE (id, company_name, website, email, consent_basis,
+  approved_to_contact, consent_confirmed_at)
+  ON TABLE public.leads FROM service_role;
 GRANT SELECT ON TABLE public.leads TO service_role;
 
 -- Keep routine CRM status/outreach updates, but only the SECURITY DEFINER
