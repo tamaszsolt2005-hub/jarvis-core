@@ -1,4 +1,4 @@
-from company_dossier import build_company_dossier, render_company_dossier
+from company_dossier import build_company_dossier, render_company_dossier, stamp_company_dossier
 
 
 def test_company_dossier_keeps_only_grounded_public_business_facts():
@@ -91,3 +91,24 @@ def test_company_dossier_rendering_is_bounded():
         },
     }
     assert len(render_company_dossier(dossier, max_chars=180)) <= 180
+
+
+
+def test_company_dossier_snapshot_metadata_is_versioned_and_content_addressed():
+    dossier = build_company_dossier(
+        {"company_facts": [{
+            "category": "business_model",
+            "fact": "Builds industrial software.",
+            "source_url": "https://example.com/about",
+        }]},
+        {"example.com"},
+    )
+    first = stamp_company_dossier(dossier)
+    second = stamp_company_dossier(dossier)
+
+    assert first["schema_version"] == 1
+    assert first["snapshot_id"] != second["snapshot_id"]
+    assert first["researched_at"]
+    assert len(first["content_sha256"]) == 64
+    assert first["content_sha256"] == second["content_sha256"]
+    assert first["facts"] == dossier["facts"]
