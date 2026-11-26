@@ -303,3 +303,10 @@ A Supabase job-create RPC a `company_research_budget_reservations` táblába ato
 Az append-only `company_research_job_audit` eseménynapló a job lifecycle fontos tranzícióit rögzíti: enqueued, claimed, heartbeat, succeeded, retry_scheduled, dead_letter, beleértve a végső lease-expiry esetét. A táblára UPDATE/DELETE jog nincs kiosztva. A reservation becsült költséget tart fenn; actual provider usage settlement, unused reservation release, atomikus hourly/domain rate quota és audit retention/archival még hátralévő feladat. A migration nem lett production adatbázison futtatva; a DB viselkedés izolált PostgreSQL tesztet igényel.
 
 A tartós audit események lekérdezésére a repository `list_audit(operation_id, limit)` metódust biztosít; a DB RPC 1–1000 közötti limitet kényszerít ki, és csak service_role hívhatja. A dashboard-integráció még hátravan.
+
+
+### 10.11 Adatbázisoldali rate limit enforcement
+
+A tartós enqueue RPC ugyanazon tranzakciós advisory lock alatt ellenőrzi a UTC óránkénti globális és UTC naponkénti domainenkénti jobkvótát, mint a napi költségkeretet. Az idempotens operation ID replay a kvótaellenőrzés előtt visszaadja a meglévő rekordot, így retry nem fogyaszt többször kvótát. A létrehozási időt az adatbázis állítja be; a domain kulcs casefoldolt összehasonlítással kerül ellenőrzésre. A Python snapshot admission csak korai, kényelmi szűrő; a kemény hourly/domain/cost korlát a DB RPC-ben van.
+
+A kvóta a job enqueue-k számát jelenti, nem a sikeres kutatásokét: a sikertelen és dead-letter jobok is beleszámítanak az adott időablakba. A költségkeret jelenleg becsült foglalás alapján számol, nem valós provider számla alapján.
