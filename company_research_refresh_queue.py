@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from company_research_job_repository import (
+    CompanyResearchAdmissionRejected,
     CompanyResearchBudgetExceeded,
     CompanyResearchJobRepository,
 )
@@ -70,11 +71,11 @@ def enqueue_company_research_refreshes_with_admission(
     max_age_days: int = 30,
     limit: int = 50,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Enqueue only candidates admitted by a bounded in-call usage snapshot.
+    """Enqueue candidates through snapshot admission and atomic DB quotas.
 
-    Counters are advanced locally for each accepted candidate so one batch
-    cannot oversubscribe its own supplied snapshot. Concurrent invocations still
-    require a future atomic database reservation to enforce hard global limits.
+    The database is authoritative for hourly, per-domain daily and daily cost
+    ceilings across concurrent enqueue calls. The local snapshot still provides
+    early rejection and in-batch accounting for the concurrency estimate.
     """
     if not isinstance(usage_snapshot, dict):
         raise ValueError("usage_snapshot must be an object")
@@ -117,9 +118,14 @@ def enqueue_company_research_refreshes_with_admission(
                 },
                 estimated_cost_microusd=estimated_cost_microusd_per_job,
                 daily_budget_microusd=limits["max_daily_cost_microusd"],
+                max_jobs_per_hour=limits["max_jobs_per_hour"],
+                max_jobs_per_domain_per_day=limits["max_jobs_per_domain_per_day"],
             )
         except CompanyResearchBudgetExceeded:
             rejected.append({"lead_id": candidate["lead_id"], "reason": "daily_cost_limit"})
+            continue
+        except CompanyResearchAdmissionRejected as exc:
+            rejected.append({"lead_id": candidate["lead_id"], "reason": exc.reason})
             continue
         jobs.append(job)
         usage["jobs_last_hour"] += 1
