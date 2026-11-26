@@ -123,6 +123,6 @@ A következő lépés a két új SQL tesztcsomag futtatása kizárólag helyi/iz
 A PR #28 ágon két új adatbázis-teszt készült:
 
 - `supabase/tests/company_research_jobs.test.sql`: 15 pgTAP ellenőrzés az idempotens job-létrehozásról, napi költségkeretről, óránkénti és domainenkénti kvótáról, aktív lease plafonról, heartbeat jogosultságról, actual-cost settlementről és audit eseményekről.
-- `supabase/tests/company_research_jobs_concurrency.test.sql`: 10 pgTAP ellenőrzés két független PostgreSQL `dblink` sessionnel. Két egyidejű, 700/1000 mikro-USD foglalásból pontosan egynek szabad sikerülnie; két párhuzamos worker claim esetén az aktív lease-ek száma nem lépheti túl az 1-et.
+- `supabase/tests/company_research_jobs_concurrency.test.sql`: 12 pgTAP ellenőrzés két független PostgreSQL `dblink` sessionnel. Két egyidejű, 700/1000 mikro-USD foglalásból pontosan egynek szabad sikerülnie; két párhuzamos worker claim esetén az aktív lease-ek száma nem lépheti túl az 1-et.
 
 **Ellenőrzési státusz: NEM FUTOTT.** A tesztek forrása elkészült, de lokális/izolált PostgreSQL futtatás és eredmény még nincs. Futtatási parancs a helyi Supabase DB elindítása után: `supabase test db`. A concurrency teszthez a `dblink` extension elérhetősége szükséges. Production adatbázison nem szabad futtatni. A következő jelentésben a futás pontos commit SHA-ját, pgTAP eredményét és az esetleges hibákat kell rögzíteni.
