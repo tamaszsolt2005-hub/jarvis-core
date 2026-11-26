@@ -19,9 +19,9 @@ A JARVIS magyar nyelvű, Streamlit-alapú B2B üzleti asszisztens. A felhasznál
 | Leadértékelés | Lead scoring, prioritás és utánkövetési javaslat | Üzleti döntést támogató becslés, nem garantált eredmény |
 | Üzleti memória | Explicit üzleti információk tárolása és későbbi felhasználása | Nem korlátlan vagy automatikusan teljes tudásbázis |
 | Stratégia és döntéstámogatás | Üzleti tanulságok, stratégiai összefoglalók, analitika | A kimenet a rendelkezésre álló adatok minőségétől függ |
-| Feladatkezelés | Task létrehozás, módosítás, lezárás és DB-szintű jóváhagyásos végrehajtás | Az approval consume és task+audit+operation RPC atomikus; az összes update/close és külső mellékhatás teljes idempotenciája még nem bizonyított |
+| Feladatkezelés | Task létrehozás, módosítás, lezárás és DB-szintű jóváhagyásos végrehajtás; kutatási javaslatból leadhez kötött task előkészítése | A leadhez kötött create is a rövid életű approval RPC-t használja; teljes workflow E2E és follow-up állapotgép még nincs kész |
 | Audit és hibakezelés | Műveleti napló, auditállapotok, hibák redakciója | A hash chain nem WORM, és nem véd adatbázis-tulajdonossal szemben |
-| Napi briefing és utánkövetés | Vezetői összefoglaló, lejárt feladatok, follow-up jelzések és leadhez kötött belső következőlépés-javaslatok | A javaslat read-only; a task tényleges létrehozása külön jóváhagyott művelet, a follow-up küldés tiltott |
+| Napi briefing és utánkövetés | Vezetői összefoglaló, lejárt feladatok, follow-up jelzések és leadhez kötött belső következőlépés-javaslatok | A javaslat read-only; a feladat csak a megadott lead UUID-vel és külön jóváhagyással készülhet el; a follow-up küldés tiltott |
 | Proaktív monitor | Lead- és feladatváltozások figyelése, állapotfrissítés | A monitor kód megléte nem bizonyítja, hogy production scheduler fut |
 | E-mail | Tervezetkészítés, inbox feldolgozás és SMTP adapter | A kimenő SMTP-küldés biztonsági kapcsolóval tiltott; tartós provider-idempotencia nincs igazolva |
 | Auth/RBAC | Opcionális Supabase Auth login és shared-workspace admin/operator/reader jogosultság | Kódban és migrációkban előkészített; production flag OFF, migráció nem alkalmazott |
@@ -37,7 +37,7 @@ A JARVIS magyar nyelvű, Streamlit-alapú B2B üzleti asszisztens. A felhasznál
 | `jarvis_auth.py` | Supabase Auth session-ellenőrzés, role claim és user-JWT kliens |
 | `global_lead_research.py`, `web_auditor.py` | Leadkutatás és weboldal-vizsgálat |
 | `lead_scoring.py`, `intelligent_lead_scoring.py` | Leadpontozás |
-| `lead_workflow.py` | Kutatási bizonyítékokból belső következő feladat javaslata, duplikációszűréssel; csak read-only |
+| `lead_workflow.py` | Kutatási bizonyítékokból belső feladatjavaslat, explicit parancs parser és approval-ready, leadhez kapcsolt task payload; a modul maga read-only |
 | `business_learning.py`, `business_strategy.py`, `decision_support.py` | Üzleti tanulás, stratégia és döntéstámogatás |
 | `jarvis_memory.py`, `jarvis_analytics.py`, `stats.py` | Memória, analitika és statisztika |
 | `task_actions.py` | Feladatműveletek és műveleti szabályok |
@@ -88,7 +88,7 @@ A CI PostgreSQL 17 izolált környezetben migrációs replayt, pgTAP teszteket, 
 
 A jelenlegi szakaszban a helyi funkciófejlesztés folytatható. A task approval/idempotencia és a cégazonosítás tranzakciós alapjai a PR #26 branchben CI-vel igazoltak. Továbbra is nyitott a külső e-mail provider live E2E (a küldés hard-disabled marad), a teljes üzleti workflow E2E és mérés, valamint a forrásolt/jogosultságkezelt memória lifecycle. A migration drift, Auth/RLS smoke és app-host kiválasztás későbbi production release feladat, nem a helyi funkciófejlesztés előfeltétele.
 
-A leadkutatásból a napi briefing már képes bizonyíték-alapú belső következőlépés-javaslatot készíteni a `lead_workflow.py` segítségével. Ez read-only: a javaslat nem hoz létre taskot, nem módosít leadet és nem engedélyez kapcsolatfelvételt. A következő fejlesztési lépés a leadhez kötött task jóváhagyásos létrehozása, majd a follow-up és eredménymérés összekapcsolása. A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) tartalmazzák.
+A napi briefing leadjavaslata explicit `Hozz létre javasolt feladat: <lead UUID>` paranccsal leadhez kapcsolt task előkészítésévé alakítható. A dashboard újraellenőrzi a grounding forrást és a meglévő taskokat; a létrehozás a meglévő egyszer használatos DB-jóváhagyáson keresztül történik. Az atomikus RPC leadenként zárolja az első nyitott task létrehozását. A művelet nem ad outreach engedélyt és nem küld e-mailt. A teljes workflow következő része a follow-up állapotgép és az eredménymérés. A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) és a [release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md) tartalmazzák.
 
 
 ## Aktuális implementációs állapot – PR #26, 2026-11-25
