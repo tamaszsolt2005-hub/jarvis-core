@@ -36,6 +36,10 @@
 
 ## 4. Üzleti munkafolyamatok automatizálása
 
+**Első read-only szelet elkészült a PR #26 branchben:** `lead_workflow.py` a strukturált kutatási adatot és a lead score-t belső következő feladatjavaslattá alakítja; a napi briefing megjeleníti. A javaslat leadazonosítóhoz kötött, duplikációszűrt, bizonyosság- és bizonyítékérzékeny, de nem ír adatbázist és nem ad outreach engedélyt.
+
+Következő fejlesztési feladatok:
+- A javaslatból leadhez kötött task létrehozása az atomikus, approval-gated RPC útvonalon.
 - Leadkutatás → minősítés → stratégia → feladat → jóváhagyás → utánkövetés → eredménymérés folyamat állapotmodellje.
 - Minden lépés bemenetének, kimenetének, felelősének, hibakezelésének és idempotenciájának meghatározása.
 - Megszakítás, folytatás, audit és eredménymérés végponttól végpontig tesztelése.
