@@ -69,7 +69,7 @@ def test_parse_close_and_update():
         f"Módosítsd a feladatot: {TASK_ID}; prioritás=urgent; cím=Fontos; eredmény=Az igény igazolódott"
     )
     assert action["updates"] == {
-        "priority": "urgent", "title": "Fontos", "notes": "Az igény igazolódott"
+        "priority": "urgent", "title": "Fontos", "outcome": "Az igény igazolódott"
     }
 
 
@@ -346,15 +346,15 @@ def test_update_parser_rejects_empty_segments_and_duplicate_fields(command):
 def test_task_update_notes_are_bounded_and_required():
     action = {
         "type": "update", "id": TASK_ID,
-        "updates": {"notes": "Eredmény: az ügyfél igénye igazolódott."},
+        "updates": {"outcome": "Az ügyfél igénye igazolódott."},
         "operation_id": OPERATION_ID,
     }
     task_actions._validate_action(action)
     with pytest.raises(ValueError):
         task_actions._validate_action({
-            **action, "updates": {"notes": " "},
+            **action, "updates": {"outcome": " "},
         })
     with pytest.raises(ValueError):
         task_actions._validate_action({
-            **action, "updates": {"notes": "x" * 1001},
+            **action, "updates": {"outcome": "x" * 501},
         })
