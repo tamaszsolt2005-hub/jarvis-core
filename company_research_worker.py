@@ -39,9 +39,11 @@ def run_one_company_research_job(
 
     operation_id = job.get("operation_id")
     payload = job.get("payload")
-    if not isinstance(operation_id, str) or not isinstance(payload, dict):
+    if not isinstance(operation_id, str) or not operation_id.strip():
+        return {"status": "invalid_job", "error_code": "missing_operation_id"}
+    if not isinstance(payload, dict):
         failed = repository.fail(
-            operation_id=str(operation_id or ""),
+            operation_id=operation_id,
             worker_id=worker_id.strip(),
             error_code="invalid_job_payload",
             error_message="Stored job is missing its operation identifier or object payload.",
