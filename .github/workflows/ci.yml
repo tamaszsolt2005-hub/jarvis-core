@@ -123,7 +123,7 @@ jobs:
             echo "pgTAP reported failed company research worker security assertions."
             exit 1
           fi
-          grep -q '1..10' <<< "$security_output"
+          grep -q '1..12' <<< "$security_output"
           lifecycle_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs.test.sql)"
           printf '%s\n' "$lifecycle_output"
           if grep -q '^not ok ' <<< "$lifecycle_output"; then
