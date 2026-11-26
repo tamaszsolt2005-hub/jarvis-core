@@ -15,7 +15,7 @@ A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOC
 - A mentett snapshot a `lead_id` idegen kulcson keresztül kapcsolódik a leadhez. A snapshot ID és a mentés ténye a job eredményébe is bekerül; a job csak a mentés után complete-elhető.
 - A worker külön teszteli a persist → complete sorrendet és azt, hogy mentési hiba esetén nincs sikeres complete, hanem retry/dead-letter útvonal indul.
 - A CI új, külön PostgreSQL 17 jobot kapott: izolált fixture, snapshot + worker migrációk, snapshot pgTAP, 15 lifecycle/kvóta assertion és 14 valódi két-session `dblink` race assertion.
-- **Ellenőrzési státusz:** CI #3136 sikeres az aktuális kódon: 1144 passed, 3 skipped, 0 failed; coverage 90,17%. A külön PostgreSQL 17 jobban a snapshot-teszt, 15/15 lifecycle/kvóta és 14/14 konkurencia assertion sikeres. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történt.
+- **Ellenőrzési státusz:** A korábbi CI #3136 történeti eredmény; az újabb PR #28 HEAD ellenőrzése a CI #3187, mindhárom job sikeres. A külön PostgreSQL 17 jobban a snapshot-teszt, 15/15 lifecycle/kvóta és 14/14 konkurencia assertion sikeres. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történt.
 
 ## 1. Telepítési és környezeti állapot
 
@@ -79,7 +79,7 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 
 ## 5. Következő fejlesztési sorrend
 
-1. A jelenlegi PR #27 CI-jének befejeződése és minden hiba javítása az aktuális headen.
+1. A PR #26–#28 integrációja megtörtént; következő lépés a main ágon a fennmaradó költségkorlát, scheduler és Auth/RLS feladatok fejlesztése.
 2. A dokumentált snapshot migráció és store kód további ellenőrzése.
 3. A read-only planner bekötése lapozott lead- és snapshot-lekérdezéshez, majd tesztelés nagy adathalmazon.
 4. Megbízható outreach eseményszámláló és állapotmapping a follow-up policy-hoz.
@@ -89,7 +89,7 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 
 ## 6. Változtatási és biztonsági határok
 
-- PR #26 és #27 nem merge-ölhető külön explicit jóváhagyás nélkül.
+- A PR #26, #27 és #28 2026-11-26-án merge-ölve lett a main ágba.
 - Production Supabase DDL/DML, migration, GRANT/REVOKE, Auth/RBAC, secret és infrastruktúra módosítása tilos külön engedély nélkül.
 - Production deploy és outbound e-mail küldés nincs engedélyezve.
 - CI zöld státusza csak az adott SHA-ra és az adott tesztkörnyezetre érvényes.
@@ -307,3 +307,21 @@ Az előző lifecycle-edge csomag mellé elkészült a `supabase/tests/company_re
 A Gemini hibakezelési tesztek kiegészültek a Google GenAI SDK tényleges `ClientError`/`ServerError` kivételosztályaival: 429 RESOURCE_EXHAUSTED, 503 UNAVAILABLE, 504 DEADLINE_EXCEEDED, 403 PERMISSION_DENIED, 400 API_KEY_INVALID és 500 INTERNAL. A generate_text tesztek ellenőrzik a valós SDK-kivétel retry viselkedését, valamint hogy auth/permission hibánál nincs retry. A tesztek mockolt model klienssel futnak, élő API-hívás nélkül; mockolt HTTP transport még nincs bekötve.
 
 Az Auth tesztek külön ellenőrzik, hogy a tárolt kliensoldali role és a user_metadata role nem írhatja felül a frissen lekért, szerveroldali app_metadata role-t, és hogy nem megerősített fiókkal a refreshelt session is elutasításra kerül. A worker security pgTAP csomag 12 assertionre bővült: a snapshot history RLS-ét, publikus role-ok kizárását és service_role append-only jogosultságát is ellenőrzi. Az új futások eredménye a friss CI-hez kötött.
+
+
+## Aktuális státusz felülvizsgálata – 2026-11-26
+
+> **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A legutóbbi main commit: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
+>
+> **Implementált és CI-vel tesztelt:** cégdosszié és append-only snapshot tárolás; read-only előzmény-dashboard; worker job lifecycle, repository/RPC adapter, queue bridge és worker; injektálható grounded Gemini provider adapter; snapshot mentés a job sikeres lezárása előtt; idempotencia; lease/heartbeat/retry/dead-letter; PostgreSQL lifecycle, kvóta, security és két-session konkurenciatesztek. A CI izolált adatbázist használ, nem productiont.
+>
+> **Még nincs élesben igazolva / nincs bekapcsolva:** ütemezett automatikus futtatás; a worker schedulerből történő indítása; élő Gemini API/staging smoke; Auth-os snapshot SELECT (a dashboard Auth módban fail-closed, a snapshot tábla service_role-only); teljes manuális helyi dashboard smoke; production app-host és deploy.
+>
+> **Költségkorlát:** a becsült költségfoglalás, actual-cost settlement callback és tranzakciós elszámolás kódban megvan. A provider adapter nincs élő szolgáltatói hívással validálva, és az actual cost a becslést meghaladhatja; ezért a napi hard cap teljes kikényszerítése még külön feladat.
+>
+> **Biztonsági határ:** production Supabase migráció/DDL/DML, grant/RLS/Auth módosítás, secret-változtatás, deploy és outbound e-mail nem történt. A kimenő e-mail hard-disabled. A CI-zöld állapot önmagában nem production readiness.
+>
+> **Következő fókusz:** (1) napi hard budget cap és reservation-overrun védelem; (2) scheduler/operációs vezérlés és worker futtatási életciklus; (3) izolált Auth/JWT/RLS jogosultsági tesztek, különösen snapshot history hozzáférés; (4) élő, nem production Gemini staging smoke usage/grounding/retry/heartbeat ellenőrzéssel; (5) teljes helyi dashboard manuális smoke; (6) production migration drift és hozzáférési modell független felülvizsgálata, majd külön release-döntés.
+>
+> A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
+
