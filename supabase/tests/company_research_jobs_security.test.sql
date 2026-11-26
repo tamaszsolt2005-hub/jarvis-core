@@ -2,7 +2,7 @@
 -- Execute only against the isolated PostgreSQL integration fixture.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(10);
+SELECT plan(13);
 
 SELECT is(
   (SELECT count(*) FROM pg_class c
@@ -11,18 +11,20 @@ SELECT is(
      AND c.relname IN (
        'company_research_jobs',
        'company_research_budget_reservations',
-       'company_research_job_audit'
+       'company_research_job_audit',
+       'company_research_snapshots'
      )
      AND c.relrowsecurity),
-  3::bigint,
-  'all worker persistence tables enforce row-level security'
+  4::bigint,
+  'worker and snapshot persistence tables enforce row-level security'
 );
 
 SELECT is(
   (SELECT count(*) FROM unnest(ARRAY[
     'public.company_research_jobs',
     'public.company_research_budget_reservations',
-    'public.company_research_job_audit'
+    'public.company_research_job_audit',
+    'public.company_research_snapshots'
   ]) AS relations(relation_name)
   WHERE has_table_privilege('anon', relation_name, 'SELECT')
      OR has_table_privilege('anon', relation_name, 'INSERT')
@@ -44,6 +46,30 @@ SELECT is(
      OR has_table_privilege('authenticated', relation_name, 'DELETE')),
   0::bigint,
   'authenticated has no direct worker-table privileges'
+);
+
+SELECT ok(
+  has_table_privilege('service_role', 'public.company_research_snapshots', 'SELECT')
+  AND has_table_privilege('service_role', 'public.company_research_snapshots', 'INSERT')
+  AND NOT has_table_privilege('service_role', 'public.company_research_snapshots', 'UPDATE')
+  AND NOT has_table_privilege('service_role', 'public.company_research_snapshots', 'DELETE'),
+  'service_role can read and append snapshots but cannot mutate or delete history'
+);
+
+SELECT is(
+  (SELECT count(*) FROM unnest(ARRAY[
+    'public.company_research_snapshots'
+  ]) AS relations(relation_name)
+  WHERE has_table_privilege('anon', relation_name, 'SELECT')
+     OR has_table_privilege('anon', relation_name, 'INSERT')
+     OR has_table_privilege('anon', relation_name, 'UPDATE')
+     OR has_table_privilege('anon', relation_name, 'DELETE')
+     OR has_table_privilege('authenticated', relation_name, 'SELECT')
+     OR has_table_privilege('authenticated', relation_name, 'INSERT')
+     OR has_table_privilege('authenticated', relation_name, 'UPDATE')
+     OR has_table_privilege('authenticated', relation_name, 'DELETE')),
+  0::bigint,
+  'public API roles cannot access snapshot history'
 );
 
 SELECT is(
