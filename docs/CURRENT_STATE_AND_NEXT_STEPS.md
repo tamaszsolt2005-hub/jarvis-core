@@ -300,3 +300,10 @@ A korábbi 15 lifecycle/kvóta és 14 konkurencia assertion mellé új, 20 asser
 ### 7.9 Worker RPC / RLS jogosultsági tesztek – 2026-11-26
 
 Az előző lifecycle-edge csomag mellé elkészült a `supabase/tests/company_research_jobs_security.test.sql` 10 pgTAP assertionnel. Ellenőrzi a három worker tábla RLS-bekapcsolását, az anon és authenticated közvetlen táblaelérésének tiltását, a service_role szükséges és korlátozott táblajogosultságait, a hat worker RPC kizárólag service_role általi futtathatóságát, valamint az audit append-only jogosultsági határait. A PostgreSQL 17 CI job futtatja, a Python migration-contract teszt pedig ellenőrzi a CI bekötést. A tényleges futási eredmény az új head CI-jéhez kötött.
+
+
+### 7.10 Gemini SDK és Auth/RLS regressziós tesztek – 2026-11-26
+
+A Gemini hibakezelési tesztek kiegészültek a Google GenAI SDK tényleges `ClientError`/`ServerError` kivételosztályaival: 429 RESOURCE_EXHAUSTED, 503 UNAVAILABLE, 504 DEADLINE_EXCEEDED, 403 PERMISSION_DENIED, 400 API_KEY_INVALID és 500 INTERNAL. A generate_text tesztek ellenőrzik a valós SDK-kivétel retry viselkedését, valamint hogy auth/permission hibánál nincs retry. A tesztek mockolt model klienssel futnak, élő API-hívás nélkül; mockolt HTTP transport még nincs bekötve.
+
+Az Auth tesztek külön ellenőrzik, hogy a tárolt kliensoldali role és a user_metadata role nem írhatja felül a frissen lekért, szerveroldali app_metadata role-t, és hogy nem megerősített fiókkal a refreshelt session is elutasításra kerül. A worker security pgTAP csomag 12 assertionre bővült: a snapshot history RLS-ét, publikus role-ok kizárását és service_role append-only jogosultságát is ellenőrzi. Az új futások eredménye a friss CI-hez kötött.
