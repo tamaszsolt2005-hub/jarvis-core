@@ -1,7 +1,7 @@
 """Single source of truth for bounded company-research admission and execution.
 
-Prices are deliberately required from deployment configuration. This module
-never guesses provider pricing or creates clients/credentials at import time.
+Prices and budget limits are required from deployment configuration. This
+module never guesses provider pricing or creates clients at import time.
 """
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ from typing import Any, Mapping
 class CompanyResearchRuntimeConfig:
     input_price_microusd_per_million_tokens: int
     output_price_microusd_per_million_tokens: int
+    max_daily_cost_microusd: int
+    max_jobs_per_hour: int
+    max_jobs_per_domain_per_day: int
+    max_concurrent_jobs: int
     max_input_tokens_per_attempt: int = 12000
     max_output_tokens_per_attempt: int = 2048
     max_attempts: int = 1
-    max_daily_cost_microusd: int = 1
-    max_jobs_per_hour: int = 1
-    max_jobs_per_domain_per_day: int = 1
-    max_concurrent_jobs: int = 1
     max_age_days: int = 30
     batch_limit: int = 50
 
@@ -27,13 +27,13 @@ class CompanyResearchRuntimeConfig:
         positive = (
             "input_price_microusd_per_million_tokens",
             "output_price_microusd_per_million_tokens",
-            "max_input_tokens_per_attempt",
-            "max_output_tokens_per_attempt",
-            "max_attempts",
             "max_daily_cost_microusd",
             "max_jobs_per_hour",
             "max_jobs_per_domain_per_day",
             "max_concurrent_jobs",
+            "max_input_tokens_per_attempt",
+            "max_output_tokens_per_attempt",
+            "max_attempts",
             "batch_limit",
         )
         for name in positive:
@@ -44,7 +44,7 @@ class CompanyResearchRuntimeConfig:
             raise ValueError("max_output_tokens_per_attempt must be between 128 and 4096")
         if self.max_attempts > 3:
             raise ValueError("max_attempts must be between 1 and 3")
-        if self.max_age_days < 0:
+        if isinstance(self.max_age_days, bool) or not isinstance(self.max_age_days, int) or self.max_age_days < 0:
             raise ValueError("max_age_days must be a non-negative integer")
 
     @property
@@ -58,7 +58,7 @@ class CompanyResearchRuntimeConfig:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "CompanyResearchRuntimeConfig":
-        """Load explicit prices and budget from environment; no price defaults."""
+        """Load explicit prices and budget; never supply implicit price defaults."""
         import os
 
         source = os.environ if environ is None else environ
@@ -70,21 +70,20 @@ class CompanyResearchRuntimeConfig:
                     raise ValueError(f"Missing required company research setting: {name}")
                 return default
             try:
-                value = int(str(raw).strip())
+                return int(str(raw).strip())
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{name} must be an integer") from exc
-            return value
 
         return cls(
             input_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
             output_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
-            max_input_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS", 12000),
-            max_output_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS", 2048),
-            max_attempts=integer("JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS", 1),
             max_daily_cost_microusd=integer("JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD"),
             max_jobs_per_hour=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR"),
             max_jobs_per_domain_per_day=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY"),
             max_concurrent_jobs=integer("JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS"),
+            max_input_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS", 12000),
+            max_output_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS", 2048),
+            max_attempts=integer("JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS", 1),
             max_age_days=integer("JARVIS_COMPANY_RESEARCH_MAX_AGE_DAYS", 30),
             batch_limit=integer("JARVIS_COMPANY_RESEARCH_BATCH_LIMIT", 50),
         )
