@@ -322,3 +322,5 @@ Minden Python refresh enqueue útvonal kötelezően megadja a becsült költség
 ### 10.13 Grounded Gemini provider adapter
 
 A cégkutatási execution réteg most már tartalmaz injektált Gemini klienssel működő Google Search grounding adaptert, strukturált JSON feldolgozást, grounded host alapú tény- és döntéshozó-validációt, legfeljebb három transient retry-t exponenciális backoff-fal, valamint worker-kompatibilis handler factoryt. A provider usage token-számait továbbadja; explicit konfigurált tokenárakkal actual micro-USD költség számítható. API secretet vagy klienst nem olvas/hozz létre önállóan. A szinkron API hívás alatti heartbeat renewal még nincs megoldva, ezért hosszú provider hívásnál lease lejárhat. A dashboard és a tartós snapshot store integrációja még nincs bekötve; nincs automatikus futtatás vagy outbound kommunikáció.
+
+A `company_research_runtime.py` explicit, one-shot composition root a repository + Gemini grounded provider + worker + tokenáras actual-cost extractor bekötésére. A runtime függvény csak explicit híváskor claimel egyetlen jobot; import-time side effect, automatikus scheduler, secret/client létrehozás nincs.
