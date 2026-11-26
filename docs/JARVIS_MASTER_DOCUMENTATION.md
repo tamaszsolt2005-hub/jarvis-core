@@ -247,3 +247,12 @@ Az első implementációs szelet nem használhat production Supabase-t, nem futt
 ### 10.1 Háttérmotor – első kódszelet
 
 A PR #28 ágán elkészült a company_research_jobs.py DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. A modul queued/running/retry_wait/succeeded/dead_letter állapotokat, stabil operation ID mezőt, lease owner/expiry, heartbeat, attempt counter, korlátozott retry és dead-letter átmeneteket modellez. A műveletek tiszta függvények, a repositorynak kell majd az operation ID egyediségét és a claim atomikusságát garantálnia. Nincs DB-integráció, scheduler, Gemini-hívás vagy külső mellékhatás. A tesztcsomag hozzáadva; az összesített CI-ellenőrzés a későbbi funkciócsomag után történik.
+
+
+### 10.2 Tartós háttérmotor – repository adapter szerződés
+
+A következő fejlesztési egység a DB-független `CompanyResearchJobRepository` protokoll és az injektált Supabase kliensre épülő adapter. Az adapter importáláskor nem kapcsolódhat adatbázishoz, nem készíthet saját klienst és nem olvashat service-role secretet környezeti változóból.
+
+Az `operation_id` adatbázis-oldali UNIQUE kulcs; az ismételt create ugyanazt a jobot adja vissza. A claim/heartbeat/complete/fail műveletek külön RPC-kontraktuson keresztül, adatbázis-oldali tranzakcióval és feltételes lease/state ellenőrzéssel valósulhatnak meg. A Python SELECT+UPDATE nem atomi claim. A fake repository tesztek a Python szerződést fedik le; az SQL konkurencia-szemantikát később izolált adatbázis-integrációs teszt igazolja.
+
+A worker job tábla belső adat: RLS bekapcsolva, PUBLIC/anon/authenticated tiltva, kizárólag backend service role jogosultsággal. Migration és RPC csak verziókezelt repository-fájl; production Supabase-re nem alkalmazható. Ebben a fázisban nincs scheduler, Gemini-kutatás vagy outbound mellékhatás.
