@@ -120,3 +120,11 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Operation ID újrafelhasználásának ellenőrzése immutable job mezők szerint.
 - Domain napi usage kulcsainak case-insensitive normalizálása.
 - Egész mikro-USD alapú tokenköltség-becslés felfelé kerekítéssel, vendor árak beégetése nélkül.
+
+
+### Phase 1H – atomikus worker concurrency limit
+
+- A claim RPC tranzakciós advisory lockkal sorosítja a kapacitásellenőrzést.
+- Aktív, le nem járt lease-ek számlálása és plafon ellenőrzése a job felvétele előtt.
+- A repository/worker explicit concurrency ceiling paramétert ad át.
+- Fake adapter teszt lefedi az RPC-paraméterezést; valódi konkurenciateszt izolált PostgreSQL környezetben még szükséges.
