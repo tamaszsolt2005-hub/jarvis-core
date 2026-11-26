@@ -344,3 +344,8 @@ A PR #28 dashboardjának teljes navigációs útvonala áttekintve: Chat, Felada
 A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”. A Feladatközpont üres tasklista esetén korábban korai visszatéréssel kihagyta az utánkövetési sort; ez javítva, regressziós AppTesttel fedve. A Cégkutatás Auth/RLS módban továbbra is fail-closed, amíg az olvasási jogosultság nincs kivezetve; az Audit külön Supabase Auth-admin belépést igényel. A Settings Auth módban settings.read jogosultsággal érhető el, a teljes diagnosztika admin-only. Nem módosít runtime secretet, Auth/RLS-t vagy adatbázis-konfigurációt, és nem tárol felhasználói preferenciákat.
 
 A dashboard audit után új AppTestek kerültek a branchre. A korábbi `36d615f` core workflow commit CI-je zöld volt, de az új dashboard commitok teljes CI-ellenőrzése külön szükséges.
+
+
+## 10.17 Egységes runtime hibakezelés
+
+A `jarvis_errors.py` közös hibakategorizálást biztosít: hiányzó/hibás konfiguráció, permission denied, authentication failed, rate limit/quota, hálózati hiba, timeout, szolgáltatáskiesés, invalid request és unknown. A kategorizálás nem teszi a kivétel nyers szövegét felhasználói üzenetté; a chat magyar, biztonságos útmutatót ad. A Gemini kérés korlátozottan újrapróbálkozik átmeneti hibákra, de hitelesítési/jogosultsági hibára nem. A retry nem ismételhet jogosulatlan műveletet, és nem kerülheti meg az RLS-t. A hozzáadott tesztek a kategóriákat, a hálózati retryt és az auth fail-closed viselkedést ellenőrzik. A teljes aktuális CI még külön ellenőrzési kapu.
