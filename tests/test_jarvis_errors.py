@@ -1,5 +1,6 @@
 """Tests for centralized, secret-safe error reporting."""
 import logging
+import pytest
 
 from jarvis_errors import report_error, sanitize_log_text
 
