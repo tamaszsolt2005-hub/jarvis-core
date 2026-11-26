@@ -1761,6 +1761,20 @@ if st.session_state.get("jarvis_page") == "analytics":
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
 
+if st.session_state.get("jarvis_page") == "research":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        research_db = st.session_state.get("_jarvis_db")
+        if research_db is None:
+            research_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = research_db
+        render_company_research_page(research_db)
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_company_research_page", severity="error", db=research_db if "research_db" in locals() else None)
+        st.error("A Cégkutatás oldal nem tudott betöltődni.")
+        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+    st.stop()
+
 @st.fragment(run_every="1s")
 def render_topbar_clock() -> None:
     """Render the top bar clock independently, using Hungary's local time."""
