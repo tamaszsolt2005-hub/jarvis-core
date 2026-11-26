@@ -17,7 +17,7 @@ A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOC
 - A mentett snapshot a `lead_id` idegen kulcson keresztül kapcsolódik a leadhez. A snapshot ID és a mentés ténye a job eredményébe is bekerül; a job csak a mentés után complete-elhető.
 - A worker külön teszteli a persist → complete sorrendet és azt, hogy mentési hiba esetén nincs sikeres complete, hanem retry/dead-letter útvonal indul.
 - A CI új, külön PostgreSQL 17 jobot kapott: izolált fixture, snapshot + worker migrációk, snapshot pgTAP, 15 lifecycle/kvóta assertion és 14 valódi két-session `dblink` race assertion.
-- **Ellenőrzési státusz:** A korábbi CI #3136 történeti eredmény; az újabb PR #28 HEAD ellenőrzése a CI #3187, mindhárom job sikeres. A külön PostgreSQL 17 jobban a snapshot-teszt, 15/15 lifecycle/kvóta és 14/14 konkurencia assertion sikeres. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történt.
+- **Ellenőrzési státusz:** A korábbi CI #3136 történeti eredmény; az újabb PR #28 HEAD ellenőrzése a CI #3187, mindhárom job sikeres. A külön PostgreSQL 17 jobban a snapshot-teszt, 20/20 lifecycle/kvóta, 12/12 security és 14/14 konkurencia assertion sikeres. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történt.
 
 ## 1. Telepítési és környezeti állapot
 
@@ -101,14 +101,14 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 
 A PR #28 a cégkutatási előzmények read-only dashboardját vezeti be. A navigációs routing hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja. Az új CI elindult; a javítás teljes CI-eredménye még nincs igazolva. A felület Auth esetén fail-closed, nem használ service-role megkerülést.
 
-A háttérmotor DB-független lifecycle, tartós repository/RPC adapter, planner queue bridge, egyszeri injektált worker, bounded exponential retry, explicit heartbeat callback, admission policy és tokenköltség-becslés formájában már megvalósult a PR #28 ágán. A scheduler, tényleges kutatási handler, Gemini-hívás és atomikus globális budget reservation még nincs implementálva. Production DB, migrációfuttatás, deploy és outbound e-mail továbbra is tiltott külön jóváhagyásig.
+A háttérmotor DB-független lifecycle, tartós repository/RPC adapter, planner queue bridge, egyszeri injektált worker, bounded exponential retry, explicit heartbeat callback, admission policy, grounded Gemini provider adapter és atomikus budget reservation formájában implementált. A scheduleres automatikus indítás és az élő Gemini/staging futás még nincs bekapcsolva. Production DB, migrációfuttatás, deploy és outbound e-mail továbbra is tiltott külön jóváhagyásig.
 
 A felhasználó kérése szerint a kisebb módosítások után nem állunk meg külön ellenőrzési körre: több összefüggő funkció elkészülte után futtatunk átfogó ellenőrzést.
 
 
 ### 7.1 Háttérmotor első implementációja
 
-A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás és az atomi RPC claim későbbi kódszeletekkel már előkészített; scheduler és tényleges kutatási végrehajtás még nincs. A kapcsolódó teszteket a következő összesített ellenőrzési körben futtatjuk.
+A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás és az atomi RPC claim is implementált; a worker kódja injektált handlerrel futtatható. Scheduleres automatikus indítás még nincs. A kapcsolódó CI #3187 sikeres.
 
 
 ### 7.2 Tartós háttérmotor – repository adapter szerződés
@@ -131,7 +131,7 @@ A megvalósított fájlok: `company_research_job_repository.py` (Protocol + inje
 
 ### 7.3 Egyszeri worker-orchestration
 
-A PR #28 ágán elkészült a `company_research_worker.py`: injektált repositoryból legfeljebb egy előkészített jobot claimel, injektált handlerrel feldolgozza, majd complete vagy bounded fail művelettel lezárja. Nincs beépített kutatási handler, Gemini/API-hívás, scheduler vagy automatikus futtatás. A handler hibáinak szövege nem kerül a job rekordba, csak korlátozott hibakód és általános, titokmentes üzenet. Lejárt lease esetén a worker nem jelenti sikeresnek a műveletet.
+A PR #28 ágán elkészült a `company_research_worker.py`: injektált repositoryból legfeljebb egy előkészített jobot claimel, injektált handlerrel feldolgozza, majd complete vagy bounded fail művelettel lezárja. A grounded Gemini handler adapter implementált, de élő API-hívás és scheduleres automatikus futtatás nincs bekapcsolva. A handler hibáinak szövege nem kerül a job rekordba, csak korlátozott hibakód és általános, titokmentes üzenet. Lejárt lease esetén a worker nem jelenti sikeresnek a műveletet.
 
 
 ### 7.4 Retry backoff finomítása
@@ -183,12 +183,12 @@ A `SupabaseCompanyResearchJobRepository.list_audit()` korlátozott, legfeljebb 1
 
 A job-create RPC immár adatbázisoldalon is kikényszeríti a globális óránkénti joblimitet és a domainenkénti napi limitet. A budget-, hourly- és domain-ellenőrzések egy közös tranzakciós advisory lock alatt futnak, az idempotens operation ID visszajátszás pedig a korábbi jobot adja vissza, nem fogyaszt új kvótát. A DB a létrehozási időt maga állítja be, így a kliens nem tud régi `created_at` értékkel kvótát megkerülni. A domain összehasonlítás kis-/nagybetűtől független.
 
-A worker concurrency plafon továbbra is külön, atomikus claim RPC-ben érvényesül. A napi költségkeret a becsült költségfoglalás alapján védett; tényleges provider usage elszámolása és vissza nem használt foglalás felszabadítása még nincs bekötve. Az hourly/domain limit a job létrehozásokat számolja, beleértve a később sikertelen jobokat is.
+A worker concurrency plafon továbbra is külön, atomikus claim RPC-ben érvényesül. A napi költségkeret becsült költségfoglalással védett; az actual-cost settlement callback és a tranzakciós elszámolás implementált. A becslést meghaladó tényleges költség miatti hard cap túllépés még külön védelemre szorul. Az hourly/domain limit a job létrehozásokat számolja, beleértve a később sikertelen jobokat is.
 
 
 ### 7.12 Tényleges költség elszámolása
 
-A worker opcionális `actual_cost_extractor` callbacket fogad. Ha a provider handler a normalizált, JSON-kompatibilis eredményből tényleges költséget tud számolni, a worker azt nemnegatív egész mikro-USD értékként átadja a complete RPC-nek. A job sikeres lezárása és a reservation `settled` állapotba állítása egy tranzakcióban történik; a becsült foglalást a tényleges költség váltja fel, és az audit esemény is rögzíti az actual cost értéket. Ha nincs extractor, a becsült reservation megmarad, tehát a rendszer konzervatívan számol. A provider adapter még nincs bekötve, ezért valós tokenhasználatot jelenleg nem mérünk.
+A worker opcionális `actual_cost_extractor` callbacket fogad. Ha a provider handler a normalizált, JSON-kompatibilis eredményből tényleges költséget tud számolni, a worker azt nemnegatív egész mikro-USD értékként átadja a complete RPC-nek. A job sikeres lezárása és a reservation `settled` állapotba állítása egy tranzakcióban történik; a becsült foglalást a tényleges költség váltja fel, és az audit esemény is rögzíti az actual cost értéket. Ha nincs extractor, a becsült reservation megmarad, tehát a rendszer konzervatívan számol. A provider adapter kódban be van kötve a worker handlerhez; élő szolgáltatói hívás nélkül valós tokenhasználatot még nem validáltunk.
 
 A régi, snapshot admission nélküli refresh enqueue útvonalat is lezártam: mostantól kötelező megadni a becsült költséget és a limit-konfigurációt, és az adapter ugyanazokat az adatbázisoldali költség/hourly/domain paramétereket küldi be. Így egyik Python enqueue belépési út sem hagyja ki a hard DB kvótákat.
 
@@ -199,7 +199,7 @@ Elkészült a `company_research_execution.py` provider adapter rétege. A `Gemin
 
 A workerhez `make_company_research_handler()` adapter adható. A Gemini provider adapter a szinkron API-kérés és retry-időszak alatt konfigurálható időközönként háttérszálból frissíti a lease-t. Hamis heartbeat vagy callback-kivétel esetén a provider eredményét eldobja. A provider tokenhasználatot visszaadja, a konfigurált input/output tokenárakból `make_gemini_actual_cost_extractor()` számol mikro-USD actual costot. A tokenárakat a hívó adja meg, nincs beégetett árazás.
 
-Fontos: a Gemini kliens és modell injektált; a modul nem olvas secretet, nem hoz létre klienst, és nem indít önálló API-hívást. A worker/queue/dashboard éles összekötése, valós provider hívás, DB snapshot mentés és valódi tokenköltség mérés még nincs bekapcsolva. Outbound e-mail továbbra is tiltott.
+Fontos: a Gemini kliens és modell injektált; a modul nem olvas secretet, nem hoz létre klienst, és nem indít önálló API-hívást. A worker→provider→dossier→snapshot→lead→complete/audit kódút implementált és CI-vel tesztelt; valós provider hívás és éles scheduleres futtatás nincs bekapcsolva. Outbound e-mail továbbra is tiltott.
 
 A `company_research_runtime.py` explicit composition root is elkészült: `run_company_research_worker_once()` összeköti az injektált repositoryt, Gemini grounding providert, one-shot workert és konfigurált tokenáras actual-cost extractort. Importkor nem futtat semmit, nem készít klienst vagy secretet; kizárólag explicit függvényhíváskor claimel legfeljebb egy jobot. Scheduler, dashboard trigger és automatikus háttérfuttatás továbbra sincs.
 
@@ -230,7 +230,7 @@ A Gemini kliens a kategorizálás alapján korlátozottan újrapróbálkozik há
 A hozzáadott tesztek lefedik a hibakategóriákat, a secret UI-ból való kizárását, a hálózati retryt és az auth/permission fail-closed viselkedést. A teljes CI-t az összefüggő fejlesztési csomag lezárásakor kell futtatni; az implementáció önmagában még nem jelent zöld CI-t. Production konfiguráció, DB, jogosultság, secret és infrastruktúra nem módosult.
 
 
-A korábbi CI #3019 run (45875325010) részletes naplója alapján két AppTest hibás elvárása javítva: az e-mail-küldési zár szövegének ellenőrzése és a jogosultság miatt el nem renderelt diagnosztikai gomb hiányának ellenőrzése. A futásban a PostgreSQL backup/restore integráció sikeres volt; a teszt job 2 dashboard AppTest miatt bukott el. Az új javítások után a teljes aktuális HEAD CI-jét újra kell futtatni.
+Történeti CI-hibajegyzet: a #3019 két AppTest elvárása később javítva lett. A frissebb PR #28 HEAD CI #3187 mindhárom jobja sikeres; a korábbi hiba nem aktuális blokkoló.
 
 
 ## 9. Következő munka és ellenőrzési terv – 2026-11-26
@@ -239,7 +239,7 @@ A felhasználói tesztelési elvárás szerint nem ismételjük meg minden commi
 
 A konfigurációs és runtime hibakezelési kód bekerült: hiányzó/hibás kötelező secret, hibás Supabase HTTP(S) URL, hálózati hiba, timeout, API rate limit/kvóta, szolgáltatáskiesés, hitelesítési és jogosultsági hiba kategorizálása. A Gemini modellváltás kizárólag rate-limit/szolgáltatás-túlterhelés esetén engedélyezett; hitelesítési és permission hiba esetén nincs fallback. A felhasználói felület kategorizált, titokmentes segítséget mutat.
 
-A CI #3019 korábbi tesztjobja 1104 tesztet sikeresen teljesített, 3 tesztet kihagyott, 2 Settings AppTesten elbukott; a coverage 90,24% volt. A backup–restore job sikeres volt. A két AppTest elvárást javítottuk, de a javítások utáni aktuális HEAD célzott teszteredménye még nincs igazolva. Ezért a következő ellenőrzés elsődlegesen az érintett tesztmodulokra korlátozandó, nem kell a változatlan backup–restore tesztet újra futtatni.
+Történeti CI #3019 összefoglaló; ezt a hibát a későbbi commitok javították. A jelenlegi dokumentációs referencia a PR #28 HEAD CI #3187, amely teljesen sikeres.
 
 
 ### 7.9 PostgreSQL worker konkurencia- és kvótatesztek
@@ -280,7 +280,7 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 **P1 – állapot és még hátralévő feladatok:**
 1. **[KÉSZ – kódoldali runtime E2E, CI #3136]** Queue → claim → grounded provider → dossier validáció → snapshot mentés → lead FK-kapcsolat → job completion/audit bekötve. A worker csak a snapshot mentése után complete-elhet; operation ID-alapú stabil snapshot UUID, idempotens replay és persist-hiba esetén retry/dead-letter viselkedés célzott tesztet kapott. Élő Gemini API-hívás nem történt.
-2. **[KÉSZ – CI #3136, izolált PostgreSQL 17]** `company_research_jobs.test.sql`: 15/15 lifecycle/kvóta assertion; `company_research_jobs_concurrency.test.sql`: 14/14 valódi, két `dblink` sessionnel futó konkurencia assertion; a snapshot-tároló SQL teszt is sikeres. A futtatás kizárólag eldobható CI-adatbázisban történt.
+2. **[KÉSZ – CI #3136, izolált PostgreSQL 17]** `company_research_jobs_lifecycle_edges.test.sql`: 20/20 lifecycle/kvóta assertion; `company_research_jobs_security.test.sql`: 12/12 security assertion; `company_research_jobs_concurrency.test.sql`: 14/14 valódi, két `dblink` sessionnel futó konkurencia assertion; a snapshot-tároló SQL teszt is sikeres. A futtatás kizárólag eldobható CI-adatbázisban történt.
 3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
 4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
 5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.
