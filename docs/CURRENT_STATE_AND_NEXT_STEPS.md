@@ -150,6 +150,12 @@ A dashboard nem scheduler. A proactive_monitor_job.py és inbound email workflow
 A dokumentációs commitok a PR headet megváltoztatják. Ezért a korábbi, kódcommiton sikeres CI nem igazolja automatikusan a jelenlegi dokumentációs headet. A legfrissebb CI-t a [PR #26 Checks](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26/checks) oldalon, a pontos aktuális SHA-hoz kötve kell ellenőrizni.
 
 
+## Phase 1 – cégkutatási dosszié első implementációja
+
+A `feature/company-research-phase-1` ág a meglévő napi Google Search leadkutatást bővíti strukturált cégdossziéval. A kutatási prompt már kér kategorizált, forrás URL-lel ellátott üzleti tényeket és releváns, nyilvános szakmai döntéshozói kontextust. Az új `company_dossier.py` csak a Google grounding domainjeivel egyező forrásokat és engedélyezett üzleti kategóriákat fogadja el; a dosszié a meglévő lead `notes` mezőjébe kerül. Privát elérhetőség, érzékeny adat és kapcsolatfelvételi engedély nem gyűjthető/adható.
+
+Ez a szelet a PR-ben még ellenőrzés alatt áll. A napi GitHub Actions workflow és a max. 15 cég/futás már korábban létezett; az új dossziémezők még nem jelentenek normalizált kutatási adatbázist, automatikus újrakutatási ütemezőt vagy productionben igazolt worker szolgáltatást. A következő technikai lépések: célzott unit/integrációs tesztek és CI; utána idempotens claim/lease, retry/dead-letter, frissességi szabályok és verziózott forrás/tény tárolás külön migrációtervezéssel.
+
 ## Hosszú távú termékvízió – kutatásvezérelt, személyre szabott SaaS
 
 A részletes célarchitektúra: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
