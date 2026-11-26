@@ -274,3 +274,8 @@ A retry késleltetés exponenciális, determinisztikus és felső korláttal vé
 ### 10.5 Kutatási admission és költségvédelem
 
 A job futtatása előtt determinisztikus admission policy ellenőrizze a globális óránkénti limitet, a domainenkénti napi limitet, a párhuzamos jobok számát és a napi költségkeretet. Költség egész mikro-USD-ben tárolandó. A tiszta policy csak konzisztens usage snapshot alapján hoz döntést; a konkurens worker-ek közötti atomi budget reservation külön adatbázis-oldali műveletet igényel, így a Python oldali ellenőrzés önmagában nem jelent kemény költségplafont.
+
+
+### 10.6 Hosszú jobok heartbeat callbackje
+
+A worker a kétparaméteres handlernek explicit heartbeat callbacket adhat át. Ez csak a handler által meghívott checkpointoknál végez repository heartbeat RPC-t, nem indít saját timert vagy szálat. A lease-vesztés hamis completiont nem eredményezhet; a handlernek a callback hamis eredményét tiszteletben kell tartania.
