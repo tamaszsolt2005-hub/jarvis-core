@@ -243,7 +243,7 @@ Read-only ellenőrzés a `main` ágon és a hozzáférhető infrastruktúrában:
 
 ## Legfrissebb állapot – PR #26, 2026-11-25
 
-**Aktív fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) (open, not merged) · **aktuális PR-head:** `a későbbi dokumentációs frissítéskor már elavult helyőrző (az aktuális headet a dokumentum végi friss állapotblokk rögzíti)` · **kód-CI-vel igazolt commit:** `38693f2f93b790608aef37a33f190a86e611ff0d`.
+**Aktív fejlesztési ág:** `docs/pre-feature-readiness-gates` · **PR:** [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) (open, not merged) · **aktuális PR-head:** `a korábbi státuszfelvételkor aktuális PR-head (történeti adat; a friss állapotot a dokumentum legutolsó 2026-11-26-i blokkja rögzíti)` · **kód-CI-vel igazolt commit:** `38693f2f93b790608aef37a33f190a86e611ff0d`.
 
 ### Kód és tesztállapot
 - SMTP hard-disable és bizonytalan kézbesítési kimenetel kezelése a branchben; az unknown státusz automatikus retry-ja tiltott.
