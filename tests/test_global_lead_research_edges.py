@@ -95,7 +95,7 @@ class _ResearchDB:
                     "opted_out": False,
                 })
                 return SimpleNamespace(data=[{
-                    "lead_id": "new-lead",
+                    "lead_id": "123e4567-e89b-42d3-a456-426614174000",
                     "outcome": "created",
                     "selected_email": params["p_email"],
                 }])
@@ -121,7 +121,7 @@ class _ResearchQuery:
     def execute(self):
         if self.payload is not None:
             self.db.inserted.append(self.payload)
-            return SimpleNamespace(data=[{"id": "new-lead"}])
+            return SimpleNamespace(data=[{"id": "123e4567-e89b-42d3-a456-426614174000"}])
         return SimpleNamespace(data=list(self.db.existing))
 
 
