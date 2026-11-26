@@ -87,6 +87,19 @@ class SupabaseCompanyResearchJobRepository:
         row = self._rpc(RPC_CREATE, {"p_job": job})
         if row.get("operation_id") != job["operation_id"]:
             raise CompanyResearchJobRepositoryError("Create RPC returned a different operation_id.")
+        # ON CONFLICT(operation_id) returns the existing row. An idempotency
+        # key reused for different immutable input must be surfaced, not silently
+        # treated as a successful enqueue of the caller's requested job.
+        expected = {
+            "job_type": job["job_type"],
+            "lead_id": job["lead_id"],
+            "payload": job["payload"],
+        }
+        for field, expected_value in expected.items():
+            if row.get(field) != expected_value:
+                raise CompanyResearchJobRepositoryError(
+                    f"Create RPC idempotency conflict: existing {field} differs."
+                )
         return row
 
     def claim(self, *, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None:
