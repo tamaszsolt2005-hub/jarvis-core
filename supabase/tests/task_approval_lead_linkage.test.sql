@@ -91,7 +91,7 @@ BEGIN
     jsonb_build_object(
       'type', 'create', 'operation_id', v_third_operation,
       'title', 'Next workflow stage', 'priority', 'normal',
-      'due_at', NULL, 'notes', 'Allowed after previous task completion',
+      'due_at', NULL, 'notes', '[JARVIS_STAGE:offer_preparation] Allowed after previous task completion',
       'lead_id', v_lead
     ),
     300
@@ -143,7 +143,9 @@ BEGIN
 
   IF v_updated ->> 'status' IS DISTINCT FROM 'success'
      OR (SELECT notes FROM public.tasks WHERE id = (v_third ->> 'task_id')::uuid)
-        NOT LIKE '%Eredmény: az üzleti igény igazolódott.%' THEN
+        NOT LIKE '%Eredmény: az üzleti igény igazolódott.%'
+     OR (SELECT notes FROM public.tasks WHERE id = (v_third ->> 'task_id')::uuid)
+        NOT LIKE '%[JARVIS_STAGE:offer_preparation]%' THEN
     RAISE EXCEPTION 'Approved task outcome notes were not persisted';
   END IF;
 
