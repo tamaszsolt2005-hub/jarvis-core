@@ -63,3 +63,13 @@ A roadmap nem jogosít production DB-módosításra, migrációfuttatásra, Auth
 ## Fejlesztési napló – 2026-11-26
 
 Elkészült a háttérmotor első, DB-független kódszelete: company_research_jobs.py és tests/test_company_research_jobs.py. Tartalmaz job létrehozást, operation ID-t, lease claimet és lejárt lease visszavételt, heartbeatet, sikeres lezárást, bounded retry-t és dead-letter átmenetet. Ez még nem tartalmaz tartós adattárolást vagy valódi atomikus konkurens claimet; ezeket majd a repository-adapter és adatbázis oldali egyediség/locking biztosítja. Nincs scheduler, automatikus kutatás vagy külső API-hívás.
+
+
+## Phase 1B – tartós job repository és SQL/RPC szerződés
+
+- DB-független `CompanyResearchJobRepository` Protocol és injektált kliensű Supabase adapter.
+- Idempotens create az `operation_id` adatbázis UNIQUE kulcsával.
+- Claim, heartbeat, complete és fail kizárólag tranzakciós DB RPC-kontraktuson keresztül; Python SELECT+UPDATE nem tekinthető atomikusnak.
+- Fake repository és adapter mapping tesztek; későbbi külön SQL concurrency teszt.
+- Belső job tábla RLS-sel, PUBLIC/anon/authenticated tiltással és service-role-only hozzáféréssel.
+- Migration csak repository-fájl, production alkalmazás nélkül. Nincs saját kliens létrehozás, secret olvasás, scheduler, Gemini-hívás vagy outbound side effect.
