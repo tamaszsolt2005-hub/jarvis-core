@@ -261,6 +261,13 @@ def make_gemini_actual_cost_extractor(
     output_price_microusd_per_million_tokens: int,
 ):
     """Build a pricing-configured extractor; missing provider usage keeps estimate reserved."""
+    estimate_research_cost_microusd(
+        input_tokens=0,
+        output_tokens=0,
+        input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
+        output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+    )
+
     def extract(result: dict[str, Any]) -> int | None:
         usage = result.get("provider_usage")
         if not isinstance(usage, dict):
