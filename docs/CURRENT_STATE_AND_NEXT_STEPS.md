@@ -1,10 +1,10 @@
 # JARVIS – aktuális állapot és következő lépések
 
 **Frissítve:** 2026-11-26  
-**Aktív fejlesztési ág:** `feature/company-research-phase-1`  
-**Aktuális PR:** [#27 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27)  
+**Aktív fejlesztési ág:** `feature/company-research-dashboard-readonly`  
+**Aktuális PR:** [#28 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28)  
 **Alap PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
-**Aktuális head és CI:** mindig a [PR #27 aktuális headjén és Checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27/checks) ellenőrizendő. Csak az aktuális headhez tartozó, befejezett és sikeres futás tekinthető igazolásnak; régebbi futás nem.
+**Aktuális head és CI:** mindig a [PR #28 aktuális headjén és Checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28/checks) ellenőrizendő. Csak az aktuális headhez tartozó, befejezett és sikeres futás tekinthető igazolásnak; régebbi futás nem.
 
 A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
 
@@ -98,3 +98,18 @@ A felhasználó kérése szerint a kisebb módosítások után nem állunk meg k
 ### 7.1 Háttérmotor első implementációja
 
 A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás, atomi claim, scheduler és kutatási végrehajtás még nincs bekötve. A kapcsolódó teszteket a következő összesített ellenőrzési körben futtatjuk.
+
+
+### 7.2 Tartós háttérmotor – repository adapter szerződés
+
+A következő kódszelet a job-lifecycle tiszta függvényeire épülő tartós repository-réteg. A szerződés DB-független `CompanyResearchJobRepository` protokollt és injektált Supabase klienst használó adaptert határoz meg. A Supabase adapter nem hozhat létre saját klienst, nem olvashat környezeti service-role secretet, és importáláskor sem kapcsolódhat adatbázishoz.
+
+Kötelező adattárolási invariánsok:
+- `operation_id` adatbázis-oldali UNIQUE kulcs; az ismételt create idempotensen a már létező jobot adja vissza.
+- A claim, heartbeat, complete és fail műveletek adatbázis-oldali RPC-szerződésen keresztül, egyetlen tranzakcióban és feltételes állapot-/lease-ellenőrzéssel történnek.
+- A Python oldali SELECT+UPDATE nem tekinthető atomi claimnek.
+- A worker az aktuális, le nem járt lease tulajdonosaként végezhet heartbeatet és lezárást; lejárt vagy lecserélt lease-szel rendelkező worker nem írhatja felül az új tulajdonos állapotát.
+- A repository metódusok validált job objektumot adnak vissza, vagy egyértelműen jelzik a konfliktust/nem jogosult állapotot.
+- A fake repository tesztek a protokoll és az adapter leképezését ellenőrzik; az SQL/RPC konkurencia-viselkedés külön izolált adatbázis-integrációs tesztet igényel.
+
+Az SQL migration csak verziókezelt repository-fájl lehet. A job tábla belső worker-adat: RLS bekapcsolva, PUBLIC/anon/authenticated hozzáférés tiltva, kizárólag backend service role számára engedélyezett műveletek. A migrationt és RPC-kat production Supabase-re nem alkalmazzuk. Ez a fázis nem tartalmaz scheduler-t, Gemini kutatás-végrehajtást vagy outbound mellékhatást.
