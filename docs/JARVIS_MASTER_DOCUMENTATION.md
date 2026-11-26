@@ -294,3 +294,10 @@ A worker csak objektum alakú claimelt jobot dolgoz fel, a handlernek másolt pa
 ### 10.9 Atomikus párhuzamossági korlát
 
 A `company_research_job_claim` RPC globális tranzakciós advisory lockot használ, így a párhuzamos claim kérések sorosan ellenőrzik az aktív, le nem járt lease-ek számát. A `p_max_concurrent_jobs` plafon elérésekor a claim üres eredménnyel tér vissza. Ez megakadályozza, hogy több worker ugyanazt a szabad kapacitást egyszerre felhasználva túllépje a megadott concurrency limitet. A lock csak a claim döntést szerializálja; heartbeat és lezárás továbbra is feltételes lease-owner RPC. A migration még nem lett alkalmazva, és az SQL konkurenciát külön izolált PostgreSQL tesztnek kell igazolnia.
+
+
+### 10.10 Tartós napi budget reservation és lifecycle audit
+
+A Supabase job-create RPC a `company_research_budget_reservations` táblába atomikusan foglal napi UTC költségkeretet. Advisory lockkal sorosítja a foglalásokat, így párhuzamos enqueue-k nem tudják ugyanazt a szabad keretet többször elkölteni. A foglalás és a job insert egy tranzakció; operation ID replay nem készít második reservationt. A napi plafon túllépése `research_daily_budget_exceeded` jelölővel elutasított, amit az adapter és a queue kontrollált `daily_cost_limit` elutasításként kezel.
+
+Az append-only `company_research_job_audit` eseménynapló a job lifecycle fontos tranzícióit rögzíti: enqueued, claimed, heartbeat, succeeded, retry_scheduled, dead_letter, beleértve a végső lease-expiry esetét. A táblára UPDATE/DELETE jog nincs kiosztva. A reservation becsült költséget tart fenn; actual provider usage settlement, unused reservation release, atomikus hourly/domain rate quota és audit retention/archival még hátralévő feladat. A migration nem lett production adatbázison futtatva; a DB viselkedés izolált PostgreSQL tesztet igényel.
