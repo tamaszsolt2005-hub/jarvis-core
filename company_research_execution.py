@@ -209,8 +209,12 @@ def execute_company_research(
 
     raw_research = response.get("research")
     if isinstance(raw_research, str):
+        cleaned_research = raw_research.strip()
+        cleaned_research = re.sub(
+            r"^\x60{3}(?:json)?\s*|\s*\x60{3}$", "", cleaned_research, flags=re.I
+        )
         try:
-            raw_research = json.loads(raw_research)
+            raw_research = json.loads(cleaned_research)
         except (TypeError, ValueError) as exc:
             raise CompanyResearchExecutionError("invalid_provider_json") from exc
     if not isinstance(raw_research, dict):
