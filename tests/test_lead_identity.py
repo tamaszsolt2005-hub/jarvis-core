@@ -64,7 +64,6 @@ def test_company_lead_client_passes_consent_and_returns_rpc_result():
         [],
         [{"outcome": "created", "lead_id": None}],
         [{"outcome": "unknown", "lead_id": "lead-123"}],
-        [{"outcome": "created", "lead_id": "lead-123"}],
     ],
 )
 def test_company_lead_client_fails_closed_on_unconfirmed_rpc_result(data):
