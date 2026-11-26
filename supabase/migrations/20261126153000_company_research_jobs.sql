@@ -33,6 +33,37 @@ CREATE INDEX IF NOT EXISTS company_research_jobs_expired_lease_idx
   ON public.company_research_jobs (lease_expires_at)
   WHERE status = 'running';
 
+-- Daily cost reservations are written in the same transaction as job creation.
+CREATE TABLE IF NOT EXISTS public.company_research_budget_reservations (
+  operation_id text PRIMARY KEY REFERENCES public.company_research_jobs(operation_id) ON DELETE RESTRICT,
+  budget_date date NOT NULL,
+  reserved_cost_microusd bigint NOT NULL CHECK (reserved_cost_microusd >= 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS company_research_budget_reservations_daily_idx
+  ON public.company_research_budget_reservations (budget_date);
+
+-- Append-only operational audit. No UPDATE or DELETE privilege is granted.
+CREATE TABLE IF NOT EXISTS public.company_research_job_audit (
+  event_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  operation_id text NOT NULL,
+  event_type text NOT NULL CHECK (event_type IN
+    ('enqueued', 'claimed', 'heartbeat', 'succeeded', 'retry_scheduled', 'dead_letter')),
+  worker_id text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(metadata) = 'object'),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS company_research_job_audit_operation_idx
+  ON public.company_research_job_audit (operation_id, created_at);
+
+ALTER TABLE public.company_research_budget_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_research_job_audit ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.company_research_budget_reservations FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.company_research_job_audit FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.company_research_budget_reservations TO service_role;
+GRANT SELECT, INSERT ON TABLE public.company_research_job_audit TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.company_research_job_audit_event_id_seq TO service_role;
+
 ALTER TABLE public.company_research_jobs ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.company_research_jobs FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_jobs TO service_role;
