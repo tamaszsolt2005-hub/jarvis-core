@@ -105,3 +105,8 @@ A meglévő `global_lead_research.py` + `global_lead_research_job.py` és a napi
 7. AI-támogatott terméképítés, tesztelés, átadás és eredményalapú tanulás.
 
 Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A meglévő leadkutatás, pontozás, task workflow és memória alapot ad, de a teljes automatikus kutatási és személyre szabott SaaS-folyamat még nincs kész. Outbound e-mail hard-disable és production biztonsági kapuk változatlanok.
+
+### Company research snapshot traceability (Phase 1 increment)
+- Each accepted company dossier now receives a schema version, unique snapshot ID, UTC research timestamp, and SHA-256 content fingerprint.
+- A compact append-only `company_research_snapshot` audit event records the snapshot manifest and company domain. The full public-business dossier remains in the lead notes field.
+- This is traceability metadata, not yet a queryable historical snapshot store or automatic refresh scheduler. A dedicated normalized snapshot table and refresh policy remain a later migration task; no production schema was changed.
