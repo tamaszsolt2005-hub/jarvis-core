@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from urllib.parse import urlparse
 
 from company_dossier import build_company_dossier, stamp_company_dossier
+from company_research_admission import estimate_research_cost_microusd
 
 
 class CompanyResearchProvider(Protocol):
@@ -242,3 +243,27 @@ def make_company_research_handler(provider: CompanyResearchProvider):
         return execute_company_research(payload, provider=provider, heartbeat=heartbeat)
 
     return handler
+
+
+
+def make_gemini_actual_cost_extractor(
+    *,
+    input_price_microusd_per_million_tokens: int,
+    output_price_microusd_per_million_tokens: int,
+):
+    """Build a pricing-configured extractor; missing provider usage keeps estimate reserved."""
+    def extract(result: dict[str, Any]) -> int | None:
+        usage = result.get("provider_usage")
+        if not isinstance(usage, dict):
+            return None
+        input_tokens = usage.get("prompt_tokens")
+        output_tokens = usage.get("output_tokens")
+        if input_tokens is None or output_tokens is None:
+            return None
+        return estimate_research_cost_microusd(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
+            output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        )
+    return extract
