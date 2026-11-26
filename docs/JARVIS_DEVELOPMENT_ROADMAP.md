@@ -83,3 +83,11 @@ A PR #28 branchben elkészült a `CompanyResearchJobRepository` Protocol és az 
 ### Phase 1C – egyszeri worker-orchestration
 
 A PR #28 ágban elkészült a `company_research_worker.py` injektált repository + handler alapú egyszeri végrehajtója. Egy hívás legfeljebb egy jobot claimel, handler eredményét complete-eli, hibáját bounded retry/dead-letter útvonalra küldi, és lease-vesztésnél nem állít sikert. A kivételszöveg nem kerül a tartós jobrekordba. A tényleges cégkutatási handler, scheduler, Gemini/API-integráció és automatikus futtatás továbbra sincs engedélyezve vagy implementálva.
+
+
+### Phase 1D – bounded exponential retry backoff
+
+- Exponenciális késleltetés attempt_count alapján, konfigurálható felső korláttal.
+- Pozitív egész bemenetek validálása, overflow-biztos számítás.
+- Worker-integráció és determinisztikus tesztek.
+- Nem helyettesíti a globális provider rate limitet, concurrency limitet vagy költségkeretet.
