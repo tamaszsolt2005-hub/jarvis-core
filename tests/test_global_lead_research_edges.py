@@ -78,6 +78,30 @@ class _ResearchDB:
         assert name == "leads"
         return _ResearchQuery(self)
 
+    def rpc(self, _name, params):
+        db = self
+
+        class RPCQuery:
+            def execute(self):
+                db.inserted.append({
+                    "company_name": params["p_company_name"],
+                    "email": params["p_email"],
+                    "website": params["p_website"],
+                    "notes": params["p_notes"],
+                    "source": params["p_source"],
+                    "status": "research" if not params["p_email"] else "new",
+                    "consent_basis": params["p_consent_basis"],
+                    "approved_to_contact": params["p_approved_to_contact"],
+                    "opted_out": False,
+                })
+                return SimpleNamespace(data=[{
+                    "lead_id": "new-lead",
+                    "outcome": "created",
+                    "selected_email": params["p_email"],
+                }])
+
+        return RPCQuery()
+
 
 class _ResearchQuery:
     def __init__(self, db):
