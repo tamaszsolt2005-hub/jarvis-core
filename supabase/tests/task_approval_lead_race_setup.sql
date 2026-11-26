@@ -11,14 +11,14 @@ VALUES ('74000000-0000-4000-8000-000000000001', 'Lead task race fixture', 'resea
 DO $$
 BEGIN
   IF NOT public.issue_pending_approval(
-    repeat('a', 64),
+    encode(extensions.digest('jarvis:task-approval:lead-race:first', 'sha256'), 'hex'),
     'legacy:74000000-0000-4000-8000-000000000004',
     '{"type":"create","operation_id":"74000000-0000-4000-8000-000000000002","title":"Lead race first","priority":"normal","due_at":null,"notes":"","lead_id":"74000000-0000-4000-8000-000000000001"}'::jsonb,
     300
   ) THEN RAISE EXCEPTION 'Could not issue first lead-race approval'; END IF;
 
   IF NOT public.issue_pending_approval(
-    repeat('b', 64),
+    encode(extensions.digest('jarvis:task-approval:lead-race:second', 'sha256'), 'hex'),
     'legacy:74000000-0000-4000-8000-000000000005',
     '{"type":"create","operation_id":"74000000-0000-4000-8000-000000000003","title":"Lead race second","priority":"normal","due_at":null,"notes":"","lead_id":"74000000-0000-4000-8000-000000000001"}'::jsonb,
     300
