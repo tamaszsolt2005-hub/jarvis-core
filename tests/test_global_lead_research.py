@@ -120,6 +120,18 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
         "recommended_next_step": "Review public case studies",
         "research_confidence": "high",
         "source_url": "https://acme.example/about",
+        "company_facts": [{
+            "category": "products_services",
+            "fact": "Manufactures industrial control systems.",
+            "source_url": "https://acme.example/products",
+        }],
+        "decision_maker": {
+            "name": "Alex Example",
+            "role": "Managing Director",
+            "professional_background": "Leads the company's industrial operations.",
+            "source_url": "https://acme.example/leadership",
+            "email": "private@example.com",
+        },
     }
     response = {
         "text": json.dumps({"companies": [company]}),
@@ -134,6 +146,11 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     monkeypatch.setattr(research.types, "GoogleSearch", lambda: {})
     monkeypatch.setattr(research, "get_model_name", lambda: "test-model")
     monkeypatch.setattr(research, "log_event", lambda *_args, **_kwargs: None)
+    saved_snapshots = []
+    monkeypatch.setattr(
+        research, "save_company_research_snapshot",
+        lambda _db, **kwargs: saved_snapshots.append(kwargs) or {"snapshot_id": kwargs["dossier"]["snapshot_id"]},
+    )
     audit_events = []
     monkeypatch.setattr(
         research, "audit_event",
@@ -154,10 +171,27 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     assert "Uses multiple production lines" in saved["notes"]
     assert result["companies"][0]["business_fit_score"] == 100
     assert result["companies"][0]["research_confidence"] == "high"
+    dossier = result["companies"][0]["company_dossier"]
+    assert dossier["decision_maker"]["name"] == "Alex Example"
+    assert dossier["facts"][0]["fact"] == "Manufactures industrial control systems."
+    assert "private@example.com" not in saved["notes"]
+    assert "Alex Example" in saved["notes"]
+    assert "https://acme.example/leadership" in saved["notes"]
     assert result["email_sending"] == "disabled"
     insert_events = [event for event in audit_events if event["action"] == "save_researched_company"]
     assert [event["status"] for event in insert_events] == ["pending", "success"]
     assert insert_events[0]["operation_id"] == insert_events[1]["operation_id"]
+    assert len(saved_snapshots) == 1
+    assert saved_snapshots[0]["lead_id"] == "inserted-lead-id"
+    assert saved_snapshots[0]["company_domain"] == "acme.example"
+    assert saved_snapshots[0]["dossier"]["snapshot_id"] == dossier["snapshot_id"]
+    snapshot_events = [event for event in audit_events if event["action"] == "company_research_snapshot"]
+    assert [event["status"] for event in snapshot_events] == ["pending", "success"]
+    snapshot_manifest = snapshot_events[-1]["result"]
+    assert snapshot_manifest["snapshot_id"] == dossier["snapshot_id"]
+    assert snapshot_manifest["schema_version"] == 1
+    assert snapshot_manifest["company_domain"] == "acme.example"
+    assert len(snapshot_manifest["content_sha256"]) == 64
 
 
 def test_global_research_deduplicates_existing_company(monkeypatch):

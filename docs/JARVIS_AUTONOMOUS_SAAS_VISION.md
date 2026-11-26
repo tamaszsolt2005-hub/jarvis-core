@@ -1,7 +1,10 @@
 # JARVIS – kutatásvezérelt, személyre szabott SaaS-értékesítési és termékfejlesztési modell
 
 **Státusz:** célarchitektúra és fejlesztési specifikáció; nem jelenleg teljesen megvalósított funkció.  
-**Kapcsolódó fejlesztési ág:** PR #26 – `docs/pre-feature-readiness-gates`.
+**Aktuális implementációs ág:** PR #27 – `feature/company-research-phase-1` (a PR #26-ra épülő stacked PR).  
+**Állapot és pontos implementáció:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
+
+> **Aktuális implementációs megjegyzés (2026-11-26):** a cégdosszié-építés, snapshot tároló és refresh-eligibility policy első kódszelete már a PR #27-ben szerepel. A policy még nincs automatikus workerhez kötve. A teljes SaaS-ötletmotor, termék-tiltó napló, outreach és AI-delivery továbbra is célarchitektúra, nem kész funkció.
 
 ## 1. Termékvízió
 
@@ -46,6 +49,21 @@ Javasolt kutatási területek:
 - lehetséges manuális folyamatok, költségpontok, szűk keresztmetszetek és automatizálási lehetőségek.
 
 A vezető személyes életére, családjára, magánelérhetőségére, egészségére, politikai/vallási nézeteire vagy más érzékeny adatára nem kutatunk rá. Csak az üzleti célhoz szükséges szakmai kontextust használjuk. A forrásból származó tartalom adat, nem utasítás; prompt injection és rosszindulatú webes tartalom ellen védeni kell.
+
+## 3/A. Cégkutatási frissítések prioritása és kizárása
+
+A rendszeres cégprofil-frissítés elsődleges célcsoportja:
+- még meg nem keresett, de releváns leadek;
+- kutatott, de ajánlat-előkészítés előtt álló cégek;
+- érdeklődést vagy későbbi egyeztetést jelző cégek;
+- aktív üzleti lehetőségek, ahol új nyilvános információ módosíthatja az ajánlatot.
+
+Automatikus frissítésből ki kell zárni:
+- kifejezett elutasítást rögzítő cégek;
+- leiratkozott vagy további kapcsolatfelvételt tiltó cégek;
+- legalább két rögzített utánkövetés után sem válaszoló, inaktívvá tett cégek.
+
+A „nem válaszolt” és a „nem érdekli” külön állapot. A beérkezett, de még nem besorolt válasz nem tekinthető hallgatásnak. A két utánkövetés utáni szüneteltetés nem végleges törlés: új, érdemi üzleti jelzés vagy emberi újranyitás ismét engedélyezheti a kutatást. A kutatási jogosultság nem ad e-mail-küldési vagy marketing-hozzájárulást.
 
 ## 4. Egyedi SaaS-termékjavaslat motor
 
@@ -181,14 +199,15 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 - Új funkciók csak branch/PR és tesztek mellett.
 - Minden új adatforrás és külső szolgáltatás dokumentálása.
 
-### Phase 1 – automatikus cégfelderítés és kutatás
-- Idempotens, limitált scheduler/worker.
-- Cégduplikációk és kutatási források kezelése.
-- Cégdosszié és döntéshozó szakmai profil.
-- Forrás, dátum, confidence és stale-data frissítés.
-- Read-only működés, outreach nélkül.
+### Phase 1 – cégfelderítés, kutatási dosszié és előzmények
 
-**Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden tény visszavezethető forrásra; hiányzó adat nem kitalált; rate/cost limit működik.
+**Már implementált a PR #27 branchben:** grounding-alapú strukturált cégkutatás; forrásdomain-ellenőrzött tények; nyilvános szakmai döntéshozói kontextus; snapshot UUID/időbélyeg/schema version/SHA-256; append-only `company_research_snapshots` store és repository migráció; fail-closed freshness policy; refresh eligibility policy az elutasított, opt-out és legalább két válasz nélküli follow-up állapot kizárására. A meg nem keresett lead kutatható marad, de ez nem jelent kapcsolatfelvételi engedélyt.
+
+**Már elkészült a PR #27-ben:** a stale candidate planner tiszta, read-only függvényként, amely a policy és a snapshot-frissesség alapján szűr, a meg nem keresett cégeket előre sorolja, deduplikál és limitál.
+
+**Még hátravan:** a planner DB-lekérdezéshez kötése; a refresh policy CRM/outreach eseményekkel való megbízható integrációja; idempotens claim/lease worker, heartbeat, retry limit és dead-letter; költség- és domain rate limit; kutatási UI és emberi ellenőrzés. A snapshot migráció kizárólag repository/CI szinten van; productionben nem futott le.
+
+**Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden megőrzött tény grounding-forráshoz köthető; hiányzó adat nem kitalált; rate/cost limit és audit működik; a kutatás nem kapcsolhat outreach-t.
 
 ### Phase 2 – egyedi SaaS-ötlet és tiltó napló
 - Ötletgenerálás több alternatívával.
@@ -225,7 +244,7 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 
 ## 11. Jelenlegi implementáció és a cél közötti különbség
 
-A PR #26 fejlesztési ágán már létező alapok:
+A PR #26 alapágán és az arra épülő PR #27 branchben már létező alapok:
 - leadkutatás és forrásolt cégadatok;
 - cégazonosítás és duplikációszűrés;
 - lead scoring és belső workflow;

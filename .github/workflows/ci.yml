@@ -499,6 +499,9 @@ jobs:
           # Finalize the rolling deployment only after the RPC path is present.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
+          # Install and verify append-only, service-role-only company dossier history.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_snapshots.test.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test

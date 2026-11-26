@@ -74,9 +74,13 @@ class _ResearchDB:
     def __init__(self, existing=None):
         self.existing = existing or []
         self.inserted = []
+        self.snapshots = []
     def table(self, name):
-        assert name == "leads"
-        return _ResearchQuery(self)
+        if name == "leads":
+            return _ResearchQuery(self)
+        if name == "company_research_snapshots":
+            return _SnapshotQuery(self)
+        raise AssertionError(f"Unexpected table: {name}")
 
     def rpc(self, _name, params):
         db = self
@@ -95,12 +99,24 @@ class _ResearchDB:
                     "opted_out": False,
                 })
                 return SimpleNamespace(data=[{
-                    "lead_id": "new-lead",
+                    "lead_id": "123e4567-e89b-42d3-a456-426614174000",
                     "outcome": "created",
                     "selected_email": params["p_email"],
                 }])
 
         return RPCQuery()
+
+
+class _SnapshotQuery:
+    def __init__(self, db):
+        self.db = db
+        self.payload = None
+    def insert(self, payload):
+        self.payload = payload
+        return self
+    def execute(self):
+        self.db.snapshots.append(self.payload)
+        return SimpleNamespace(data=[{"snapshot_id": self.payload["snapshot_id"]}])
 
 
 class _ResearchQuery:
@@ -121,7 +137,7 @@ class _ResearchQuery:
     def execute(self):
         if self.payload is not None:
             self.db.inserted.append(self.payload)
-            return SimpleNamespace(data=[{"id": "new-lead"}])
+            return SimpleNamespace(data=[{"id": "123e4567-e89b-42d3-a456-426614174000"}])
         return SimpleNamespace(data=list(self.db.existing))
 
 
@@ -171,6 +187,8 @@ def test_research_inserts_only_grounded_new_company_without_contact_permission(m
     assert saved["approved_to_contact"] is False
     assert saved["consent_basis"] is None
     assert saved["opted_out"] is False
+    assert len(db.snapshots) == 1
+    assert db.snapshots[0]["lead_id"] == "123e4567-e89b-42d3-a456-426614174000"
     # The per-company write is audited before insertion; the summary audit is last.
     assert audits[0]["action"] == "save_researched_company"
     assert audits[-1]["action"] == "research_companies"

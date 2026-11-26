@@ -1,95 +1,105 @@
 # JARVIS – elsődleges fejlesztési útiterv
 
-**Aktuális fejlesztési ág:** docs/pre-feature-readiness-gates  
-**Pull request:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
-**Telepítési állapot:** helyi Streamlit fejlesztés; JARVIS production app nincs deployolva.  
-**Aktuális részletes állapot:** [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md)  
-**Parancsok:** [JARVIS_COMMAND_GUIDE.md](JARVIS_COMMAND_GUIDE.md)  
-**Architektúra:** [JARVIS_DOCUMENTATION.md](JARVIS_DOCUMENTATION.md)
+**Aktuális ág:** `feature/company-research-phase-1`  
+**Aktuális PR:** [#27 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27)  
+**Alap PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
+**Központi dokumentáció:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md)  
+**Aktuális állapot:** [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md)
 
-Ez a dokumentum a fejlesztési munka elsődleges iránytűje. A státusz mindig a PR aktuális headjéhez és a ténylegesen ellenőrzött tesztekhez kötendő. A régebbi dátumozott bekezdések történeti pillanatképek, nem jelenlegi állítások.
+A roadmap a fejlesztési sorrendet határozza meg. A kódban lévő funkciót, a CI-vel tesztelt viselkedést, a külső integrációt és a productionben aktív működést külön kell kezelni.
 
 ## Alapelv
-A JARVIS figyelhet, elemezhet, lehetőséget ismerhet fel és belső műveletet javasolhat. Külső vagy adatbázist módosító végrehajtás csak az adott művelethez tartozó explicit jóváhagyással, megfelelő jogosultsággal és auditálható, idempotens úton történhet. Az automatikus javaslat nem egyenlő végrehajtással.
 
-## Jelenlegi implementáció – PR #26
+A JARVIS először kutat és elemez, utána javasol. Adatbázis-írás, külső kapcsolatfelvétel, szerződés vagy fejlesztésindítás csak külön jogosultság- és jóváhagyási kapun keresztül történhet.
 
-| Terület | Jelenlegi állapot | Korlát |
+## Jelenlegi funkcionális alap
+
+| Terület | Állapot | Korlát |
 |---|---|---|
-| Magyar chat és Gemini kontextus | Implementált | API-konfiguráció szükséges |
-| Céges leadkutatás és grounding | Implementált | Explicit kutatási kérés és külön jóváhagyás |
-| Cégazonosító/deduplikáció | Implementált, SQL concurrency tesztekkel | Production migráció nincs alkalmazva |
-| Lead scoring és belső workflow-ajánlás | Implementált | Forrásolt kutatás szükséges |
-| Task create/update/close | Approval-gated RPC-vel implementált | Minden művelet külön jóváhagyásos |
-| Feladatközpont | Read-only dashboard oldal | A módosítás a chat approval flow-ban történik |
-| Consent-aware follow-up queue | Read-only, fail-closed szűrés | Nem küld üzenetet |
-| Eredményalapú következő teendő | Implementált | Csak lezárt outcome_measurement task explicit besorolásából |
-| Hosszú távú memória | Explicit save/list/forget | Nem teljes tudásgráf; érzékeny adat tiltott |
-| Napi briefing/analitika/audit | Implementált modulok | Adatminőség és hozzáférés függvénye |
-| Inbound inbox monitor | Kódban/workflow-ban előkészített | Config és futtatási környezet szükséges |
-| Outbound email | Hard-disabled | Nincs küldés |
-| Auth/RBAC | Kódban/migrációkban előkészített | Production flag OFF, live smoke nincs |
-| Általános scheduler/worker | Nincs kész | Külön idempotens claim/worker fejlesztés kell |
-| Production JARVIS app | Nincs deployolva | Host nincs kiválasztva |
+| Magyar Gemini chat | Implementált | API és helyi konfiguráció szükséges |
+| Explicit céges leadkutatás | Implementált | Nem autonóm folyamatos worker |
+| Cégazonosítás/deduplikáció | Implementált | Migrációs release kapuk külön kezelendők |
+| Lead scoring/workflow ajánlás | Implementált | Belső javaslat, nem külső végrehajtás |
+| Task CRUD | Jóváhagyásos | Külön approval szükséges |
+| Task center/follow-up queue | Read-only | Nem küld üzenetet |
+| Üzleti memória, briefing, analitika, audit | Implementált modulok | Konfiguráció és hozzáférés függő |
+| Outbound email | Hard-disabled | Nincs küldési engedély |
 
-## Fejlesztési prioritások
+## Phase 1 – cégkutatás és dosszié-előzmények
 
-### 1. Workflow végponttól végpontig
-- Leadkutatás → minősítés → stratégia → belső feladat → jóváhagyás → utánkövetési jogosultság-ellenőrzés → eredménymérés.
-- Task státusz és workflow stage teljes konzisztenciája.
-- Pozitív/negatív/nincs válasz eredménykódok és újraminősítési ciklus.
-- Megszakítás, folytatás, audit és idempotencia E2E tesztjei.
-- Külső outreach továbbra is tiltott, amíg külön engedélyezett és biztonságosan igazolt nincs.
+**Implementált kódszeletek a PR #27-ben:**
+- Grounding-alapú strukturált cégkutatás.
+- Forrásdomainhez kötött tényvalidálás.
+- Nyilvános szakmai döntéshozói kontextus; privát elérhetőségek kizárása.
+- Dosszié snapshot UUID, időbélyeg, schema version és hash.
+- Append-only snapshot store és repository migráció.
+- Fail-closed dosszié-frissességi függvény.
+- Refresh eligibility policy: explicit elutasítás/opt-out kizárása, két válasz nélküli follow-up után szüneteltetés, meg nem keresett lead kutatható marad.
+- Read-only refresh candidate planner: stale dossziék kiválasztása, uncontacted prioritás, friss dossziék kihagyása, duplikációszűrés és batch limit.
 
-### 2. Önálló, idempotens háttérfolyamat
-- Worker belépési pont dashboard sessiontől függetlenül.
-- DB-alapú claim/lease, heartbeat, retry limit, dead-letter és operation ID.
-- Több worker concurrency teszt.
-- Elsőként csak read-only monitor/briefing munka; e-mail küldés nélkül.
+**Hátralévő munka:**
+1. CI sikeresség igazolása a végleges PR head SHA-n.
+2. A planner bekötése lapozott DB-lead és legfrissebb snapshot lekérdezéshez.
+3. A lead státusz és follow-up számláló megbízható integrációja ténylegesen elküldött eseményekkel.
+4. Idempotens worker: claim/lease, heartbeat, bounded retry, dead-letter, operation ID.
+5. Rate limit, költségkeret és futási limitek.
+6. Kutatási előzmények UI és változásösszefoglaló.
+7. Emberi felülvizsgálat és audit.
 
-### 3. Memória és üzleti tudás
-- Forrás, dátum, confidence és jogosultság kezelése.
-- Döntés/eredmény/tanulság összekapcsolása lead/task rekordokkal.
-- Frissesség, inaktiválás, retention és visszakeresési minőség.
-- Tények és modellkövetkeztetések elkülönítése.
+**Elfogadási feltételek:**
+- Nincs duplikált lead vagy snapshot felülírás.
+- Minden megtartott üzleti tény visszavezethető grounding forráshoz.
+- Elutasított és opt-out lead automatikus frissítése blokkolt.
+- Két tényleges, válasz nélküli follow-up után frissítés szünetel.
+- Meg nem keresett lead kutatható, de kapcsolatfelvételre nem válik automatikusan jogosulttá.
+- Worker hiba/retry nem okozhat duplikált kutatási műveletet.
+- Nincs automatikus outbound kommunikáció.
 
-### 4. Dashboard teljessége
-- Analitika, audit, memória és üzleti információ oldalak tényleges funkcióinak ellenőrzése.
-- A még dekoratív/hiányos oldalelemeket csak implementáció után dokumentáljuk működőként.
-- UI hibajelzések és adatforrás-hibák egyértelmű kezelése.
+## Phase 2 – üzleti problémahipotézis
 
-### 5. Production release – külön fázis
-- App-host kiválasztása és app deploy terv.
-- Production migration drift és teljes SQL review.
-- Auth/JWT/RLS modell és smoke.
-- RPC-alapú app telepítése, majd csak utána a service-role közvetlen DML lockdown.
-- Backup, rollback, health check, audit és task approval smoke.
-- Kimenő e-mail hard-disable csak külön biztonsági review és konkrét jóváhagyás után oldható fel.
+- A dosszié tényekből különítse el a bizonyítékot, következtetést és hipotézist.
+- A problémákhoz confidence, forrás és ellenőrizendő kérdés tartozzon.
+- Bizonyítékhiány esetén további kutatás legyen a kimenet, ne kitalált probléma.
 
-## Kötelező biztonsági kapuk
-- Production DB DDL/DML, migration push/repair, ledger módosítás, GRANT/REVOKE, RLS/Auth flag, secret, deploy, e-mailküldés és PR merge külön konkrét felhasználói jóváhagyás nélkül tilos.
-- Ne olvass vagy jeleníts meg titokértéket.
-- CI zöld státuszt csak az adott commit SHA és teljes workflow eredmény ellenőrzése után állíts.
-- Korábbi zöld CI nem igazolja az újabb commitot.
-- A Supabase production DB létezése nem bizonyít JARVIS app deployt.
+## Phase 3 – egyedi SaaS-termékötlet motor
 
-## Fejlesztési munkamódszer
-Minden funkcióhoz célzott implementáció, unit/AppTest/SQL teszt, releváns dokumentáció és PR CI szükséges. A fejlesztés PR/branch szinten marad; merge csak külön jóváhagyásra.
+- Cégenként több termékkoncepció generálása.
+- Értékelés üzleti érték, illeszkedés, bizonyítottság, megvalósíthatóság, kockázat, költség és differenciálás alapján.
+- Alternatívák és meglévő piaci megoldások vizsgálata.
+- Indokolt esetben a rendszer tartózkodjon az ajánlástól.
 
+## Phase 4 – globális és cégenkénti termék-tiltó napló
 
-## Stratégiai cél: önálló kutató és személyre szabott SaaS-ügynök
+- Globális, iparági és cégenkénti kizárások.
+- Elutasított ajánlatok és korábbi sikertelen ötletek megőrzése.
+- Determinisztikus fingerprint és szemantikus hasonlóságvizsgálat.
+- Aktív projektek és ügyfélközi kizárólagosság ellenőrzése.
+- Auditált feloldás és emberi jóváhagyás.
 
-A hosszú távú termékvízió és részletes fázisok: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
+## Phase 5 – személyre szabott ajánlat és outreach előkészítés
 
-A JARVIS célja, hogy önállóan cégeket fedezzen fel, forrásolt cégdossziét és szakmai döntéshozói kontextust készítsen, a cég valós problémáiból több egyedi SaaS-ötletet generáljon, ezeket magyarázhatóan rangsorolja, majd a globális és cégenkénti termék-tiltó/negatív ajánlási naplóval ütköztesse. A legjobb ötlethez személyre szabott, forrásolt ajánlatot és e-mail-tervezetet készítsen. Érdeklődés esetén igényfelmérés és szerződéses elfogadás után külön belső jóváhagyással indulhat AI-támogatott termékfejlesztési projekt.
+- Forrásolt üzleti megfigyelés és problémahipotézis.
+- Vezető szakmai szerepéhez illeszkedő ajánlati tervezet.
+- Marketingjogalap, országonkénti szabályok, suppression és opt-out ellenőrzés.
+- Emberi jóváhagyás.
+- Outbound email külön fejlesztési és engedélyezési döntésig hard-disabled marad.
 
-### Új stratégiai fejlesztési sorrend
-1. Automatikus, idempotens cégfelderítő worker és kutatási források.
-2. Verziózott cégdosszié, szakmai döntéshozó-kutatás, bizonyíték- és problémahipotézis.
-3. Egyedi SaaS-termékötlet motor, összehasonlítható pontozással.
-4. Globális termék-/ajánlási tiltó napló, elutasítások, ügyfélközi kizárólagosság és hasonlósági ütközésvizsgálat.
-5. Forrásolt, személyre szabott ajánlat és e-mail-tervezet, emberi megfelelőségi kapukkal.
-6. Válaszkezelés, értékesítési pipeline, szerződéses és fejlesztésindítási gate.
-7. AI-támogatott terméképítés, tesztelés, átadás és eredményalapú tanulás.
+## Phase 6 – válaszkezelés és értékesítési pipeline
 
-Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A meglévő leadkutatás, pontozás, task workflow és memória alapot ad, de a teljes automatikus kutatási és személyre szabott SaaS-folyamat még nincs kész. Outbound e-mail hard-disable és production biztonsági kapuk változatlanok.
+Külön állapot az érdeklődés, kérdés, elutasítás, későbbi kapcsolatfelvétel, leiratkozás, besorolásra váró válasz és válasz nélküli állapot. A „nincs válasz” nem egyenlő elutasítással.
+
+## Phase 7 – szerződött AI-assisted termékfejlesztés
+
+- Elfogadott és verziózott scope.
+- Írásos szerződés/megrendelés és kereskedelmi feltételek.
+- Adatkezelés, tulajdonjog, licencek és felelősség tisztázása.
+- Külön belső projektindítási jóváhagyás.
+- Specifikáció, architektúra, kód, teszt, security review, ügyfél-elfogadás és átadás.
+
+## Phase 8 – mérés és tanulás
+
+Az ajánlások, elutasítások, ügyfélhasználat, fejlesztési költség és eredmény visszacsatolása a kutatás és rangsorolás javításához.
+
+## Release és biztonsági szabály
+
+A roadmap nem jogosít production DB-módosításra, migrációfuttatásra, Auth/RBAC aktiválásra, secret-változtatásra, deployra, e-mailküldésre vagy PR merge-re. Ezek külön, konkrét jóváhagyást igényelnek.
