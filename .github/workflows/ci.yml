@@ -125,7 +125,7 @@ jobs:
           fi
           grep -q '1..15' <<< "$lifecycle_output"
           lifecycle_edges_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_lifecycle_edges.test.sql)"
-          printf '%s\\n' "$lifecycle_edges_output"
+          printf '%s\n' "$lifecycle_edges_output"
           if grep -q '^not ok ' <<< "$lifecycle_edges_output"; then
             echo "pgTAP reported failed company research lifecycle edge assertions."
             exit 1
