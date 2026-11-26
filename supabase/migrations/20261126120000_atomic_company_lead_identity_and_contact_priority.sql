@@ -72,12 +72,13 @@ CREATE INDEX IF NOT EXISTS lead_contact_candidates_rank_idx
 
 ALTER TABLE public.lead_company_aliases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lead_contact_candidates ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.lead_company_aliases FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.lead_contact_candidates FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.lead_company_aliases
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.lead_contact_candidates
+  FROM PUBLIC, anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.leads TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.lead_company_aliases TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.lead_contact_candidates TO service_role;
+GRANT SELECT, UPDATE, DELETE ON TABLE public.leads TO service_role;
+REVOKE INSERT ON TABLE public.leads FROM service_role;
 
 -- Refuse ambiguous legacy data. No existing lead is deleted or merged.
 DO $company_identity_preflight$
@@ -184,9 +185,9 @@ CREATE OR REPLACE FUNCTION public.upsert_company_lead(
 )
 RETURNS TABLE(lead_id uuid, outcome text, selected_email text)
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = pg_catalog, public
-AS $$
+AS $
 DECLARE
   v_name text;
   v_domain text;
@@ -352,14 +353,14 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.normalize_lead_company_name(text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.normalize_lead_company_domain(text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.lead_email_priority_score(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.normalize_lead_company_name(text)
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.normalize_lead_company_domain(text)
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lead_email_priority_score(text)
+  FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamptz)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.normalize_lead_company_name(text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.normalize_lead_company_domain(text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.lead_email_priority_score(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamptz)
   TO service_role;
 
