@@ -44,7 +44,7 @@ def load_company_research_refresh_inputs(
     while True:
         response = (
             db.table("leads")
-            .select("*")
+            .select("id,company_name,website,status,opted_out,reply_category,last_inbound_message_id,follow_up_count,first_sent_at,followed_up_at,last_message_id")
             .order("id")
             .range(offset, offset + lead_page_size - 1)
             .execute()
