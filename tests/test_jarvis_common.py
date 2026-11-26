@@ -306,3 +306,23 @@ def test_individual_dashboard_login_always_enables_server_side_rbac(monkeypatch)
         jarvis_common.get_enforced_user_supabase(
             None, "email.send", allowed_roles={"admin", "operator"}
         )
+
+
+def test_generate_text_retries_network_connection_failure(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 2)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    client = FakeClient([ConnectionError("connection reset"), "recovered"])
+    assert jarvis_common.generate_text("hello", client) == "recovered"
+    assert client.models.calls == 2
+    assert sleeps == [1]
+
+
+def test_generate_text_does_not_fallback_on_permission_or_auth_failure(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    for error in (PermissionError("forbidden"), type("Unauthorized", (Exception,), {"code": 401})("unauthorized")):
+        client = FakeClient([error])
+        with pytest.raises(type(error)):
+            jarvis_common.generate_text("hello", client)
+        assert client.models.calls == 1
