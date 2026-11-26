@@ -189,8 +189,8 @@ def build_company_research_prompt(
         # Normalize whitespace supplied as either real whitespace or an escaped
         # newline followed by whitespace, while preserving literal backslash-n
         # sequences that are part of an untrusted company name.
-        normalized = re.sub(r"\\\\n(?=\\s)", " ", value)
-        return re.sub(r"\\s+", " ", normalized).strip()
+        normalized = re.sub(r"\\n(?=\s)", " ", value)
+        return re.sub(r"\s+", " ", normalized).strip()
 
     company_name_json = json.dumps(normalize_prompt_value(company_name), ensure_ascii=False)
     company_domain_json = json.dumps(normalize_prompt_value(company_domain), ensure_ascii=False)
@@ -246,6 +246,9 @@ def execute_company_research(
     raw_research = response.get("research")
     if isinstance(raw_research, str):
         cleaned_research = raw_research.strip()
+        # Accept real Markdown fences and serialized literal fence delimiters.
+        if cleaned_research.startswith(r"\x60\x60\x60"):
+            cleaned_research = cleaned_research.replace(r"\x60", chr(96)).replace(r"\n", "\n")
         cleaned_research = re.sub(
             r"^\x60{3}(?:json)?\s*|\s*\x60{3}$", "", cleaned_research, flags=re.I
         )
