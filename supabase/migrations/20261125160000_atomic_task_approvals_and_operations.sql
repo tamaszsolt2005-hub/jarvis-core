@@ -361,6 +361,32 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- Acquire the per-lead lock before the global audit-chain insert. This keeps
+  -- concurrent attempts for one lead serialized without relying on audit-chain
+  -- serialization, while preserving the transaction's fail-closed behavior.
+  IF v_type = 'create' AND p_action ? 'lead_id' THEN
+    v_lead_id := (p_action ->> 'lead_id')::uuid;
+    PERFORM pg_advisory_xact_lock(hashtextextended(v_lead_id::text, 0));
+    IF NOT EXISTS (SELECT 1 FROM public.leads WHERE id = v_lead_id) THEN
+      v_status := 'blocked';
+      v_result := jsonb_build_object(
+        'ok', false, 'status', 'blocked',
+        'message', 'A kapcsolódó lead nem található; nem történt feladat-létrehozás.',
+        'lead_id', v_lead_id
+      );
+    ELSIF EXISTS (
+      SELECT 1 FROM public.tasks
+       WHERE lead_id = v_lead_id AND status = 'open'
+    ) THEN
+      v_status := 'blocked';
+      v_result := jsonb_build_object(
+        'ok', false, 'status', 'blocked',
+        'message', 'Ehhez a leadhez már tartozik nyitott feladat; újabb első lépést nem hoztam létre.',
+        'lead_id', v_lead_id
+      );
+    END IF;
+  END IF;
+
   INSERT INTO public.logs (
     module, level, message, operation_id, action, status,
     result, approved, actor_user_id, created_at
@@ -374,33 +400,6 @@ BEGIN
 
   IF v_type = 'create' THEN
     v_title := p_action ->> 'title';
-    v_lead_id := CASE WHEN p_action ? 'lead_id'
-                      THEN (p_action ->> 'lead_id')::uuid ELSE NULL END;
-
-    -- Serialize first-stage workflow task creation per lead. An open task
-    -- already linked to this lead blocks another initial task, while completed
-    -- tasks do not prevent a later workflow step.
-    IF v_lead_id IS NOT NULL THEN
-      PERFORM pg_advisory_xact_lock(hashtextextended(v_lead_id::text, 0));
-      IF NOT EXISTS (SELECT 1 FROM public.leads WHERE id = v_lead_id) THEN
-        v_status := 'blocked';
-        v_result := jsonb_build_object(
-          'ok', false, 'status', 'blocked',
-          'message', 'A kapcsolódó lead nem található; nem történt feladat-létrehozás.',
-          'lead_id', v_lead_id
-        );
-      ELSIF EXISTS (
-        SELECT 1 FROM public.tasks
-         WHERE lead_id = v_lead_id AND status = 'open'
-      ) THEN
-        v_status := 'blocked';
-        v_result := jsonb_build_object(
-          'ok', false, 'status', 'blocked',
-          'message', 'Ehhez a leadhez már tartozik nyitott feladat; újabb első lépést nem hoztam létre.',
-          'lead_id', v_lead_id
-        );
-      END IF;
-    END IF;
 
     IF v_status IS DISTINCT FROM 'blocked' THEN
       BEGIN
