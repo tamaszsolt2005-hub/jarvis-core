@@ -333,7 +333,7 @@ IMMUTABLE
 PARALLEL SAFE
 SET search_path = pg_catalog
 AS $$
-  SELECT nullif(regexp_replace(lower(btrim(coalesce(p_name, ''))), '\\s+', ' ', 'g'), '');
+  SELECT nullif(regexp_replace(lower(btrim(coalesce(p_name, ''))), '[[:space:]]+', ' ', 'g'), '');
 $$;
 
 CREATE OR REPLACE FUNCTION public.normalize_lead_company_domain(p_website text)
@@ -353,7 +353,7 @@ AS $$
           ),
           '[?#].*$', ''
         ),
-        '^www\\.', '', 'i'
+        '^www[.]', '', 'i'
       ),
       ':[0-9]+$', ''
     ),
@@ -386,7 +386,7 @@ CREATE TABLE IF NOT EXISTS public.lead_contact_candidates (
   source text,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lead_contact_candidates_email_format
-    CHECK (email_normalized ~ '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$'),
+    CHECK (email_normalized ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'),
   CONSTRAINT lead_contact_candidates_email_unique UNIQUE (email_normalized)
 );
 
@@ -400,7 +400,6 @@ REVOKE ALL ON TABLE public.lead_company_aliases
 REVOKE ALL ON TABLE public.lead_contact_candidates
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO service_role;
-REVOKE ALL ON TABLE public.leads FROM service_role;
 GRANT SELECT, UPDATE ON TABLE public.leads TO service_role;
 
 -- Refuse ambiguous legacy data. No existing lead is deleted or merged.
@@ -535,7 +534,7 @@ BEGIN
        OR p_approved_to_contact IS DISTINCT FROM true
        OR p_consent_confirmed_at IS NULL
        OR p_consent_confirmed_at > clock_timestamp()
-       OR lower(btrim(p_email)) !~ '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$' THEN
+       OR lower(btrim(p_email)) !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN
       RAISE EXCEPTION 'A selected contact email requires its own valid, timestamped consent'
         USING ERRCODE = '22023';
     END IF;
