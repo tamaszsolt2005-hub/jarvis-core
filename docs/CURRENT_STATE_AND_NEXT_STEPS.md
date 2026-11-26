@@ -90,7 +90,7 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 
 A PR #28 a cégkutatási előzmények read-only dashboardját vezeti be. A navigációs routing hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja. Az új CI elindult; a javítás teljes CI-eredménye még nincs igazolva. A felület Auth esetén fail-closed, nem használ service-role megkerülést.
 
-A következő munkacsomag a biztonságos háttérmotor. Első lépésként DB-től független job lifecycle modult készítünk stabil operation ID-val, lease/claim és heartbeat szabályokkal, véges retry-val, dead-letter állapottal és fake repository tesztekkel. Ezt követi a planner DB-adaptere és a scheduler. A scheduler nem aktiválható automatikusan; production DB, migráció, deploy és outbound e-mail változatlanul tiltott külön jóváhagyásig.
+A háttérmotor DB-független lifecycle, tartós repository/RPC adapter, planner queue bridge, egyszeri injektált worker, bounded exponential retry, explicit heartbeat callback, admission policy és tokenköltség-becslés formájában már megvalósult a PR #28 ágán. A scheduler, tényleges kutatási handler, Gemini-hívás és atomikus globális budget reservation még nincs implementálva. Production DB, migrációfuttatás, deploy és outbound e-mail továbbra is tiltott külön jóváhagyásig.
 
 A felhasználó kérése szerint a kisebb módosítások után nem állunk meg külön ellenőrzési körre: több összefüggő funkció elkészülte után futtatunk átfogó ellenőrzést.
 
@@ -115,7 +115,7 @@ Kötelező adattárolási invariánsok:
 Az SQL migration csak verziókezelt repository-fájl lehet. A job tábla belső worker-adat: RLS bekapcsolva, PUBLIC/anon/authenticated hozzáférés tiltva, kizárólag backend service role számára engedélyezett műveletek. A migrationt és RPC-kat production Supabase-re nem alkalmazzuk. Ez a fázis nem tartalmaz scheduler-t, Gemini kutatás-végrehajtást vagy outbound mellékhatást.
 
 
-A megvalósított fájlok: `company_research_job_repository.py` (Protocol + injektált Supabase RPC adapter), `company_research_refresh_queue.py` (planner jelöltek idempotens jobként sorba állítása), `supabase/migrations/20261126153000_company_research_jobs.sql` (service-role-only job tábla és tranzakciós RPC-kontraktus), valamint fake kliens/repository tesztek. A migration kizárólag repository-fájl, nem lett futtatva. A teljes funkciócsomag CI-ellenőrzése most következik; addig a tesztek eredménye nem tekinthető igazoltnak.
+A megvalósított fájlok: `company_research_job_repository.py` (Protocol + injektált Supabase RPC adapter), `company_research_refresh_queue.py` (planner jelöltek idempotens jobként sorba állítása), `supabase/migrations/20261126153000_company_research_jobs.sql` (service-role-only job tábla és tranzakciós RPC-kontraktus), valamint fake kliens/repository tesztek. A migration kizárólag repository-fájl, nem lett futtatva. A funkciócsomag elkészülte után lekértük az aktuális head workflow-run és combined-status adatait; mindkettő üres listát adott, ezért a CI eredménye jelenleg nem igazolt.
 
 
 ### 7.3 Egyszeri worker-orchestration
