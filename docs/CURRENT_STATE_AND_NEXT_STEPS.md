@@ -3,7 +3,7 @@
 **Frissítve:** 2026-11-26  
 **Aktív fejlesztési ág:** `main`  
 **PR állapot:** #26, #27 és #28 merge-ölve a `main` ágba.  
-**Legutóbbi main commit:** `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`  
+**PR #28 merge commitja:** `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`  
 **Legutóbbi CI:** [#3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820), mindhárom job sikeres. A merge commit külön post-merge CI-je nincs igazolva.
 
 A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
@@ -313,7 +313,7 @@ Az Auth tesztek külön ellenőrzik, hogy a tárolt kliensoldali role és a user
 
 ## Aktuális státusz felülvizsgálata – 2026-11-26
 
-> **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A legutóbbi main commit: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
+> **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A PR #28 merge commitja: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
 >
 > **Implementált és CI-vel tesztelt:** cégdosszié és append-only snapshot tárolás; read-only előzmény-dashboard; worker job lifecycle, repository/RPC adapter, queue bridge és worker; injektálható grounded Gemini provider adapter; snapshot mentés a job sikeres lezárása előtt; idempotencia; lease/heartbeat/retry/dead-letter; PostgreSQL lifecycle, kvóta, security és két-session konkurenciatesztek. A CI izolált adatbázist használ, nem productiont.
 >
