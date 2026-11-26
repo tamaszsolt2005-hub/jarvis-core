@@ -289,3 +289,8 @@ A `company_research_admission.py` determinisztikus admission döntést ad a glob
 ### 10.8 Worker eredmény- és idempotencia-biztonság
 
 A worker csak objektum alakú claimelt jobot dolgoz fel, a handlernek másolt payloadot ad át, a visszatérő eredményt JSON-kompatibilitásra és alapértelmezett 256 KiB méretkorlátra ellenőrzi. Nem JSON vagy túlméretes eredmény nem kerül completionbe. A hibakód szűrt, a kivételüzenet nem kerül tartós tárolásba. A repository azonos `operation_id` esetén összeveti a `job_type`, `lead_id` és payload értékeket is; eltérő bemenet idempotencia-konfliktus, nem sikeres duplikáció. A költségbecslő egész mikro-USD-ben, felfelé kerekítve számol, a szolgáltatói tokenárakat konfigurációból kapja.
+
+
+### 10.9 Atomikus párhuzamossági korlát
+
+A `company_research_job_claim` RPC globális tranzakciós advisory lockot használ, így a párhuzamos claim kérések sorosan ellenőrzik az aktív, le nem járt lease-ek számát. A `p_max_concurrent_jobs` plafon elérésekor a claim üres eredménnyel tér vissza. Ez megakadályozza, hogy több worker ugyanazt a szabad kapacitást egyszerre felhasználva túllépje a megadott concurrency limitet. A lock csak a claim döntést szerializálja; heartbeat és lezárás továbbra is feltételes lease-owner RPC. A migration még nem lett alkalmazva, és az SQL konkurenciát külön izolált PostgreSQL tesztnek kell igazolnia.
