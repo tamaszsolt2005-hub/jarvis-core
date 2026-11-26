@@ -16,7 +16,7 @@ A következő fejlesztési munka **helyi, funkciófejlesztési szakaszban** tör
 ## 2. Aktuális repo és CI állapot
 
 - PR #26 nyitott, nem merge-ölt; a változtatásokat nem integráltuk a `main` ágba.
-- A 2026-11-26-i ellenőrzéskor a PR #26 vizsgált headjén az összes check sikeres volt (`test`, `backup-restore-integration`, `CodeQL`, `Analyze Python`, `pip-audit`); `test`, `backup-restore-integration`, `CodeQL`, `Analyze Python` és `pip-audit` (a check runok mind `completed/success` állapotúak).
+- A 2026-11-26-i, kódot is tartalmazó ellenőrzött PR-headen a `test`, `backup-restore-integration`, `CodeQL`, `Analyze Python` és `pip-audit` checkek sikeresek voltak. A későbbi dokumentációs frissítések után az aktuális futások állapotát mindig a [PR checkjein](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26/checks) kell ellenőrizni.
 - A branchben implementált és CI-vel tesztelt a cégazonosítási `upsert_company_lead` RPC, a normalizált cégnév/domain aliasok tranzakciós zárolása, a CSV- és global research íróútvonal közös RPC-használata, a kontaktjelöltek consent-aware prioritása, valamint a két PostgreSQL sessionös concurrency teszt.
 - A kód/CI állapot nem production telepítési bizonyíték. A PR merge külön jóváhagyást igényel.
 
