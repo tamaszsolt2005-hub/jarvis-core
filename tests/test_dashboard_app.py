@@ -821,7 +821,9 @@ def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkey
     assert "GEMINI_API_KEY" in rendered
     assert "E-mail-küldés" in rendered
     assert any("biztonsági zárja aktív" in item.value for item in app.info)
-    assert len(app.button(key="jarvis_settings_run_diagnostics")) == 1
+    diagnostics_button = app.button(key="jarvis_settings_run_diagnostics")
+    assert diagnostics_button is not None
+    assert diagnostics_button.key == "jarvis_settings_run_diagnostics"
 
 
 def test_streamlit_settings_diagnostics_only_run_after_explicit_click(monkeypatch):
