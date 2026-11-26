@@ -35,10 +35,11 @@ A JARVIS először kutat és elemez, utána javasol. Adatbázis-írás, külső 
 - Append-only snapshot store és repository migráció.
 - Fail-closed dosszié-frissességi függvény.
 - Refresh eligibility policy: explicit elutasítás/opt-out kizárása, két válasz nélküli follow-up után szüneteltetés, meg nem keresett lead kutatható marad.
+- Read-only refresh candidate planner: stale dossziék kiválasztása, uncontacted prioritás, friss dossziék kihagyása, duplikációszűrés és batch limit.
 
 **Hátralévő munka:**
 1. CI sikeresség igazolása a végleges PR head SHA-n.
-2. Refresh candidate planner, amely a frissesség és a kizárási policy metszetét használja.
+2. A planner bekötése lapozott DB-lead és legfrissebb snapshot lekérdezéshez.
 3. A lead státusz és follow-up számláló megbízható integrációja ténylegesen elküldött eseményekkel.
 4. Idempotens worker: claim/lease, heartbeat, bounded retry, dead-letter, operation ID.
 5. Rate limit, költségkeret és futási limitek.
