@@ -6,6 +6,7 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import chat_email
+import dashboard
 import email_utils
 import global_lead_research
 import jarvis_common
@@ -85,6 +86,8 @@ def _prepare_dashboard(monkeypatch):
         lambda *_args, **_kwargs: ("APPT tárgy", "APPT levéltörzs"),
     )
     monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", True)
+    # dashboard imports the hard lock as a module constant; enable only in mocked delivery tests.
+    monkeypatch.setattr(dashboard, "EMAIL_DELIVERY_ENABLED", True)
     monkeypatch.setattr(
         email_utils, "send_email",
         lambda *args, **kwargs: (smtp_calls.append((args, kwargs)) or "mock-smtp-id"),
@@ -798,6 +801,8 @@ def test_streamlit_company_research_page_renders_read_only_snapshot_history(monk
 
 def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkeypatch):
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    # Settings must display the production hard lock, not the mocked send-enabled test state.
+    monkeypatch.setattr(dashboard, "EMAIL_DELIVERY_ENABLED", False)
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()
