@@ -23,6 +23,57 @@ class CompanyResearchProvider(Protocol):
         """Return structured research and provider-supplied grounding URLs."""
 
 
+
+class GeminiGoogleSearchCompanyResearchProvider:
+    """Google Gemini adapter using Search grounding; client and model are injected."""
+
+    def __init__(self, *, client: Any, model: str, max_attempts: int = 3) -> None:
+        if client is None or not callable(getattr(getattr(client, "models", None), "generate_content", None)):
+            raise CompanyResearchExecutionError("invalid_gemini_client")
+        if not isinstance(model, str) or not model.strip() or len(model) > 120:
+            raise CompanyResearchExecutionError("invalid_gemini_model")
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or not 1 <= max_attempts <= 3:
+            raise CompanyResearchExecutionError("invalid_provider_attempt_limit")
+        self._client = client
+        self._model = model.strip()
+        self._max_attempts = max_attempts
+
+    def research_company(self, *, prompt: str, heartbeat: Any) -> dict[str, Any]:
+        from google.genai import types
+
+        config = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())])
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                response = self._client.models.generate_content(model=self._model, contents=prompt, config=config)
+                break
+            except Exception as exc:
+                status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                try:
+                    status = int(status)
+                except (TypeError, ValueError):
+                    status = None
+                retryable = status in {408, 425, 429, 500, 502, 503, 504}
+                if status is None:
+                    message = str(exc).casefold()
+                    retryable = any(token in message for token in ("timeout", "timed out", "temporarily unavailable", "connection reset", "connection aborted", "rate limit", "resource exhausted", "server error"))
+                if not retryable or attempt >= self._max_attempts:
+                    raise
+        grounded_sources: list[str] = []
+        for candidate in getattr(response, "candidates", None) or []:
+            metadata = getattr(candidate, "grounding_metadata", None)
+            for chunk in getattr(metadata, "grounding_chunks", None) or []:
+                uri = getattr(getattr(chunk, "web", None), "uri", None)
+                if isinstance(uri, str):
+                    grounded_sources.append(uri)
+        usage_metadata = getattr(response, "usage_metadata", None)
+        usage: dict[str, int] = {}
+        for source_name, target_name in (("prompt_token_count", "prompt_tokens"), ("candidates_token_count", "output_tokens"), ("total_token_count", "total_tokens")):
+            value = getattr(usage_metadata, source_name, None)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                usage[target_name] = value
+        return {"research": getattr(response, "text", None), "grounded_sources": grounded_sources, "provider_usage": usage}
+
+
 class CompanyResearchExecutionError(ValueError):
     """Non-retryable research input or provider response contract error."""
 
@@ -145,6 +196,8 @@ def execute_company_research(
         company_name=company_name, company_domain=company_domain, market=market
     )
     response = provider.research_company(prompt=prompt, heartbeat=heartbeat)
+    if heartbeat is not None and not heartbeat():
+        raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
     if not isinstance(response, dict):
         raise CompanyResearchExecutionError("invalid_provider_response")
 
@@ -175,6 +228,7 @@ def execute_company_research(
         "company_dossier": stamped,
         "grounded_source_count": len(grounded_sources),
         "accepted_fact_count": len(stamped["facts"]),
+        "provider_usage": response.get("provider_usage", {}) if isinstance(response.get("provider_usage", {}), dict) else {},
     }
 
 
