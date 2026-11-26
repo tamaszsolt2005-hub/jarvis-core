@@ -108,6 +108,7 @@ def _runtime_config():
         input_price_microusd_per_million_tokens=1_000_000,
         output_price_microusd_per_million_tokens=1_000_000,
         pricing_model="gemini-test",
+        search_price_microusd_per_thousand_queries=0,
         max_daily_cost_microusd=100_000,
         max_jobs_per_hour=10,
         max_jobs_per_domain_per_day=2,
