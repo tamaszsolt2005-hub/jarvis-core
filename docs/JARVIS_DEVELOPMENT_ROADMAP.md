@@ -87,7 +87,7 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 | 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; kimenő SMTP hard-disabled; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – forrásolt leadprioritás és belső következőlépés-javaslat már össze van kapcsolva; proaktív minőségmérés és production bizonyíték hátra van |
-| 4 | Üzleti munkafolyamatok automatizálása | Leadkutatás → bizonyíték-alapú javaslat → leadhez kapcsolt, approval-gated task kódban implementálva; follow-up állapotgép, eredménymérés és teljes E2E még hátra van |
+| 4 | Üzleti munkafolyamatok automatizálása | Leadkutatás → bizonyíték-alapú javaslat → approval-gated task és read-only dashboard Feladatközpont implementálva; follow-up queue, eredményalapú következő lépés és teljes E2E még hátra van |
 | 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
 
 A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás és – ahol releváns – engedélyezett integrációs bizonyíték alapján frissítsük. Egy feladat csak akkor tekinthető késznek, ha a lezárási feltétele teljesült. A „kódban implementált”, „automatikusan tesztelt”, „külső integrációval igazolt” és „productionben aktív” állapotokat mindig különböztessük meg.
@@ -271,3 +271,10 @@ A korábbi, csak alkalmazásszintű global research deduplikációt a PR #26 ág
 Egy cég több, külön hozzájárulással rendelkező emailjelöltet tárolhat, de a CRM lead egy marad. A kiválasztás kezdeti heurisztikája a szerepkörös címeket (info/contact/office/sales) hátrasorolja, a személyes webmail címet (pl. xy@gmail.com) előnyben részesíti. A jelöltek külön táblában megmaradnak; hozzájárulás nem öröklődik címek között. Küldés, válasz vagy opt-out után a kiválasztott cím nem módosítható automatikusan. Azonos cégnévhez eltérő, már regisztrált webdomain esetén a rendszer nem olvaszt össze automatikusan, hanem manuális felülvizsgálatot kér.
 
 A migráció, Python integráció, SQL prioritás/consent teszt és két PostgreSQL sessionös race teszt a `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton sikeres teljes CI-vel, PostgreSQL 17 integrációval, CodeQL-lel és dependency audittal igazolt. A konkurenciavédelem fejlesztési feladata lezárható. Production migráció, deploy vagy e-mail küldés nem történt; a release readiness külön nyitott.
+
+
+## 2026-11-26 – Dashboard Feladatközpont
+
+A 4. terület első, felhasználó által közvetlenül használható dashboard-funkciója elkészült a PR #26 ágban: valódi Feladatok navigáció, szűrhető/rendezhető feladatlista, lejárt és sürgős számlálók, leadkapcsolat és jóváhagyásos chat-parancsok súgója. A nézet read-only marad; a task írási műveletek a meglévő approval RPC-n mennek át.
+
+A célzott AppTest bekerült; a PR-head CI eredményét a merge előtt ellenőrizni kell. Következő funkciószelet: consent-aware, kizárólag áttekintésre szolgáló follow-up queue, majd az outcome rögzítéséből származó következő belső task-javaslat.
