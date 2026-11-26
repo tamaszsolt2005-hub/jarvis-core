@@ -1,7 +1,10 @@
 # JARVIS – kutatásvezérelt, személyre szabott SaaS-értékesítési és termékfejlesztési modell
 
 **Státusz:** célarchitektúra és fejlesztési specifikáció; nem jelenleg teljesen megvalósított funkció.  
-**Kapcsolódó fejlesztési ág:** PR #26 – `docs/pre-feature-readiness-gates`.
+**Aktuális implementációs ág:** PR #27 – `feature/company-research-phase-1` (a PR #26-ra épülő stacked PR).  
+**Állapot és pontos implementáció:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
+
+> **Aktuális implementációs megjegyzés (2026-11-26):** a cégdosszié-építés, snapshot tároló és refresh-eligibility policy első kódszelete már a PR #27-ben szerepel. A policy még nincs automatikus workerhez kötve. A teljes SaaS-ötletmotor, termék-tiltó napló, outreach és AI-delivery továbbra is célarchitektúra, nem kész funkció.
 
 ## 1. Termékvízió
 
@@ -196,13 +199,11 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 - Új funkciók csak branch/PR és tesztek mellett.
 - Minden új adatforrás és külső szolgáltatás dokumentálása.
 
-### Phase 1 – automatikus cégfelderítés és kutatás
+### Phase 1 – cégfelderítés, kutatási dosszié és előzmények
 
-**Már létező alap:** napi GitHub Actions indítású Google Search grounding kutatás, maximum 15 új cég/futás, cégduplikáció-szűrés, audit és outreach nélküli leadmentés.
+**Már implementált a PR #27 branchben:** grounding-alapú strukturált cégkutatás; forrásdomain-ellenőrzött tények; nyilvános szakmai döntéshozói kontextus; snapshot UUID/időbélyeg/schema version/SHA-256; append-only `company_research_snapshots` store és repository migráció; fail-closed freshness policy; refresh eligibility policy az elutasított, opt-out és legalább két válasz nélküli follow-up állapot kizárására. A meg nem keresett lead kutatható marad, de ez nem jelent kapcsolatfelvételi engedélyt.
 
-**Első implementációs szelet a `feature/company-research-phase-1` ágon:** strukturált cég-tények és nyilvános szakmai döntéshozói profil bekérése; a `company_dossier.py` kizárólag grounding domainhez kötött, engedélyezett üzleti tényeket enged át; a rövid dosszié a jelenlegi lead `notes` mezőjébe kerül. Nincs privát elérhetőség-gyűjtés vagy kapcsolatfelvételi engedély.
-
-**Még hátravan:** idempotens claim/lease worker, heartbeat, retry limit és dead-letter; kutatási futások/tények normalizált és verziózott tárolása; stale-data újrakutatás; költség- és domain rate limit; kutatási UI és emberi ellenőrzés.
+**Még hátravan:** a refresh policy CRM/outreach eseményekkel való megbízható integrációja; stale candidate planner; idempotens claim/lease worker, heartbeat, retry limit és dead-letter; költség- és domain rate limit; kutatási UI és emberi ellenőrzés. A snapshot migráció kizárólag repository/CI szinten van; productionben nem futott le.
 
 **Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden megőrzött tény grounding-forráshoz köthető; hiányzó adat nem kitalált; rate/cost limit és audit működik; a kutatás nem kapcsolhat outreach-t.
 
@@ -241,7 +242,7 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 
 ## 11. Jelenlegi implementáció és a cél közötti különbség
 
-A PR #26 fejlesztési ágán már létező alapok:
+A PR #26 alapágán és az arra épülő PR #27 branchben már létező alapok:
 - leadkutatás és forrásolt cégadatok;
 - cégazonosítás és duplikációszűrés;
 - lead scoring és belső workflow;
