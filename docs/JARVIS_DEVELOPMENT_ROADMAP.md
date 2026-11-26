@@ -235,3 +235,11 @@ A `global_lead_research.py` az adatbázis meglévő cégneveit és webdomainjeit
 5. E-mail küldés továbbra is hard-disabled; provider live E2E és explicit jóváhagyás nélkül nem oldható fel.
 
 A zöld CI kizárólag a vizsgált branch automatikus tesztjeit igazolja. Production deploy, migration, GRANT/REVOKE, Auth/RBAC aktiválás, secretmódosítás és e-mailküldés nem történt. PR merge külön jóváhagyást igényel.
+
+## 2026-11-26 – cégszintű lead deduplikáció és email-prioritás
+
+A korábbi, csak alkalmazásszintű global research deduplikációt a PR #26 ágban közös DB/RPC protokoll váltja fel. A céget normalizált név- és webdomain-aliasok azonosítják; mindkét aliasra tranzakciós advisory lock kerül. A két íróút (`global_lead_research.py`, `lead_gen.py`) ugyanazt a `upsert_company_lead` RPC-t használja, és a service role közvetlen lead INSERT joga vissza van vonva.
+
+Egy cég több, külön hozzájárulással rendelkező emailjelöltet tárolhat, de a CRM lead egy marad. A kiválasztás kezdeti heurisztikája a szerepkörös címeket (info/contact/office/sales) hátrasorolja, a személyes webmail címet (pl. xy@gmail.com) előnyben részesíti. A jelöltek külön táblában megmaradnak; hozzájárulás nem öröklődik címek között. Küldés, válasz vagy opt-out után a kiválasztott cím nem módosítható automatikusan. Azonos cégnévhez eltérő, már regisztrált webdomain esetén a rendszer nem olvaszt össze automatikusan, hanem manuális felülvizsgálatot kér.
+
+A migráció, Python integráció, SQL prioritás/consent teszt és két PostgreSQL sessionös race teszt elkészült a PR-ágon. **A feladat csak akkor tekinthető lezártnak, ha az új PR-head teljes CI-je, PostgreSQL 17 migráció replayje és CodeQL/dependency auditja sikeres.** Production migráció, deploy vagy e-mail küldés nem történt.
