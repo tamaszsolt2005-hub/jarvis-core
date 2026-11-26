@@ -400,8 +400,8 @@ REVOKE ALL ON TABLE public.lead_company_aliases
 REVOKE ALL ON TABLE public.lead_contact_candidates
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO service_role;
-GRANT SELECT, UPDATE, DELETE ON TABLE public.leads TO service_role;
-REVOKE INSERT ON TABLE public.leads FROM service_role;
+REVOKE ALL ON TABLE public.leads FROM service_role;
+GRANT SELECT, UPDATE ON TABLE public.leads TO service_role;
 
 -- Refuse ambiguous legacy data. No existing lead is deleted or merged.
 DO $company_identity_preflight$
@@ -514,7 +514,6 @@ AS $
 DECLARE
   v_name text;
   v_domain text;
-  v_alias_key text;
   v_alias record;
   v_lead_id uuid;
   v_match_count integer;
