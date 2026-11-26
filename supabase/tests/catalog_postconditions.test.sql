@@ -8,7 +8,8 @@ DECLARE
   bad_count integer;
   expected_tables text[] := ARRAY[
     'leads', 'tasks', 'email_drafts', 'settings', 'logs',
-    'jarvis_memory', 'jarvis_proactive_state', 'posts', 'audit_chain_state'
+    'jarvis_memory', 'jarvis_proactive_state', 'posts', 'audit_chain_state',
+    'lead_company_aliases', 'lead_contact_candidates'
   ];
 BEGIN
   -- All expected application relations exist, are owned by the fixture owner,
@@ -182,6 +183,38 @@ BEGIN
      AND a.grantee IN ('anon'::regrole, 'authenticated'::regrole);
   IF bad_count <> 0 THEN
     RAISE EXCEPTION 'postgres public-schema default ACLs grant privileges to API roles';
+  END IF;
+
+  -- Company identity/contact candidate tables are service-role only.
+  IF NOT has_table_privilege('service_role', 'public.lead_company_aliases', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.lead_company_aliases', 'INSERT')
+     OR NOT has_table_privilege('service_role', 'public.lead_contact_candidates', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.lead_contact_candidates', 'INSERT')
+     OR has_table_privilege('anon', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.lead_company_aliases', 'SELECT')
+     OR has_table_privilege('anon', 'public.lead_contact_candidates', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.lead_contact_candidates', 'SELECT') THEN
+    RAISE EXCEPTION 'company identity/contact candidate table grants are broader than service-role only';
+  END IF;
+
+  IF (SELECT prosecdef FROM pg_proc
+       WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
+     OR NOT has_function_privilege(
+       'service_role',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'anon',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'authenticated',
+       'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'company identity RPC execution boundary is incorrect';
   END IF;
 
   -- Approval state is isolated in an unexposed schema. Application roles
