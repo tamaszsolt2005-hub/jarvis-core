@@ -26,6 +26,10 @@ _OUTREACH_STATUSES = {
     "follow_up_sent",
     "followed_up",
     "followup_sent",
+    "contacted",
+    "no_response",
+    "follow_up_due",
+    "followup_due",
 }
 
 
