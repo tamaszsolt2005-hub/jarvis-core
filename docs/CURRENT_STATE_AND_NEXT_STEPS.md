@@ -164,3 +164,5 @@ A job létrehozása most `company_research_job_create(jsonb,bigint,bigint)` RPC-
 Elkészült a `company_research_budget_reservations` tábla, valamint az append-only `company_research_job_audit`. A létrehozás, claim, heartbeat, sikeres lezárás, retry/dead-letter és végső lease-expiry események tranzakciósan auditálódnak. Az audit tábla service_role számára SELECT/INSERT jogosultságú; UPDATE/DELETE nincs adva. A reservation az előzetesen becsült összeget foglalja; tényleges provider-költség elszámolása és visszatérítés még nincs bekötve. A globális óránkénti és domain napi limit továbbra is csak a jelenlegi snapshotos admission rétegben érvényesül, nem atomikus DB reservation.
 
 A migration továbbra is csak repository fájl, production DB-re nem lett alkalmazva. Izolált PostgreSQL tranzakciós/konkurenciateszt szükséges a tényleges adatbázis-garancia igazolásához.
+
+A `SupabaseCompanyResearchJobRepository.list_audit()` korlátozott, legfeljebb 1000 eseményt visszaadó, service-role-only RPC olvasási útvonalat is biztosít operation ID szerint. A dashboard még nincs erre az audit streamre rákötve.
