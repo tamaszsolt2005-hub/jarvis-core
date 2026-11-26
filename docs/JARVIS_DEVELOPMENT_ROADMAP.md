@@ -99,3 +99,10 @@ A PR #28 ágban elkészült a `company_research_worker.py` injektált repository
 - Napi költségkeret egész mikro-USD-ben.
 - Determinisztikus, DB-független döntési függvény és határérték tesztek.
 - A policy önmagában nem foglal kvótát; konkurens hard limithez később atomikus DB/RPC reservation szükséges.
+
+
+### Phase 1F – worker lease heartbeat callback
+
+- Opcionális callback hosszú handler műveletek közbeni lease-megújításhoz.
+- Kizárólag explicit handler checkpointból fut, automatikus timer/worker thread nélkül.
+- Lease-vesztés és stale worker tesztek.
