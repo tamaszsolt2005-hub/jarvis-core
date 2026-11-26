@@ -69,3 +69,25 @@ def test_actual_cost_settlement_is_atomic_with_job_completion():
     assert "'actual_cost_microusd', p_actual_cost_microusd" in complete_fn
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_budget_reservations TO service_role" in sql
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb, bigint) TO service_role" in sql
+
+
+def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
+    root = MIGRATION.parents[1]
+    lifecycle = (root / "supabase" / "tests" / "company_research_jobs.test.sql").read_text(encoding="utf-8")
+    concurrency = (root / "supabase" / "tests" / "company_research_jobs_concurrency.test.sql").read_text(encoding="utf-8")
+
+    for expected in (
+        "research_daily_budget_exceeded",
+        "research_hourly_limit_exceeded",
+        "research_domain_daily_limit_exceeded",
+        "company_research_job_heartbeat",
+        "company_research_job_complete",
+        "reservation_status = 'settled'",
+    ):
+        assert expected in lifecycle
+
+    assert "dblink_send_query" in concurrency
+    assert "research_daily_budget_exceeded" not in concurrency
+    assert "research_worker_a" in concurrency and "research_worker_b" in concurrency
+    assert "global active-lease ceiling" in concurrency
+    assert "daily budget lock" in concurrency
