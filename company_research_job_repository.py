@@ -40,7 +40,7 @@ class CompanyResearchJobRepository(Protocol):
     def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None, max_jobs_per_hour: int | None = None, max_jobs_per_domain_per_day: int | None = None) -> dict[str, Any]: ...
     def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None: ...
     def heartbeat(self, *, operation_id: str, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
-    def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None) -> dict[str, Any] | None: ...
+    def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None, actual_cost_microusd: int | None = None) -> dict[str, Any] | None: ...
     def list_audit(self, *, operation_id: str, limit: int = 100) -> list[dict[str, Any]]: ...
     def fail(
         self, *, operation_id: str, worker_id: str, error_code: str,
@@ -174,17 +174,24 @@ class SupabaseCompanyResearchJobRepository:
         )
 
     def complete(
-        self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None
+        self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None,
+        actual_cost_microusd: int | None = None,
     ) -> dict[str, Any] | None:
         operation_id = _operation_id(operation_id)
         if not isinstance(worker_id, str) or not worker_id.strip():
             raise ValueError("worker_id is required")
         if result is not None and not isinstance(result, dict):
             raise ValueError("result must be an object or None")
+        if actual_cost_microusd is not None and (
+            isinstance(actual_cost_microusd, bool)
+            or not isinstance(actual_cost_microusd, int)
+            or actual_cost_microusd < 0
+        ):
+            raise ValueError("actual_cost_microusd must be a non-negative integer or None")
         return self._rpc(
             RPC_COMPLETE,
             {"p_operation_id": operation_id, "p_worker_id": worker_id.strip(),
-             "p_result": result or {}},
+             "p_result": result or {}, "p_actual_cost_microusd": actual_cost_microusd},
             allow_none=True,
         )
 
