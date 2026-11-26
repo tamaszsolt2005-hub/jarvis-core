@@ -166,3 +166,10 @@ Elkészült a `company_research_budget_reservations` tábla, valamint az append-
 A migration továbbra is csak repository fájl, production DB-re nem lett alkalmazva. Izolált PostgreSQL tranzakciós/konkurenciateszt szükséges a tényleges adatbázis-garancia igazolásához.
 
 A `SupabaseCompanyResearchJobRepository.list_audit()` korlátozott, legfeljebb 1000 eseményt visszaadó, service-role-only RPC olvasási útvonalat is biztosít operation ID szerint. A dashboard még nincs erre az audit streamre rákötve.
+
+
+### 7.11 Atomikus hourly és domain rate limit
+
+A job-create RPC immár adatbázisoldalon is kikényszeríti a globális óránkénti joblimitet és a domainenkénti napi limitet. A budget-, hourly- és domain-ellenőrzések egy közös tranzakciós advisory lock alatt futnak, az idempotens operation ID visszajátszás pedig a korábbi jobot adja vissza, nem fogyaszt új kvótát. A DB a létrehozási időt maga állítja be, így a kliens nem tud régi `created_at` értékkel kvótát megkerülni. A domain összehasonlítás kis-/nagybetűtől független.
+
+A worker concurrency plafon továbbra is külön, atomikus claim RPC-ben érvényesül. A napi költségkeret a becsült költségfoglalás alapján védett; tényleges provider usage elszámolása és vissza nem használt foglalás felszabadítása még nincs bekötve. Az hourly/domain limit a job létrehozásokat számolja, beleértve a később sikertelen jobokat is.
