@@ -99,3 +99,11 @@ A Feladatközpont második funkciószelete egy belső, read-only utánkövetési
 - A napi briefing ugyanazt a közös, tesztelt queue-szűrőt használja a lejárt utánkövetések számításához.
 
 **Állapot:** kód és célzott unit tesztek hozzáadva; az új PR-head teljes CI-je még ellenőrizendő.
+
+
+## 2026-11-26 – dashboard/configuration/háttérfolyamat audit
+
+- A Streamlit dashboard jelenlegi tényleges oldala a Chat, Analitika, Audit és az új Feladatközpont. Az oldalsáv korábbi Emlékezet és Üzleti Infók elemei dekoratívak voltak; ezeket még külön funkcióként kell megépíteni, nem szabad kész menüként kommunikálni.
+- A helyi titokkezelés a Streamlit secrets → környezeti változó sorrendet használja. A .gitignore kizárja a .env fájlokat és a .streamlit/secrets.toml fájlt; a titkok értékei nem kerültek lekérésre vagy megjelenítésre.
+- A dashboard önmagában nem futtat háttérütemezést. A repóban a .github/workflows/email-automation.yml cron workflow a bejövő e-mail figyelést indíthatja, ha külön konfigurálva van; a kimenő email_sender lépés kifejezetten tiltott (if: false).
+- Külön, általános célú JARVIS scheduler/worker folyamat jelenleg nincs. Következő infrastruktúra-funkció: önálló, idempotens worker belépési pont és ütemezési/claim protokoll, úgy hogy ne kapcsolja be az outbound emailt.
