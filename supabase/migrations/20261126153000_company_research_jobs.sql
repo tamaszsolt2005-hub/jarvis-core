@@ -82,6 +82,7 @@ AS $$
 DECLARE
   v_existing public.company_research_jobs%ROWTYPE;
   v_reserved bigint;
+  v_existing_reservation bigint;
   v_budget_date date := (now() AT TIME ZONE 'UTC')::date;
 BEGIN
   IF p_job IS NULL OR jsonb_typeof(p_job) <> 'object'
@@ -102,6 +103,12 @@ BEGIN
     IF v_existing.job_type <> p_job->>'job_type'
        OR v_existing.lead_id <> (p_job->>'lead_id')::uuid
        OR v_existing.payload <> p_job->'payload' THEN
+      RAISE EXCEPTION 'research_operation_id_conflict';
+    END IF;
+    SELECT reserved_cost_microusd INTO v_existing_reservation
+    FROM public.company_research_budget_reservations
+    WHERE operation_id = v_existing.operation_id;
+    IF v_existing_reservation IS DISTINCT FROM p_estimated_cost_microusd THEN
       RAISE EXCEPTION 'research_operation_id_conflict';
     END IF;
     RETURN NEXT v_existing;
