@@ -23,7 +23,7 @@ SELECT is(
     'public.company_research_jobs',
     'public.company_research_budget_reservations',
     'public.company_research_job_audit'
-  ]) AS relation_name
+  ]) AS relations(relation_name)
   WHERE has_table_privilege('anon', relation_name, 'SELECT')
      OR has_table_privilege('anon', relation_name, 'INSERT')
      OR has_table_privilege('anon', relation_name, 'UPDATE')
@@ -37,7 +37,7 @@ SELECT is(
     'public.company_research_jobs',
     'public.company_research_budget_reservations',
     'public.company_research_job_audit'
-  ]) AS relation_name
+  ]) AS relations(relation_name)
   WHERE has_table_privilege('authenticated', relation_name, 'SELECT')
      OR has_table_privilege('authenticated', relation_name, 'INSERT')
      OR has_table_privilege('authenticated', relation_name, 'UPDATE')
@@ -50,7 +50,7 @@ SELECT is(
   (SELECT count(*) FROM unnest(ARRAY[
     'public.company_research_jobs',
     'public.company_research_budget_reservations'
-  ]) AS relation_name
+  ]) AS relations(relation_name)
   WHERE has_table_privilege('service_role', relation_name, 'SELECT')
     AND has_table_privilege('service_role', relation_name, 'INSERT')
     AND has_table_privilege('service_role', relation_name, 'UPDATE')),
@@ -74,7 +74,7 @@ SELECT is(
     'public.company_research_job_heartbeat(text,text,integer)',
     'public.company_research_job_complete(text,text,jsonb,bigint)',
     'public.company_research_job_fail(text,text,text,text,boolean,integer,integer)'
-  ]) AS function_signature
+  ]) AS functions(function_signature)
   WHERE has_function_privilege('anon', function_signature, 'EXECUTE')),
   0::bigint,
   'anon cannot execute worker RPC functions'
@@ -88,7 +88,7 @@ SELECT is(
     'public.company_research_job_heartbeat(text,text,integer)',
     'public.company_research_job_complete(text,text,jsonb,bigint)',
     'public.company_research_job_fail(text,text,text,text,boolean,integer,integer)'
-  ]) AS function_signature
+  ]) AS functions(function_signature)
   WHERE has_function_privilege('authenticated', function_signature, 'EXECUTE')),
   0::bigint,
   'authenticated cannot execute worker RPC functions'
@@ -102,7 +102,7 @@ SELECT is(
     'public.company_research_job_heartbeat(text,text,integer)',
     'public.company_research_job_complete(text,text,jsonb,bigint)',
     'public.company_research_job_fail(text,text,text,text,boolean,integer,integer)'
-  ]) AS function_signature
+  ]) AS functions(function_signature)
   WHERE has_function_privilege('service_role', function_signature, 'EXECUTE')),
   6::bigint,
   'service_role can execute all six worker RPC functions'
