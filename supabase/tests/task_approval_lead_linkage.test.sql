@@ -137,7 +137,7 @@ BEGIN
     jsonb_build_object(
       'type', 'update', 'operation_id', v_update_operation,
       'id', v_third ->> 'task_id',
-      'updates', jsonb_build_object('notes', 'Eredmény: az üzleti igény igazolódott.')
+      'updates', jsonb_build_object('outcome', 'az üzleti igény igazolódott.')
     )
   );
 
