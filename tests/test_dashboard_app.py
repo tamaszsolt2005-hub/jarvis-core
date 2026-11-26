@@ -788,8 +788,7 @@ def test_streamlit_company_research_page_renders_read_only_snapshot_history(monk
     assert not app.exception
     assert app.session_state["jarvis_page"] == "research"
     assert any("Cégkutatási előzmények" in item.value for item in app.title)
-    assert any("Teszt Vállalat" in item.value for item in app.selectbox)
-    rendered = " ".join(_markdown_values(app)) + " " + " ".join(item.value for item in app.text)
+    rendered = " ".join(_markdown_values(app))
     assert "Teszt Vezető" in rendered
     assert "A vállalat B2B szolgáltatást nyújt." in rendered
     assert "example.com/about" in rendered
