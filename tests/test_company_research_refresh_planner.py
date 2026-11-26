@@ -72,6 +72,21 @@ def test_planner_keeps_replied_company_eligible_for_research_review():
     assert rows[0]["priority"] == "existing_relationship"
 
 
+def test_inbound_reply_is_never_prioritized_as_uncontacted():
+    item = lead("research", reply_category="interested")
+    rows = plan_company_research_refresh_candidates([item], {}, now=NOW)
+    assert rows[0]["priority"] == "existing_relationship"
+
+
+@pytest.mark.parametrize("website", [
+    "ftp://example.com", "https:///missing-host", "https://bad..domain",
+    "https://localhost/path",
+])
+def test_planner_rejects_non_http_or_malformed_domains(website):
+    item = lead(website=website)
+    assert plan_company_research_refresh_candidates([item], {}, now=NOW) == []
+
+
 def test_planner_deduplicates_lead_ids_and_respects_limit():
     first = lead()
     second = lead()
