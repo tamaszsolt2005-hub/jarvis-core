@@ -1,5 +1,8 @@
 # JARVIS – production és release gate-ek
 
+> **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A PR #26 head `2a27a19078e6183c143e775ca9d89ccc776c7bf8` összes ellenőrzött checkje sikeres.
+
+
 Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás vagy élesítés előtt. A fejlesztési teendők a [fejlesztési backlogban](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) vannak.
 
 ## Jelenlegi döntési állapot
@@ -261,15 +264,17 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 
 **Nyitott, nem productionre kész feladat:** az összes lead-létrehozó útvonal leltára; a company/domain azonosság szabályainak meghatározása; majd közös tranzakciós RPC/claim protokoll, amely minden érintett íróútvonalból használható. Kötelező elfogadási teszt: két külön PostgreSQL session azonos cégnév/domain claimet próbál egyszerre; pontosan egy nyerhet, a másik determinisztikus konfliktus/duplicate eredményt kap; legitim közös domainek és névütközések ne vesszenek el. Független SQL review szükséges. Addig a kockázat dokumentált, nem megoldott.
 
-### Release gate státusz
+### Release gate státusz – 2026-11-26 korrekció
 
-- [x] PR #26 branch automatikus CI/CodeQL/dependency audit zöld.
+- [x] PR #26 branch automatikus CI/CodeQL/dependency audit zöld a `2a27a19078e6183c143e775ca9d89ccc776c7bf8` headen.
+- [x] Global lead research cégazonosítási konkurenciavédelem: közös `upsert_company_lead` RPC, mindkét writer integrálva, két-session PostgreSQL teszt sikeres.
+
 - [x] Izolált PostgreSQL 17 migration/pgTAP és backup/restore tesztek zöldek.
 - [ ] Production JARVIS host/URL azonosítása és runtime health bizonyítása.
 - [ ] Friss, read-only production schema + migration ledger snapshot és eltérések egyeztetése.
 - [ ] Független SQL review és engedélyezett Auth/JWT/RLS smoke.
 - [ ] RPC app write path deploy/smoke; csak utána privilege-lock migráció külön jóváhagyással.
-- [ ] Global lead research DB-szintű konkurencia-protokoll és két-session teszt.
+- [x] Global lead research DB-szintű konkurencia-protokoll és két-session teszt a PR #26 branchben; production telepítése későbbi release kapu.
 - [ ] E-mail provider live E2E; addig hard-disable marad.
 
 **Biztonsági határ:** a jelenlegi munkában nem történt production DB-írás/migráció, GRANT/REVOKE, Auth/RBAC módosítás, deploy, secret-változtatás vagy e-mailküldés. A PR merge külön, konkrét jóváhagyást igényel.
