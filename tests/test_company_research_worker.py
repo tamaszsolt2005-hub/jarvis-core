@@ -23,8 +23,8 @@ class FakeRepository:
             return None
         return {"operation_id": operation_id, "lease_owner": worker_id}
 
-    def complete(self, *, operation_id, worker_id, result=None):
-        self.calls.append(("complete", operation_id, worker_id, deepcopy(result)))
+    def complete(self, *, operation_id, worker_id, result=None, actual_cost_microusd=None):
+        self.calls.append(("complete", operation_id, worker_id, deepcopy(result), actual_cost_microusd))
         if self.lose_lease:
             return None
         return deepcopy(self.complete_result if self.complete_result is not None else {
@@ -236,6 +236,48 @@ def test_worker_rejects_invalid_concurrency_ceiling_before_claim():
         )
     except ValueError as exc:
         assert "max_concurrent_jobs" in str(exc)
+    else:
+        raise AssertionError("expected validation error")
+    assert repository.calls == []
+
+
+
+def test_worker_settles_actual_cost_extracted_from_provider_usage():
+    repository = FakeRepository(sample_job())
+    result = run_one_company_research_job(
+        repository,
+        worker_id="worker-a",
+        handler=lambda _payload: {"answer": "researched", "usage": {"total_cost_microusd": 731}},
+        actual_cost_extractor=lambda output: output["usage"]["total_cost_microusd"],
+    )
+    complete = next(call for call in repository.calls if call[0] == "complete")
+    assert result["status"] == "succeeded"
+    assert complete[-1] == 731
+
+
+def test_worker_rejects_invalid_actual_cost_before_completing():
+    repository = FakeRepository(sample_job())
+    result = run_one_company_research_job(
+        repository,
+        worker_id="worker-a",
+        handler=lambda _payload: {"answer": "ok"},
+        actual_cost_extractor=lambda _output: True,
+    )
+    assert result["status"] == "dead_letter"
+    assert not any(call[0] == "complete" for call in repository.calls)
+
+
+def test_worker_rejects_non_callable_actual_cost_extractor():
+    repository = FakeRepository(sample_job())
+    try:
+        run_one_company_research_job(
+            repository,
+            worker_id="worker-a",
+            handler=lambda _payload: {"ok": True},
+            actual_cost_extractor="not-callable",
+        )
+    except ValueError as exc:
+        assert "actual_cost_extractor" in str(exc)
     else:
         raise AssertionError("expected validation error")
     assert repository.calls == []
