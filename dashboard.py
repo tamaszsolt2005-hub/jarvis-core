@@ -291,7 +291,6 @@ def render_tasks_page(db: Any) -> None:
 
     open_tasks = [item for item in normalized if not item["_closed"]]
     overdue_tasks = [item for item in open_tasks if item["_overdue"]]
-    completed_tasks = [item for item in normalized if str(item.get("status") or "").casefold() in {"done", "completed", "complete", "closed", "kész", "befejezett"}]
     urgent_tasks = [item for item in open_tasks if str(item.get("priority") or "").casefold() == "urgent"]
 
     metric_cols = st.columns(4)
