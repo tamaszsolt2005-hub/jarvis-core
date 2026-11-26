@@ -182,3 +182,16 @@ def test_worker_adapter_rejects_unmeasured_job_retries(monkeypatch):
             object(), client=client, model="gemini-test", snapshot_db=object(),
             worker_id="worker-a", config=cfg, max_attempts=2,
         )
+
+
+def test_worker_adapter_rejects_runtime_limit_override(monkeypatch):
+    cfg = config()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: SimpleNamespace(total_tokens=1),
+        generate_content=lambda **_: None,
+    ))
+    with pytest.raises(ValueError, match="max_concurrent_jobs"):
+        run_company_research_worker_with_config(
+            object(), client=client, model="gemini-test", snapshot_db=object(),
+            worker_id="worker-a", config=cfg, max_concurrent_jobs=99,
+        )
