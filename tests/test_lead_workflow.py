@@ -291,3 +291,70 @@ def test_completed_research_validation_unlocks_business_stage_after_evidence_imp
     )
     assert len(plans) == 1
     assert plans[0]["workflow_stage"] == "business_need_validation"
+
+
+def test_recorded_positive_outcome_recommends_internal_opportunity_review():
+    lead = _lead("lead-outcome", "Pozitív Kft.")
+    tasks = [{
+        "lead_id": "lead-outcome", "status": "done",
+        "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: pozitív: 3 pilot érdeklődő, 1 validált igény",
+        "completed_at": "2026-11-26T10:00:00Z",
+    }]
+    plan = build_lead_workflow_recommendations([lead], tasks)[0]
+    assert plan["workflow_stage"] == "outcome_positive_review"
+    assert "Pozitív üzleti eredmény" in plan["task_title"]
+    assert "ne tekintsd automatikus megrendelésnek" in plan["rationale"]
+    assert plan["outreach_allowed"] is False
+
+
+def test_recorded_negative_outcome_recommends_internal_closeout_review():
+    lead = _lead("lead-negative", "Negatív Kft.")
+    tasks = [{
+        "lead_id": "lead-negative", "status": "done",
+        "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: negatív: nincs illeszkedés",
+        "completed_at": "2026-11-26T10:00:00Z",
+    }]
+    plan = build_lead_workflow_recommendations([lead], tasks)[0]
+    assert plan["workflow_stage"] == "outcome_negative_review"
+    assert "lezárási javaslat" in plan["rationale"]
+
+
+def test_no_response_outcome_recommends_requalification_without_outreach():
+    lead = _lead("lead-silent", "Válasz nélkül Kft.")
+    tasks = [{
+        "lead_id": "lead-silent", "status": "done",
+        "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: nincs válasz: nem érkezett reakció",
+        "completed_at": "2026-11-26T10:00:00Z",
+    }]
+    plan = build_lead_workflow_recommendations([lead], tasks)[0]
+    assert plan["workflow_stage"] == "outcome_no_response_review"
+    assert "új kapcsolatfelvételt ne kezdeményezz" in plan["rationale"]
+
+
+def test_unclassified_or_free_text_outcome_requires_manual_classification():
+    lead = _lead("lead-unknown", "Bizonytalan Kft.")
+    tasks = [{
+        "lead_id": "lead-unknown", "status": "done",
+        "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: talán jó lehetőség",
+        "completed_at": "2026-11-26T10:00:00Z",
+    }]
+    plan = build_lead_workflow_recommendations([lead], tasks)[0]
+    assert plan["workflow_stage"] == "outcome_classification_review"
+    assert "emberi eredménybesorolást" in plan["rationale"]
+
+
+def test_cancelled_outcome_recommendation_repeats_but_completed_one_stops():
+    lead = _lead("lead-review", "Felülvizsgálat Kft.")
+    measurement = {
+        "lead_id": "lead-review", "status": "done",
+        "notes": "[JARVIS_STAGE:outcome_measurement] Eredmény: pozitív: validált igény",
+        "completed_at": "2026-11-25T10:00:00Z",
+    }
+    cancelled = {
+        "lead_id": "lead-review", "status": "cancelled",
+        "notes": "[JARVIS_STAGE:outcome_positive_review]",
+        "completed_at": "2026-11-26T10:00:00Z",
+    }
+    assert build_lead_workflow_recommendations([lead], [measurement, cancelled])[0]["workflow_stage"] == "outcome_positive_review"
+    completed = {**cancelled, "status": "done"}
+    assert build_lead_workflow_recommendations([lead], [measurement, completed]) == []
