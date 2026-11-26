@@ -138,3 +138,29 @@ def stamp_company_dossier(dossier: dict[str, Any]) -> dict[str, Any]:
         "content_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
     })
     return stamped
+
+def is_company_dossier_stale(
+    dossier: dict[str, Any],
+    *,
+    max_age_days: int = 30,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether a dossier needs refresh; malformed or future timestamps fail closed."""
+    if isinstance(max_age_days, bool) or not isinstance(max_age_days, int) or max_age_days < 0:
+        raise ValueError("max_age_days must be a non-negative integer")
+    raw_timestamp = dossier.get("researched_at")
+    if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
+        return True
+    try:
+        researched_at = datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00"))
+        if researched_at.tzinfo is None:
+            return True
+        reference_time = now or datetime.now(timezone.utc)
+        if reference_time.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        age_seconds = (reference_time.astimezone(timezone.utc) - researched_at.astimezone(timezone.utc)).total_seconds()
+    except (TypeError, ValueError, OverflowError):
+        return True
+    if age_seconds < 0:
+        return True
+    return age_seconds >= max_age_days * 86400
