@@ -49,7 +49,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at,created_at,notes,source"
         ).order("created_at", desc=True).limit(1500).execute().data or []
     tasks = db.table("tasks").select(
-        "id,title,status,priority,due_at,completed_at,lead_id"
+        "id,title,notes,status,priority,due_at,completed_at,created_at,lead_id"
     ).limit(1000).execute().data or []
 
     research_leads = []
