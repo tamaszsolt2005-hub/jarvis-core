@@ -112,3 +112,39 @@ def test_company_dossier_snapshot_metadata_is_versioned_and_content_addressed():
     assert len(first["content_sha256"]) == 64
     assert first["content_sha256"] == second["content_sha256"]
     assert first["facts"] == dossier["facts"]
+
+from datetime import datetime, timedelta, timezone
+import pytest
+from company_dossier import is_company_dossier_stale
+
+
+def test_company_dossier_freshness_policy_uses_configurable_age():
+    now = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
+    fresh = {"researched_at": (now - timedelta(days=29)).isoformat()}
+    expired = {"researched_at": (now - timedelta(days=30)).isoformat()}
+    assert is_company_dossier_stale(fresh, now=now) is False
+    assert is_company_dossier_stale(expired, now=now) is True
+    assert is_company_dossier_stale(fresh, max_age_days=7, now=now) is True
+
+
+@pytest.mark.parametrize("dossier", [
+    {},
+    {"researched_at": ""},
+    {"researched_at": "not-a-date"},
+    {"researched_at": "2026-11-25T12:00:00"},
+])
+def test_company_dossier_freshness_fails_closed_for_invalid_timestamps(dossier):
+    now = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
+    assert is_company_dossier_stale(dossier, now=now) is True
+
+
+def test_company_dossier_future_timestamp_is_stale():
+    now = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
+    future = {"researched_at": (now + timedelta(minutes=1)).isoformat()}
+    assert is_company_dossier_stale(future, now=now) is True
+
+
+@pytest.mark.parametrize("age", [-1, True, 1.5, "30"])
+def test_company_dossier_freshness_rejects_invalid_age_configuration(age):
+    with pytest.raises(ValueError):
+        is_company_dossier_stale({"researched_at": "2026-11-01T00:00:00+00:00"}, max_age_days=age)
