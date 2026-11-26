@@ -1,6 +1,6 @@
 # JARVIS – parancs- és kifejezéskalauz
 
-**Ez a dokumentum azt tanítja meg, mit írj be a JARVIS chatbe, ha konkrét műveletet szeretnél.** A példák a PR #26 fejlesztési ágban ellenőrzött parser- és routing-szabályokból készültek. A természetes nyelvű kérdések egy része elemzést indít, de nem minden kifejezés parancs. Ahol külön jóváhagyás szükséges, azt minden esetben feltüntetem.
+**Ez a dokumentum azt tanítja meg, mit írj be a JARVIS chatbe, ha konkrét műveletet szeretnél.** A példák a PR #26 alapágában és az arra épülő PR #27 feature branchben ellenőrzött parser- és routing-szabályokból készültek. A természetes nyelvű kérdések egy része elemzést indít, de nem minden kifejezés parancs. Ahol külön jóváhagyás szükséges, azt minden esetben feltüntetem.
 
 Kapcsolódó dokumentum: [rendszer- és architektúra-leírás](JARVIS_DOCUMENTATION.md).
 
