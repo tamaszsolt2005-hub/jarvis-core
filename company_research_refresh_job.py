@@ -131,11 +131,13 @@ def main() -> None:
     from jarvis_common import get_gemini_client, get_model_name, get_service_supabase
 
     config = CompanyResearchRuntimeConfig.from_env()
+    model = get_model_name()
+    config.validate_model(model)
     db = get_service_supabase()
     result = run_company_research_refresh_cycle(
         db,
         client=get_gemini_client(),
-        model=get_model_name(),
+        model=model,
         config=config,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
