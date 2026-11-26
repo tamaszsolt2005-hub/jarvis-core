@@ -82,7 +82,7 @@ def test_claim_calls_single_atomic_database_rpc_and_returns_none_when_empty():
     client = FakeSupabaseClient({RPC_CLAIM: []})
     repository = SupabaseCompanyResearchJobRepository(client)
     assert repository.claim(worker_id="worker-a", lease_seconds=45) is None
-    assert client.calls == [(RPC_CLAIM, {"p_worker_id": "worker-a", "p_lease_seconds": 45})]
+    assert client.calls == [(RPC_CLAIM, {"p_worker_id": "worker-a", "p_lease_seconds": 45, "p_max_concurrent_jobs": 3})]
 
 
 def test_heartbeat_complete_and_fail_are_delegated_to_conditional_rpcs():
@@ -150,3 +150,10 @@ def test_create_rejects_operation_id_reuse_with_conflicting_immutable_data(field
             lead_id="00000000-0000-4000-8000-000000000001",
             payload={"source": "planner"},
         )
+
+
+
+def test_claim_validates_concurrency_limit():
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="max_concurrent_jobs"):
+        repository.claim(worker_id="worker-a", max_concurrent_jobs=True)
