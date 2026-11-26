@@ -221,6 +221,7 @@ Az adatbázis-migrációs és pgTAP teszteket a GitHub Actions CI izolált Postg
 - [Fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md)
 - [Release gate-ek](REMAINING_WORK_AND_RELEASE_GATES.md)
 - [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md)
+- [Főrendszer-készültségi felmérés](JARVIS_MAIN_SYSTEM_READINESS.md)
 - [E-mail provider/idempotencia](EMAIL_PROVIDER_IDEMPOTENCY.md)
 
 
@@ -329,3 +330,8 @@ A `company_research_runtime.py` explicit, one-shot composition root a repository
 ### 10.14 Hosszú Gemini-kérések lease-heartbeat javítása
 
 A korábbi megvalósítás csak a provider hívás előtt és után ellenőrizte a lease-t, ezért egy hosszú szinkron Gemini kérés alatt a lease lejárhatott. Javítás: a GeminiGoogleSearchCompanyResearchProvider most konfigurálható időközönként külön, leállítható daemon szálból meghívja a worker heartbeat callbackjét a teljes API-kérés és retry-időszak alatt. Hamis heartbeat-válasz vagy callback-kivétel lease-vesztésnek minősül, és a provider eredménye nem kerül sikeres jobként complete-olásra. A szál a provider hívás végén leáll és joinolódik. Két célzott teszt fedi a periodikus renewal és lease-vesztés esetét. A teszt/CI eredmény csak az új commit SHA-ján ellenőrizhető; korábbi futás nem igazolja ezt a javítást.
+
+
+## 10.15 Főrendszer-készültségi felmérés
+
+Elkészült a `JARVIS_MAIN_SYSTEM_READINESS.md`, amely különválasztja a belső főrendszer készre jelentését a hosszú távú autonóm SaaS-ügynök víziójától. Funkciónként megadja az implementációs állapotot, a P0/P1 lezárási feladatokat, a nem blokkoló P2 termékfázisokat és a külön production release kapukat. A jelenlegi minősítés: a főrendszer még nem tekinthető késznek, mert az aktuális CI futás és a teljes core E2E/smoke bizonyítékok hiányoznak.
