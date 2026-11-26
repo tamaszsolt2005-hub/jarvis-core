@@ -483,6 +483,9 @@ jobs:
           grep -q "created" "$RUNNER_TEMP/lead-identity-race-1.log"
           grep -q "existing" "$RUNNER_TEMP/lead-identity-race-2.log"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_company_identity_concurrency_verify.sql
+          # Finalize the rolling deployment only after the RPC path is present.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126130000_enforce_atomic_company_lead_writes.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
