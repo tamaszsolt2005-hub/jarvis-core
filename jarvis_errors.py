@@ -159,31 +159,47 @@ def classify_error(error: BaseException) -> dict[str, Any]:
     """Map provider/network/auth/config exceptions to stable, secret-free categories."""
     name = type(error).__name__.casefold()
     message = str(error).casefold()
-    code = getattr(error, "code", None) or getattr(error, "status_code", None)
-    status = str(getattr(error, "status", "") or "").casefold()
-    text = f"{name} {message} {status}"
+    raw_code = getattr(error, "code", None) or getattr(error, "status_code", None)
+    raw_status = getattr(error, "status", None)
+    status = str(raw_status or "").casefold()
+    code_text = str(raw_code or "").casefold()
+    text = f"{name} {message} {status} {code_text}"
+    try:
+        numeric_code = int(raw_code) if raw_code is not None else None
+    except (TypeError, ValueError):
+        numeric_code = None
+    # Provider SDKs expose both numeric HTTP codes and symbolic status enums.
+    # Only expose a constrained code in UI hints; never echo arbitrary SDK fields.
+    safe_code = (
+        str(raw_code)[:40]
+        if raw_code is not None and re.fullmatch(r"(?:[0-9]{3}|[A-Za-z][A-Za-z0-9_]{0,39})", str(raw_code))
+        else None
+    )
     category = "unknown"
     retryable = False
 
     if "auditnapló nem írható" in text or "audit log is not writable" in text:
         category = "audit_unavailable"
-    elif isinstance(error, PermissionError) or code in (403,) or any(
-        marker in text for marker in ("permission denied", "forbidden", "insufficient permission", "rls")
+    elif isinstance(error, PermissionError) or numeric_code == 403 or any(
+        marker in text for marker in ("permission denied", "permission_denied", "forbidden", "insufficient permission", "rls")
     ):
         category = "permission_denied"
-    elif code == 401 or any(marker in text for marker in ("unauthorized", "invalid api key", "invalid credentials", "unauthenticated")):
+    elif numeric_code == 401 or any(marker in text for marker in (
+        "unauthorized", "unauthenticated", "invalid credentials", "invalid api key",
+        "api_key_invalid", "api key not valid", "api key is invalid",
+    )):
         category = "authentication_failed"
     elif any(marker in text for marker in ("missing configuration", "hiányzó beállítás", "not configured", "required_secret")):
         category = "missing_configuration"
     elif any(marker in text for marker in ("invalid configuration", "invalid url", "malformed url", "unsupported scheme")):
         category = "invalid_configuration"
-    elif code == 429 or any(marker in text for marker in ("resource_exhausted", "rate limit", "quota exceeded", "too many requests", "429")):
+    elif numeric_code == 429 or any(marker in text for marker in ("resource_exhausted", "rate limit", "quota exceeded", "too many requests", "429")):
         category = "rate_limited"
         retryable = True
-    elif code in (408, 504) or any(marker in text for marker in ("timeout", "timed out", "deadline_exceeded")):
+    elif numeric_code in (408, 504) or any(marker in text for marker in ("timeout", "timed out", "deadline_exceeded")):
         category = "timeout"
         retryable = True
-    elif code in (502, 503) or any(marker in text for marker in ("service unavailable", "unavailable", "bad gateway", "503")):
+    elif numeric_code in (502, 503) or any(marker in text for marker in ("service unavailable", "unavailable", "bad gateway", "503")):
         category = "service_unavailable"
         retryable = True
     elif isinstance(error, (ConnectionError, OSError)) or any(
@@ -195,13 +211,13 @@ def classify_error(error: BaseException) -> dict[str, Any]:
     ):
         category = "network_error"
         retryable = True
-    elif code in (400, 422) or any(marker in text for marker in ("invalid argument", "invalid request", "bad request")):
+    elif numeric_code in (400, 422) or any(marker in text for marker in ("invalid argument", "invalid request", "bad request")):
         category = "invalid_request"
 
     return {
         "category": category,
         "retryable": retryable,
-        "code": str(code)[:40] if code is not None else None,
+        "code": safe_code,
         "user_message": _ERROR_HINTS[category],
     }
 
