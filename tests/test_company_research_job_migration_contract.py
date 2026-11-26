@@ -105,7 +105,7 @@ def test_postgres_worker_lifecycle_edge_suite_is_wired_into_ci():
     ).read_text(encoding="utf-8")
     workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
-    assert "SELECT plan(19)" in lifecycle_edges
+    assert "SELECT plan(20)" in lifecycle_edges
     for expected in (
         "lease-owner-old",
         "lease-owner-new",
