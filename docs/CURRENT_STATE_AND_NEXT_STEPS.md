@@ -290,3 +290,8 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 ### PR és környezeti állapot
 
 PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
+
+
+### 7.8 Worker SQL-életciklus szélső esetei – 2026-11-26
+
+A korábbi 15 lifecycle/kvóta és 14 konkurencia assertion mellé új, 19 assertionös izolált PostgreSQL pgTAP csomag készült: `supabase/tests/company_research_jobs_lifecycle_edges.test.sql`. Lefedi az expired lease reclaimet és tulajdonosváltást, a régi worker heartbeat/complete tiltását, retry_wait átmenetet, max-attempt dead-lettert, végső próbálkozás utáni lease-expiry dead-lettert, valamint az UTC napi budget rollover viselkedését. A teszt bekerült a PostgreSQL 17 CI jobba és a migration-contract teszt is ellenőrzi a CI bekötést. A commit elkészült; a tényleges pgTAP futási eredmény az új head CI-jéhez kötött, addig nem tekintjük igazoltnak.
