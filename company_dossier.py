@@ -107,7 +107,12 @@ def render_company_dossier(dossier: dict[str, Any], max_chars: int = 1250) -> st
     for fact in dossier.get("facts", []):
         line = f"[{fact['category']}] {fact['fact']} (forrás: {fact['source_url']})"
         lines.append(line)
-    rendered = " | ".join(lines)
-    if len(rendered) <= max_chars:
-        return rendered
-    return rendered[: max_chars - 1].rsplit(" ", 1)[0] + "…"
+    selected: list[str] = []
+    remaining = max(0, int(max_chars))
+    for line in lines:
+        separator = 3 if selected else 0
+        if len(line) + separator > remaining:
+            break
+        selected.append(line)
+        remaining -= len(line) + separator
+    return " | ".join(selected)
