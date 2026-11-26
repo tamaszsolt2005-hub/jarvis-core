@@ -107,8 +107,14 @@ class GeminiGoogleSearchCompanyResearchProvider:
         if lease_lost.is_set():
             raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
         grounded_sources: list[str] = []
+        search_query_count = 0
+        search_query_metadata_seen = False
         for candidate in getattr(response, "candidates", None) or []:
             metadata = getattr(candidate, "grounding_metadata", None)
+            search_queries = getattr(metadata, "web_search_queries", None)
+            if isinstance(search_queries, list):
+                search_query_count += len(search_queries)
+                search_query_metadata_seen = True
             for chunk in getattr(metadata, "grounding_chunks", None) or []:
                 uri = getattr(getattr(chunk, "web", None), "uri", None)
                 if isinstance(uri, str):
@@ -119,6 +125,8 @@ class GeminiGoogleSearchCompanyResearchProvider:
             value = getattr(usage_metadata, source_name, None)
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 usage[target_name] = value
+        if search_query_metadata_seen:
+            usage["search_queries"] = search_query_count
         return {"research": getattr(response, "text", None), "grounded_sources": grounded_sources, "provider_usage": usage}
 
 
@@ -306,13 +314,15 @@ def make_gemini_actual_cost_extractor(
     *,
     input_price_microusd_per_million_tokens: int,
     output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
 ):
-    """Build a pricing-configured extractor; missing provider usage keeps estimate reserved."""
+    """Build a token + grounding-fee extractor; missing usage keeps reservation held."""
     estimate_research_cost_microusd(
         input_tokens=0,
         output_tokens=0,
         input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
         output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
     )
 
     def extract(result: dict[str, Any]) -> int | None:
@@ -323,10 +333,17 @@ def make_gemini_actual_cost_extractor(
         output_tokens = usage.get("output_tokens")
         if input_tokens is None or output_tokens is None:
             return None
+        search_queries = usage.get("search_queries")
+        if search_price_microusd_per_thousand_queries > 0 and search_queries is None:
+            return None
+        if search_queries is None:
+            search_queries = 0
         return estimate_research_cost_microusd(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
             output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+            search_queries=search_queries,
+            search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
         )
     return extract
