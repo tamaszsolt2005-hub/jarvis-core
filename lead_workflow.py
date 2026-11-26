@@ -38,7 +38,9 @@ def _task_stage(task: dict[str, Any]) -> str | None:
     return stage if stage in {item[0] for item in _WORKFLOW_STAGES} else None
 
 
-def _next_stage(tasks: list[dict[str, Any]], initial_stage: str) -> str | None:
+def _next_stage(
+    tasks: list[dict[str, Any]], initial_stage: str, *, research_is_sufficient: bool
+) -> str | None:
     """Return the next safe stage; open work blocks, cancelled work is retryable."""
     if any(str(task.get("status") or "open").casefold() == "open" for task in tasks):
         return None
@@ -60,7 +62,7 @@ def _next_stage(tasks: list[dict[str, Any]], initial_stage: str) -> str | None:
         return None
     # A low-confidence research task cannot unlock commercial stages by itself.
     # Fresh grounded evidence must first raise the lead's confidence.
-    if stage == "research_validation" and initial_stage == "research_validation":
+    if stage == "research_validation" and not research_is_sufficient:
         return None
     next_index = stage_index + 1
     return _WORKFLOW_STAGES[next_index][0] if next_index < len(_WORKFLOW_STAGES) else None
@@ -104,19 +106,20 @@ def build_lead_workflow_recommendations(
         confidence = score["research_confidence"]
         evidence_count = score["evidence_count"]
         priority_score = score["priority_score"]
-        initial_stage = (
-            "research_validation"
-            if confidence == "low" or evidence_count < 2
-            else "business_need_validation"
+        initial_stage = "research_validation"
+        research_is_sufficient = confidence != "low" and evidence_count >= 2
+        stage = _next_stage(
+            tasks_by_lead.get(lead_id, []),
+            initial_stage,
+            research_is_sufficient=research_is_sufficient,
         )
-        stage = _next_stage(tasks_by_lead.get(lead_id, []), initial_stage)
         if stage is None:
             continue
 
         stage_label = dict(_WORKFLOW_STAGES)[stage]
         task_title = f"{stage_label} – {company}"[:180]
         task_priority = (
-            "high" if stage == "business_need_validation" and priority_score >= 85
+            "high" if stage in {"research_validation", "business_need_validation"} and priority_score >= 85 and research_is_sufficient
             else "normal"
         )
         stage_guidance = {
