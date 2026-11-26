@@ -1,6 +1,6 @@
 # Production állapot és migrációs terv
 
-**Állapot dátuma:** 2026-11-26. A Supabase production DB snapshot 2026-11-26-i read-only megfigyelés; az alkalmazás-host státuszát a legfrissebb felhasználói pontosítás külön tisztázta. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
+**Állapot dátuma:** 2026-11-26. A JARVIS app nincs telepítve; az app-host kiválasztása későbbi release döntés. A Supabase production DB snapshot 2026-11-26-i read-only megfigyelés; az alkalmazás-host státuszát a legfrissebb felhasználói pontosítás külön tisztázta. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
 **Production adatbázis:** Supabase PostgreSQL 17, project ref: `kiutreccucbegskxowek`.
 
 ## 1. Rövid állapot
