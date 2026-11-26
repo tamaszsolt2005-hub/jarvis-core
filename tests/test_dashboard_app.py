@@ -793,3 +793,46 @@ def test_streamlit_company_research_page_renders_read_only_snapshot_history(monk
     assert "A vállalat B2B szolgáltatást nyújt." in rendered
     assert "example.com/about" in rendered
     assert len(app.chat_input) == 0
+
+
+
+def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "settings"
+    assert any("Beállítások" in item.value for item in app.title)
+    assert len(app.chat_input) == 0
+    rendered = " ".join(_markdown_values(app)) + " ".join(item.value for item in app.caption)
+    assert "SUPABASE_URL" in rendered
+    assert "GEMINI_API_KEY" in rendered
+    assert "E-mail-küldés" in rendered
+    assert any("kódszinten tiltott" in item.value for item in app.info)
+    assert len(app.button(key="jarvis_settings_run_diagnostics")) == 1
+
+
+def test_streamlit_settings_diagnostics_only_run_after_explicit_click(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        health_check, "run_self_diagnostics",
+        lambda *, auth_session=None: (
+            calls.append(auth_session) or "APPT_SETTINGS_DIAGNOSTICS"
+        ),
+    )
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert calls == []
+    app.button(key="jarvis_settings_run_diagnostics").click().run()
+
+    assert not app.exception
+    assert calls == [None]
+    assert any("APPT_SETTINGS_DIAGNOSTICS" in value for value in _markdown_values(app))
