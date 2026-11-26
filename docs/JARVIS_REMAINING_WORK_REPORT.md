@@ -9,7 +9,7 @@
 
 A JARVIS fő workflow-jának alapjai megvannak: chat, leadkutatás/scoring, jóváhagyott taskműveletek, audit, analitika, memória és dashboard. A dashboard navigációs audit, a read-only Beállítások oldal, az üres tasklista melletti utánkövetési sor javítása, valamint a központi runtime hibakategorizálás is bekerült a PR #28 ágba.
 
-**A JARVIS még nem jelenthető késznek.** A legfontosabb hiányok: az új hibakezelési módosítások célzott tesztbizonyítéka, a cégkutatási worker és snapshot mentés teljes E2E útja, a worker SQL konkurenciájának izolált PostgreSQL ellenőrzése, a valós Auth/RLS jogosultsági tesztek és a dokumentált helyi manuális smoke.
+**A JARVIS még nem jelenthető késznek.** A P1 worker runtime-adatút és a PostgreSQL lifecycle/kvóta/konkurencia tesztcsomag CI-vel igazolt. A fennmaradó fő hiányok: valódi Gemini provider smoke, Auth/RLS szerepkörtesztek, teljes helyi manuális smoke és további worker lease-expiry/reclaim, retry/dead-letter SQL-életciklus lefedés.
 
 A PR #28 nyitva marad. Merge, production deploy, production migration és production konfigurációmódosítás nem történt.
 
@@ -115,7 +115,7 @@ A következő fejlesztési feladatok kizárólag a PR branch-en és izolált tes
 
 ## 7. Rövid döntési javaslat
 
-A következő lépés a két új SQL tesztcsomag futtatása kizárólag helyi/izolált PostgreSQL-en, a hibaeredmények javítása, majd a futás commit SHA-hoz kötött dokumentálása. Ezután következhet a worker → snapshot E2E. A teljes CI-t csak e nagyobb integrációs csomag lezárása után futtassuk, a korábban már sikeresen ellenőrzött backup–restore lépést pedig ne ismételjük meg változatlan kód mellett.
+A worker snapshot-persistence bekötése és a két PostgreSQL SQL tesztcsomag CI-futtatása lezárult a PR #28 `4e5bed363285553525aae89ff4aae78b5e79de2b` commitján (CI #3136). Következő P1: lease expiry/reclaim és retry/dead-letter SQL-életciklus mélyebb tesztjei, valós Gemini provider smoke, Auth/RLS és helyi manuális dashboard smoke.
 
 
 ## 8. Új worker SQL tesztcsomag – 2026-11-26
@@ -127,7 +127,7 @@ A PR #28 ágon két új adatbázis-teszt készült:
 
 **Költségkeret-korlát:** a jelenlegi SQL szerződés a becsült költséget foglalja le, majd a tényleges költséget elszámolja. A szolgáltatói tényleges költség az alulbecslés miatt meghaladhatja a becsült foglalást; a mostani RPC nem érvényesít utólagos, visszamenőleges hard capet. Ezt a teszt és a későbbi költségpolitika külön kockázatként kezeli.
 
-**Ellenőrzési státusz: NEM FUTOTT.** A tesztek forrása elkészült, de lokális/izolált PostgreSQL futtatás és eredmény még nincs. A futtatás tervezett parancsa a helyi Supabase DB elindítása után: `supabase test db`. A vizsgált branch-en nem találtam verziózott `supabase/config.toml` fájlt, ezért a CLI-futtatás előtt a helyi Supabase projektkonfiguráció meglétét is ellenőrizni/pótolni kell. A concurrency teszthez a `dblink` extension elérhetősége szükséges. Production adatbázison nem szabad futtatni. A következő jelentésben a futás pontos commit SHA-ját, pgTAP eredményét és az esetleges hibákat kell rögzíteni.
+**Ellenőrzési státusz: SIKERES – CI #3136.** A snapshot-tároló SQL teszt, a `company_research_jobs.test.sql` 15/15 lifecycle/kvóta assertionje és a `company_research_jobs_concurrency.test.sql` 14/14 valódi két-session `dblink` assertionje sikeres az izolált PostgreSQL 17 CI-adatbázisban. Production adatbázison sem teszt, sem migráció nem futott.
 
 ## 9. P0 – Gemini és külső szolgáltatások hibakezelési keményítése (2026-11-26)
 
@@ -148,7 +148,7 @@ Production adatbázis, secret, SMTP-konfiguráció és deploy nem módosult; val
 
 ## Aktuális státuszfelülírás – 2026-11-26 (PR #28 HEAD)
 
-**Aktuális PR #28 HEAD:** `39fa60c1b448036665a475106dc97bbdd95e7150`. **CI:** [Run #3121](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45880962637) – mindkét job sikeres (test: `140120013677`, backup/restore integration: `140120014052`). A tesztösszesítő: **1140 passed, 3 skipped, 0 failed**, teljes coverage **90,29%** (80% minimum); `python -m compileall -q .` sikeres. Ez az eredmény az itt megadott HEAD-hez kötött, a korábbi dokumentumban szereplő 1126/1 failed és korábbi CI-megjegyzések elavultak.
+**Aktuális PR #28 HEAD:** `4e5bed363285553525aae89ff4aae78b5e79de2b`. **CI:** [Run #3136](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45883574515) – mindhárom job sikeres: Python/AppTest/browser tesztek (`140128615157`), izolált PostgreSQL worker-integráció (`140128614819`), backup–restore (`140128615278`). Eredmény: **1144 passed, 3 skipped, 0 failed**, coverage **90,17%**; `python -m compileall -q .` sikeres. A PostgreSQL job sikeresen lefuttatta a snapshot-tároló tesztet, a **15/15 lifecycle/kvóta** és a **14/14 két-session dblink konkurencia** assertiont.
 
 ### P0 – fejlesztési csomag állapota
 
@@ -173,9 +173,9 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 ### Következő javítások és lezárási sorrend
 
-**P1 – következő fő fejlesztési szakasz:**
-1. A cégkutatási adatút E2E bekötése és igazolása: queue → claim → grounded Gemini provider → dossier validáció → snapshot mentés → lead-kapcsolat → audit; hiba/retry, lease-loss, duplicate operation ID és rollback viselkedéssel.
-2. A két előkészített SQL tesztcsomag futtatása izolált PostgreSQL/Supabase környezetben: `company_research_jobs.test.sql` (15 pgTAP assertion) és `company_research_jobs_concurrency.test.sql` (14 pgTAP assertion, `dblink`). A futtatás jelenleg NEM igazolt; lokális Supabase konfiguráció és `dblink` elérhetőség szükséges.
+**P1 – állapot és még hátralévő feladatok:**
+1. **[KÉSZ – kódoldali runtime E2E, CI #3136]** Queue → claim → grounded provider → dossier validáció → snapshot mentés → lead FK-kapcsolat → job completion/audit bekötve. A worker csak a snapshot mentése után complete-elhet; operation ID-alapú stabil snapshot UUID, idempotens replay és persist-hiba esetén retry/dead-letter viselkedés célzott tesztet kapott. Élő Gemini API-hívás nem történt.
+2. **[KÉSZ – CI #3136, izolált PostgreSQL 17]** `company_research_jobs.test.sql`: 15/15 lifecycle/kvóta assertion; `company_research_jobs_concurrency.test.sql`: 14/14 valódi, két `dblink` sessionnel futó konkurencia assertion; a snapshot-tároló SQL teszt is sikeres. A futtatás kizárólag eldobható CI-adatbázisban történt.
 3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
 4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
 5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.

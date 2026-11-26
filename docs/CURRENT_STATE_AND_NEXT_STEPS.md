@@ -15,7 +15,7 @@ A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOC
 - A mentett snapshot a `lead_id` idegen kulcson keresztül kapcsolódik a leadhez. A snapshot ID és a mentés ténye a job eredményébe is bekerül; a job csak a mentés után complete-elhető.
 - A worker külön teszteli a persist → complete sorrendet és azt, hogy mentési hiba esetén nincs sikeres complete, hanem retry/dead-letter útvonal indul.
 - A CI új, külön PostgreSQL 17 jobot kapott: izolált fixture, snapshot + worker migrációk, snapshot pgTAP, 15 lifecycle/kvóta assertion és 14 valódi két-session `dblink` race assertion.
-- **Ellenőrzési státusz:** a kód és a CI futtatási út elkészült; az új commit CI-eredményét még meg kell várni. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történik.
+- **Ellenőrzési státusz:** CI #3136 sikeres az aktuális kódon: 1144 passed, 3 skipped, 0 failed; coverage 90,17%. A külön PostgreSQL 17 jobban a snapshot-teszt, 15/15 lifecycle/kvóta és 14/14 konkurencia assertion sikeres. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történt.
 
 ## 1. Telepítési és környezeti állapot
 
@@ -209,7 +209,7 @@ A Gemini provider adapter most a teljes szinkron API-kérés és retry-időszak 
 
 ## 8. Főrendszer-készültségi felmérés – 2026-11-26
 
-A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadási feltételei, valamint a P0/P1/P2 és production release teendők külön dokumentumban szerepelnek: [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md). Röviden: a lead → scoring → task approval → PostgreSQL → audit E2E és a `36d615f` core commit teljes CI-je sikeres. A dashboard navigációs audit és read-only Settings oldal elkészült, de az ezt követő aktuális HEAD CI-je, a valós Auth/RLS hozzáférés, a worker SQL konkurencia és a kutatási snapshot E2E, valamint a teljes helyi smoke még nem tekinthető igazoltnak. Emiatt a főrendszer még nem minősíthető késznek.
+A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadási feltételei, valamint a P0/P1/P2 és production release teendők külön dokumentumban szerepelnek: [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md). A P1 worker→provider→dossier→snapshot→lead FK→job completion út kódoldali runtime-integrációja és a PostgreSQL worker lifecycle/kvóta/konkurencia tesztek a PR #28 HEAD-en CI-vel igazoltak (Run #3136). Még hátra van a valós Gemini provider smoke, Auth/RLS szerepkörteszt, a teljes helyi manuális dashboard smoke és néhány worker lifecycle peremfeltétel mélyebb SQL-lefedése.
 
 
 ## 9. Dashboard navigációs audit – 2026-11-26
@@ -251,7 +251,7 @@ Következő lépés: a helyi Supabase/PostgreSQL elindítása után `supabase te
 
 ## Aktuális állapot – 2026-11-26, CI #3121
 
-**Aktuális PR #28 HEAD:** `39fa60c1b448036665a475106dc97bbdd95e7150`. **CI:** [Run #3121](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45880962637) – mindkét job sikeres (test: `140120013677`, backup/restore integration: `140120014052`). A tesztösszesítő: **1140 passed, 3 skipped, 0 failed**, teljes coverage **90,29%** (80% minimum); `python -m compileall -q .` sikeres. Ez az eredmény az itt megadott HEAD-hez kötött, a korábbi dokumentumban szereplő 1126/1 failed és korábbi CI-megjegyzések elavultak.
+**Aktuális PR #28 HEAD:** `4e5bed363285553525aae89ff4aae78b5e79de2b`. **CI:** [Run #3136](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45883574515) – mindhárom job sikeres: Python/AppTest/browser tesztek (`140128615157`), izolált PostgreSQL worker-integráció (`140128614819`), backup–restore (`140128615278`). Eredmény: **1144 passed, 3 skipped, 0 failed**, coverage **90,17%**; `python -m compileall -q .` sikeres. A PostgreSQL job sikeresen lefuttatta a snapshot-tároló tesztet, a **15/15 lifecycle/kvóta** és a **14/14 két-session dblink konkurencia** assertiont.
 
 ### P0 – fejlesztési csomag állapota
 
@@ -266,7 +266,7 @@ A Gemini és külső szolgáltatások hibakezelési P0 kódcsomag **elkészült 
 - Cégazonosítás és duplikációszűrés; lead scoring, kutatási bizonyosság és belső workflow-ajánlások.
 - Jóváhagyáshoz kötött task létrehozás/módosítás/lezárás; read-only Feladatok központ és utánkövetési sor.
 - Üzleti memória, napi briefing, analitika és audit funkciók.
-- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a teljes worker→provider→snapshot→lead→audit tartós E2E út még nincs igazolva. Auth módban a snapshot oldal fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
+- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a worker runtime→provider→snapshot→lead FK→complete/audit út CI-vel igazolt. Auth módban a snapshot oldal továbbra is fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
 - Read-only Beállítások oldal, konfigurációs státuszok és kézi diagnosztika; titokértékek nem jelennek meg és nem szerkeszthetők.
 - Bejövő inbox/e-mail komponensek konfigurációtól függően rendelkezésre állhatnak; **kimenő e-mail küldés hard-disabled**.
 
@@ -276,9 +276,9 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 ### Következő javítások és lezárási sorrend
 
-**P1 – következő fő fejlesztési szakasz:**
-1. A cégkutatási adatút E2E bekötése és igazolása: queue → claim → grounded Gemini provider → dossier validáció → snapshot mentés → lead-kapcsolat → audit; hiba/retry, lease-loss, duplicate operation ID és rollback viselkedéssel.
-2. A két előkészített SQL tesztcsomag futtatása izolált PostgreSQL/Supabase környezetben: `company_research_jobs.test.sql` (15 pgTAP assertion) és `company_research_jobs_concurrency.test.sql` (14 pgTAP assertion, `dblink`). A futtatás jelenleg NEM igazolt; lokális Supabase konfiguráció és `dblink` elérhetőség szükséges.
+**P1 – állapot és még hátralévő feladatok:**
+1. **[KÉSZ – kódoldali runtime E2E, CI #3136]** Queue → claim → grounded provider → dossier validáció → snapshot mentés → lead FK-kapcsolat → job completion/audit bekötve. A worker csak a snapshot mentése után complete-elhet; operation ID-alapú stabil snapshot UUID, idempotens replay és persist-hiba esetén retry/dead-letter viselkedés célzott tesztet kapott. Élő Gemini API-hívás nem történt.
+2. **[KÉSZ – CI #3136, izolált PostgreSQL 17]** `company_research_jobs.test.sql`: 15/15 lifecycle/kvóta assertion; `company_research_jobs_concurrency.test.sql`: 14/14 valódi, két `dblink` sessionnel futó konkurencia assertion; a snapshot-tároló SQL teszt is sikeres. A futtatás kizárólag eldobható CI-adatbázisban történt.
 3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
 4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
 5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.

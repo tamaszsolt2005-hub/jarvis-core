@@ -70,8 +70,8 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 
 ### P1 – megbízható belső használat és későbbi release előfeltétele
 
-6. **Izolált PostgreSQL worker tesztek – CI futtatás hozzáadva, eredményre vár.** A `company_research_jobs.test.sql` 15 pgTAP ellenőrzést és a `company_research_jobs_concurrency.test.sql` 14 két-session `dblink` assertiont tartalmaz. Az új CI job eldobható PostgreSQL 17 adatbázist készít, felrakja a szükséges extensionöket, alkalmazza a snapshot/job migrációkat, majd futtatja a snapshot, lifecycle/kvóta és race teszteket. Csak az új commit sikeres workflow-ja tekinthető igazolásnak.
-7. **Kutatási adatút – kódoldali bekötés elkészült, CI-validáció hátra.** A runtime kötelező snapshot DB injekcióval épül fel; a worker a job complete előtt menti a validált dossziét. Az operation ID-ból determinisztikus snapshot UUID képződik, így a mentés utáni retry idempotens; eltérő tartalom esetén nem írja felül a meglévő snapshotot. A snapshot a lead_id FK-val kapcsolódik a leadhez. A worker persist-hiba esetén nem complete-el, hanem retry/dead-letter utat használ.
+6. **[KÉSZ – CI #3136] Izolált PostgreSQL worker tesztek.** Snapshot SQL teszt sikeres; `company_research_jobs.test.sql` 15/15 lifecycle/kvóta assertion; `company_research_jobs_concurrency.test.sql` 14/14 két-session `dblink` konkurencia assertion. Elkülönített PostgreSQL 17 CI adatbázisban futott.
+7. **[KÉSZ – CI #3136] Kutatási adatút runtime-integráció.** A runtime kötelező snapshot DB injekcióval épül fel; a worker a job complete előtt menti a validált dossziét. Az operation ID-ból determinisztikus snapshot UUID képződik, így az azonos tartalmú mentés utáni retry idempotens. A snapshot a lead_id FK-val kapcsolódik a leadhez. Persist-hiba esetén a worker nem complete-el, hanem retry/dead-letter utat használ. Élő Gemini API-próba és teljes Auth/RLS jogosultsági teszt külön hátravan.
 8. **Valós provider smoke izolált tesztkörnyezetben.** Injektált Gemini klienssel, tesztkulccsal és szigorú költségkerettel ellenőrizni a grounding metaadatokat, usage adatokat, timeoutot, retryt és heartbeatet. Production secret vagy production DB nem használható ehhez.
 9. **Auth/RLS és szerepkör tesztek.** Az alkalmazás tényleges felhasználói hozzáférése, service-role határok és read/write RPC-k jogosultságai legyenek dokumentálva és izolált tesztben igazolva.
 10. **Üzemeltetési alapok.** Strukturált, titokmentes logok, health check, konfigurációs leírás, mentés/visszaállítási eljárás, hibajelzés és kézi rollback terv.
@@ -132,7 +132,7 @@ A már sikeresen ellenőrzött, azóta nem módosított területeket nem tesztel
 
 ## Frissített készültségi állapot – 2026-11-26
 
-**Aktuális PR #28 HEAD:** `39fa60c1b448036665a475106dc97bbdd95e7150`. **CI:** [Run #3121](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45880962637) – mindkét job sikeres (test: `140120013677`, backup/restore integration: `140120014052`). A tesztösszesítő: **1140 passed, 3 skipped, 0 failed**, teljes coverage **90,29%** (80% minimum); `python -m compileall -q .` sikeres. Ez az eredmény az itt megadott HEAD-hez kötött, a korábbi dokumentumban szereplő 1126/1 failed és korábbi CI-megjegyzések elavultak.
+**Aktuális PR #28 HEAD:** `4e5bed363285553525aae89ff4aae78b5e79de2b`. **CI:** [Run #3136](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45883574515) – mindhárom job sikeres: Python/AppTest/browser tesztek (`140128615157`), izolált PostgreSQL worker-integráció (`140128614819`), backup–restore (`140128615278`). Eredmény: **1144 passed, 3 skipped, 0 failed**, coverage **90,17%**; `python -m compileall -q .` sikeres. A PostgreSQL job sikeresen lefuttatta a snapshot-tároló tesztet, a **15/15 lifecycle/kvóta** és a **14/14 két-session dblink konkurencia** assertiont.
 
 ### P0 – fejlesztési csomag állapota
 
