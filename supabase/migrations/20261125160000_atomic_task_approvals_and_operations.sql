@@ -268,7 +268,12 @@ BEGIN
        ))
        OR (p_action ? 'lead_id' AND (
          jsonb_typeof(p_action -> 'lead_id') IS DISTINCT FROM 'string'
-         OR (p_action ->> 'lead_id') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}         WHEN jsonb_typeof(p_action -> 'due_at') = 'string' THEN
+         OR length(p_action ->> 'lead_id') <> 36
+         OR (p_action ->> 'lead_id') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}'
+       ))
+       OR (p_action ? 'due_at' AND CASE
+         WHEN jsonb_typeof(p_action -> 'due_at') = 'null' THEN false
+         WHEN jsonb_typeof(p_action -> 'due_at') = 'string' THEN
            CASE
              WHEN (p_action ->> 'due_at') ~ '(Z|[+-][0-9]{2}:[0-9]{2})$'
                THEN (p_action ->> 'due_at')::timestamptz IS NULL
