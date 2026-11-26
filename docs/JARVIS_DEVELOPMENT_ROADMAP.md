@@ -87,7 +87,7 @@ A dokumentumot folyamatosan frissítsük; ne hozzunk létre párhuzamos, dátumo
 | 1 | Megbízhatóság és biztonság | Kódbeli alapok és izolált CI tesztek sikeresek; kimenő SMTP hard-disabled; production audit/RPC integráció és SMTP provider idempotencia még nincs igazolva |
 | 2 | Supabase és jogosultságkezelés | Részben előkészítve – production drift friss read-only ellenőrzése, migrációs review, deploy és live smoke hátra van |
 | 3 | Önállóbb üzleti asszisztens | Részben implementálva – forrásolt leadprioritás és belső következőlépés-javaslat már össze van kapcsolva; proaktív minőségmérés és production bizonyíték hátra van |
-| 4 | Üzleti munkafolyamatok automatizálása | Első read-only lépés elkészült: leadkutatás → bizonyíték-alapú triázs → belső task-javaslat; task lead-kapcsolat, approval-integráció, follow-up állapotgép és eredménymérés még hátra van |
+| 4 | Üzleti munkafolyamatok automatizálása | Leadkutatás → bizonyíték-alapú javaslat → leadhez kapcsolt, approval-gated task kódban implementálva; follow-up állapotgép, eredménymérés és teljes E2E még hátra van |
 | 5 | Tudás és hosszú távú memória | Alapok implementálva – tartós memória és analitika létezik; forrásolt tudásgráf, lifecycle és minőségi mérés hátra van |
 
 A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás és – ahol releváns – engedélyezett integrációs bizonyíték alapján frissítsük. Egy feladat csak akkor tekinthető késznek, ha a lezárási feltétele teljesült. A „kódban implementált”, „automatikusan tesztelt”, „külső integrációval igazolt” és „productionben aktív” állapotokat mindig különböztessük meg.
@@ -104,6 +104,19 @@ A PR #26 branchben elkészült a `lead_workflow.py` read-only ajánlásépítő 
 
 **Minősítés:** kódban implementált; az új célzott tesztek hozzáadva; GitHub CI futás a legfrissebb PR-headen még ellenőrizendő. Ez még nem a teljes workflow. Következő fejlesztési szelet: a feladatművelet biztonságos lead-kapcsolata és jóváhagyási útvonala, majd a follow-up állapotok és eredménymérés.
 
+## 2026-11-26 – második lead-to-task workflow szelet
+
+A PR #26 branchben a napi briefing javaslata már explicit, jóváhagyásra váró, leadhez kapcsolt taskká alakítható.
+
+- Chat parancs: `Hozz létre javasolt feladat: <lead UUID>`.
+- A dashboard újraellenőrzi a grounding source-t, a strukturált kutatási jegyzetet és a leadhez tartozó meglévő taskokat.
+- A taskot a meglévő rövid életű, egyszer használatos, felhasználóhoz és payloadhoz kötött jóváhagyás védi.
+- A `task_actions.py` create payload validálja az opcionális `lead_id` UUID-t; az atomikus `execute_approved_task_action` RPC a `tasks.lead_id` mezőt tölti.
+- Az RPC leadenként advisory transaction lockot használ; nyitott task mellett nem enged második nyitott taskot ugyanahhoz a leadhez. Lezárt task után újabb lépés létrehozható.
+- Új Python- és PostgreSQL integrációs tesztek, valamint CI-lépés került be.
+
+**Minősítés:** kód és célzott tesztek hozzáadva; a legfrissebb PR-head CI-je még ellenőrizendő. Production migráció/deploy nem történt. Kimenő e-mail továbbra is hard-disabled. A következő lépés a workflow-stage és task státusz összekapcsolása, majd a follow-up és eredménymérés.
+ 
 ## Munkamenet-szabály
 
 1. Elsőként ezt az útitervet olvasd el.
