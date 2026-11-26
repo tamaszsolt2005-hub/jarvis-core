@@ -92,13 +92,13 @@ class GeminiGoogleSearchCompanyResearchProvider:
                     if not retryable or attempt >= self._max_attempts:
                         raise
                     self._sleep(min(2 ** (attempt - 1), 4))
-            if lease_lost.is_set():
-                raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
         finally:
             stop_heartbeat.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=max(1.0, self._heartbeat_interval_seconds * 2))
-        grounded_sources: list[str] = []
+        if lease_lost.is_set():
+            raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
+        grounded_sources: list[str] = 
         for candidate in getattr(response, "candidates", None) or []:
             metadata = getattr(candidate, "grounding_metadata", None)
             for chunk in getattr(metadata, "grounding_chunks", None) or []:
