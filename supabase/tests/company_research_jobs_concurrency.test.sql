@@ -150,7 +150,7 @@ SELECT lives_ok(
 );
 SELECT * FROM finish();
 
-DELETE FROM public.company_research_jobs
+DELETE FROM public.company_research_budget_reservations
 WHERE operation_id IN (
   'research-race-budget-a-0001', 'research-race-budget-b-0001',
   'research-race-claim-a-0001', 'research-race-claim-b-0001'
@@ -160,7 +160,7 @@ WHERE operation_id IN (
   'research-race-budget-a-0001', 'research-race-budget-b-0001',
   'research-race-claim-a-0001', 'research-race-claim-b-0001'
 );
-DELETE FROM public.company_research_budget_reservations
+DELETE FROM public.company_research_jobs
 WHERE operation_id IN (
   'research-race-budget-a-0001', 'research-race-budget-b-0001',
   'research-race-claim-a-0001', 'research-race-claim-b-0001'
