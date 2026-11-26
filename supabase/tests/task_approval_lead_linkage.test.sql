@@ -123,7 +123,7 @@ BEGIN
     jsonb_build_object(
       'type', 'update', 'operation_id', v_update_operation,
       'id', v_third ->> 'task_id',
-      'updates', jsonb_build_object('notes', 'Eredmény: az üzleti igény igazolódott.')
+      'updates', jsonb_build_object('outcome', 'az üzleti igény igazolódott.')
     ),
     300
   ) THEN
@@ -143,7 +143,7 @@ BEGIN
 
   IF v_updated ->> 'status' IS DISTINCT FROM 'success'
      OR (SELECT notes FROM public.tasks WHERE id = (v_third ->> 'task_id')::uuid)
-        IS DISTINCT FROM 'Eredmény: az üzleti igény igazolódott.' THEN
+        NOT LIKE '%Eredmény: az üzleti igény igazolódott.%' THEN
     RAISE EXCEPTION 'Approved task outcome notes were not persisted';
   END IF;
 
