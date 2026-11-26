@@ -5,6 +5,7 @@ import csv
 import re
 from datetime import datetime, timezone
 import uuid
+from urllib.parse import urlparse
 
 from jarvis_common import audit_event, get_service_supabase, log_event
 from jarvis_errors import report_error
@@ -15,6 +16,25 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 def _truth(value):
     return str(value).strip().lower() in {"true", "1", "yes", "igen"}
+
+
+def _valid_http_url(value):
+    raw = str(value or "").strip()[:2048]
+    if not raw:
+        return None
+    try:
+        parsed = urlparse(raw)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.hostname.lower() in {"localhost", "localhost.localdomain"}
+        ):
+            return None
+    except ValueError:
+        return None
+    return raw
 
 
 def _validated_import_row(row):
@@ -49,7 +69,7 @@ def _validated_import_row(row):
 
     return {
         "company_name": company, "email": address,
-        "website": str(row.get("website") or "").strip()[:2048] or None,
+        "website": _valid_http_url(row.get("website")),
         "notes": str(row.get("notes") or "").strip()[:4000] or None,
         "source": str(row.get("source") or "reviewed_csv").strip()[:120],
         "consent_basis": "consent", "approved_to_contact": True,
