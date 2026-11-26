@@ -316,3 +316,53 @@ def test_daily_briefing_main_reports_and_reraises_build_failure(monkeypatch, tmp
     assert reports[0][1]["module"] == "daily_briefing"
     assert reports[0][1]["operation"] == "build_report"
     assert not (tmp_path / "daily_briefing.md").exists()
+
+
+def test_follow_up_queue_only_returns_due_consent_valid_unanswered_leads():
+    from daily_briefing import build_follow_up_queue
+
+    today = date(2026, 11, 15)
+    eligible = {
+        "id": "lead-eligible", "company_name": "Engedélyezett Kft.",
+        "status": "sent", "email": "ok@example.test",
+        "consent_basis": "consent", "consent_confirmed_at": "2026-11-13T09:00:00Z",
+        "approved_to_contact": True, "opted_out": False,
+        "reply_category": None, "last_inbound_message_id": None,
+        "follow_up_count": 0, "next_follow_up_at": "2026-11-18T09:00:00Z",
+    }
+    rejected = [
+        {**eligible, "id": "opted-out", "opted_out": True},
+        {**eligible, "id": "no-consent", "consent_basis": None},
+        {**eligible, "id": "replied", "reply_category": "reply"},
+        {**eligible, "id": "already-followed-up", "follow_up_count": 1},
+        {**eligible, "id": "future-consent", "consent_confirmed_at": "2026-11-24T09:00:00Z"},
+        {**eligible, "id": "too-late", "next_follow_up_at": "2026-12-20T09:00:00Z"},
+    ]
+
+    queue = build_follow_up_queue([eligible, *rejected], today=today, days_ahead=7)
+
+    assert queue == [{
+        "lead_id": "lead-eligible",
+        "company_name": "Engedélyezett Kft.",
+        "due": "2026-11-18",
+        "overdue": False,
+    }]
+
+
+def test_follow_up_queue_marks_overdue_items_without_contacting_them():
+    from daily_briefing import build_follow_up_queue
+
+    lead = {
+        "id": "lead-overdue", "company_name": "Lejárt Kft.",
+        "status": "follow_up_sent", "email": "ok@example.test",
+        "consent_basis": "consent", "consent_confirmed_at": "2026-11-10T09:00:00Z",
+        "approved_to_contact": True, "opted_out": False,
+        "reply_category": None, "last_inbound_message_id": None,
+        "follow_up_count": 0, "next_follow_up_at": "2026-11-12T09:00:00Z",
+    }
+
+    queue = build_follow_up_queue([lead], today=date(2026, 11, 15))
+
+    assert len(queue) == 1
+    assert queue[0]["overdue"] is True
+    assert queue[0]["lead_id"] == "lead-overdue"
