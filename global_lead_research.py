@@ -11,6 +11,7 @@ from google.genai import types
 
 from jarvis_common import get_gemini_client, get_model_name, log_event, audit_event, get_enforced_user_supabase
 from jarvis_errors import report_error
+from lead_identity import upsert_company_lead
 
 
 MAX_RESULTS = 15
@@ -311,19 +312,13 @@ def research_global_companies(
         ):
             raise RuntimeError("A kutatási lead mentése leállítva: a pending auditbejegyzés nem menthető.")
         try:
-            insert_response = db.table("leads").insert({
-                "company_name": name,
-                "email": None,
-                "website": website,
-                "notes": notes,
-                "source": f"{SOURCE_TAG}:{source_domain}"[:200],
-                "status": "research",
-                "consent_basis": None,
-                "approved_to_contact": False,
-                "opted_out": False,
-            }).select("id").execute()
-            if not getattr(insert_response, "data", None):
-                raise RuntimeError("A kutatási lead mentését az adatbázis nem igazolta vissza.")
+            identity_result = upsert_company_lead(
+                db,
+                company_name=name,
+                website=website,
+                notes=notes,
+                source=f"{SOURCE_TAG}:{source_domain}"[:200],
+            )
         except Exception as exc:
             audit_event(
                 db,
@@ -342,11 +337,19 @@ def research_global_companies(
             action="save_researched_company",
             status="success",
             operation_id=insert_operation_id,
-            result={"company_domain": site_domain, "source_domain": source_domain},
+            result={
+                "company_domain": site_domain,
+                "source_domain": source_domain,
+                "lead_id": identity_result["lead_id"],
+                "outcome": identity_result["outcome"],
+            },
         ):
             raise RuntimeError("A kutatási lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
         known_names.add(name.casefold())
         known_sites.add(site_domain)
+        if identity_result["outcome"] == "existing":
+            skipped += 1
+            continue
         inserted.append({"company_name": name, "website": website, "country": country,
                          "industry": industry, "business_summary": summary, "potential_fit": fit,
                          "business_fit_score": fit_score, "fit_evidence": fit_evidence,
