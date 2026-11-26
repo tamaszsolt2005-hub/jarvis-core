@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from company_research_job_repository import CompanyResearchJobRepository
+from company_research_jobs import retry_backoff_seconds
 
 ResearchJobHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -21,6 +22,7 @@ def run_one_company_research_job(
     lease_seconds: int = 120,
     retry_delay_seconds: int = 60,
     max_attempts: int = 3,
+    max_retry_delay_seconds: int = 3600,
 ) -> dict[str, Any]:
     """Claim and process at most one prepared job.
 
@@ -32,6 +34,10 @@ def run_one_company_research_job(
         raise ValueError("handler must be callable")
     if not isinstance(worker_id, str) or not worker_id.strip():
         raise ValueError("worker_id is required")
+    if isinstance(retry_delay_seconds, bool) or not isinstance(retry_delay_seconds, int) or retry_delay_seconds < 1:
+        raise ValueError("retry_delay_seconds must be a positive integer")
+    if isinstance(max_retry_delay_seconds, bool) or not isinstance(max_retry_delay_seconds, int) or max_retry_delay_seconds < retry_delay_seconds:
+        raise ValueError("max_retry_delay_seconds must be an integer at least retry_delay_seconds")
 
     job = repository.claim(worker_id=worker_id.strip(), lease_seconds=lease_seconds)
     if job is None:
@@ -64,13 +70,21 @@ def run_one_company_research_job(
         retryable = getattr(exc, "retryable", not isinstance(exc, (TypeError, ValueError)))
         if not isinstance(retryable, bool):
             retryable = False
+        try:
+            attempt_count = int(job.get("attempt_count", 1))
+        except (TypeError, ValueError, OverflowError):
+            attempt_count = 1
+        delay = retry_backoff_seconds(
+            max(1, attempt_count), base_delay_seconds=retry_delay_seconds,
+            max_delay_seconds=max_retry_delay_seconds,
+        )
         failed = repository.fail(
             operation_id=operation_id,
             worker_id=worker_id.strip(),
             error_code=error_code,
             error_message="Research job handler failed; sensitive exception details were not persisted.",
             retryable=retryable,
-            retry_delay_seconds=retry_delay_seconds,
+            retry_delay_seconds=delay,
             max_attempts=max_attempts,
         )
         return {
