@@ -59,8 +59,6 @@ class FakeDB:
 
         class RPCQuery:
             def execute(self):
-                if db.lose_insert_response:
-                    return Result([])
                 row = {
                     "company_name": params["p_company_name"],
                     "email": params["p_email"],
@@ -72,6 +70,8 @@ class FakeDB:
                     "approved_to_contact": params["p_approved_to_contact"],
                 }
                 db.inserted.append(row)
+                if db.lose_insert_response:
+                    return Result([])
                 return Result([{
                     "lead_id": "inserted-lead-id",
                     "outcome": "created",
