@@ -39,7 +39,6 @@ def test_worker_lifecycle_transitions_write_append_only_audit_events():
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_audit_list(text, integer) TO service_role" in sql
 
 
-
 def test_hourly_and_per_domain_quotas_are_checked_atomically_before_insert():
     sql = MIGRATION.read_text(encoding="utf-8")
     create_fn = sql.split("CREATE OR REPLACE FUNCTION public.company_research_job_create", 1)[1]
@@ -53,7 +52,6 @@ def test_hourly_and_per_domain_quotas_are_checked_atomically_before_insert():
     assert create_fn.index("research_domain_daily_limit_exceeded") < create_fn.index("INSERT INTO public.company_research_jobs")
     assert "lower(COALESCE(payload->>'company_domain', '')) = v_domain" in create_fn
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) TO service_role" in sql
-
 
 
 def test_actual_cost_settlement_is_atomic_with_job_completion():
@@ -97,7 +95,6 @@ def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
     assert "daily budget lock" in concurrency
 
 
-
 def test_postgres_worker_lifecycle_edge_suite_is_wired_into_ci():
     root = MIGRATION.parents[2]
     lifecycle_edges = (
@@ -116,8 +113,7 @@ def test_postgres_worker_lifecycle_edge_suite_is_wired_into_ci():
     ):
         assert expected in lifecycle_edges
     assert "company_research_jobs_lifecycle_edges.test.sql" in workflow
-    assert "grep -q '1..19' <<< \"$lifecycle_edges_output\"" in workflow
-
+    assert "grep -q '1..20' <<< \"$lifecycle_edges_output\"" in workflow
 
 
 def test_worker_security_pg_tap_suite_is_wired_into_ci():
@@ -135,4 +131,4 @@ def test_worker_security_pg_tap_suite_is_wired_into_ci():
     assert "public API roles cannot access snapshot history" in security
     assert "NOT has_table_privilege('service_role', 'public.company_research_job_audit', 'UPDATE')" in security
     assert "company_research_jobs_security.test.sql" in workflow
-    assert "grep -q '1..10' <<< \"$security_output\"" in workflow
+    assert "grep -q '1..12' <<< \"$security_output\"" in workflow
