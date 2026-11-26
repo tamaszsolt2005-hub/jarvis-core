@@ -396,6 +396,8 @@ ALTER TABLE public.lead_company_aliases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lead_contact_candidates ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.lead_company_aliases FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.lead_contact_candidates FROM PUBLIC, anon, authenticated;
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.leads TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.lead_company_aliases TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.lead_contact_candidates TO service_role;
 
