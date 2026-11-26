@@ -98,6 +98,8 @@ def enqueue_company_research_refreshes_with_admission(
     usage_snapshot: dict[str, Any],
     input_price_microusd_per_million_tokens: int,
     output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
+    max_search_queries_per_attempt: int = 0,
     max_input_tokens_per_attempt: int = 12000,
     max_output_tokens_per_attempt: int = 2048,
     max_attempts: int = 1,
@@ -121,6 +123,8 @@ def enqueue_company_research_refreshes_with_admission(
         max_input_tokens_per_attempt=max_input_tokens_per_attempt,
         max_output_tokens_per_attempt=max_output_tokens_per_attempt,
         max_attempts=max_attempts,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=max_search_queries_per_attempt,
     )
     if not isinstance(usage_snapshot, dict):
         raise ValueError("usage_snapshot must be an object")
