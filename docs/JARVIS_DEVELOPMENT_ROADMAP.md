@@ -246,7 +246,7 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 ### PR és környezeti állapot
 
-PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
+PR #26, #27 és #28 merge-ölve a `main` ágba 2026-11-26-án. A JARVIS app továbbra is helyi fejlesztés alatt áll, production app-host/deploy nincs. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
 
 
 ## Aktuális roadmap státusz – 2026-11-26
