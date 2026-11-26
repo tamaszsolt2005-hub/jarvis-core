@@ -181,11 +181,11 @@ SELECT is(
 
 SELECT * FROM finish();
 
-DELETE FROM public.company_research_jobs
+DELETE FROM public.company_research_budget_reservations
 WHERE operation_id IN ('research-budget-op-0001', 'research-worker-job-0002');
 DELETE FROM public.company_research_job_audit
 WHERE operation_id IN ('research-budget-op-0001', 'research-worker-job-0002');
-DELETE FROM public.company_research_budget_reservations
+DELETE FROM public.company_research_jobs
 WHERE operation_id IN ('research-budget-op-0001', 'research-worker-job-0002');
 DELETE FROM public.leads
 WHERE id = '74000000-0000-4000-8000-000000000001';
