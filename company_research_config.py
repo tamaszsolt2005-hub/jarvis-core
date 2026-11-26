@@ -14,10 +14,12 @@ class CompanyResearchRuntimeConfig:
     input_price_microusd_per_million_tokens: int
     output_price_microusd_per_million_tokens: int
     pricing_model: str
+    search_price_microusd_per_thousand_queries: int
     max_daily_cost_microusd: int
     max_jobs_per_hour: int
     max_jobs_per_domain_per_day: int
     max_concurrent_jobs: int
+    max_search_queries_per_attempt: int = 0
     max_input_tokens_per_attempt: int = 12000
     max_output_tokens_per_attempt: int = 2048
     max_attempts: int = 1
@@ -43,6 +45,12 @@ class CompanyResearchRuntimeConfig:
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 raise ValueError(f"{name} must be a positive integer")
+        if isinstance(self.search_price_microusd_per_thousand_queries, bool) or not isinstance(self.search_price_microusd_per_thousand_queries, int) or self.search_price_microusd_per_thousand_queries < 0:
+            raise ValueError("search_price_microusd_per_thousand_queries must be a non-negative integer")
+        if isinstance(self.max_search_queries_per_attempt, bool) or not isinstance(self.max_search_queries_per_attempt, int) or self.max_search_queries_per_attempt < 0:
+            raise ValueError("max_search_queries_per_attempt must be a non-negative integer")
+        if self.search_price_microusd_per_thousand_queries > 0 and self.max_search_queries_per_attempt < 1:
+            raise ValueError("max_search_queries_per_attempt is required when grounding has a fee")
         if self.max_output_tokens_per_attempt < 128 or self.max_output_tokens_per_attempt > 4096:
             raise ValueError("max_output_tokens_per_attempt must be between 128 and 4096")
         # Failed provider attempts do not currently expose measurable usage.
@@ -87,10 +95,12 @@ class CompanyResearchRuntimeConfig:
             input_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
             output_price_microusd_per_million_tokens=integer("JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS"),
             pricing_model=str(source.get("JARVIS_COMPANY_RESEARCH_PRICING_MODEL") or "").strip(),
+            search_price_microusd_per_thousand_queries=integer("JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES"),
             max_daily_cost_microusd=integer("JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD"),
             max_jobs_per_hour=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR"),
             max_jobs_per_domain_per_day=integer("JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY"),
             max_concurrent_jobs=integer("JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS"),
+            max_search_queries_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_SEARCH_QUERIES_PER_ATTEMPT", 0),
             max_input_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS", 12000),
             max_output_tokens_per_attempt=integer("JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS", 2048),
             max_attempts=integer("JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS", 1),
@@ -151,6 +161,8 @@ def enqueue_company_research_refreshes_with_config(
         max_input_tokens_per_attempt=config.max_input_tokens_per_attempt,
         max_output_tokens_per_attempt=config.max_output_tokens_per_attempt,
         max_attempts=config.max_attempts,
+        search_price_microusd_per_thousand_queries=config.search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=config.max_search_queries_per_attempt,
         now=now,
         max_age_days=config.max_age_days,
         limit=config.batch_limit,
@@ -187,6 +199,7 @@ def run_company_research_worker_with_config(
         worker_id=worker_id,
         input_price_microusd_per_million_tokens=config.input_price_microusd_per_million_tokens,
         output_price_microusd_per_million_tokens=config.output_price_microusd_per_million_tokens,
+        search_price_microusd_per_thousand_queries=config.search_price_microusd_per_thousand_queries,
         max_concurrent_jobs=config.max_concurrent_jobs,
         **worker_options,
     )
