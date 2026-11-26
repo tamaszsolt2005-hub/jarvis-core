@@ -879,5 +879,5 @@ def test_streamlit_task_center_keeps_follow_up_queue_visible_without_tasks(monke
 
     assert not app.exception
     assert any("Még nincs feladat" in item.value for item in app.info)
-    assert any("Utánkövetési sor" in item.value for item in app.markdown)
+    assert any("Utánkövetési sor" in item.value for item in app.subheader)
     assert len(app.get("dataframe")) == 1
