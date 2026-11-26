@@ -202,3 +202,36 @@ A korábbi PR #26 állapotbekezdések a friss ellenőrzés előtti pillanatképe
 **E-mail állapot:** a kiválasztott provider Gmail SMTP (`EMAIL_PROVIDER=smtp`); a secretnevek meglétét ellenőrizték, de a credential értékek és az SMTP kapcsolat nincsenek validálva. A küldés továbbra is hard-disabled. A Resend adapter alternatívaként a kódban marad, nem az aktív küldési út.
 
 **Az öt fejlesztési terület státusza nem változik attól, hogy a CI zöld:** a megbízhatósági és biztonsági kódmunka jelentősen előrehaladt, de production RPC/app rollout, migration drift rendezés, jogosultság- és Auth/RLS-validáció, valamint a termékfolyamatok E2E bizonyítása nyitott. Production módosítás nem történt.
+
+
+
+## Ellenőrzött állapotfrissítés – 2026-11-26, PR #26
+
+**Ez a blokk felülírja a dokumentum korábbi, 2026-11-25-i CI/head pillanatképeit.** A PR #26 nyitott, nincs merge-ölve. Az ellenőrzés kiinduló headje: `6ef4020bba3949e02440e97583fc907b6bcb1f00`.
+
+- JARVIS CI: sikeres; **838 passed, 3 skipped, 0 failed**, teljes coverage **91.29%** (80% minimum).
+- PostgreSQL 17 backup/restore és izolált migrációs/pgTAP integráció: sikeres.
+- CodeQL Python elemzés: sikeres.
+- pip-audit runtime és tesztfüggőségek: sikeres.
+- A PR leírását ehhez az eredményhez igazítottuk.
+
+### Global lead research – párhuzamos duplikáció audit
+
+A `global_lead_research.py` az adatbázis meglévő cégneveit és webdomainjeit 1000-es offset-oldalakban tölti be, majd az aktuális kutatási futás során memóriában bővíti a deduplikációs halmazokat. Ez ugyanazon folyamaton belüli, már beolvasott adatokra jó szűrő, de **nem atomikus adatbázis-szintű egyediség**:
+
+1. Két worker ugyanazt a snapshotot olvashatja be, majd mindkettő beszúrhatja ugyanazt az új céget.
+2. Az offset pagination nem ad garantált, egyetlen MVCC snapshotot; párhuzamos beszúrások közben rekordok eltolódhatnak oldalak között. Az `.order("id")` stabil sorrendet ad, de nem oldja meg a konkurens írások miatti konzisztenciát.
+3. A cégnév normalizált unique indexe legitim névazonosságokat ütköztetne; a domain-indexhez pedig a webhely-normalizálás és a közös/átirányított domainek szabályait előbb üzletileg és technikailag definiálni kell.
+4. A CSV email import külön adatbázis unique indexszel védett; ez nem véd a cég/domain alapú kutatási duplikáció ellen.
+
+**Döntés:** nem vezetünk be elhamarkodott company/domain unique indexet, és nem állítjuk, hogy a global research deduplikáció race-safe. A következő biztonságos megoldás egy közös, tranzakciós DB/RPC claim/upsert protokoll lehet, amelyet minden releváns lead-létrehozó útvonal használ, stabil normalizációs kulccsal és explicit konfliktusfeloldással. Ennek tervezése, izolált konkurenciatesztje és független SQL review-ja nyitott; production migráció nem történt.
+
+### Friss munkasorrend
+
+1. Global research dedupe contract és minden lead insert útvonal feltérképezése; név/domain azonosság üzleti szabályainak rögzítése.
+2. Csak ezután DB/RPC-alapú atomikus claim/upsert tervezése és két-session konkurenciatesztje.
+3. Production host azonosítása, migration drift read-only frissítése, teljes migrációs review és engedélyezett Auth/JWT/RLS smoke.
+4. RPC app path deploy és smoke után külön jóváhagyással privilege-lock migráció.
+5. E-mail küldés továbbra is hard-disabled; provider live E2E és explicit jóváhagyás nélkül nem oldható fel.
+
+A zöld CI kizárólag a vizsgált branch automatikus tesztjeit igazolja. Production deploy, migration, GRANT/REVOKE, Auth/RBAC aktiválás, secretmódosítás és e-mailküldés nem történt. PR merge külön jóváhagyást igényel.
