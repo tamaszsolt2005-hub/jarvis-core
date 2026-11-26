@@ -127,3 +127,10 @@ Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A megl�
 - CI now applies the migration to its isolated PostgreSQL fixture and checks RLS, grants, full JSON persistence, and duplicate rejection.
 - The migration is committed to this feature branch only. It has not been applied to any hosted database.
 - Automatic refresh scheduling is still not enabled. The next step is a read-only stale-profile selection and separately approved refresh worker with idempotent claims/leases.
+### Refresh suppression for rejected and unresponsive leads
+- Added a pure, read-only eligibility policy in `company_research_policy.py`.
+- Explicit rejection, do-not-contact, opt-out, and equivalent persisted states suppress automatic dossier refresh immediately.
+- A contacted lead with no inbound reply is paused after 2 recorded follow-ups (`follow_up_count >= 2`).
+- Uncontacted leads remain eligible for research refresh; this does not imply consent or permission to contact them.
+- Any inbound reply that is not explicitly classified as rejection is not treated as silence. It remains eligible for review.
+- This is a policy primitive with unit tests; the automatic refresh worker and scheduling are not implemented or enabled yet.
