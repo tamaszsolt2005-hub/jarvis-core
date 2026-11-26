@@ -40,7 +40,11 @@ def enqueue_company_research_refreshes(
     max_age_days: int = 30,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Plan and enqueue using mandatory database-enforced cost/rate limits."""
+    """Plan and enqueue using mandatory database-enforced cost/rate limits.
+
+    Pass estimate_research_cost_ceiling_microusd(...) as the per-job estimate
+    so the reservation covers the provider's bounded prompt/output and retries.
+    """
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
     )
@@ -79,6 +83,10 @@ def enqueue_company_research_refreshes_with_admission(
     limit: int = 50,
 ) -> dict[str, list[dict[str, Any]]]:
     """Enqueue candidates through snapshot admission and atomic DB quotas.
+
+    The per-job estimate should come from estimate_research_cost_ceiling_microusd(...)
+    using the same pricing, token, and attempt limits as the configured provider.
+
 
     The database is authoritative for hourly, per-domain daily and daily cost
     ceilings across concurrent enqueue calls. The local snapshot still provides
