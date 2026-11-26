@@ -3,7 +3,7 @@
 Magyar nyelvű, Streamlit-alapú üzleti asszisztens, jelenleg helyi fejlesztés alatt.
 
 **Központi dokumentáció:** [JARVIS Master Documentation](docs/JARVIS_MASTER_DOCUMENTATION.md)  
-**Aktuális fejlesztési PR:** [#27 – company research phase 1](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27) – nyitott, nem merge-ölt.  
+**Aktuális fejlesztési PR:** [#28 – company research dashboard and worker](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28) – nyitott, nem merge-ölt.  
 **Alap PR:** [#26 – readiness gates és termékvízió](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) – nyitott, nem merge-ölt.
 
 ## Mi a JARVIS?
@@ -53,6 +53,7 @@ python -m pytest -q
 | [Fejlesztési backlog](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) | Technikai hiányok és következő feladatok |
 | [Release gate-ek](docs/REMAINING_WORK_AND_RELEASE_GATES.md) | Production előtti kötelező ellenőrzések |
 | [Production állapot](docs/PRODUCTION_STATE_AND_MIGRATION_PLAN.md) | Időbélyegzett, read-only production megfigyelések |
+| [Főrendszer-készültségi felmérés](docs/JARVIS_MAIN_SYSTEM_READINESS.md) | Core funkciók, készre jelentési kritériumok, hátralévő P0/P1/P2 feladatok |
 | [E-mail idempotencia](docs/EMAIL_PROVIDER_IDEMPOTENCY.md) | E-mail provider és retry-korlátok |
 
 ## Biztonsági és release szabályok
