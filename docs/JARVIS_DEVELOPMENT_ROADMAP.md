@@ -21,14 +21,14 @@ A JARVIS először kutat és elemez, utána javasol. Adatbázis-írás, külső 
 | Task CRUD | Jóváhagyásos | Külön approval szükséges |
 | Task center/follow-up queue | Read-only | Nem küld üzenetet |
 | Cégdosszié és snapshot store | Implementált kódban | Production migráció nem történt |
-| Cégkutatási előzmény UI | PR #28-ban | Authos SELECT RLS-jogosultság még tervezendő; CI folyamatban |
+| Cégkutatási előzmény UI | PR #28-ban | Authos SELECT RLS-jogosultság még tervezendő; aktuális head CI-je nem igazolt |
 | Refresh policy és candidate planner | Implementált tiszta modulok | Nincs DB-integráció és worker |
 | Outbound email | Hard-disabled | Nincs küldési engedély |
 
 ## Phase 1 – cégkutatás és dosszié-előzmények
 Meglévő kódszeletek: grounding-alapú strukturált cégkutatás; forrásdomainhez kötött tényvalidálás; nyilvános szakmai döntéshozói kontextus; snapshot UUID/időbélyeg/schema/hash; append-only store; refresh eligibility policy; read-only stale candidate planner; read-only dashboard előzményoldal a PR #28-ban.
 
-Hátralévő munka: a #28 routing javítás CI-igazolása; Authos felhasználói SELECT RLS-jogosultság külön tervezése és izolált tesztelése; planner bekötése lapozott lead- és snapshot-lekérdezéshez; follow-up számláló megbízható integrációja ténylegesen elküldött eseményekkel; idempotens worker; rate limit, költségkeret, audit és emberi felülvizsgálat.
+Hátralévő munka: a #28 routing javítás és az aktuális funkciócsomag CI-igazolása; Authos felhasználói SELECT RLS-jogosultság külön tervezése és izolált tesztelése; planner bekötése lapozott lead- és snapshot-lekérdezéshez; follow-up számláló megbízható integrációja ténylegesen elküldött eseményekkel; atomikus globális rate/budget reservation, tartós audit, scheduler és emberi felülvizsgálat.
 
 ## Phase 1A – biztonságos háttérmotor (következő fejlesztési fókusz)
 Először DB- és külső API-független job-lifecycle modult kell készíteni. Kötelező állapotok: queued, claimed/running, succeeded, retry_wait és dead_letter. Minden jobhoz stabil operation ID, lease owner/expiry, attempt counter, created/updated timestamp és last error metadata tartozik. A claim legyen atomi a későbbi repository-szerződés szerint; lejárt lease visszavehető; heartbeat csak az aktuális lease tulajdonosának sikerülhet; ugyanaz az operation ID nem hozhat létre duplikált üzleti műveletet. Retry csak konfigurált átmeneti hibákra, véges számú próbálkozással. A dead-letter állapot emberi felülvizsgálatot igényel.
@@ -77,7 +77,7 @@ Elkészült a háttérmotor első, DB-független kódszelete: company_research_j
 
 ### Phase 1B megvalósítási napló
 
-A PR #28 branchben elkészült a `CompanyResearchJobRepository` Protocol és az injektált Supabase adapter (`company_research_job_repository.py`), a planner és repository közötti idempotens enqueue híd (`company_research_refresh_queue.py`), a service-role-only job tábla és tranzakciós RPC-k migrationje, valamint a fake adapter/queue tesztek. Az RPC claim `FOR UPDATE SKIP LOCKED` mintát alkalmaz; heartbeat/complete/fail csak aktív lease tulajdonostól fogad el módosítást. Production DB-re nem csatlakozott, a migration nem futott le. A teljes CI-ellenőrzés a csomag elkészülte után esedékes.
+A PR #28 branchben elkészült a `CompanyResearchJobRepository` Protocol és az injektált Supabase adapter (`company_research_job_repository.py`), a planner és repository közötti idempotens enqueue híd (`company_research_refresh_queue.py`), a service-role-only job tábla és tranzakciós RPC-k migrationje, valamint a fake adapter/queue tesztek. Az RPC claim `FOR UPDATE SKIP LOCKED` mintát alkalmaz; heartbeat/complete/fail csak aktív lease tulajdonostól fogad el módosítást. Production DB-re nem csatlakozott, a migration nem futott le. A csomag elkészülte után lekértük az aktuális head workflow-run és combined-status adatait; mindkettő üres listát adott, így a CI-eredmény nem igazolt.
 
 
 ### Phase 1C – egyszeri worker-orchestration
