@@ -1,6 +1,6 @@
 # JARVIS – elsődleges fejlesztési útiterv
 
-> **Aktuális munkamód – 2026-11-26:** a JARVIS alkalmazás nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt, aktuális headje `2a27a19078e6183c143e775ca9d89ccc776c7bf8`; az ehhez tartozó `test`, `backup-restore-integration`, CodeQL és pip-audit checkek sikeresek. A cégazonosítási `upsert_company_lead` RPC és a két-session concurrency teszt elkészült. A production host felderítése és a production release gate-ek nem blokkolják a helyi funkciófejlesztést. Az aktuális állapot részletei: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
+> **Aktuális munkamód – 2026-11-26:** a JARVIS alkalmazás nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt, a PR mindenkori aktuális headje és checkjei a [GitHub PR-oldalon](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) követhetők; a 2026-11-26-i ellenőrzéskor a teszt, backup/restore, CodeQL és pip-audit checkek sikeresek voltak. A cégazonosítási `upsert_company_lead` RPC és a két-session concurrency teszt elkészült. A production host felderítése és a production release gate-ek nem blokkolják a helyi funkciófejlesztést. Az aktuális állapot részletei: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
 
 
 **Ez a dokumentum a JARVIS fejlesztésének elsődleges iránytűje.** Minden új fejlesztési munkamenet elején ezt kell először elolvasni. A feladatokat az alábbi sorrendben kell végrehajtani; ettől csak a felhasználó kifejezett döntésével térjünk el.
@@ -231,11 +231,11 @@ A `global_lead_research.py` az adatbázis meglévő cégneveit és webdomainjeit
 
 ### Friss munkasorrend
 
-1. Global research dedupe contract és minden lead insert útvonal feltérképezése; név/domain azonosság üzleti szabályainak rögzítése.
-2. Csak ezután DB/RPC-alapú atomikus claim/upsert tervezése és két-session konkurenciatesztje.
-3. Production host azonosítása, migration drift read-only frissítése, teljes migrációs review és engedélyezett Auth/JWT/RLS smoke.
-4. RPC app path deploy és smoke után külön jóváhagyással privilege-lock migráció.
-5. E-mail küldés továbbra is hard-disabled; provider live E2E és explicit jóváhagyás nélkül nem oldható fel.
+1. A helyi dashboard fő funkcióútvonalainak integrációs/hibakezelési ellenőrzése.
+2. A helyi konfiguráció, szerveroldali titkok és későbbi host-konfiguráció határainak tisztázása.
+3. A scheduler/worker folyamatok dashboardtól független futtatási modelljének előkészítése.
+4. A következő felhasználó által priorizált funkció fejlesztése a roadmap öt területe szerint.
+5. E-mail küldés továbbra is hard-disabled; provider live E2E és külön jóváhagyás nélkül nem oldható fel. A production host, migration/Auth/RLS és privilege-lock csak későbbi release gate.
 
 A zöld CI kizárólag a vizsgált branch automatikus tesztjeit igazolja. Production deploy, migration, GRANT/REVOKE, Auth/RBAC aktiválás, secretmódosítás és e-mailküldés nem történt. PR merge külön jóváhagyást igényel.
 
