@@ -35,11 +35,11 @@ SELECT lives_ok(
   'first independent PostgreSQL session connects'
 );
 SELECT lives_ok(
-  $SELECT extensions.dblink_connect('research_worker_b', 'dbname=' || current_database() || ' user=' || current_user)$,
+  $$SELECT extensions.dblink_connect('research_worker_b', 'dbname=' || current_database() || ' user=' || current_user)$$,
   'second independent PostgreSQL session connects'
 );
 SELECT lives_ok(
-  $SELECT extensions.dblink_connect('research_lock_holder', 'dbname=' || current_database() || ' user=' || current_user)$,
+  $$SELECT extensions.dblink_connect('research_lock_holder', 'dbname=' || current_database() || ' user=' || current_user)$$,
   'independent advisory-lock coordinator session connects'
 );
 
@@ -160,7 +160,7 @@ SELECT * FROM extensions.dblink(
 SELECT is(
   extensions.dblink_send_query(
     'research_worker_a',
-    $SELECT count(*)::integer FROM public.company_research_job_claim('race-worker-a', 120, 1)$
+    $$SELECT count(*)::integer FROM public.company_research_job_claim('race-worker-a', 120, 1)$$
   ),
   1,
   'first worker claim starts asynchronously'
@@ -224,11 +224,11 @@ SELECT lives_ok(
   'first independent PostgreSQL session disconnects'
 );
 SELECT lives_ok(
-  $SELECT extensions.dblink_disconnect('research_worker_b')$,
+  $$SELECT extensions.dblink_disconnect('research_worker_b')$$,
   'second independent PostgreSQL session disconnects'
 );
 SELECT lives_ok(
-  $SELECT extensions.dblink_disconnect('research_lock_holder')$,
+  $$SELECT extensions.dblink_disconnect('research_lock_holder')$$,
   'advisory-lock coordinator session disconnects'
 );
 SELECT * FROM finish();
