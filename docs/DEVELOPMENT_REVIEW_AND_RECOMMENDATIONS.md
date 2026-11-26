@@ -146,3 +146,27 @@ A következő státuszok a PR #26 branchére vonatkoznak, nem a productionre és
 7. **Service-role privilege lock – szándékosan blokkolt productionben.** A `20261125170000_enforce_atomic_task_write_privileges.sql` csak az RPC app deploy és sikeres production smoke után alkalmazható.
 
 A `38693f2` kódcommiton a `45689264377` mindkét jobja sikeres; a párhuzamos `45689247826` futás megszakadt. Az aktuális dokumentációs PR-head külön CI-je még nincs zöldként igazolva. A JARVIS host továbbra sem azonosított, a production adatbázis/deploy változatlan.
+
+
+
+## 2026-11-26 – backlog állapotkorrekció a PR #26 ellenőrzése után
+
+A korábbi PR #26 státuszblokkokban szereplő `38693f2`, `7c8e697` és régebbi tesztszámok történeti pillanatképek. A frissebb ellenőrzött head `6ef4020bba3949e02440e97583fc907b6bcb1f00` eredménye: 838 passed, 3 skipped, 0 failed; 91.29% coverage; PostgreSQL 17 backup/restore + migration/pgTAP, CodeQL és pip-audit mind sikeres.
+
+### Elkészült és automatikusan igazolt a PR #26 branchben
+- Task action parser/payload validáció és jóváhagyásos, operation ID-alapú RPC útvonal regressziós és PostgreSQL tesztekkel.
+- Audit fail-closed, approval replay/revoke és párhuzamos műveleti tesztek.
+- Email provider/SMTP hibakimenetelek konzervatív kezelése; kimenő küldés hard-disabled.
+- CSV import LIKE escape és normalizált email egyediség migráció izolált CI teszttel.
+- Global research piac-validáció, grounding ellenőrzés és teljes meglévő leadlista lapozott beolvasása.
+- Kiegészítő fake DB regressziós tesztjavítások; 838 teszt sikeres.
+
+### Nyitott technikai kockázat – global research race
+
+A global research cégnév/domain dedupe csak alkalmazásszintű előszűrés. A lapozott beolvasás nem egy közös tranzakció a beszúrással; párhuzamos worker-ek ugyanazt a még nem létező céget egyszerre menthetik. Offset pagination concurrent változás mellett snapshot-konzisztenciát sem garantál. A company name/domain unique index jelenleg nem biztonságos megoldás a legitim névütközések és közös domainek miatt.
+
+Következő fejlesztési feladat: teljes lead insert útvonal-leltár és normalizációs üzleti szabály; utána DB/RPC-alapú tranzakciós claim/upsert, amelyet minden releváns writer használ; két külön PostgreSQL session race teszt; független SQL review. Addig ne állítsuk, hogy a kutatási duplikáció párhuzamos futás ellen védett.
+
+### Státusz-szétválasztás
+
+A fenti CI eredmények a PR branch izolált tesztjeit bizonyítják, nem production telepítést. A production host, friss schema/ledger snapshot, Auth/JWT/RLS smoke, RPC app rollout, privilege-lock és e-mail provider live E2E nyitott. Production változtatás nem történt; PR merge külön jóváhagyás nélkül tilos.
