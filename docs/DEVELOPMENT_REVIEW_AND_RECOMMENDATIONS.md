@@ -175,3 +175,32 @@ A korábban alkalmazásszintű cégnév/domain deduplikáció helyett a PR #26 k
 ### Státusz-szétválasztás
 
 A fenti CI eredmények a PR branch izolált tesztjeit bizonyítják, nem production telepítést. A production host, friss schema/ledger snapshot, Auth/JWT/RLS smoke, RPC app rollout, privilege-lock és e-mail provider live E2E nyitott. Production változtatás nem történt; PR merge külön jóváhagyás nélkül tilos.
+
+
+---
+
+## 2026-11-26 – funkcióleltár frissítése
+
+A korábbi backlog tételek egy része a PR #26-ban már implementálásra került. Az alábbi állapotfelülírás a jelenlegi fejlesztési ág tényleges kódját veszi alapul; a régi bekezdések történeti állapotok.
+
+### Elkészült funkciószeletek a PR #26 branchben
+- [x] Forrásolt globális leadkutatás és kutatási eredmény validálása.
+- [x] Közös tranzakciós cégazonosító RPC; CSV és global research közös íróút; cégnév/domain alias deduplikáció és concurrency védelem.
+- [x] Lead scoring és read-only belső workflow task ajánlás.
+- [x] Leadhez kapcsolt task előkészítése explicit UUID paranccsal és DB approval flow-val.
+- [x] Task create/update/close approval, operation ID idempotencia, audit fail-closed teszt és leadenkénti nyitott task race védelem.
+- [x] Dashboard Feladatközpont: read-only task lista, szűrők, rendezés, mutatók.
+- [x] Consent-aware read-only follow-up queue, opt-out/reply/count/date fail-closed szűrés.
+- [x] Outcome-driven következő belső task ajánlás explicit pozitív/negatív/nincs válasz besorolással; ismeretlen eredménynél kézi besorolás.
+- [x] Explicit hosszú távú memória save/list/forget kategóriákkal és érzékeny adat szűréssel.
+- [x] Napi briefing, analitika, audit és hibakezelési komponensek.
+
+### Továbbra is nyitott fejlesztési munka
+- [ ] A teljes lead → task → follow-up → outcome folyamat E2E állapotmodellje és tesztje.
+- [ ] Általános célú idempotens worker/scheduler és DB claim/lease protokoll.
+- [ ] Forrásolt, jogosultságkezelt, összekapcsolt üzleti tudásréteg és memória lifecycle.
+- [ ] A dashboard minden navigációs oldalának funkcionális teljessége; a dekoratív/placeholder menüpontokat ne dokumentáljuk működőként.
+- [ ] Production migration drift, Auth/JWT/RLS smoke, app host, deploy és rollback – külön release fázis, nem helyi funkciófejlesztési blokkoló.
+
+### Korlátozások
+A follow-up queue és az outcome recommendation read-only javaslat. A leadkutatás külön approvalt kér. A task műveletek külön approvalt kérnek. A kimenő e-mail hard-disabled. Production DB/infra/Auth/secret/deploy módosítás nem történt.
