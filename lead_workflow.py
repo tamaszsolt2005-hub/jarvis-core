@@ -11,6 +11,9 @@ from typing import Any
 from intelligent_lead_scoring import score_researched_lead
 
 
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
+_RECOMMENDED_TASK_PREFIXES = ("hozz létre javasolt feladat:", "hozz letre javasolt feladat:")
+
 _INDUSTRY = re.compile(r"tényleges ország:\s*(.*?);\s*iparág:\s*(.*?)\.\s", re.I)
 _NEED = re.compile(r"megfigyelhető üzleti igény:\s*(.*?);\s*alátámasztó jelek:", re.I)
 
@@ -103,3 +106,54 @@ def build_lead_workflow_recommendations(
         reverse=True,
     )
     return recommendations[:max(0, min(int(limit), 20))]
+
+
+def parse_recommended_task_command(message: str) -> dict[str, str] | None:
+    """Parse an explicit request to prepare a researched lead's suggested task."""
+    text = _clean(message, 240).strip()
+    if not text.casefold().startswith(_RECOMMENDED_TASK_PREFIXES):
+        return None
+    if ":" not in text:
+        return {"error": "A leadazonosítót a kettőspont után add meg."}
+    lead_id = text.split(":", 1)[1].strip()
+    if not _UUID.fullmatch(lead_id):
+        return {"error": "Érvényes lead UUID szükséges a javasolt feladat előkészítéséhez."}
+    return {"lead_id": lead_id.lower()}
+
+
+def build_recommended_task_action(
+    lead: dict[str, Any],
+    linked_tasks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Convert one current research recommendation into an approval-ready task payload.
+
+    This is still only preparation: the caller must stage the action through the
+    existing one-use approval flow before the database RPC can create anything.
+    """
+    lead_id = _clean(lead.get("id"), 64).lower()
+    source = _clean(lead.get("source"), 180)
+    research = _clean(lead.get("notes"), 3500)
+    if not _UUID.fullmatch(lead_id) or not source.startswith("gemini_google_search_grounding:"):
+        return None
+
+    recommendations = build_lead_workflow_recommendations(
+        [{
+            "id": lead_id,
+            "company_name": lead.get("company_name"),
+            "research_intelligence": research,
+        }],
+        linked_tasks,
+        limit=1,
+    )
+    if not recommendations:
+        return None
+
+    item = recommendations[0]
+    return {
+        "type": "create",
+        "title": item["task_title"],
+        "priority": item["task_priority"],
+        "due_at": None,
+        "notes": item["notes"],
+        "lead_id": lead_id,
+    }
