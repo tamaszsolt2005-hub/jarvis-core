@@ -1,5 +1,7 @@
 # JARVIS – production és release gate-ek
 
+> **Aktuális fejlesztési ág:** PR #27 (`feature/company-research-phase-1`), a PR #26-ra épül. A teljes állapotot a [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md) és az [aktuális állapot](CURRENT_STATE_AND_NEXT_STEPS.md) tartalmazza. A dátumozott PR #26 release pillanatképek történetiek; ne használd őket aktuális CI-igazolásként.
+
  > **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A PR #26 aktuális CI-státuszát a PR Checks oldalon, az aktuális head SHA alapján kell ellenőrizni; a korábbi sikeres futás nem igazolja az újabb dokumentációs commitot.
 
 
@@ -7,7 +9,7 @@ Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás va
 
 ## Jelenlegi döntési állapot
 
-**Aktualizálási szabály:** az alábbi dátumozott main/PR #21/23/25 pillanatképek történeti bejegyzések. A jelenlegi fejlesztési ág a PR #26; aktuális merge/deploy/CI státusz kizárólag a PR aktuális headjéből olvasható ki. A JARVIS alkalmazás nincs production hostra telepítve.
+**Aktualizálási szabály:** az alábbi dátumozott main/PR #21/23/25 pillanatképek történeti bejegyzések. A jelenlegi fejlesztési ág a PR #27, amely a PR #26-ra épül; aktuális merge/deploy/CI státusz kizárólag a PR aktuális headjéből olvasható ki. A JARVIS alkalmazás nincs production hostra telepítve.
 
 **Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
