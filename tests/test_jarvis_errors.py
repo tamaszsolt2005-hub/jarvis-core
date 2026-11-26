@@ -216,3 +216,12 @@ def test_user_facing_error_never_exposes_provider_secret():
     message = user_facing_error(error)
     assert "super-secret" not in message
     assert "Váratlan hiba" in message
+
+
+
+def test_classify_audit_log_write_failure_as_fail_closed():
+    error = RuntimeError("Az e-mailt nem küldtem el: az auditnapló nem írható.")
+    result = classify_error(error)
+    assert result["category"] == "audit_unavailable"
+    assert result["retryable"] is False
+    assert "auditnapló nem írható" in user_facing_error(error)

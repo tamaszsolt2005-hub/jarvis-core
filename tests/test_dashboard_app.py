@@ -330,7 +330,8 @@ def test_streamlit_chat_email_smtp_failure_is_audited_and_reported(monkeypatch):
 
     assert audit_statuses == ["pending", "unknown"]
     assert any("JARVIS művelet" in item.value for item in app.error)
-    assert any("OSError" in item.value for item in app.warning)
+    assert any("hálózati kapcsolat" in item.value for item in app.warning)
+    assert not any("mock SMTP failure" in item.value for item in app.warning)
 
 
 def test_streamlit_chat_email_final_audit_failure_warns_against_duplicate_send(monkeypatch):
@@ -803,6 +804,8 @@ def test_streamlit_settings_navigation_renders_safe_runtime_configuration(monkey
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     # Settings must display the production hard lock, not the mocked send-enabled test state.
     monkeypatch.setattr(dashboard, "EMAIL_DELIVERY_ENABLED", False)
+    # AppTest executes dashboard.py as a fresh script; patch the source module too.
+    monkeypatch.setattr(email_utils, "EMAIL_DELIVERY_ENABLED", False)
     app.run()
     app.text_input[0].set_value("app-test-password")
     app.button[0].click().run()

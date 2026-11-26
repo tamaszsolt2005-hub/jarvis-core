@@ -150,6 +150,7 @@ _ERROR_HINTS = {
     "timeout": "A szolgáltatás nem válaszolt időben. Próbáld újra később; az ismétlés előtt ellenőrizd, hogy a művelet nem hajtódott-e már végre.",
     "service_unavailable": "A külső szolgáltatás átmenetileg nem elérhető. A JARVIS korlátozottan újrapróbálkozik; később próbáld újra.",
     "invalid_request": "A szolgáltatás elutasította a kérést. Ellenőrizd a bemeneti adatokat és a modell vagy API beállításait.",
+    "audit_unavailable": "Az auditnapló nem írható, ezért a kimenő e-mail-küldést blokkoltam. Ellenőrizd az audit adatbázis-kapcsolatát; a biztonsági ellenőrzést ne kerüld meg.",
     "unknown": "Váratlan hiba történt. A JARVIS biztonságos hibajelzést naplózott; próbáld újra később, vagy add át a hibakódot az adminisztrátornak.",
 }
 
@@ -164,7 +165,9 @@ def classify_error(error: BaseException) -> dict[str, Any]:
     category = "unknown"
     retryable = False
 
-    if isinstance(error, PermissionError) or code in (403,) or any(
+    if "auditnapló nem írható" in text or "audit log is not writable" in text:
+        category = "audit_unavailable"
+    elif isinstance(error, PermissionError) or code in (403,) or any(
         marker in text for marker in ("permission denied", "forbidden", "insufficient permission", "rls")
     ):
         category = "permission_denied"
