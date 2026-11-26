@@ -294,7 +294,7 @@ PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (sta
 
 ### 7.8 Worker SQL-életciklus szélső esetei – 2026-11-26
 
-A korábbi 15 lifecycle/kvóta és 14 konkurencia assertion mellé új, 19 assertionös izolált PostgreSQL pgTAP csomag készült: `supabase/tests/company_research_jobs_lifecycle_edges.test.sql`. Lefedi az expired lease reclaimet és tulajdonosváltást, a régi worker heartbeat/complete tiltását, retry_wait átmenetet, max-attempt dead-lettert, végső próbálkozás utáni lease-expiry dead-lettert, valamint az UTC napi budget rollover viselkedését. A teszt bekerült a PostgreSQL 17 CI jobba és a migration-contract teszt is ellenőrzi a CI bekötést. A commit elkészült; a tényleges pgTAP futási eredmény az új head CI-jéhez kötött, addig nem tekintjük igazoltnak.
+A korábbi 15 lifecycle/kvóta és 14 konkurencia assertion mellé új, 20 assertionös izolált PostgreSQL pgTAP csomag készült: `supabase/tests/company_research_jobs_lifecycle_edges.test.sql`. Lefedi az expired lease reclaimet és tulajdonosváltást, a régi worker heartbeat/complete tiltását, retry_wait átmenetet, max-attempt dead-lettert, végső próbálkozás utáni lease-expiry dead-lettert, valamint az UTC napi budget rollover viselkedését. A teszt bekerült a PostgreSQL 17 CI jobba és a migration-contract teszt is ellenőrzi a CI bekötést. A commit elkészült; a tényleges pgTAP futási eredmény az új head CI-jéhez kötött, addig nem tekintjük igazoltnak.
 
 
 ### 7.9 Worker RPC / RLS jogosultsági tesztek – 2026-11-26
