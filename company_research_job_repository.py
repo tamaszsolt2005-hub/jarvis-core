@@ -24,7 +24,7 @@ class CompanyResearchJobRepositoryError(RuntimeError):
 
 @runtime_checkable
 class CompanyResearchJobRepository(Protocol):
-    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None) -> dict[str, Any]: ...
     def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None: ...
     def heartbeat(self, *, operation_id: str, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
     def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None) -> dict[str, Any] | None: ...
@@ -77,14 +77,26 @@ class SupabaseCompanyResearchJobRepository:
             raise CompanyResearchJobRepositoryError(f"{name} RPC failed.") from exc
         return _one_row(response, operation=name, allow_none=allow_none)
 
-    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def create(self, *, operation_id: str, lead_id: str, payload: dict[str, Any], estimated_cost_microusd: int = 0, daily_budget_microusd: int | None = None) -> dict[str, Any]:
         # Reuse the canonical validation and serialization rules.
         job = create_research_job(operation_id=operation_id, lead_id=lead_id, payload=payload)
         try:
             job["lead_id"] = str(UUID(job["lead_id"]))
         except (TypeError, ValueError, AttributeError) as exc:
             raise ValueError("lead_id must be a UUID for durable storage") from exc
-        row = self._rpc(RPC_CREATE, {"p_job": job})
+        if isinstance(estimated_cost_microusd, bool) or not isinstance(estimated_cost_microusd, int) or estimated_cost_microusd < 0:
+            raise ValueError("estimated_cost_microusd must be a non-negative integer")
+        if daily_budget_microusd is not None and (
+            isinstance(daily_budget_microusd, bool)
+            or not isinstance(daily_budget_microusd, int)
+            or daily_budget_microusd < 1
+        ):
+            raise ValueError("daily_budget_microusd must be a positive integer or None")
+        row = self._rpc(RPC_CREATE, {
+            "p_job": job,
+            "p_estimated_cost_microusd": estimated_cost_microusd,
+            "p_daily_budget_microusd": daily_budget_microusd,
+        })
         if row.get("operation_id") != job["operation_id"]:
             raise CompanyResearchJobRepositoryError("Create RPC returned a different operation_id.")
         # ON CONFLICT(operation_id) returns the existing row. An idempotency
