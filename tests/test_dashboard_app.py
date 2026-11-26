@@ -968,3 +968,10 @@ def test_streamlit_company_research_fails_closed_in_individual_auth_mode(monkeyp
     assert not app.exception
     assert app.session_state["jarvis_page"] == "research"
     assert any("olvasási jogosultsága még nincs kivezetve" in item.value for item in app.info)
+
+    app.button(key="jarvis_nav_settings").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "settings"
+    assert any("beállítások megtekintéséhez nincs megfelelő jogosultság" in item.value for item in app.error)
+    assert len(app.button(key="jarvis_settings_run_diagnostics")) == 0
