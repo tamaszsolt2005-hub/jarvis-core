@@ -60,7 +60,7 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-26
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án ellenőrzött head `6ef4020bba3949e02440e97583fc907b6bcb1f00`.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án ellenőrzött head `79dfb5b85afaa3ae21405b295bb23880019ec54d`. Ezen a commiton a CI 838 tesztet sikeresen futtatott (3 kihagyott), 91,29%-os lefedettséggel; a PostgreSQL 17 backup–restore integráció, CodeQL és dependency audit is sikeres.
 
 - JARVIS CI: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
 - PostgreSQL 17 izolált migrációs/pgTAP és backup/restore integráció: sikeres.
