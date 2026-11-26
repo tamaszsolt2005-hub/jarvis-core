@@ -36,13 +36,13 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 | Leadkutatás és cégazonosítás | Forrásolt kutatás és közös deduplikációs út implementált a fejlesztési ágakban | Aktuális CI, izolált DB concurrency teszt, valós provider smoke külön tesztkörnyezetben |
 | Lead scoring és workflow ajánlás | Implementált | Valós lead mintákon eredmény- és magyarázhatósági ellenőrzés |
 | Task-kezelés | Jóváhagyásos create/update/close út és atomikus SQL szerződés implementált | Teljes chat → approval → DB → audit E2E; jogosultsági és visszajátszási teszt |
-| Task center | Read-only dashboard oldal | Szűrés/rendezés/határidő és üres/hibaállapot kézi smoke |
-| Kutatási dosszié és előzmény | Dosszié, snapshot store és read-only előzmény UI implementált | A store és worker közti tartós mentési adatút igazolása; UI jogosultság/hiba smoke |
+| Task center | Read-only oldal; üres tasklista mellett is megjelenik az utánkövetési sor | Szűrés/rendezés/határidő, üres/hibaállapot és jogosultsági kézi smoke |
+| Kutatási dosszié és előzmény | Dosszié, snapshot store és read-only előzmény UI implementált; legacy dashboard módban elérhető | A store és worker közti tartós mentési adatút igazolása; Auth/RLS olvasási jogosultság és UI smoke |
 | Kutatási job/worker | Job lifecycle, RPC repository, queue, worker, Gemini adapter és one-shot runtime kódban | Izolált PostgreSQL konkurenciateszt, end-to-end job → provider → snapshot, lease/retry/költség tesztek |
 | Memória | Explicit mentési/listázási/inaktiválási funkció | Kategória-, jogosultság-, adatmegőrzési és valós DB smoke |
 | Napi briefing és analitika | Implementált komponensek | Helyi, adatbázissal végzett smoke és helyességellenőrzés |
-| Audit | Admin megjelenítés/export és SQL hash-chain alapok | Audit fail-closed E2E, jogosultság, láncintegritás és export smoke |
-| Beállítások és konfiguráció | A teljes Settings oldal és operációs konfiguráció nem igazolt késznek | Funkcionális leltár; minden látható menüpont működjön vagy legyen eltávolítva/egyértelműen jelölve |
+| Audit | Külön Supabase Auth-admin belépéssel védett megjelenítés/export és SQL hash-chain alapok | Valós admin belépés, szerepkör, láncintegritás és export smoke; a közös dashboard-jelszó nem elegendő |
+| Beállítások és konfiguráció | Működő, read-only Settings oldal: konfiguráció jelenlétét jelzi titokérték nélkül; kézi diagnosztika külön indítható | Tartós felhasználói preferenciák és biztonságos, mentett beállításkezelés még nincs; titkok/Auth/RLS/e-mail-zár nem szerkeszthető a UI-ból |
 | E-mail | Outbound hard-disabled | Ez szándékos biztonsági korlát; küldés nem része a főrendszer készre jelentésének |
 
 ## 4. Mi hiányzik a főrendszer készre jelentéséhez?
@@ -52,7 +52,7 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 1. **Aktuális CI zöldre futtatása.** A Python/unit/AppTest/browser tesztek, PostgreSQL 17 migration/pgTAP és concurrency tesztek, backup–restore, CodeQL és dependency audit eredményét az aktuális PR headhez kell kötni. Sikertelen jobokat javítani, majd teljes releváns futást ismételni.
 2. **Teljes helyi smoke teszt.** Friss, dokumentált fejlesztői környezetben telepítés, konfigurációellenőrzés, Streamlit indulás, chat, leadkutatás, lead lista, task approval, task center, memória, briefing, analitika, audit és kutatási előzmény végigpróbálása.
 3. **Végponttól végpontig tartó core workflow teszt.** Lead létrehozás/azonosítás → scoring → task javaslat → approval → atomikus DB művelet → audit → outcome feldolgozás. Ellenőrizni kell a duplikált kérés, timeout, visszajátszás, párhuzamos kérés és audit-hiba viselkedését.
-4. **Dashboard teljességi leltár.** Minden látható navigációs elemnek legyen működő funkciója; a placeholder/dekoratív Settings vagy más menüpont ne tűnjön kész funkciónak.
+4. **Dashboard navigációs leltár – részben lezárva.** A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások mind valódi Streamlit navigációs gomb és dedikált útvonal. A Beállítások read-only konfigurációs áttekintést és kézi diagnosztikát ad. A cégkutatási előzmény Auth/RLS módban szándékosan fail-closed, az Audit külön admin Auth-belépést kér. A valós Auth/RLS és manuális smoke továbbra is szükséges.
 5. **Konfigurációs és hibaállapotok.** Hiányzó/hibás Gemini vagy Supabase konfiguráció, hálózati hiba, rate limit, jogosultsághiány és üres adatbázis esetén érthető, biztonságos hibaüzenet kell; titok nem kerülhet logba vagy UI-ra.
 
 ### P1 – megbízható belső használat és későbbi release előfeltétele
@@ -82,12 +82,14 @@ Production Supabase módosítás, migration futtatás, GRANT/REVOKE, Auth/RBAC, 
 
 1. Fejezzük be és javítsuk zöldre a PR #28 aktuális CI-jét.
 2. Készítsünk core E2E tesztet a lead → approval/task → audit folyamatra.
-3. Zárjuk le a dashboard menüpont- és konfigurációs leltárt.
+3. A dashboard navigációs leltár elkészült; a Settings read-only felület és az AppTest lefedés bekerült. A valós Auth/RLS hozzáférés és manuális smoke még külön kapu.
 4. Zárjuk le a worker SQL konkurencia- és kutatási snapshot E2E tesztjeit.
 5. Végezzen a fejlesztői környezetben egy dokumentált teljes manuális smoke tesztet.
 6. Ezek után adjunk külön minősítést: „helyi főrendszer kész”, „belső használatra kész”, illetve „production release-re kész”.
 
-**Jelenlegi minősítés:** a JARVIS főrendszerének több alapfunkciója implementált, de a teljes core E2E és aktuális CI bizonyíték hiányában még nem tekinthető késznek. A teljes autonóm SaaS-ügynök ettől függetlenül további, nagyobb fejlesztési fázisokat igényel.
+**Dashboard-audit megállapítás (2026-11-26):** a korábban dekoratív, nem kattintható Beállítások menüpont valódi oldalt kapott. A Settings csak konfigurációs jelenlétet mutat, titokértéket nem; a Gemini diagnosztikai próbakérés kizárólag kézi gombnyomásra fut. A Feladatközpont korábban korai `return` miatt üres tasklista esetén elrejtette a jogosultsági feltételeknek megfelelő utánkövetési sort; ezt javítottuk és regressziós AppTestet adtunk hozzá. A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”.
+
+**Jelenlegi minősítés:** a JARVIS főrendszerének több alapfunkciója implementált, de a valós Auth/RLS hozzáférés, manuális teljes smoke és az aktuális commit teljes CI bizonyítéka továbbra is szükséges. A teljes autonóm SaaS-ügynök ettől függetlenül további, nagyobb fejlesztési fázisokat igényel.
 
 ## 7. Kapcsolódó dokumentumok
 
