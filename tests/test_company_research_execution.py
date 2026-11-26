@@ -169,7 +169,8 @@ def test_gemini_adapter_uses_google_search_grounding_and_returns_usage():
     response = SimpleNamespace(
         text=research_json,
         candidates=[SimpleNamespace(grounding_metadata=SimpleNamespace(
-            grounding_chunks=[SimpleNamespace(web=SimpleNamespace(uri="https://example.com/about"))]
+            grounding_chunks=[SimpleNamespace(web=SimpleNamespace(uri="https://example.com/about"))],
+            web_search_queries=["query one", "query two"],
         ))],
         usage_metadata=SimpleNamespace(
             prompt_token_count=100, candidates_token_count=50, total_token_count=150
@@ -193,6 +194,7 @@ def test_gemini_adapter_uses_google_search_grounding_and_returns_usage():
     assert result["grounded_sources"] == ["https://example.com/about"]
     assert result["provider_usage"] == {
         "prompt_tokens": 100, "output_tokens": 50, "total_tokens": 150,
+        "search_queries": 2,
     }
     assert models.calls[0]["model"] == "gemini-test"
     assert models.calls[0]["config"].tools[0].google_search is not None
@@ -461,3 +463,14 @@ def test_gemini_adapter_defaults_to_one_billable_attempt():
     with pytest.raises(TransientError):
         provider.research_company(prompt="research", heartbeat=None)
     assert models.calls == 1
+
+
+def test_gemini_cost_extractor_includes_search_grounding_fee():
+    extractor = make_gemini_actual_cost_extractor(
+        input_price_microusd_per_million_tokens=2_000_000,
+        output_price_microusd_per_million_tokens=4_000_000,
+        search_price_microusd_per_thousand_queries=1500,
+    )
+    usage = {"prompt_tokens": 10, "output_tokens": 5, "search_queries": 2}
+    assert extractor({"provider_usage": usage}) == 43
+    assert extractor({"provider_usage": {"prompt_tokens": 10, "output_tokens": 5}}) is None
