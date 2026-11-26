@@ -164,3 +164,62 @@ def test_worker_heartbeat_callback_reports_lost_lease():
     result = run_one_company_research_job(repository, worker_id="worker-a", handler=handler)
     assert seen == [False]
     assert result["status"] == "lease_lost"
+
+
+
+def test_worker_rejects_non_json_result_without_completing():
+    repository = FakeRepository(sample_job())
+    result = run_one_company_research_job(
+        repository, worker_id="worker-a",
+        handler=lambda _payload: {"not_json": object()},
+    )
+    assert result["status"] == "dead_letter"
+    assert not any(call[0] == "complete" for call in repository.calls)
+
+
+def test_worker_rejects_result_larger_than_configured_limit():
+    repository = FakeRepository(sample_job())
+    result = run_one_company_research_job(
+        repository, worker_id="worker-a",
+        handler=lambda _payload: {"data": "x" * 100},
+        max_result_bytes=20,
+    )
+    assert result["status"] == "dead_letter"
+
+
+def test_worker_passes_a_copy_of_job_payload_to_handler():
+    original = {"nested": {"value": "original"}}
+    repository = FakeRepository(sample_job(original))
+
+    def handler(payload):
+        payload["nested"]["value"] = "mutated"
+        return {"ok": True}
+
+    run_one_company_research_job(repository, worker_id="worker-a", handler=handler)
+    assert repository.job is None
+    assert original["nested"]["value"] == "original"
+
+
+def test_worker_sanitizes_custom_exception_code():
+    repository = FakeRepository(sample_job(), fail_result={
+        "status": "retry_wait", "operation_id": "research:lead:123456",
+    })
+
+    class ProviderError(Exception):
+        code = "token=secret;provider response"
+
+    result = run_one_company_research_job(
+        repository, worker_id="worker-a",
+        handler=lambda _payload: (_ for _ in ()).throw(ProviderError("secret")),
+    )
+    assert result["error_code"] == "providererror"
+    assert "secret" not in result["error_code"]
+
+
+def test_worker_handles_malformed_claim_response():
+    repository = FakeRepository()
+    repository.job = ["not", "an", "object"]
+    result = run_one_company_research_job(
+        repository, worker_id="worker-a", handler=lambda _payload: {"ok": True},
+    )
+    assert result == {"status": "invalid_job", "error_code": "invalid_claim_response"}
