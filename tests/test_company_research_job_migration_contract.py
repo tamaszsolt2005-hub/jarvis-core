@@ -117,3 +117,20 @@ def test_postgres_worker_lifecycle_edge_suite_is_wired_into_ci():
         assert expected in lifecycle_edges
     assert "company_research_jobs_lifecycle_edges.test.sql" in workflow
     assert "grep -q '1..19' <<< \"$lifecycle_edges_output\"" in workflow
+
+
+
+def test_worker_security_pg_tap_suite_is_wired_into_ci():
+    root = MIGRATION.parents[2]
+    security = (
+        root / "supabase" / "tests" / "company_research_jobs_security.test.sql"
+    ).read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "SELECT plan(10)" in security
+    assert "has_table_privilege('anon'" in security
+    assert "has_table_privilege('authenticated'" in security
+    assert "has_function_privilege('service_role'" in security
+    assert "NOT has_table_privilege('service_role', 'public.company_research_job_audit', 'UPDATE')" in security
+    assert "company_research_jobs_security.test.sql" in workflow
+    assert "grep -q '1..10' <<< \"$security_output\"" in workflow
