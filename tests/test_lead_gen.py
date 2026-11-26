@@ -73,44 +73,27 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
         writer.writeheader()
         writer.writerows(rows)
 
-    class Result:
-        def __init__(self, data=None):
-            self.data = data or []
-
-    class Query:
-        def __init__(self, db):
-            self.db = db
-            self.email = None
-            self.payload = None
-
-        def select(self, _columns):
-            return self
-
-        def ilike(self, _column, email):
-            self.email = email
-            return self
-
-        def limit(self, _limit):
-            return self
-
-        def insert(self, payload):
-            self.payload = payload
-            return self
-
-        def execute(self):
-            if self.payload is not None:
-                self.db.inserted.append(self.payload)
-                return Result([{"id": "new-id"}])
-            return Result([{"id": "existing-id"}] if self.email == "existing@example.com" else [])
-
     class DB:
         def __init__(self):
             self.inserted = []
 
-        def table(self, _name):
-            return Query(self)
-
     db = DB()
+
+    def fake_upsert(_db, **kwargs):
+        if kwargs["email"] == "existing@example.com":
+            return {
+                "lead_id": "existing-id",
+                "outcome": "existing",
+                "selected_email": kwargs["email"],
+            }
+        db.inserted.append(kwargs)
+        return {
+            "lead_id": "new-id",
+            "outcome": "created",
+            "selected_email": kwargs["email"],
+        }
+
+    monkeypatch.setattr(lead_gen, "upsert_company_lead", fake_upsert)
     events, audits = [], []
     monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: db)
     monkeypatch.setattr(
@@ -123,16 +106,16 @@ def test_csv_run_imports_only_valid_non_duplicate_rows(tmp_path, monkeypatch, ca
 
     assert len(db.inserted) == 1
     assert db.inserted[0]["email"] == "new@example.com"
-    assert db.inserted[0]["status"] == "new"
-    assert events and "1 új lead, 2 kihagyva" in events[0][2]
+    assert db.inserted[0]["approved_to_contact"] is True
+    assert events and "2 kapcsolattartói rekord feldolgozva, 1 kihagyva" in events[0][2]
     assert [item["action"] for item in audits] == [
         "import_reviewed_csv", "create_reviewed_lead",
         "create_reviewed_lead", "import_reviewed_csv",
     ]
-    assert [item["status"] for item in audits] == ["pending", "pending", "success", "success"]
+    assert [item["status"] for item in audits] == ["pending", "pending", "success", "pending", "success", "success"]
     assert audits[1]["operation_id"] == audits[2]["operation_id"]
-    assert audits[0]["operation_id"] == audits[3]["operation_id"]
-    assert "Import kész: 1 új, 2 kihagyott rekord." in capsys.readouterr().out
+    assert audits[0]["operation_id"] == audits[-1]["operation_id"]
+    assert "Import kész: 2 kapcsolattartói rekord feldolgozva, 1 kihagyva." in capsys.readouterr().out
 
 
 def test_csv_run_reports_and_reraises_insert_failure(tmp_path, monkeypatch):
@@ -149,33 +132,14 @@ def test_csv_run_reports_and_reraises_insert_failure(tmp_path, monkeypatch):
     database_error = RuntimeError("mock insert failure")
     reports = []
 
-    class Result:
-        data = []
-
-    class Query:
-        def select(self, _columns):
-            return self
-
-        def ilike(self, *_args):
-            return self
-
-        def limit(self, _limit):
-            return self
-
-        def execute(self):
-            return Result()
-
-        def insert(self, _payload):
-            return self
-
     class DB:
-        def table(self, _name):
-            class InsertQuery(Query):
-                def execute(self):
-                    raise database_error
-            return InsertQuery()
+        pass
 
     monkeypatch.setattr(lead_gen, "get_service_supabase", lambda: DB())
+    monkeypatch.setattr(
+        lead_gen, "upsert_company_lead",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(database_error),
+    )
     monkeypatch.setattr(lead_gen, "audit_event", lambda *args, **kwargs: True)
     monkeypatch.setattr(
         lead_gen, "report_error",
