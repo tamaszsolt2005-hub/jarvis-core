@@ -87,3 +87,32 @@ def evaluate_research_admission(
         "domain": domain_key,
         "estimated_cost_microusd": estimated_cost,
     }
+
+
+
+def estimate_research_cost_microusd(
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    input_price_microusd_per_million_tokens: int,
+    output_price_microusd_per_million_tokens: int,
+) -> int:
+    """Estimate provider cost in micro-USD using integer-only ceiling math.
+
+    Prices are supplied by the caller from its explicitly configured provider
+    pricing schedule; this function embeds no vendor/model pricing assumptions.
+    """
+    input_tokens = _integer(input_tokens, "input_tokens")
+    output_tokens = _integer(output_tokens, "output_tokens")
+    input_price = _integer(
+        input_price_microusd_per_million_tokens,
+        "input_price_microusd_per_million_tokens",
+        minimum=1,
+    )
+    output_price = _integer(
+        output_price_microusd_per_million_tokens,
+        "output_price_microusd_per_million_tokens",
+        minimum=1,
+    )
+    numerator = input_tokens * input_price + output_tokens * output_price
+    return (numerator + 999_999) // 1_000_000
