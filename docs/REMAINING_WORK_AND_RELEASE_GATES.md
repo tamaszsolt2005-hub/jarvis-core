@@ -273,3 +273,12 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 - [ ] E-mail provider live E2E; addig hard-disable marad.
 
 **Biztonsági határ:** a jelenlegi munkában nem történt production DB-írás/migráció, GRANT/REVOKE, Auth/RBAC módosítás, deploy, secret-változtatás vagy e-mailküldés. A PR merge külön, konkrét jóváhagyást igényel.
+
+## 2026-11-26 – aktuális PR-head ellenőrzés
+
+- A PR #26 aktuális, dokumentációs frissítések előtti headje: `79dfb5b85afaa3ae21405b295bb23880019ec54d`.
+- Ehhez a commit SHA-hoz tartozó JARVIS CI sikeres: **838 passed, 3 skipped**, 91,29% coverage; a `backup-restore-integration` job is sikeres.
+- Ugyanezen a headen a CodeQL és a dependency vulnerability audit sikeres.
+- A global lead research név/domain deduplikációja továbbra is alkalmazásszintű. A teljes íróútvonal-felmérés két közvetlen lead insert útvonalat talált: `global_lead_research.py` és `lead_gen.py`. A közös, tranzakciós claim megoldás előtt tisztázni kell, hogy egy vállalat több különböző emailes kapcsolattartóval külön leadként kezelhető-e; enélkül a név/domain alapú kizárás legitim CSV rekordokat is elutasíthat.
+- A production adatbázisról és app hostról ebben az ellenőrzési körben nem történt új live lekérdezés. A 2026-11-25-i snapshot történeti bizonyíték; a tényleges JARVIS host/URL továbbra sincs igazolva.
+- A PR nyitva marad. Production DDL/DML, ledger repair, grants/RLS/Auth változtatás, deploy és merge nem történt.
