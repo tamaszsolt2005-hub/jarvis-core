@@ -1,8 +1,10 @@
 # JARVIS – elsődleges fejlesztési útiterv
 
-**Aktuális ág:** `feature/company-research-dashboard-readonly`  
-**Aktuális PR:** [#28 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28)  
-**Stacked alap PR-ek:** [#27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [#26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) – mindkettő nyitott, nem merge-ölt.  
+**Aktuális ág:** `main`  
+**PR állapot:** #26, #27 és #28 merge-ölve.  
+**Legutóbbi main commit:** `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`  
+**CI #3187:** mindhárom job sikeres.
+
 **Központi dokumentáció:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md)  
 **Aktuális állapot:** [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md)
 
@@ -66,7 +68,11 @@ Az ajánlások, elutasítások, ügyfélhasználat, fejlesztési költség és e
 A roadmap nem jogosít production DB-módosításra, migrációfuttatásra, Auth/RBAC aktiválásra, secret-változtatásra, deployra, e-mailküldésre vagy PR merge-re. Ezek külön, konkrét jóváhagyást igényelnek.
 
 
-## Fejlesztési napló – 2026-11-26
+## Aktuális prioritások – 2026-11-26
+
+> PR #26–#28 merge-ölve a main ágba. CI #3187: 3/3 job sikeres. A worker, queue bridge, provider adapter, snapshot persist→complete, lease/heartbeat/retry/dead-letter és költségelszámolási callback kódban implementált. Következő: napi hard budget cap, scheduleres futtatás, Auth/RLS snapshot-hozzáférés, élő Gemini staging smoke, helyi manuális dashboard smoke. Production DB/deploy nincs engedélyezve vagy végrehajtva.
+
+## Korábbi fejlesztési napló – 2026-11-26 (történeti)
 
 Elkészült a háttérmotor első, DB-független kódszelete: company_research_jobs.py és tests/test_company_research_jobs.py. Tartalmaz job létrehozást, operation ID-t, lease claimet és lejárt lease visszavételt, heartbeatet, sikeres lezárást, bounded retry-t és dead-letter átmenetet. Ez még nem tartalmaz tartós adattárolást vagy valódi atomikus konkurens claimet; ezeket majd a repository-adapter és adatbázis oldali egyediség/locking biztosítja. Nincs scheduler, automatikus kutatás vagy külső API-hívás.
 
