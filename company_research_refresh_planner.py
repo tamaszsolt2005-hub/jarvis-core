@@ -34,6 +34,8 @@ def _domain(lead: dict[str, Any]) -> str:
         or host.startswith(".")
         or host.endswith(".")
         or ".." in host
+        or host in {"localhost", "localhost.localdomain"}
+        or host.endswith(".local")
     ):
         return ""
     return host
