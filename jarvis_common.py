@@ -240,7 +240,7 @@ def generate_text(
     on_status: Any | None = None,
     max_output_tokens: int = 8192,
 ) -> str:
-    """Generate with bounded retries and current fallback models for temporary overloads."""
+    """Generate model output with bounded retries; never execute business side effects here."""
     client = client or get_gemini_client()
     primary_model = get_model_name()
     fallback_models = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
@@ -280,13 +280,12 @@ def generate_text(
             except Exception as exc:
                 last_error = exc
                 classification = classify_error(exc)
-                code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-                status = str(getattr(exc, "status", "") or "").upper()
-                message = str(exc).upper()
                 is_overloaded = classification["category"] in {"rate_limited", "service_unavailable"}
-                transient = classification["retryable"] or code == 500 or status == "INTERNAL" or any(
-                    marker in message for marker in ("500", "INTERNAL")
-                )
+                # This helper performs model inference only. It is safe to retry
+                # transient inference failures, but callers must keep external
+                # mutations (SMTP, database writes, task actions) outside this path
+                # and protect them with their own durable idempotency keys.
+                transient = classification["retryable"]
                 if not transient or attempt >= attempts - 1:
                     if is_overloaded:
                         return "", exc
