@@ -8,6 +8,15 @@
 
 A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
 
+## Aktuális P1 végrehajtási állapot
+
+- A one-shot runtime kötelezően injektált snapshot-adatbázist kap, és a worker sikeres lezárása előtt elmenti a validált dossziét a `company_research_snapshots` táblába.
+- A snapshot az `operation_id` alapján determinisztikus UUID-t kap. Ha a snapshot insert sikerült, de a job complete lease-vesztés vagy átmeneti hiba miatt nem, az ismételt worker futás ugyanazt a snapshotot ismeri fel; eltérő tartalommal nem írja felül.
+- A mentett snapshot a `lead_id` idegen kulcson keresztül kapcsolódik a leadhez. A snapshot ID és a mentés ténye a job eredményébe is bekerül; a job csak a mentés után complete-elhető.
+- A worker külön teszteli a persist → complete sorrendet és azt, hogy mentési hiba esetén nincs sikeres complete, hanem retry/dead-letter útvonal indul.
+- A CI új, külön PostgreSQL 17 jobot kapott: izolált fixture, snapshot + worker migrációk, snapshot pgTAP, 15 lifecycle/kvóta assertion és 14 valódi két-session `dblink` race assertion.
+- **Ellenőrzési státusz:** a kód és a CI futtatási út elkészült; az új commit CI-eredményét még meg kell várni. Valódi Gemini API-hívás és production adatbázis-módosítás továbbra sem történik.
+
 ## 1. Telepítési és környezeti állapot
 
 - A JARVIS Streamlit alkalmazás helyi fejlesztés alatt áll.

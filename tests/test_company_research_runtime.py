@@ -7,6 +7,7 @@ class FakeRepository:
     def __init__(self):
         self.job = {
             "operation_id": "research:example:1",
+            "lead_id": "00000000-0000-4000-8000-000000000001",
             "attempt_count": 1,
             "payload": {
                 "company_name": "Example Ltd",
@@ -37,6 +38,44 @@ class FakeRepository:
         return {"status": "dead_letter"}
 
 
+class FakeSnapshotQuery:
+    def __init__(self, db):
+        self.db = db
+        self.row = None
+        self.filters = {}
+
+    def select(self, _columns):
+        return self
+
+    def eq(self, key, value):
+        self.filters[key] = value
+        return self
+
+    def limit(self, _value):
+        return self
+
+    def insert(self, row):
+        self.row = row
+        return self
+
+    def execute(self):
+        if self.row is not None:
+            if any(existing["snapshot_id"] == self.row["snapshot_id"] for existing in self.db.rows):
+                raise RuntimeError("duplicate snapshot id")
+            self.db.rows.append(deepcopy(self.row))
+            return type("Response", (), {"data": [deepcopy(self.row)]})()
+        rows = [row for row in self.db.rows if all(row.get(key) == value for key, value in self.filters.items())]
+        return type("Response", (), {"data": rows[:1]})()
+
+
+class FakeSnapshotDB:
+    def __init__(self):
+        self.rows = []
+
+    def table(self, _name):
+        return FakeSnapshotQuery(self)
+
+
 class FakeProvider:
     def research_company(self, *, prompt, heartbeat):
         return {
@@ -55,9 +94,11 @@ class FakeProvider:
 
 def test_runtime_composes_worker_grounded_provider_and_actual_cost_settlement():
     repository = FakeRepository()
+    snapshot_db = FakeSnapshotDB()
     result = run_company_research_worker_once(
         repository,
         provider=FakeProvider(),
+        snapshot_db=snapshot_db,
         worker_id="worker-a",
         input_price_microusd_per_million_tokens=2_000_000,
         output_price_microusd_per_million_tokens=4_000_000,
@@ -66,6 +107,10 @@ def test_runtime_composes_worker_grounded_provider_and_actual_cost_settlement():
     assert result["status"] == "succeeded"
     assert complete["actual_cost_microusd"] == 40
     assert complete["result"]["accepted_fact_count"] == 1
+    assert complete["result"]["snapshot_persisted"] is True
+    assert complete["result"]["snapshot_id"] == snapshot_db.rows[0]["snapshot_id"]
+    assert snapshot_db.rows[0]["lead_id"] == "00000000-0000-4000-8000-000000000001"
+    assert snapshot_db.rows[0]["dossier"]["facts"][0]["fact"] == "B2B provider"
 
 
 def test_runtime_does_not_claim_when_provider_or_pricing_is_invalid():
@@ -74,6 +119,7 @@ def test_runtime_does_not_claim_when_provider_or_pricing_is_invalid():
         run_company_research_worker_once(
             repository,
             provider=FakeProvider(),
+            snapshot_db=FakeSnapshotDB(),
             worker_id="worker-a",
             input_price_microusd_per_million_tokens=0,
             output_price_microusd_per_million_tokens=1,

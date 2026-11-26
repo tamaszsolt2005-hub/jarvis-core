@@ -6,7 +6,9 @@ import json
 import re
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid5
+
+_SNAPSHOT_ID_NAMESPACE = UUID("7c3d6c9e-4d7b-4b3b-9a9f-6a6dcb1b2f80")
 
 
 def _validated_snapshot(dossier: dict[str, Any]) -> dict[str, Any]:
@@ -36,25 +38,108 @@ def _validated_snapshot(dossier: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def _existing_snapshot(db: Any, *, snapshot_id: str) -> dict[str, Any] | None:
+    response = (
+        db.table("company_research_snapshots")
+        .select("snapshot_id,lead_id,company_domain,schema_version,researched_at,content_sha256,dossier")
+        .eq("snapshot_id", snapshot_id)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(response, "data", None)
+    if isinstance(rows, list) and rows:
+        return rows[0] if isinstance(rows[0], dict) else None
+    if isinstance(rows, dict):
+        return rows
+    return None
+
+
+def _same_snapshot(existing: dict[str, Any], expected: dict[str, Any]) -> bool:
+    existing_dossier = existing.get("dossier")
+    expected_dossier = expected["dossier"]
+    if not isinstance(existing_dossier, dict):
+        return False
+    existing_content = {"facts": existing_dossier.get("facts", []), "decision_maker": existing_dossier.get("decision_maker", {})}
+    expected_content = {"facts": expected_dossier.get("facts", []), "decision_maker": expected_dossier.get("decision_maker", {})}
+    return (
+        str(existing.get("lead_id")) == expected["lead_id"]
+        and str(existing.get("company_domain", "")).casefold() == expected["company_domain"]
+        and existing.get("schema_version") == expected["schema_version"]
+        and existing.get("content_sha256") == expected["content_sha256"]
+        and json.dumps(existing_content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        == json.dumps(expected_content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    )
+
+
+def _snapshot_result(row: dict[str, Any], *, lead_id: str) -> dict[str, Any]:
+    return {"snapshot_id": str(row["snapshot_id"]), "lead_id": lead_id,
+            "researched_at": str(row.get("researched_at") or ""),
+            "content_sha256": str(row.get("content_sha256") or "")}
+
+
 def save_company_research_snapshot(
-    db: Any, *, lead_id: str, company_domain: str, dossier: dict[str, Any]
+    db: Any, *, lead_id: str, company_domain: str, dossier: dict[str, Any],
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    """Persist one immutable dossier version; duplicate IDs are not silently overwritten."""
-    validated = _validated_snapshot(dossier)
+    """Persist an immutable snapshot, safely replaying the same worker operation."""
     lead_uuid = str(UUID(str(lead_id)))
     domain = str(company_domain or "").strip().casefold()
     if not domain or len(domain) > 253 or not re.fullmatch(r"[a-z0-9.-]+", domain):
         raise ValueError("Invalid company domain.")
-    row = {
-        **validated,
-        "lead_id": lead_uuid,
-        "company_domain": domain,
-    }
-    response = db.table("company_research_snapshots").insert(row).execute()
-    data = getattr(response, "data", None)
-    if data is not None and isinstance(data, list) and not data:
-        raise RuntimeError("Company research snapshot insert returned no row.")
-    return {"snapshot_id": validated["snapshot_id"], "lead_id": lead_uuid}
+    dossier_input = dict(dossier)
+    if idempotency_key is not None:
+        if not isinstance(idempotency_key, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", idempotency_key):
+            raise ValueError("Invalid snapshot idempotency key.")
+        dossier_input["snapshot_id"] = str(uuid5(_SNAPSHOT_ID_NAMESPACE, idempotency_key))
+    validated = _validated_snapshot(dossier_input)
+    row = {**validated, "lead_id": lead_uuid, "company_domain": domain}
+    existing = _existing_snapshot(db, snapshot_id=validated["snapshot_id"])
+    if existing is not None:
+        if not _same_snapshot(existing, row):
+            raise ValueError("Company research snapshot idempotency conflict.")
+        return _snapshot_result(existing, lead_id=lead_uuid)
+    try:
+        response = db.table("company_research_snapshots").insert(row).execute()
+        data = getattr(response, "data", None)
+        if data is not None and isinstance(data, list) and not data:
+            raise RuntimeError("Company research snapshot insert returned no row.")
+        return _snapshot_result(row, lead_id=lead_uuid)
+    except Exception:
+        # A concurrent retry may insert the deterministic ID after our read.
+        existing = _existing_snapshot(db, snapshot_id=validated["snapshot_id"])
+        if existing is not None and _same_snapshot(existing, row):
+            return _snapshot_result(existing, lead_id=lead_uuid)
+        raise
+
+
+def make_company_research_snapshot_persister(db: Any):
+    """Build the worker callback that persists the validated dossier before job success."""
+    if db is None or not callable(getattr(db, "table", None)):
+        raise ValueError("An injected snapshot database client is required.")
+
+    def persist(job: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        operation_id = job.get("operation_id")
+        payload = job.get("payload") or {}
+        lead_id = job.get("lead_id") or payload.get("lead_id")
+        dossier = result.get("company_dossier")
+        if not isinstance(operation_id, str) or not isinstance(dossier, dict):
+            raise ValueError("Research result is missing its operation ID or validated dossier.")
+        saved = save_company_research_snapshot(
+            db, lead_id=lead_id,
+            company_domain=result.get("company_domain") or payload.get("company_domain"),
+            dossier=dossier, idempotency_key=operation_id,
+        )
+        persisted_dossier = dict(dossier)
+        persisted_dossier.update({
+            "snapshot_id": saved["snapshot_id"],
+            "researched_at": saved["researched_at"],
+            "content_sha256": saved["content_sha256"],
+        })
+        return {"company_dossier": persisted_dossier,
+                "snapshot_id": saved["snapshot_id"], "snapshot_persisted": True}
+
+    return persist
 
 
 def get_company_research_history(

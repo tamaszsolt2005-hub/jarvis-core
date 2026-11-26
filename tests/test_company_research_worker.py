@@ -281,3 +281,33 @@ def test_worker_rejects_non_callable_actual_cost_extractor():
     else:
         raise AssertionError("expected validation error")
     assert repository.calls == []
+
+
+
+def test_worker_persists_validated_result_before_marking_job_succeeded():
+    repository = FakeRepository(sample_job())
+    calls = []
+
+    def persist(job, result):
+        calls.append(("persist", job["operation_id"], result["answer"]))
+        return {"snapshot_id": "stable-snapshot", "snapshot_persisted": True}
+
+    result = run_one_company_research_job(repository, worker_id="worker-a",
+        handler=lambda _payload: {"answer": "grounded"}, result_persister=persist)
+    assert result["status"] == "succeeded"
+    assert calls == [("persist", "research:lead:123456", "grounded")]
+    assert repository.calls[-1][0] == "complete"
+    assert repository.calls[-1][3]["snapshot_id"] == "stable-snapshot"
+
+
+def test_worker_does_not_complete_when_snapshot_persistence_fails():
+    repository = FakeRepository(sample_job())
+
+    def persist(_job, _result):
+        raise RuntimeError("database temporarily unavailable")
+
+    result = run_one_company_research_job(repository, worker_id="worker-a",
+        handler=lambda _payload: {"answer": "grounded"}, result_persister=persist)
+    assert result["status"] == "retry_scheduled"
+    assert not any(call[0] == "complete" for call in repository.calls)
+    assert any(call[0] == "fail" for call in repository.calls)

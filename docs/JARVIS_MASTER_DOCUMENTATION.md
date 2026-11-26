@@ -24,7 +24,8 @@ A hosszú távú cél egy kutatásvezérelt üzleti ügynök: a JARVIS önálló
 | Leadkutatás | Explicit indítású, grounding-alapú kutatás | Nem folyamatos autonóm worker |
 | Cégdosszié | Grounding-domainhez kötött tények és szakmai döntéshozói kontextus | Nem korlátlan személyes adatgyűjtés |
 | Snapshot verziózás | Tárolómodul és repository migráció elkészült | Production adatbázisra nincs alkalmazva |
-| Kutatási frissítési szabály | Tiszta, tesztelhető policy modul | Nincs scheduler/worker bekötve |
+| Kutatási frissítési szabály | Tiszta, tesztelhető policy modul | Nincs scheduler/automatikus futtatás bekapcsolva |
+| One-shot kutatási worker | Queue, RPC repository, Gemini grounding provider és runtime összekötve; snapshot mentés a job complete előtt | Scheduler nincs; élő Gemini integráció és PostgreSQL CI eredmény commitonként igazolandó |
 | Task és approval | Jóváhagyásos működési útvonal | Nem jelent automatikus végrehajtási jogosultságot minden műveletre |
 | Follow-up queue | Read-only, consent-aware | Nem küld e-mailt |
 | Outbound email | Hard-disabled | Semmilyen dokumentum nem engedélyezi a küldést |
@@ -51,7 +52,8 @@ A PR #28 a #27-re, a #27 pedig a #26-ra épülő stacked pull request. Integrál
 
 ### 3.3 Cégdosszié és verziózott kutatási előzmény
 - `company_dossier.py`: engedélyezett ténykategóriák, URL-validálás, grounding domain ellenőrzés, dossziébélyegzés, hash és frissességi szabály.
-- `company_research_store.py`: UUID, időbélyeg és SHA-256 tartalomlenyomat ellenőrzése; snapshot insert és korlátozott történetlekérdezés.
+- `company_research_store.py`: UUID, időbélyeg és SHA-256 tartalomlenyomat ellenőrzése; append-only snapshot insert, korlátozott történetlekérdezés és operation ID-alapú idempotens mentés.
+- `company_research_worker.py` / `company_research_runtime.py`: a validált dosszié snapshot mentése kötelező lépés a job sikeres lezárása előtt; a mentett snapshot lead_id FK-val kapcsolódik a leadhez.
 - `supabase/migrations/20261126140000_company_research_snapshot_history.sql`: append-only snapshot tábla, RLS és backend-only grant.
 - A lead notes mező rövid összefoglalóként marad; a teljes dosszié külön snapshot rekordba kerül.
 - A migráció repository/CI szintű artefaktum; productionben nem futott le.

@@ -11,6 +11,12 @@ A roadmap a fejlesztési sorrendet határozza meg. A kódban lévő funkciót, C
 ## Alapelv
 A JARVIS először kutat és elemez, utána javasol. Adatbázis-írás, külső kapcsolatfelvétel, szerződés vagy fejlesztésindítás csak külön jogosultság- és jóváhagyási kapun keresztül történhet.
 
+## Aktuális Phase 1 végrehajtási állapot
+
+A job → claim → grounded provider → validált dosszié → append-only snapshot → lead FK-kapcsolat → job completion út most a one-shot runtime-ban össze van kötve. A snapshot ID a job operation ID-jából determinisztikusan képződik, így a snapshot insert utáni worker retry nem hoz létre új snapshotot; azonos operation ID eltérő tartalommal konfliktust jelez. A worker csak a snapshot mentése után complete-elhet.
+
+A PostgreSQL worker tesztek külön CI jobban, eldobható PostgreSQL 17 adatbázisban futnak. A job 15 lifecycle/kvóta és 14 két-session `dblink` konkurenciatesztet, valamint a snapshot tároló tesztjét futtatja. **A tényleges sikerességet csak az új commiton befejeződő CI igazolhatja.** Scheduler, automatikus futtatás és élő Gemini API-kérés nincs bekapcsolva.
+
 ## Jelenlegi funkcionális alap
 | Terület | Állapot | Korlát |
 |---|---|---|

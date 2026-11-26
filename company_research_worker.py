@@ -29,12 +29,15 @@ def run_one_company_research_job(
     max_retry_delay_seconds: int = 3600,
     max_result_bytes: int = 262144,
     actual_cost_extractor: Callable[[dict[str, Any]], int] | None = None,
+    result_persister: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Claim and process at most one prepared job."""
     if not callable(handler):
         raise ValueError("handler must be callable")
     if actual_cost_extractor is not None and not callable(actual_cost_extractor):
         raise ValueError("actual_cost_extractor must be callable or None")
+    if result_persister is not None and not callable(result_persister):
+        raise ValueError("result_persister must be callable or None")
     if not isinstance(worker_id, str) or not worker_id.strip():
         raise ValueError("worker_id is required")
     if isinstance(retry_delay_seconds, bool) or not isinstance(retry_delay_seconds, int) or retry_delay_seconds < 1:
@@ -108,6 +111,17 @@ def run_one_company_research_job(
         if len(serialized_result.encode("utf-8")) > max_result_bytes:
             raise ValueError("handler_result_exceeds_size_limit")
         result = json.loads(serialized_result)
+        if result_persister is not None:
+            persisted = result_persister(deepcopy(job), deepcopy(result))
+            if not isinstance(persisted, dict):
+                raise TypeError("result_persister_must_return_object")
+            result.update(persisted)
+            serialized_result = json.dumps(
+                result, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+            )
+            if len(serialized_result.encode("utf-8")) > max_result_bytes:
+                raise ValueError("handler_result_exceeds_size_limit")
+            result = json.loads(serialized_result)
         actual_cost_microusd = (
             actual_cost_extractor(result) if actual_cost_extractor is not None else None
         )
