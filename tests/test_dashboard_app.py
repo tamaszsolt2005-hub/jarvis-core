@@ -677,3 +677,58 @@ def test_streamlit_individual_auth_uses_verified_user_client_without_legacy_fall
     assert client_calls == [
         ("10000000-0000-0000-0000-000000000001", {"admin", "operator", "reader"})
     ]
+
+
+
+def test_streamlit_task_center_navigation_shows_empty_state_without_chat_input(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    app.button(key="jarvis_nav_tasks").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "tasks"
+    assert len(app.chat_input) == 0
+    assert any("Feladatközpont" in item.value for item in app.title)
+    assert any("Még nincs feladat" in item.value for item in app.info)
+
+
+def test_streamlit_task_center_renders_task_metrics_and_due_dates(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    db = _ReadOnlyDB([
+        {
+            "id": "123e4567-e89b-42d3-a456-426614174000",
+            "title": "Lejárt tesztfeladat",
+            "status": "open",
+            "priority": "urgent",
+            "due_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "lead_id": None,
+        },
+        {
+            "id": "223e4567-e89b-42d3-a456-426614174001",
+            "title": "Elvégzett tesztfeladat",
+            "status": "done",
+            "priority": "normal",
+            "due_at": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "lead_id": "323e4567-e89b-42d3-a456-426614174002",
+        },
+    ])
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
+
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_tasks").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "tasks"
+    assert len(app.chat_input) == 0
+    assert any("Feladatközpont" in item.value for item in app.title)
+    assert len(app.get("dataframe")) == 1
+    assert any("LEJÁRT" in str(item.value) for item in app.get("dataframe"))
