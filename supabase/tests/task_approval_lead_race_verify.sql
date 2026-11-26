@@ -25,6 +25,7 @@ BEGIN
 END
 $$;
 
+ALTER TABLE public.logs ENABLE TRIGGER logs_audit_hash_chain;
 DROP TRIGGER IF EXISTS task_lead_race_pause ON public.tasks;
 DROP FUNCTION IF EXISTS public.test_pause_lead_task_race();
 DELETE FROM public.tasks
