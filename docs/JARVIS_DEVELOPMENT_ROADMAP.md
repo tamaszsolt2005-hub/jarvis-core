@@ -138,3 +138,5 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Tartós budget reservation tábla és append-only lifecycle audit tábla.
 - Audit események: enqueue, claim, heartbeat, success, retry, dead-letter és final lease expiry.
 - Production migration nem futott; PostgreSQL konkurencia-/tranzakcióteszt, actual-cost settlement, reservation release és atomikus hourly/domain rate quota még szükséges.
+
+- Korlátozott (1–1000 sor) operation ID szerinti audit-list RPC és repository metódus.
