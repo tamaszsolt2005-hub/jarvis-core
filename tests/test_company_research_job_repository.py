@@ -7,6 +7,7 @@ import pytest
 from company_research_job_repository import (
     CompanyResearchBudgetExceeded,
     CompanyResearchJobRepositoryError,
+    RPC_AUDIT_LIST,
     RPC_CLAIM,
     RPC_COMPLETE,
     RPC_CREATE,
@@ -205,3 +206,29 @@ def test_create_maps_only_fixed_daily_budget_database_marker():
             estimated_cost_microusd=10,
             daily_budget_microusd=10,
         )
+
+
+
+def test_audit_list_uses_bounded_read_only_rpc():
+    events = [{"event_id": 1, "event_type": "enqueued"}]
+    client = FakeSupabaseClient({RPC_AUDIT_LIST: events})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    assert repository.list_audit(operation_id="research:lead-123", limit=20) == events
+    assert client.calls == [(
+        RPC_AUDIT_LIST,
+        {"p_operation_id": "research:lead-123", "p_limit": 20},
+    )]
+
+
+@pytest.mark.parametrize("limit", [0, -1, 1001, True])
+def test_audit_list_rejects_unbounded_limits(limit):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError, match="limit"):
+        repository.list_audit(operation_id="research:lead-123", limit=limit)
+
+
+def test_audit_list_rejects_unexpected_response_shape():
+    client = FakeSupabaseClient({RPC_AUDIT_LIST: {"not": "a list"}})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchJobRepositoryError, match="response shape"):
+        repository.list_audit(operation_id="research:lead-123")
