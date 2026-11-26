@@ -180,3 +180,8 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 #### Phase 1L hibajavítás – Gemini lease renewal
 
 A provider adapter a teljes szinkron kérés és retry-szakasz alatt külön daemon szálból, konfigurálható időközönként frissíti a worker lease-t. A heartbeat hibája vagy hamis eredménye lease-vesztést okoz; a provider válasz nem kerül visszaadásra sikeres eredményként. A heartbeat szál a kérés lezárásakor leáll. Két célzott teszt ellenőrzi a periodikus renewal és a lease-vesztés viselkedését.
+
+
+## Főrendszer-készültségi kapu – 2026-11-26
+
+A belső főrendszer és az autonóm SaaS-ügynök két külön cél. A főrendszer lezárási feltételeit és a P0/P1/P2 feladatokat a [JARVIS_MAIN_SYSTEM_READINESS.md](JARVIS_MAIN_SYSTEM_READINESS.md) tartalmazza. A jelenlegi prioritás az aktuális PR #28 CI zöldre futtatása, core lead → approval/task → audit E2E, dashboard/config leltár, worker SQL konkurencia és snapshot E2E, majd dokumentált helyi smoke. Scheduler, teljes SaaS-ötletmotor, tiltó napló, outreach és AI-fejlesztési pipeline nem blokkolja a belső core asszisztens lezárását.
