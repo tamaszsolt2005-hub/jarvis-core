@@ -44,6 +44,7 @@ Ne állíts sikeres tesztet pusztán azért, mert a workflow elindult. A futásn
 - `docs/JARVIS_DEVELOPMENT_ROADMAP.md`: elsőként olvasandó, elsődleges fejlesztési sorrend és haladás.
 - `README.md`: rövid projektismertető, telepítés, dokumentációs belépő.
 - `docs/JARVIS_DOCUMENTATION.md`: jelenlegi képességek, architektúra, modulok, működési korlátok.
+- `docs/JARVIS_COMMAND_GUIDE.md`: tényleges chat-parancsok, mezők, jóváhagyási folyamat és példák.
 - `docs/PRODUCTION_STATE_AND_MIGRATION_PLAN.md`: production tények, migrációs drift, backup, Auth/RLS kapuk.
 - `docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md`: részletes technikai backlog az elsődleges roadmaphez igazítva.
 - `docs/REMAINING_WORK_AND_RELEASE_GATES.md`: kizárólag production/release engedélyezési kapuk.
