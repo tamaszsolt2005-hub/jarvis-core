@@ -349,3 +349,10 @@ A dashboard audit után új AppTestek kerültek a branchre. A korábbi `36d615f`
 ## 10.17 Egységes runtime hibakezelés
 
 A `jarvis_errors.py` közös hibakategorizálást biztosít: hiányzó/hibás konfiguráció, permission denied, authentication failed, rate limit/quota, hálózati hiba, timeout, szolgáltatáskiesés, invalid request és unknown. A kategorizálás nem teszi a kivétel nyers szövegét felhasználói üzenetté; a chat magyar, biztonságos útmutatót ad. A Gemini kérés korlátozottan újrapróbálkozik átmeneti hibákra, de hitelesítési/jogosultsági hibára nem. A retry nem ismételhet jogosulatlan műveletet, és nem kerülheti meg az RLS-t. A hozzáadott tesztek a kategóriákat, a hálózati retryt és az auth fail-closed viselkedést ellenőrzik. A teljes aktuális CI még külön ellenőrzési kapu.
+
+
+## 10.18 Szelektív tesztelési stratégia és aktuális hátralék
+
+A projekt nem ismétli minden commit után a teljes, korábban már sikeresen igazolt tesztcsomagot. A módosított modulokhoz célzott unit/AppTest és közvetlen regressziós teszt tartozik; SQL-változásnál izolált PostgreSQL/pgTAP és konkurencia, Auth/RLS vagy provider változásnál izolált integrációs smoke szükséges. Teljes CI csak integrációs mérföldkőnél vagy merge/release előtt indokolt. A tesztbizonyítékot commit SHA-hoz kötjük, a korábbi zöld eredmény nem öröklődik új kódra.
+
+A jelenlegi nyitott munkák, az eddig igazolt ellenőrzések, a következő célzott tesztkör és a production release kapuk a JARVIS_REMAINING_WORK_REPORT.md dokumentumban szerepelnek.
