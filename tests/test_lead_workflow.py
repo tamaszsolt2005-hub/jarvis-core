@@ -186,19 +186,19 @@ def test_recommended_task_action_allows_next_step_after_completed_task():
 def test_workflow_advances_after_each_completed_stage_and_stops_at_outcome():
     lead = _lead("lead-1", "Minta Kft.")
     first = build_lead_workflow_recommendations([lead], [])[0]
-    assert first["workflow_stage"] == "research_validation"
-    assert "[JARVIS_STAGE:research_validation]" in first["notes"]
+    assert first["workflow_stage"] == "business_need_validation"
+    assert "[JARVIS_STAGE:business_need_validation]" in first["notes"]
 
     second = build_lead_workflow_recommendations(
         [lead],
         [{
             "lead_id": "lead-1", "status": "done",
-            "notes": "[JARVIS_STAGE:research_validation]",
+            "notes": "[JARVIS_STAGE:business_need_validation]",
             "created_at": "2026-11-25T10:00:00Z",
             "completed_at": "2026-11-25T11:00:00Z",
         }],
     )[0]
-    assert second["workflow_stage"] == "business_need_validation"
+    assert second["workflow_stage"] == "offer_preparation"
 
     final = build_lead_workflow_recommendations(
         [lead],
@@ -274,3 +274,20 @@ def test_low_confidence_research_validation_does_not_unlock_commercial_stages():
         }],
     )
     assert plans == []
+
+
+def test_completed_research_validation_unlocks_business_stage_after_evidence_improves():
+    lead = _lead(
+        "lead-improved", "Pontos Kft.", fit=88, confidence="high",
+        evidence="termékoldal; esettanulmány",
+    )
+    plans = build_lead_workflow_recommendations(
+        [lead],
+        [{
+            "lead_id": "lead-improved", "status": "done",
+            "notes": "[JARVIS_STAGE:research_validation]",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )
+    assert len(plans) == 1
+    assert plans[0]["workflow_stage"] == "business_need_validation"
