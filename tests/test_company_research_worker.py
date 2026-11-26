@@ -26,7 +26,7 @@ class FakeRepository:
 
     def fail(self, *, operation_id, worker_id, error_code, error_message,
              retryable, retry_delay_seconds=60, max_attempts=3):
-        self.calls.append(("fail", operation_id, worker_id, error_code, error_message, retryable))
+        self.calls.append(("fail", operation_id, worker_id, error_code, error_message, retryable, retry_delay_seconds))
         return deepcopy(self.fail_result if self.fail_result is not None else {
             "operation_id": operation_id,
             "status": "retry_wait" if retryable else "dead_letter",
@@ -116,3 +116,16 @@ def test_worker_requires_callable_handler_and_worker_id():
         assert "callable" in str(exc)
     else:
         raise AssertionError("expected validation error")
+
+
+def test_worker_uses_exponential_backoff_based_on_attempt_count():
+    repository = FakeRepository({**sample_job(), "attempt_count": 3}, fail_result={
+        "status": "retry_wait", "operation_id": "research:lead:123456",
+    })
+    result = run_one_company_research_job(
+        repository, worker_id="worker-a",
+        handler=lambda _payload: (_ for _ in ()).throw(RuntimeError("temporary")),
+        retry_delay_seconds=30, max_retry_delay_seconds=100,
+    )
+    assert result["status"] == "retry_scheduled"
+    assert repository.calls[-1][-1] == 100
