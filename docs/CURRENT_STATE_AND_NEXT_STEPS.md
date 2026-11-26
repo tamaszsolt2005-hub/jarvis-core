@@ -148,3 +148,22 @@ A dashboard nem scheduler. A proactive_monitor_job.py és inbound email workflow
 
 ### CI és ellenőrzés
 A dokumentációs commitok a PR headet megváltoztatják. Ezért a korábbi, kódcommiton sikeres CI nem igazolja automatikusan a jelenlegi dokumentációs headet. A legfrissebb CI-t a [PR #26 Checks](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26/checks) oldalon, a pontos aktuális SHA-hoz kötve kell ellenőrizni.
+
+
+## Hosszú távú termékvízió – kutatásvezérelt, személyre szabott SaaS
+
+A részletes célarchitektúra: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
+
+A JARVIS hosszú távú fő funkciója az legyen, hogy önállóan cégeket kutat, a cégről és releváns szakmai döntéshozóiról forrásolt dossziét épít, a feltárt üzleti problémák alapján egyedi SaaS-termékötleteket állít elő, majd ellenőrzi a korábbi elutasításokat, globális tiltásokat, meglévő ajánlatokat és ügyfélközi kizárólagosságot. Ezután személyre szabott ajánlati és e-mail-tervezetet készít. A pozitív érdeklődés még nem megrendelés: fejlesztési projekt csak tisztázott scope, írásos elfogadás/szerződés és külön belső jóváhagyás után indulhat.
+
+**A célfolyamat új, még nem teljesen implementált elemei:**
+- folyamatos automatikus cégfelderítés és idempotens háttérworker;
+- részletes, forrás- és confidence-alapú cégdosszié, szakmai döntéshozó-kutatás;
+- bizonyítékokkal alátámasztott üzleti problémahipotézisek;
+- cégre szabott, több alternatívát összehasonlító SaaS-termékstratégia;
+- globális és scope-specifikus „mit ne ajánljunk” napló;
+- személyre szabott ajánlat- és e-mail-tervezet, küldés előtti jogi/consent/opt-out ellenőrzés;
+- érdeklődés → igényfelmérés → ajánlat → szerződés → jóváhagyott fejlesztési projekt teljes pipeline;
+- AI-támogatott fejlesztés, minőségbiztosítás és ügyféleredményből tanulás.
+
+A meglévő leadkutatás, cégazonosítás, scoring, jóváhagyásos task workflow, memória és outcome-logika ennek az alapja, de nem szabad a teljes célfolyamatot már késznek tekinteni. A kimenő e-mail hard-disabled marad; a nyilvános e-mail-cím nem jelent automatikus marketingengedélyt. Személyes kutatás csak a szükséges, releváns szakmai kontextusra korlátozódhat; érzékeny magánadat nem gyűjthető. A termék-tiltó napló ajánlás előtti kötelező gate.
