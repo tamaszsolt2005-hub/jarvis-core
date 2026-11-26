@@ -142,9 +142,8 @@ def _validate_action(action: Any) -> None:
         operation_id = action.get("operation_id")
         if not isinstance(operation_id, str) or not _UUID.fullmatch(operation_id):
             raise ValueError("Érvénytelen műveletazonosító.")
-        lead_id = action.get("lead_id")
-        if lead_id is not None and (
-            not isinstance(lead_id, str) or not _UUID.fullmatch(lead_id)
+        if "lead_id" in action and (
+            not isinstance(action["lead_id"], str) or not _UUID.fullmatch(action["lead_id"])
         ):
             raise ValueError("Érvénytelen kapcsolódó leadazonosító.")
         due_at = action.get("due_at")
