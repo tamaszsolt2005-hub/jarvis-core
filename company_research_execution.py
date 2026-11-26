@@ -1,7 +1,7 @@
 """Provider-neutral, source-grounded company research execution.
 
-No provider SDK, network client, database client, scheduler, or outreach side effect
-is created here. A concrete provider is injected by the caller.
+No provider client, database client, scheduler, or outreach side effect is created
+here. The Gemini SDK adapter is imported lazily; its client and model are injected.
 """
 from __future__ import annotations
 
