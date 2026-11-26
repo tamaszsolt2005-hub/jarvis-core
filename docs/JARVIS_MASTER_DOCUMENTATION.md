@@ -310,3 +310,8 @@ A tartós audit események lekérdezésére a repository `list_audit(operation_i
 A tartós enqueue RPC ugyanazon tranzakciós advisory lock alatt ellenőrzi a UTC óránkénti globális és UTC naponkénti domainenkénti jobkvótát, mint a napi költségkeretet. Az idempotens operation ID replay a kvótaellenőrzés előtt visszaadja a meglévő rekordot, így retry nem fogyaszt többször kvótát. A létrehozási időt az adatbázis állítja be; a domain kulcs casefoldolt összehasonlítással kerül ellenőrzésre. A Python snapshot admission csak korai, kényelmi szűrő; a kemény hourly/domain/cost korlát a DB RPC-ben van.
 
 A kvóta a job enqueue-k számát jelenti, nem a sikeres kutatásokét: a sikertelen és dead-letter jobok is beleszámítanak az adott időablakba. A költségkeret jelenleg becsült foglalás alapján számol, nem valós provider számla alapján.
+
+
+### 10.12 Actual cost settlement
+
+A worker opcionális `actual_cost_extractor` függvénnyel képes a provider handler eredményéből tényleges költséget kinyerni. A callback kimenete szigorúan nemnegatív egész mikro-USD. A repository a complete RPC-n keresztül adja át; a job sikeres lezárása, a budget reservation `settled` státuszra váltása, a foglalt összeg actual cost-ra cserélése és az audit metadata beírása egy adatbázis-tranzakcióban történik. Extractor hiányában az eredeti becsült összeg marad fenntartva, így az elszámolás nem engedi véletlenül felszabadítani a fel nem mért költséget. Tényleges provider usage mérés még nincs implementálva.
