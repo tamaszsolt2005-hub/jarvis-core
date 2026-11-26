@@ -46,6 +46,7 @@ A szükséges környezeti változókat a kód és a telepítési környezet hat�
 
 ## Dokumentáció és AI-fejlesztés
 
+- [Aktuális állapot és következő lépések](docs/CURRENT_STATE_AND_NEXT_STEPS.md)
 - [Elsődleges fejlesztési útiterv – mindig ezt olvasd először](docs/JARVIS_DEVELOPMENT_ROADMAP.md)
 - [AI fejlesztési útmutató](AGENTS.md)
 - [JARVIS képességei és architektúrája](docs/JARVIS_DOCUMENTATION.md)
@@ -60,6 +61,6 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot
 
-A JARVIS még nincs telepítve publikus vagy production app-hostra; jelenleg helyi Streamlit dashboardból fejlesztjük. A Supabase production adatbázis létezése nem jelenti az alkalmazás telepítését. A PR #26 nyitott, nem merge-ölt; a PR-head `2a27a19078e6183c143e775ca9d89ccc776c7bf8` ellenőrzött GitHub checkjei sikeresek. A legfrissebb állapotot és a funkciófejlesztés előtti teendőket az [aktuális állapot és következő lépések](docs/CURRENT_STATE_AND_NEXT_STEPS.md) dokumentum tartalmazza.
+A JARVIS még nincs telepítve publikus vagy production app-hostra; jelenleg helyi Streamlit dashboardból fejlesztjük. A Supabase production adatbázis létezése nem jelenti az alkalmazás telepítését. A PR #26 nyitott, nem merge-ölt; a legfrissebb állapotot a [PR oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) lehet követni. A legfrissebb állapotot és a funkciófejlesztés előtti teendőket az [aktuális állapot és következő lépések](docs/CURRENT_STATE_AND_NEXT_STEPS.md) dokumentum tartalmazza.
 
 A PR #26-ban elkészült a közös, tranzakciós `upsert_company_lead` RPC, a normalizált cégnév/domain aliasok zárolása és a CSV/global research íróútvonalak közös használata. A két-session PostgreSQL konkurenciateszt és a PR-head teljes CI-je sikeres. A kimenő e-mail továbbra is hard-disabled. Production deploy, migráció, Auth/RBAC aktiválás vagy PR merge nem történt.
