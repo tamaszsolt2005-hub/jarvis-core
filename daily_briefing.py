@@ -7,6 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from intelligent_lead_scoring import rank_researched_leads
+from lead_workflow import build_lead_workflow_recommendations
 from jarvis_errors import report_error
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
@@ -57,12 +58,16 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
         note = str(row.get("notes") or "")
         if source.startswith("gemini_google_search_grounding:") and note.startswith("Leadkutatás;"):
             research_leads.append({
+                "id": row.get("id"),
                 "company_name": row.get("company_name"),
                 "website": row.get("website"),
                 "status": row.get("status"),
                 "research_intelligence": note,
             })
     ranked = rank_researched_leads(research_leads, limit=10)
+    workflow_recommendations = build_lead_workflow_recommendations(
+        research_leads, tasks, limit=5
+    )
 
     overdue, due_today, open_tasks = [], [], []
     for task in tasks:
@@ -147,6 +152,20 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
             )
     else:
         lines.append("- Még nincs elegendő strukturált kutatási adat a rangsoroláshoz.")
+
+    lines += ["", "## Következő belső feladatjavaslatok"]
+    if workflow_recommendations:
+        for item in workflow_recommendations:
+            lines.append(
+                f"- **{item['task_title']}** – prioritás: {item['task_priority']}; "
+                f"kutatási prioritás: {item['priority_score']}/100; "
+                f"üzleti illeszkedés: {item['business_fit_score']}/100; "
+                f"bizonyosság: {item['research_confidence']}; "
+                f"bizonyítékok: {item['evidence_count']}. {item['rationale']} "
+                f"(lead: {item['lead_id']})"
+            )
+    else:
+        lines.append("- Nincs olyan strukturált kutatási lead, amelyhez még ne tartozna feladat.")
 
     lines += ["", "## Kiemelt nyitott feladatok"]
     lines += [f"- {x.get('title') or 'Névtelen feladat'} (prioritás: {x.get('priority')})" for x in priority_tasks[:10]]
