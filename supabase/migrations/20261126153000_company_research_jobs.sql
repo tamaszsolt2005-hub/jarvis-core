@@ -181,13 +181,20 @@ BEGIN
 
   -- A worker that vanished on its final permitted attempt must not be
   -- reclaimed indefinitely. Move those expired leases to the terminal queue.
-  UPDATE public.company_research_jobs
-  SET status = 'dead_letter', lease_owner = NULL, lease_expires_at = NULL,
-      last_error_code = COALESCE(last_error_code, 'lease_expired'),
-      last_error_message = COALESCE(last_error_message, 'Worker lease expired after final attempt.'),
-      updated_at = now()
-  WHERE status = 'running' AND lease_expires_at <= now()
-    AND attempt_count >= max_attempts;
+  WITH expired AS (
+    UPDATE public.company_research_jobs
+    SET status = 'dead_letter', lease_owner = NULL, lease_expires_at = NULL,
+        last_error_code = COALESCE(last_error_code, 'lease_expired'),
+        last_error_message = COALESCE(last_error_message, 'Worker lease expired after final attempt.'),
+        updated_at = now()
+    WHERE status = 'running' AND lease_expires_at <= now()
+      AND attempt_count >= max_attempts
+    RETURNING operation_id, attempt_count
+  )
+  INSERT INTO public.company_research_job_audit (operation_id, event_type, metadata)
+  SELECT operation_id, 'dead_letter',
+         jsonb_build_object('reason', 'lease_expired', 'attempt_count', attempt_count)
+  FROM expired;
 
   SELECT job_id INTO v_job_id
   FROM public.company_research_jobs
