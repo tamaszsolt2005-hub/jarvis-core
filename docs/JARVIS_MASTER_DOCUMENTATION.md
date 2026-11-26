@@ -251,7 +251,7 @@ A PR #28 ágán elkészült a company_research_jobs.py DB-független job-lifecyc
 
 ### 10.2 Tartós háttérmotor – repository adapter szerződés
 
-A következő fejlesztési egység a DB-független `CompanyResearchJobRepository` protokoll és az injektált Supabase kliensre épülő adapter. Az adapter importáláskor nem kapcsolódhat adatbázishoz, nem készíthet saját klienst és nem olvashat service-role secretet környezeti változóból.
+A PR #28 ágán elkészült a DB-független `CompanyResearchJobRepository` protokoll és az injektált Supabase kliensre épülő adapter. Az adapter importáláskor nem kapcsolódhat adatbázishoz, nem készíthet saját klienst és nem olvashat service-role secretet környezeti változóból.
 
 Az `operation_id` adatbázis-oldali UNIQUE kulcs; az ismételt create ugyanazt a jobot adja vissza. A claim/heartbeat/complete/fail műveletek külön RPC-kontraktuson keresztül, adatbázis-oldali tranzakcióval és feltételes lease/state ellenőrzéssel valósulhatnak meg. A Python SELECT+UPDATE nem atomi claim. A fake repository tesztek a Python szerződést fedik le; az SQL konkurencia-szemantikát később izolált adatbázis-integrációs teszt igazolja.
 
