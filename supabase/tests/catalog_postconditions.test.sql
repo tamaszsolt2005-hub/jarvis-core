@@ -204,7 +204,7 @@ BEGIN
 
   IF NOT (SELECT prosecdef FROM pg_proc
        WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
-     OR NOT (SELECT proconfig @> ARRAY['search_path=pg_catalog, public']
+     OR NOT (SELECT proconfig @> ARRAY['search_path=pg_catalog']
        FROM pg_proc
        WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
      OR NOT has_function_privilege(
