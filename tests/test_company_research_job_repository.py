@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 
 from company_research_job_repository import (
+    CompanyResearchBudgetExceeded,
     CompanyResearchJobRepositoryError,
     RPC_CLAIM,
     RPC_COMPLETE,
@@ -60,6 +61,8 @@ def test_create_uses_injected_client_and_is_idempotent_by_rpc_contract():
     assert result["operation_id"] == "research:lead-123"
     assert client.calls[0][0] == RPC_CREATE
     assert client.calls[0][1]["p_job"]["payload"] == {"source": "planner"}
+    assert client.calls[0][1]["p_estimated_cost_microusd"] == 0
+    assert client.calls[0][1]["p_daily_budget_microusd"] is None
 
 
 @pytest.mark.parametrize("operation_id", ["short", "", None])
@@ -157,3 +160,48 @@ def test_claim_validates_concurrency_limit():
     repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
     with pytest.raises(ValueError, match="max_concurrent_jobs"):
         repository.claim(worker_id="worker-a", max_concurrent_jobs=True)
+
+
+
+def test_create_passes_atomic_budget_reservation_values():
+    client = FakeSupabaseClient({RPC_CREATE: sample_job()})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    repository.create(
+        operation_id="research:lead-123",
+        lead_id="00000000-0000-4000-8000-000000000001",
+        payload={"source": "planner"},
+        estimated_cost_microusd=250_000,
+        daily_budget_microusd=1_000_000,
+    )
+    assert client.calls[0][1]["p_estimated_cost_microusd"] == 250_000
+    assert client.calls[0][1]["p_daily_budget_microusd"] == 1_000_000
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"estimated_cost_microusd": True},
+    {"estimated_cost_microusd": -1},
+    {"daily_budget_microusd": 0},
+    {"daily_budget_microusd": True},
+])
+def test_create_rejects_invalid_budget_values(kwargs):
+    repository = SupabaseCompanyResearchJobRepository(FakeSupabaseClient())
+    with pytest.raises(ValueError):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+            **kwargs,
+        )
+
+
+def test_create_maps_only_fixed_daily_budget_database_marker():
+    client = FakeSupabaseClient({RPC_CREATE: RuntimeError("research_daily_budget_exceeded")})
+    repository = SupabaseCompanyResearchJobRepository(client)
+    with pytest.raises(CompanyResearchBudgetExceeded):
+        repository.create(
+            operation_id="research:lead-123",
+            lead_id="00000000-0000-4000-8000-000000000001",
+            payload={"source": "planner"},
+            estimated_cost_microusd=10,
+            daily_budget_microusd=10,
+        )
