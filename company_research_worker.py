@@ -23,6 +23,7 @@ def run_one_company_research_job(
     worker_id: str,
     handler: ResearchJobHandler,
     lease_seconds: int = 120,
+    max_concurrent_jobs: int = 3,
     retry_delay_seconds: int = 60,
     max_attempts: int = 3,
     max_retry_delay_seconds: int = 3600,
@@ -40,8 +41,15 @@ def run_one_company_research_job(
     if isinstance(max_result_bytes, bool) or not isinstance(max_result_bytes, int) or max_result_bytes < 1:
         raise ValueError("max_result_bytes must be a positive integer")
 
+    if isinstance(max_concurrent_jobs, bool) or not isinstance(max_concurrent_jobs, int) or max_concurrent_jobs < 1:
+        raise ValueError("max_concurrent_jobs must be a positive integer")
+
     worker_id = worker_id.strip()
-    job = repository.claim(worker_id=worker_id, lease_seconds=lease_seconds)
+    job = repository.claim(
+        worker_id=worker_id,
+        lease_seconds=lease_seconds,
+        max_concurrent_jobs=max_concurrent_jobs,
+    )
     if job is None:
         return {"status": "idle"}
     if not isinstance(job, dict):
