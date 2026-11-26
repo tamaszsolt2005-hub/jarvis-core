@@ -40,6 +40,8 @@ def enqueue_company_research_refreshes(
     limits: dict[str, int],
     input_price_microusd_per_million_tokens: int,
     output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
+    max_search_queries_per_attempt: int = 0,
     max_input_tokens_per_attempt: int = 12000,
     max_output_tokens_per_attempt: int = 2048,
     max_attempts: int = 1,
@@ -59,6 +61,8 @@ def enqueue_company_research_refreshes(
         max_input_tokens_per_attempt=max_input_tokens_per_attempt,
         max_output_tokens_per_attempt=max_output_tokens_per_attempt,
         max_attempts=max_attempts,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=max_search_queries_per_attempt,
     )
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
