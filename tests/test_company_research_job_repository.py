@@ -45,7 +45,7 @@ def sample_job(operation_id="research:lead-123"):
     return {
         "operation_id": operation_id,
         "job_type": "company_research_refresh",
-        "lead_id": "lead-123",
+        "lead_id": "00000000-0000-4000-8000-000000000001",
         "payload": {"source": "planner"},
         "status": "queued",
     }
@@ -55,7 +55,7 @@ def test_create_uses_injected_client_and_is_idempotent_by_rpc_contract():
     client = FakeSupabaseClient({RPC_CREATE: sample_job()})
     repository = SupabaseCompanyResearchJobRepository(client)
     payload = {"source": "planner"}
-    result = repository.create(operation_id="research:lead-123", lead_id="lead-123", payload=payload)
+    result = repository.create(operation_id="research:lead-123", lead_id="00000000-0000-4000-8000-000000000001", payload=payload)
     payload["source"] = "mutated"
     assert result["operation_id"] == "research:lead-123"
     assert client.calls[0][0] == RPC_CREATE
@@ -67,7 +67,7 @@ def test_create_validates_operation_id_before_rpc(operation_id):
     client = FakeSupabaseClient()
     repository = SupabaseCompanyResearchJobRepository(client)
     with pytest.raises(ValueError):
-        repository.create(operation_id=operation_id, lead_id="lead-123", payload={})
+        repository.create(operation_id=operation_id, lead_id="00000000-0000-4000-8000-000000000001", payload={})
     assert client.calls == []
 
 
