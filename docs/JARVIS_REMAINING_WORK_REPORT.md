@@ -191,7 +191,7 @@ PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (sta
 
 ## 10. Új worker SQL-életciklus szélső esetek – 2026-11-26
 
-A PR #28 ágán új `company_research_jobs_lifecycle_edges.test.sql` készült 19 pgTAP assertionnel. A teszt a következőket ellenőrzi izolált PostgreSQL-en:
+A PR #28 ágán új `company_research_jobs_lifecycle_edges.test.sql` készült 20 pgTAP assertionnel. A teszt a következőket ellenőrzi izolált PostgreSQL-en:
 
 - lejárt, még újrapróbálható lease átvétele új worker által és az attempt számláló növekedése;
 - korábbi lease-tulajdonos heartbeat és completion műveletének elutasítása;
@@ -199,7 +199,7 @@ A PR #28 ágán új `company_research_jobs_lifecycle_edges.test.sql` készült 1
 - végső próbálkozásnál eltűnt worker lejárt lease-ének dead-letterbe helyezése;
 - előző UTC naphoz tartozó foglalás nem fogyasztja az aktuális napi költségkeretet.
 
-A PostgreSQL 17 CI job futtatja az új fájlt, ellenőrzi a 19/19 pgTAP tervet és a hibás assertionök hiányát. A migration-contract unit teszt ellenőrzi a CI bekötést. **Az új tesztcsomag futási eredménye még nincs igazolva**, mert a hozzá tartozó új CI futás befejezésére várunk. A korábbi CI #3136 zöld eredménye nem vonatkozik erre az új tesztkódra.
+A PostgreSQL 17 CI job futtatja az új fájlt, ellenőrzi a 19/20 pgTAP tervet és a hibás assertionök hiányát. A migration-contract unit teszt ellenőrzi a CI bekötést. **Az új tesztcsomag futási eredménye még nincs igazolva**, mert a hozzá tartozó új CI futás befejezésére várunk. A korábbi CI #3136 zöld eredménye nem vonatkozik erre az új tesztkódra.
 
 
 ## 11. Worker RPC és RLS biztonsági teszt – 2026-11-26
