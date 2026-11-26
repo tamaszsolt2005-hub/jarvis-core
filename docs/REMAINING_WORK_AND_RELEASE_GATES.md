@@ -284,7 +284,7 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 - Security Advisor: 8 INFO `rls_enabled_no_policy`; Performance Advisor: 7 INFO unused-index; Health Advisor: nincs találat. A production lekérdezések kizárólag olvasási műveletek voltak. Production DDL/DML, ledger repair, grants/RLS/Auth változtatás, deploy és merge nem történt. A PR nyitva marad.
 
 
-## 2026-11-26 – atomikus cégazonosítás és email-prioritás implementálva a PR-ágon (CI-ellenőrzés függőben)
+## 2026-11-26 – atomikus cégazonosítás és email-prioritás implementálva és CI-vel igazolva
 
 A felhasználói üzleti szabály: **egy céghez egy CRM lead tartozik; több emailjelölt közül a legnagyobb várható válaszadási esélyű cím legyen kiválasztva.** A példában a személyes, névhez kötött `xy@gmail.com` előnyt élvez az általános `info@cukraszda.hu` címmel szemben.
 
@@ -298,4 +298,4 @@ A PR #26 ágban elkészült:
 - A migráció lockolja a `leads` táblát az aliasok backfillje alatt; nem töröl és nem egyesít meglévő leadet. Az ütköző legacy név/domain/email adatok megállítják a migrációt.
 - PostgreSQL tesztek lefedik a prioritást, consent fail-closed viselkedést, már megkezdett outreach utáni címfagyasztást, idempotens migrációt és két párhuzamos session cégclaimjét.
 
-**Még nincs készre igazolva:** az új migration/SQL tesztek, Python tesztek, két-session concurrency teszt és teljes CI/CodeQL/dependency audit lefutása az új PR-headen. Production rollout sorrend: első migráció → RPC-t használó app deploy → régi worker-ek leállítása és smoke → második, write-lockdown migráció. Production migráció/deploy nem történt; a production állapotot ez a PR-ág nem változtatta meg.
+A `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton a teljes Python/AppTest/browser tesztjob, a PostgreSQL 17 migráció replay, a két-session concurrency teszt, a backup–restore integráció, a CodeQL és a dependency audit sikeres. A cégszintű konkurenciavédelem branch-szinten implementált és ellenőrzött. A production rollout továbbra is nyitott: első migráció → RPC-t használó app deploy → régi worker-ek leállítása és smoke → második, write-lockdown migráció. Production migráció/deploy nem történt; a production állapotot ez a PR-ág nem változtatta meg.
