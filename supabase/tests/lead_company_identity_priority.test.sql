@@ -52,7 +52,7 @@ BEGIN
   SELECT count(*) INTO candidate_count
   FROM public.lead_contact_candidates WHERE lead_id = lead_a;
 
-  IF selected <> personal_email THEN
+  IF selected IS DISTINCT FROM personal_email THEN
     RAISE EXCEPTION 'higher-priority consented contact was not selected: %', selected;
   END IF;
   IF candidate_count <> 2 THEN
