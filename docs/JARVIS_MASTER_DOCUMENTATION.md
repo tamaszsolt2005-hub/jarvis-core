@@ -102,7 +102,7 @@ Követelmények:
 A későbbi workernek:
 1. korlátozott batchben lekérdeznie a frissítésre jogosult leadeket;
 2. kizárnia az elutasított, opt-out és inaktív, válasz nélkül maradt cégeket;
-3. a stale policy alapján kiválasztania a frissítendő dossziékat;
+3. a `company_research_refresh_planner.py` segítségével a stale policy és kizárási szabályok metszetéből kiválasztania a frissítendő dossziékat;
 4. idempotens claim/lease mechanizmussal lefoglalnia a munkát;
 5. heartbeat, retry limit, dead-letter és operation ID mellett futtatnia a kutatást;
 6. költség-, domain-rate- és időkorlátokat betartania;
@@ -110,7 +110,7 @@ A későbbi workernek:
 8. változásösszefoglalót és forrásokat adnia emberi ellenőrzésre;
 9. auditálnia a sikert, hibát és kihagyás okát.
 
-A worker, scheduler, lease és automatikus refresh jelenleg nincs implementálva vagy bekapcsolva.
+A planner jelenleg tiszta, read-only függvény; nem olvassa a DB-t, nem foglal munkát és nem futtat kutatást. A DB-integráció, worker, scheduler, lease és automatikus refresh jelenleg nincs implementálva vagy bekapcsolva.
 
 ## 6. Hosszú távú SaaS ajánlási folyamat
 
@@ -172,7 +172,7 @@ Chat, lead, task, memória, audit, jogosultság és CI megbízhatóságának fen
 ### Phase 1 – cégkutatás
 **Részben implementált:** grounding-alapú cégkutatás, cégdosszié, forrásellenőrzés, snapshot metadata/hash, append-only snapshot store, frissességi és refresh-eligibility policy.
 
-**Hátravan:** teljes worker/scheduler, lease/heartbeat/dead-letter, a follow-up állapotok megbízható integrációja a policy-ba, stale refresh kiválasztó, kutatási UI, költség/rate limit és emberi review.
+**Hátravan:** a planner DB-lekérdező integrációja és teljes worker/scheduler, lease/heartbeat/dead-letter, a follow-up állapotok megbízható integrációja a policy-ba, kutatási UI, költség/rate limit és emberi review.
 
 Elfogadás: nincs duplikáció; minden tény forrásolt; elutasított/opt-out lead nem kerül automatikus refreshbe; két igazolt, válasz nélküli follow-up után szünetel; a még meg nem keresett lead kutatható; nincs outreach mellékhatás.
 
