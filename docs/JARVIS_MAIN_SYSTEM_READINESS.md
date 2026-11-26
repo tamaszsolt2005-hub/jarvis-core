@@ -147,7 +147,7 @@ A Gemini és külső szolgáltatások hibakezelési P0 kódcsomag **elkészült 
 - Cégazonosítás és duplikációszűrés; lead scoring, kutatási bizonyosság és belső workflow-ajánlások.
 - Jóváhagyáshoz kötött task létrehozás/módosítás/lezárás; read-only Feladatok központ és utánkövetési sor.
 - Üzleti memória, napi briefing, analitika és audit funkciók.
-- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a teljes worker→provider→snapshot→lead→audit tartós E2E út még nincs igazolva. Auth módban a snapshot oldal fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
+- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a worker runtime→provider→snapshot→lead FK→complete/audit út CI-vel igazolt. Auth módban a snapshot oldal továbbra is fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
 - Read-only Beállítások oldal, konfigurációs státuszok és kézi diagnosztika; titokértékek nem jelennek meg és nem szerkeszthetők.
 - Bejövő inbox/e-mail komponensek konfigurációtól függően rendelkezésre állhatnak; **kimenő e-mail küldés hard-disabled**.
 
@@ -159,7 +159,7 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 **P1 – következő fő fejlesztési szakasz:**
 1. A cégkutatási adatút E2E bekötése és igazolása: queue → claim → grounded Gemini provider → dossier validáció → snapshot mentés → lead-kapcsolat → audit; hiba/retry, lease-loss, duplicate operation ID és rollback viselkedéssel.
-2. A két előkészített SQL tesztcsomag futtatása izolált PostgreSQL/Supabase környezetben: `company_research_jobs.test.sql` (15 pgTAP assertion) és `company_research_jobs_concurrency.test.sql` (14 pgTAP assertion, `dblink`). A futtatás jelenleg NEM igazolt; lokális Supabase konfiguráció és `dblink` elérhetőség szükséges.
+2. **[KÉSZ – CI #3136, izolált PostgreSQL 17]** `company_research_jobs.test.sql`: 15/15 lifecycle/kvóta assertion; `company_research_jobs_concurrency.test.sql`: 14/14 valódi, két `dblink` sessionnel futó konkurencia assertion; a snapshot-tároló SQL teszt is sikeres. A futtatás kizárólag eldobható CI-adatbázisban történt.
 3. Worker lifecycle teljesítése/tesztelése: lease expiry és reclaim, heartbeat, párhuzamos claim és concurrency plafon, retry/dead-letter, idempotencia, óránkénti/napi/domain kvóták, actual-cost settlement és audit tranzakció.
 4. Auth/RLS izolált szerepkörtesztek: reader/admin, valós JWT, RPC, service-role kizárólag trusted server oldalon; fail-closed és nincs jogosultsági fallback.
 5. Valódi Google GenAI SDK/izolált staging integrációs próba: 429, 503, timeout, auth, grounding metadata, usage/cost és retry/heartbeat; production kulcs és production DB nélkül.

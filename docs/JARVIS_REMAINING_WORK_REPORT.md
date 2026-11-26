@@ -163,7 +163,7 @@ A Gemini és külső szolgáltatások hibakezelési P0 kódcsomag **elkészült 
 - Cégazonosítás és duplikációszűrés; lead scoring, kutatási bizonyosság és belső workflow-ajánlások.
 - Jóváhagyáshoz kötött task létrehozás/módosítás/lezárás; read-only Feladatok központ és utánkövetési sor.
 - Üzleti memória, napi briefing, analitika és audit funkciók.
-- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a teljes worker→provider→snapshot→lead→audit tartós E2E út még nincs igazolva. Auth módban a snapshot oldal fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
+- Cégdosszié/snapshot és read-only kutatási előzmény UI kódban; a worker runtime→provider→snapshot→lead FK→complete/audit út CI-vel igazolt. Auth módban a snapshot oldal továbbra is fail-closed, amíg az RLS olvasási jogosultság nincs megfelelően kiépítve.
 - Read-only Beállítások oldal, konfigurációs státuszok és kézi diagnosztika; titokértékek nem jelennek meg és nem szerkeszthetők.
 - Bejövő inbox/e-mail komponensek konfigurációtól függően rendelkezésre állhatnak; **kimenő e-mail küldés hard-disabled**.
 
