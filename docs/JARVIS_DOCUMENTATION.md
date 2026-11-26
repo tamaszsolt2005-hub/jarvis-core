@@ -124,3 +124,16 @@ A PR #26 mindenkori aktuális head CI-jét a PR Checks oldalon ellenőrizd. Rég
 
 ## 9. Nem kész / nem aktív
 Production host és JARVIS URL nincs kiválasztva; production Supabase migration drift és Auth/RLS rollout nincs rendezve; Auth/RBAC flag production aktiválása nem történt; outbound email hard-disabled; teljes lead → task → follow-up → outcome E2E nincs lezárva; általános célú scheduler/worker nincs kész; teljes, forrásolt üzleti tudásgráf/memória lifecycle további fejlesztést igényel.
+
+
+## 10. Célarchitektúra: kutatásvezérelt, személyre szabott SaaS-ügynök
+
+A részletes funkcionális és adatmodell-specifikáció: [JARVIS_AUTONOMOUS_SAAS_VISION.md](JARVIS_AUTONOMOUS_SAAS_VISION.md).
+
+A tervezett adatfolyam: piaci jel/cégfelderítés → cégazonosítás → forrásolt cégdosszié és szakmai döntéshozói kontextus → üzleti problémahipotézisek → több SaaS-ötlet generálása és magyarázható rangsorolása → globális és cégenkénti termék-/ajánlási tiltó napló ellenőrzése → személyre szabott ajánlat és e-mail-tervezet → emberi felülvizsgálat → jogszerű outreach → válasz és igényfelmérés → írásos ügyfél-elfogadás/szerződés → külön belső fejlesztési jóváhagyás → AI-támogatott fejlesztés és eredménymérés.
+
+A „mit ne ajánljunk” napló nem egyszerű emlékeztető: globális tiltásokat, cégenkénti elutasításokat, meglévő termékeket, piaci/technikai kizárásokat és ügyfélközi kizárólagosságot kell tárolnia. Minden ajánlás előtt determinisztikus és szemantikus ütközésvizsgálat szükséges.
+
+A döntéshozói kutatás csak üzleti célhoz szükséges, nyilvános szakmai információt használhat; érzékeny személyes vagy magánéleti adat nem gyűjthető. Minden állítás legyen forrással, dátummal és confidence-szal visszakereshető; tény és modellhipotézis különüljön el.
+
+**Implementációs státusz:** ez a célarchitektúra, nem jelenlegi kész funkciólista. A meglévő leadkutatás és workflow csak alapot ad; az autonóm worker, teljes cégdosszié, egyedi SaaS-javasló motor, globális tiltó napló, teljes outreach/response pipeline és szerződéshez kötött AI-fejlesztés még külön fejlesztési fázis. Outbound e-mail hard-disable változatlan.
