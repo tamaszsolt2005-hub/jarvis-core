@@ -86,7 +86,12 @@ def test_postgres_worker_integration_suites_cover_quota_lifecycle_and_races():
     ):
         assert expected in lifecycle
 
+    assert "SELECT plan(15)" in lifecycle
     assert "dblink_send_query" in concurrency
+    assert "SELECT plan(14)" in concurrency
     assert "research_worker_a" in concurrency and "research_worker_b" in concurrency
+    assert "pg_advisory_lock(742026, 2)" in concurrency
+    assert "pg_advisory_lock(742026, 1)" in concurrency
+    assert "v_waiting >= 2" in concurrency
     assert "global active-lease ceiling" in concurrency
     assert "daily budget lock" in concurrency
