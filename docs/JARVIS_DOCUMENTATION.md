@@ -19,6 +19,7 @@ A JARVIS egy Python 3.11 / Streamlit alkalmazás Gemini API-val és Supabase/Pos
 | `company_dossier.py` | Strukturált, forrásellenőrzött dosszié építése, stamp és freshness |
 | `company_research_store.py` | Teljes dosszié snapshot mentése és történetlekérdezése |
 | `company_research_policy.py` | Read-only döntés a cégkutatás-frissítés jogosultságáról |
+| `company_research_refresh_planner.py` | Stale, jogosult leadek read-only kiválasztása és prioritása |
 | `lead_identity.py` | Cégazonosítási és deduplikációs logika |
 | `lead_scoring.py` | Lead pontozása |
 | `lead_workflow.py` | Belső következő lépések javaslata |
@@ -70,7 +71,7 @@ A `company_research_policy.py` tiszta döntési függvény:
 - a meg nem keresett cégeket kutatásra jogosultnak hagyja;
 - a nem elutasító bejövő választ nem tekinti válaszhiánynak.
 
-A függvény nem módosít DB-t, nem küld üzenetet és nem ütemez munkát. A tényleges worker és a hiteles outreach event integráció még hátravan.
+A függvény nem módosít DB-t, nem küld üzenetet és nem ütemez munkát. A `company_research_refresh_planner.py` a policy eredményét és a snapshot frissességét kombinálva ad vissza limitált, rendezett candidate listát. Ez is tiszta, read-only függvény; nem olvas DB-t és nem foglal munkát. A DB-lekérdezés, a hiteles outreach event integráció és a tényleges worker még hátravan.
 
 ## 6. Jóváhagyás és külső mellékhatások
 
