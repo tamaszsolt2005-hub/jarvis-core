@@ -1,6 +1,9 @@
 import pytest
 
-from company_research_admission import evaluate_research_admission
+from company_research_admission import (
+    estimate_research_cost_microusd,
+    evaluate_research_admission,
+)
 
 
 LIMITS = {
@@ -71,3 +74,35 @@ def test_admission_rejects_invalid_inputs(domain, cost, limits, usage):
             domain=domain, estimated_cost_microusd=cost,
             limits=limits, usage=usage,
         )
+
+
+
+def test_cost_estimator_uses_integer_ceiling_micro_usd():
+    assert estimate_research_cost_microusd(
+        input_tokens=1_000_000,
+        output_tokens=500_000,
+        input_price_microusd_per_million_tokens=2_000_000,
+        output_price_microusd_per_million_tokens=4_000_000,
+    ) == 4_000_000
+
+
+def test_cost_estimator_rounds_any_fraction_up():
+    assert estimate_research_cost_microusd(
+        input_tokens=1,
+        output_tokens=0,
+        input_price_microusd_per_million_tokens=1,
+        output_price_microusd_per_million_tokens=1,
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    ("kwargs",),
+    [
+        ({"input_tokens": -1, "output_tokens": 0, "input_price_microusd_per_million_tokens": 1, "output_price_microusd_per_million_tokens": 1},),
+        ({"input_tokens": 1, "output_tokens": 0, "input_price_microusd_per_million_tokens": 0, "output_price_microusd_per_million_tokens": 1},),
+        ({"input_tokens": True, "output_tokens": 0, "input_price_microusd_per_million_tokens": 1, "output_price_microusd_per_million_tokens": 1},),
+    ],
+)
+def test_cost_estimator_rejects_invalid_values(kwargs):
+    with pytest.raises(ValueError):
+        estimate_research_cost_microusd(**kwargs)
