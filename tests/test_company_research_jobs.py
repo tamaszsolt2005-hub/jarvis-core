@@ -14,11 +14,12 @@ NOW = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
 
 
 def make_job(**kwargs):
+    now = kwargs.pop("now", NOW)
     return create_research_job(
         operation_id="research:lead:123456",
         lead_id="lead-123",
         payload={"reason": "missing_dossier"},
-        now=NOW,
+        now=now,
         **kwargs,
     )
 
