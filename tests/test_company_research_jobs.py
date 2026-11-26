@@ -8,6 +8,7 @@ from company_research_jobs import (
     create_research_job,
     fail_research_job,
     heartbeat_research_job,
+    retry_backoff_seconds,
 )
 
 NOW = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
@@ -136,3 +137,22 @@ def test_naive_clock_and_invalid_limits_are_rejected():
         make_job(now=datetime(2026, 11, 26))
     with pytest.raises(ValueError):
         claim_research_job(make_job(), worker_id="worker-a", lease_seconds=0, now=NOW)
+
+
+@pytest.mark.parametrize(
+    ("attempt", "expected"),
+    [(1, 60), (2, 120), (3, 240), (4, 480), (20, 3600)],
+)
+def test_retry_backoff_is_exponential_and_capped(attempt, expected):
+    assert retry_backoff_seconds(attempt, base_delay_seconds=60, max_delay_seconds=3600) == expected
+
+
+def test_retry_backoff_rejects_invalid_limits():
+    for kwargs in (
+        {"attempt_count": 0},
+        {"attempt_count": True},
+        {"attempt_count": 1, "base_delay_seconds": 0},
+        {"attempt_count": 1, "base_delay_seconds": 60, "max_delay_seconds": 30},
+    ):
+        with pytest.raises(ValueError):
+            retry_backoff_seconds(**kwargs)
