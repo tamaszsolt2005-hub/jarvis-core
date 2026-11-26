@@ -83,6 +83,17 @@ A hosszú távú termékvízió és részletes fázisok: [JARVIS_AUTONOMOUS_SAAS
 
 A JARVIS célja, hogy önállóan cégeket fedezzen fel, forrásolt cégdossziét és szakmai döntéshozói kontextust készítsen, a cég valós problémáiból több egyedi SaaS-ötletet generáljon, ezeket magyarázhatóan rangsorolja, majd a globális és cégenkénti termék-tiltó/negatív ajánlási naplóval ütköztesse. A legjobb ötlethez személyre szabott, forrásolt ajánlatot és e-mail-tervezetet készítsen. Érdeklődés esetén igényfelmérés és szerződéses elfogadás után külön belső jóváhagyással indulhat AI-támogatott termékfejlesztési projekt.
 
+### Phase 1 – cégfelderítés és cégdosszié: első implementációs szelet
+
+A meglévő `global_lead_research.py` + `global_lead_research_job.py` és a napi `global-lead-research.yml` workflow már végrehajt Google Search groundinggal támogatott, legfeljebb 15 új cégre korlátozott kutatást. A `feature/company-research-phase-1` ág ezt bővíti:
+- strukturált, kategorizált cég-tények (üzleti modell, termékek, ügyfélszegmensek, piacok, növekedési/technológiai/működési jelek és nyilvános hírek);
+- nyilvános, szakmai döntéshozói név/szerepkör/háttér, kizárólag groundinggal igazolt forrás esetén;
+- `company_dossier.py` validáció: csak engedélyezett üzleti kategória és a Google groundingben szereplő domain maradhat;
+- a rövid dosszié a meglévő lead `notes` mezőjébe kerül, séma-/production-migráció nélkül;
+- személyes e-mail/telefon, érzékeny vagy magánéleti adat nem kerül a dossziéba; kutatás nem ad kapcsolatfelvételi engedélyt.
+
+**A Phase 1 még nincs kész:** külön, újrafuttatható worker claim/lease és retry/dead-letter protokoll, kutatási futások és tények normalizált, verziózott tárolása, adatfrissesség és célzott emberi ellenőrző UI még hátravan. A meglévő napi GitHub Actions workflow léte nem bizonyít production worker futást.
+
 ### Új stratégiai fejlesztési sorrend
 1. Automatikus, idempotens cégfelderítő worker és kutatási források.
 2. Verziózott cégdosszié, szakmai döntéshozó-kutatás, bizonyíték- és problémahipotézis.
