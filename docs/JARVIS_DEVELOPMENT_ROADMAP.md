@@ -117,3 +117,13 @@ Ezek célfunkciók, nem a jelenlegi implementáció állapotjelentései. A megl�
 - Missing, malformed, timezone-naive, or future timestamps are treated as stale (fail-closed), so bad metadata never suppresses a needed refresh.
 - The policy is unit-tested at the age boundary and for invalid configuration/timestamps.
 - This is a tested policy primitive only: no automatic refresh worker, database lookup, or production schedule is enabled yet.
+
+### Durable company research snapshot history (Phase 1 increment)
+- Added `public.company_research_snapshots`, an append-only version table linked to the canonical lead ID.
+- Each row stores the full validated dossier JSON, schema version, snapshot UUID, UTC research time, company domain, and SHA-256 fingerprint. The mutable lead notes remain a compact summary.
+- Backend persistence validates the snapshot UUID, timezone-aware timestamp, domain, and recomputed content fingerprint before insert. A duplicate snapshot ID is rejected rather than overwritten.
+- Added a history reader with a bounded page size (maximum 100 snapshots).
+- The table has RLS enabled; `anon` and `authenticated` receive no table privileges; only the backend `service_role` receives SELECT/INSERT. No update/delete path is provided to the application.
+- CI now applies the migration to its isolated PostgreSQL fixture and checks RLS, grants, full JSON persistence, and duplicate rejection.
+- The migration is committed to this feature branch only. It has not been applied to any hosted database.
+- Automatic refresh scheduling is still not enabled. The next step is a read-only stale-profile selection and separately approved refresh worker with idempotent claims/leases.
