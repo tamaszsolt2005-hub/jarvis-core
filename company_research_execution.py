@@ -96,7 +96,7 @@ class CompanyResearchLeaseLost(RuntimeError):
 def _bounded_text(value: Any, *, field: str, limit: int) -> str:
     if not isinstance(value, str):
         raise CompanyResearchExecutionError(f"invalid_{field}")
-    normalized = re.sub(r"\\s+", " ", value).strip()
+    normalized = re.sub(r"\s+", " ", value).strip()
     if not normalized or len(normalized) > limit:
         raise CompanyResearchExecutionError(f"invalid_{field}")
     return normalized
