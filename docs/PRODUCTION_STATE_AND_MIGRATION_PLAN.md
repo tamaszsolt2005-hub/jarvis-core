@@ -1,6 +1,6 @@
 # Production állapot és migrációs terv
 
-**Állapot dátuma:** 2026-11-25. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
+**Állapot dátuma:** 2026-11-26. A Supabase production DB snapshot 2026-11-26-i read-only megfigyelés; az alkalmazás-host státuszát a legfrissebb felhasználói pontosítás külön tisztázta. A lentebbi friss read-only snapshot a PR #21 merge után készült; a production backup/restore sikeres, production séma módosítás nélkül.
 **Production adatbázis:** Supabase PostgreSQL 17, project ref: `kiutreccucbegskxowek`.
 
 ## 1. Rövid állapot
@@ -123,7 +123,7 @@ A `20261123093000`, `20261124130000`, `20261125150000`, `20261125160000` és `20
 
 A GitHub repository metadata alapján nincs homepage URL és GitHub Pages sincs engedélyezve. A repository Streamlit `dashboard.py` alkalmazást tartalmaz, de nem tartalmaz igazolt Streamlit Cloud/Railway/Render/Fly/Vercel deployment hivatkozást. A hozzáférhető Railway accountban csak a `VolleyForm` projekt (`volleyform-api` szolgáltatás, `volleyform-api-production.up.railway.app` domain) látható; ez nem JARVIS és nem szabad JARVIS production hostként kezelni. A Supabase projekt URL adatbázis/API végpont, nem alkalmazás-host.
 
-A production host/URL ezért továbbra is **ismeretlen**. A következő lépéshez a tulajdonosnak meg kell adnia a tényleges hostot vagy annak dashboard linkjét. Eddig semmilyen új deploy, domain/DNS, secrets vagy infrastruktúra-módosítás nem történt.
+**Állapotkorrekció – 2026-11-26:** a JARVIS alkalmazás még nincs telepítve semmilyen app-hostra. Ezért nincs production JARVIS app-host/URL, nem pusztán ismeretlen a már létező host. A korábbi Railway `VolleyForm` projekt nem JARVIS. Jelenleg helyi Streamlit fejlesztés folyik; a host kiválasztása későbbi release döntés. A Supabase production adatbázis ettől külön létező szolgáltatás. Eddig semmilyen új app deploy, domain/DNS, secrets vagy infrastruktúra-módosítás nem történt.
 
 
 ## 2026-11-25 – migration ledger reconciliation and full-chain read-only review
@@ -202,7 +202,7 @@ A PR #26 branch legutóbbi ellenőrzött CI-je (head `6ef4020bba3949e02440e97583
 
 A PR-ben szereplő `20261125180000_unique_normalized_lead_email.sql` és audit/approval/RPC/privilege-lock migrációk productionben történő alkalmazása nincs igazolva, és nem történt meg ebben a munkában. A production migráció előtt friss read-only schema + ledger snapshot, email duplikációs preflight, független SQL review, izolált teljes PG17 replay és külön konkrét jóváhagyás szükséges. A service_role task DML revoke továbbra is csak a tényleges RPC app path deployja és sikeres smoke után jöhet szóba.
 
-A global lead research párhuzamos cég/domain duplikációs kockázata alkalmazásszintű maradt; DB/RPC atomikus claim nincs implementálva. Ez branchben is nyitott fejlesztési feladat, nem production hotfix.
+A global lead research cég/domain konkurenciakockázatát a PR #26 tranzakciós `upsert_company_lead` RPC-je kezeli; a két-session CI teszt sikeres. Ez branch-kód, nem production telepítés. Ez branchben is nyitott fejlesztési feladat, nem production hotfix.
 
 ## 2026-11-26 – release readiness újraellenőrzés
 
@@ -215,7 +215,7 @@ A PR #26 aktuális headjén (a README frissítése előtti `79dfb5b85afaa3ae2140
 
 Ez kizárólag a repository és az izolált CI bizonyítéka. **2026-11-26-án friss, kizárólag read-only Supabase production audit készült** a `kiutreccucbegskxowek` projekten (PostgreSQL 17.11). A remote migration ledger 7 migrációt tartalmaz, benne a két korábban hiányzónak jelölt 20261117 verzióval. A 8 public tábla mindegyikén RLS enabled, de 0 policy van. `anon` és `authenticated` szerepköröknek nincs közvetlen public táblajogosultságuk; a `service_role` mind a nyolc táblán SELECT/INSERT/UPDATE/DELETE joggal rendelkezik. A `private` schema nem létezik, a public/private alkalmazási RPC-k hiányoznak, az `auth.users` rekordszáma 0. A `leads` táblában 11 rekord van és a normalizált email-duplikációs preflight 0 csoportot talált; a `leads_email_normalized_uidx` index nincs telepítve, és a 20261125180000 migráció nem szerepel a remote ledgerben. Security Advisor: 8 INFO policy nélküli RLS jelzés; Performance Advisor: 7 INFO nem használt index; Health Advisor: nincs találat. Nem történt Auth/RLS smoke, production host ellenőrzés vagy deploy. A 2026-11-25-i snapshot történeti adat, a 2026-11-26-i audit a jelenlegi read-only DB-állapot pillanatképe.
 
-A tényleges JARVIS alkalmazás hostja/URL-je továbbra sincs azonosítva. A production release ezért blokkolt a host és runtime bizonyíték megszerzéséig, a migration drift független egyeztetéséig, a teljes PG17 replay és SQL review lezárásáig, az Auth/RLS hozzáférési modell rendezéséig, valamint a külön production jóváhagyásig. A read-only audit nem változtatott semmilyen production objektumon vagy adaton. A PR nyitva maradt; production rendszeren nem történt változtatás.
+A JARVIS alkalmazás még nincs telepítve, ezért nincs app-hostja vagy URL-je; a hostválasztás későbbi release feladat. A production release ezért blokkolt a host és runtime bizonyíték megszerzéséig, a migration drift független egyeztetéséig, a teljes PG17 replay és SQL review lezárásáig, az Auth/RLS hozzáférési modell rendezéséig, valamint a külön production jóváhagyásig. A read-only audit nem változtatott semmilyen production objektumon vagy adaton. A PR nyitva maradt; production rendszeren nem történt változtatás.
 
 
 ## 2026-11-26 – új lead identity migration: PR-ág, nem production
