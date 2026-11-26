@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(16);
+SELECT plan(14);
 
 -- Make reruns safe after an interrupted prior attempt.
 DELETE FROM public.company_research_budget_reservations
@@ -47,7 +47,7 @@ SELECT lives_ok(
 -- this independent session, proving that two sessions overlap at the lock.
 SELECT * FROM extensions.dblink(
   'research_lock_holder',
-  'SELECT pg_advisory_lock(742026, 2)'
+  'SELECT true AS locked FROM (SELECT pg_advisory_lock(742026, 2)) AS acquired'
 ) AS result(locked boolean);
 -- Two sessions reserve 700 each against the same 1000 micro-USD daily cap.
 SELECT is(
@@ -154,7 +154,7 @@ SELECT * FROM public.company_research_job_create(
 
 SELECT * FROM extensions.dblink(
   'research_lock_holder',
-  'SELECT pg_advisory_lock(742026, 1)'
+  'SELECT true AS locked FROM (SELECT pg_advisory_lock(742026, 1)) AS acquired'
 ) AS result(locked boolean);
 
 SELECT is(
