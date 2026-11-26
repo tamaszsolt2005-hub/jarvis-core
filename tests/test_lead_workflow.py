@@ -259,3 +259,18 @@ def test_followup_stage_is_review_only_and_outcome_stage_requests_measurement():
     )[0]
     assert outcome["workflow_stage"] == "outcome_measurement"
     assert "mérhető üzleti eredményt" in outcome["notes"]
+
+
+def test_low_confidence_research_validation_does_not_unlock_commercial_stages():
+    weak_lead = _lead(
+        "lead-weak", "Bizonytalan Kft.", fit=91, confidence="low", evidence=""
+    )
+    plans = build_lead_workflow_recommendations(
+        [weak_lead],
+        [{
+            "lead_id": "lead-weak", "status": "done",
+            "notes": "[JARVIS_STAGE:research_validation]",
+            "completed_at": "2026-11-25T11:00:00Z",
+        }],
+    )
+    assert plans == []
