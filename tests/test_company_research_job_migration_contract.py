@@ -53,3 +53,18 @@ def test_hourly_and_per_domain_quotas_are_checked_atomically_before_insert():
     assert create_fn.index("research_domain_daily_limit_exceeded") < create_fn.index("INSERT INTO public.company_research_jobs")
     assert "lower(COALESCE(payload->>'company_domain', '')) = v_domain" in create_fn
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) TO service_role" in sql
+
+
+
+def test_actual_cost_settlement_is_atomic_with_job_completion():
+    sql = MIGRATION.read_text(encoding="utf-8")
+    assert "actual_cost_microusd bigint CHECK" in sql
+    assert "reservation_status IN ('reserved', 'settled')" in sql
+    complete_fn = sql.split("CREATE OR REPLACE FUNCTION public.company_research_job_complete", 1)[1]
+    complete_fn = complete_fn.split("\n$$;", 1)[0]
+    assert "p_actual_cost_microusd bigint DEFAULT NULL" in complete_fn
+    assert "SET reserved_cost_microusd = p_actual_cost_microusd" in complete_fn
+    assert "reservation_status = 'settled'" in complete_fn
+    assert "'actual_cost_microusd', p_actual_cost_microusd" in complete_fn
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_budget_reservations TO service_role" in sql
+    assert "GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb, bigint) TO service_role" in sql
