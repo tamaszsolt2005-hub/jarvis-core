@@ -58,6 +58,10 @@ def _next_stage(tasks: list[dict[str, Any]], initial_stage: str) -> str | None:
         return stage
     if status != "done":
         return None
+    # A low-confidence research task cannot unlock commercial stages by itself.
+    # Fresh grounded evidence must first raise the lead's confidence.
+    if stage == "research_validation" and initial_stage == "research_validation":
+        return None
     next_index = stage_index + 1
     return _WORKFLOW_STAGES[next_index][0] if next_index < len(_WORKFLOW_STAGES) else None
 
