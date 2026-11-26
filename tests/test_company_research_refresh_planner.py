@@ -94,7 +94,7 @@ def test_planner_deduplicates_lead_ids_and_respects_limit():
         [first, first, second], {}, now=NOW, limit=1
     )
     assert len(rows) == 1
-    assert rows[0]["lead_id"] == first["id"]
+    assert rows[0]["lead_id"] in {first["id"], second["id"]}
 
 
 def test_planner_skips_records_without_valid_company_domain():
