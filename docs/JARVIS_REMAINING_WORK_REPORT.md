@@ -212,3 +212,14 @@ Elkészült a `supabase/tests/company_research_jobs_security.test.sql` 10 pgTAP 
 - a service_role BYPASSRLS tesztfixture-elvárását.
 
 A fájl bekerült a PostgreSQL 17 CI jobba, és a Python migration-contract teszt is ellenőrzi a CI bekötést. **Az új security pgTAP csomag futási eredménye még nem igazolt**; a friss CI futásra várunk. Production jogosultság, RLS vagy adatbázis nem változott.
+
+
+## 12. Gemini SDK kivétel- és Auth/RLS regressziós tesztek – 2026-11-26
+
+- Valós Google GenAI SDK `ClientError` és `ServerError` példányokkal tesztelt kategóriák: 429, 503, 504, 403, 400 API_KEY_INVALID és 500.
+- A Gemini generálási út teszteli a valós SDK 503 retry-t és az auth/permission hibák retry-tiltását.
+- Nincs élő Gemini API-hívás. A model kliens mockolt; valódi HTTP transport mock még nincs.
+- Auth tesztek bizonyítják, hogy a kliensoldali sessionben tárolt role és a `user_metadata.role` nem emelhet jogosultságot; kizárólag a frissen lekért `app_metadata.role` az irányadó. A nem megerősített fiók session refresh után is tiltott.
+- A worker security pgTAP suite 12 assertionre bővült, beleértve a snapshot history RLS-t, anon/authenticated hozzáférés tiltását és a service_role append-only snapshot jogosultságát.
+
+A fenti módosítások új CI-futása még nem fejeződött be, ezért ezek teszteredményét nem tekintjük igazoltnak.
