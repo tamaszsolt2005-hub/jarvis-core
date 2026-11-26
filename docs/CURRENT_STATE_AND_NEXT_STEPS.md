@@ -178,3 +178,5 @@ A worker concurrency plafon továbbra is külön, atomikus claim RPC-ben érvén
 ### 7.12 Tényleges költség elszámolása
 
 A worker opcionális `actual_cost_extractor` callbacket fogad. Ha a provider handler a normalizált, JSON-kompatibilis eredményből tényleges költséget tud számolni, a worker azt nemnegatív egész mikro-USD értékként átadja a complete RPC-nek. A job sikeres lezárása és a reservation `settled` állapotba állítása egy tranzakcióban történik; a becsült foglalást a tényleges költség váltja fel, és az audit esemény is rögzíti az actual cost értéket. Ha nincs extractor, a becsült reservation megmarad, tehát a rendszer konzervatívan számol. A provider adapter még nincs bekötve, ezért valós tokenhasználatot jelenleg nem mérünk.
+
+A régi, snapshot admission nélküli refresh enqueue útvonalat is lezártam: mostantól kötelező megadni a becsült költséget és a limit-konfigurációt, és az adapter ugyanazokat az adatbázisoldali költség/hourly/domain paramétereket küldi be. Így egyik Python enqueue belépési út sem hagyja ki a hard DB kvótákat.
