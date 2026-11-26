@@ -182,13 +182,14 @@ Ezek kezdetben lehetnek egy alkalmazás moduljai, nem szükséges külön mikros
 - Minden új adatforrás és külső szolgáltatás dokumentálása.
 
 ### Phase 1 – automatikus cégfelderítés és kutatás
-- Idempotens, limitált scheduler/worker.
-- Cégduplikációk és kutatási források kezelése.
-- Cégdosszié és döntéshozó szakmai profil.
-- Forrás, dátum, confidence és stale-data frissítés.
-- Read-only működés, outreach nélkül.
 
-**Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden tény visszavezethető forrásra; hiányzó adat nem kitalált; rate/cost limit működik.
+**Már létező alap:** napi GitHub Actions indítású Google Search grounding kutatás, maximum 15 új cég/futás, cégduplikáció-szűrés, audit és outreach nélküli leadmentés.
+
+**Első implementációs szelet a `feature/company-research-phase-1` ágon:** strukturált cég-tények és nyilvános szakmai döntéshozói profil bekérése; a `company_dossier.py` kizárólag grounding domainhez kötött, engedélyezett üzleti tényeket enged át; a rövid dosszié a jelenlegi lead `notes` mezőjébe kerül. Nincs privát elérhetőség-gyűjtés vagy kapcsolatfelvételi engedély.
+
+**Még hátravan:** idempotens claim/lease worker, heartbeat, retry limit és dead-letter; kutatási futások/tények normalizált és verziózott tárolása; stale-data újrakutatás; költség- és domain rate limit; kutatási UI és emberi ellenőrzés.
+
+**Elfogadás:** ismételt futás nem hoz létre duplikált céget; minden megőrzött tény grounding-forráshoz köthető; hiányzó adat nem kitalált; rate/cost limit és audit működik; a kutatás nem kapcsolhat outreach-t.
 
 ### Phase 2 – egyedi SaaS-ötlet és tiltó napló
 - Ötletgenerálás több alternatívával.
