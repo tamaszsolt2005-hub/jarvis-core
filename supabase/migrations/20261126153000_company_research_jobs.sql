@@ -66,8 +66,10 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.company_research_job_claim(text, integer);
+
 CREATE OR REPLACE FUNCTION public.company_research_job_claim(
-  p_worker_id text, p_lease_seconds integer
+  p_worker_id text, p_lease_seconds integer, p_max_concurrent_jobs integer
 ) RETURNS SETOF public.company_research_jobs
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -75,9 +77,24 @@ SET search_path = ''
 AS $$
 DECLARE
   v_job_id uuid;
+  v_running_count integer;
 BEGIN
-  IF p_worker_id IS NULL OR length(btrim(p_worker_id)) = 0 OR p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN
+  IF p_worker_id IS NULL OR length(btrim(p_worker_id)) = 0
+     OR p_lease_seconds IS NULL OR p_lease_seconds < 1
+     OR p_max_concurrent_jobs IS NULL OR p_max_concurrent_jobs < 1 THEN
     RAISE EXCEPTION 'invalid claim arguments';
+  END IF;
+
+  -- Serialize claim decisions so concurrent workers cannot all observe the
+  -- same free slot and exceed the global active-lease ceiling.
+  PERFORM pg_advisory_xact_lock(742026, 1);
+
+  SELECT count(*) INTO v_running_count
+  FROM public.company_research_jobs
+  WHERE status = 'running' AND lease_expires_at > now();
+
+  IF v_running_count >= p_max_concurrent_jobs THEN
+    RETURN;
   END IF;
 
   -- A worker that vanished on its final permitted attempt must not be
@@ -185,13 +202,13 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_heartbeat(text, text, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb) TO service_role;
-GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_heartbeat(text, text, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) TO service_role;
