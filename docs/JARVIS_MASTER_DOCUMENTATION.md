@@ -315,3 +315,5 @@ A kvóta a job enqueue-k számát jelenti, nem a sikeres kutatásokét: a sikert
 ### 10.12 Actual cost settlement
 
 A worker opcionális `actual_cost_extractor` függvénnyel képes a provider handler eredményéből tényleges költséget kinyerni. A callback kimenete szigorúan nemnegatív egész mikro-USD. A repository a complete RPC-n keresztül adja át; a job sikeres lezárása, a budget reservation `settled` státuszra váltása, a foglalt összeg actual cost-ra cserélése és az audit metadata beírása egy adatbázis-tranzakcióban történik. Extractor hiányában az eredeti becsült összeg marad fenntartva, így az elszámolás nem engedi véletlenül felszabadítani a fel nem mért költséget. Tényleges provider usage mérés még nincs implementálva.
+
+Minden Python refresh enqueue útvonal kötelezően megadja a becsült költséget és a limit-konfigurációt; nincs több olyan egyszerű enqueue helper, amely a hard adatbázisoldali napi költség-, óránkénti vagy domain napi korlátok nélkül hozhat létre jobot.
