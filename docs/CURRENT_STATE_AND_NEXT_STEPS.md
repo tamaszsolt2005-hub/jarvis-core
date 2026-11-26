@@ -205,6 +205,6 @@ A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadá
 
 ## 9. Dashboard navigációs audit – 2026-11-26
 
-A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások navigációs útvonalait áttekintettük. A Settings korábban csak dekoratív HTML volt; most dedikált, kattintható, read-only konfigurációs oldal, titokértékek megjelenítése nélkül. A rendszerdiagnosztika csak kézi indításra fut, és jelzi a Gemini próbakérés lehetséges költségét. A runtime titkok, Auth/RBAC, RLS és outbound e-mail zár UI-ból nem módosítható.
+A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások navigációs útvonalait áttekintettük. A Settings korábban csak dekoratív HTML volt; most dedikált, kattintható, read-only konfigurációs oldal, titokértékek megjelenítése nélkül. A rendszerdiagnosztika csak kézi indításra fut, és jelzi a Gemini próbakérés lehetséges költségét. Auth módban a Settings settings.read jogosultságot igényel, a teljes diagnosztika admin-only. A runtime titkok, Auth/RBAC, RLS és outbound e-mail zár UI-ból nem módosítható.
 
 A Feladatközpont üres tasklista esetén korábban elrejtette az utánkövetési sort; a korai visszatérést javítottuk és AppTestet adtunk hozzá. A Cégkutatás Auth/RLS módban továbbra is fail-closed, az Audit külön Supabase Auth-admin belépést kér. A dashboard tesztcsomag két Settings teszttel és egy üres tasklista/utánkövetés regressziós teszttel bővült. Az audit utáni új HEAD teljes CI-ellenőrzése még szükséges.
