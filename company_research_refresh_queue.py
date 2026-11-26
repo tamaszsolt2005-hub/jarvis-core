@@ -34,11 +34,13 @@ def enqueue_company_research_refreshes(
     leads: list[dict[str, Any]],
     latest_dossiers: dict[str, Any],
     *,
+    limits: dict[str, int],
+    estimated_cost_microusd_per_job: int,
     now: datetime | None = None,
     max_age_days: int = 30,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Plan eligible stale dossiers and idempotently persist their queue jobs."""
+    """Plan and enqueue using mandatory database-enforced cost/rate limits."""
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
     )
@@ -53,7 +55,12 @@ def enqueue_company_research_refreshes(
                 "company_name": candidate["company_name"],
                 "reason": candidate["reason"],
                 "researched_at": candidate["researched_at"],
+                "estimated_cost_microusd": estimated_cost_microusd_per_job,
             },
+            estimated_cost_microusd=estimated_cost_microusd_per_job,
+            daily_budget_microusd=limits["max_daily_cost_microusd"],
+            max_jobs_per_hour=limits["max_jobs_per_hour"],
+            max_jobs_per_domain_per_day=limits["max_jobs_per_domain_per_day"],
         ))
     return jobs
 
