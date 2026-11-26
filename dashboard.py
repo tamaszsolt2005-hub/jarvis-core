@@ -65,7 +65,10 @@ from intelligent_lead_scoring import rank_researched_leads
 from daily_briefing import build_daily_briefing, build_follow_up_queue
 from business_learning import build_business_learning
 from task_actions import parse_task_command, execute_task_action
-from lead_workflow import parse_recommended_task_command, build_recommended_task_action
+from lead_workflow import (
+    parse_recommended_task_command, build_recommended_task_action,
+    build_lead_workflow_recommendations,
+)
 from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
@@ -361,7 +364,7 @@ def render_tasks_page(db: Any) -> None:
     lead_status: dict[str, Any] = {}
     follow_up_leads = _safe_rows(
         db, "leads",
-        "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at",
+        "id,company_name,status,email,consent_basis,consent_confirmed_at,approved_to_contact,opted_out,reply_category,last_inbound_message_id,follow_up_count,next_follow_up_at,notes,source",
         1500, status=lead_status,
     )
     if lead_status.get("error"):
@@ -378,6 +381,42 @@ def render_tasks_page(db: Any) -> None:
             st.dataframe(pd.DataFrame(follow_up_rows), width="stretch", hide_index=True)
         else:
             st.info("Nincs olyan utánkövetés, amely megfelelne a hozzájárulási és státuszfeltételeknek.")
+
+        research_leads = [
+            {
+                "id": lead.get("id"),
+                "company_name": lead.get("company_name"),
+                "research_intelligence": str(lead.get("notes") or ""),
+            }
+            for lead in follow_up_leads
+            if str(lead.get("source") or "").startswith("gemini_google_search_grounding:")
+            and str(lead.get("notes") or "").startswith("Leadkutatás;")
+        ]
+        workflow_recommendations = build_lead_workflow_recommendations(
+            research_leads, tasks, limit=20
+        )
+        outcome_recommendations = [
+            item for item in workflow_recommendations
+            if str(item.get("workflow_stage") or "").startswith("outcome_")
+        ]
+        st.subheader("Eredményalapú következő teendők")
+        st.caption(
+            "A lezárt eredménymérési feladat egyértelmű, rögzített besorolásából készülő "
+            "belső javaslat. A JARVIS nem következtet szabad szövegből és nem kezdeményez kapcsolatfelvételt."
+        )
+        if outcome_recommendations:
+            for item in outcome_recommendations:
+                st.markdown(f"**{item['task_title']}**")
+                st.write(item["rationale"])
+                st.code(
+                    f"Hozz létre javasolt feladat: {item['lead_id']}",
+                    language="text",
+                )
+        else:
+            st.info(
+                "Még nincs olyan lezárt eredménymérési feladat, amelyből biztonságosan "
+                "következő belső teendő javasolható."
+            )
 
     with st.expander("Feladatműveletek a chatben"):
         st.markdown(
