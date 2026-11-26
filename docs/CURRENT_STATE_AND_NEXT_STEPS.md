@@ -84,3 +84,12 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 - Production Supabase DDL/DML, migration, GRANT/REVOKE, Auth/RBAC, secret és infrastruktúra módosítása tilos külön engedély nélkül.
 - Production deploy és outbound e-mail küldés nincs engedélyezve.
 - CI zöld státusza csak az adott SHA-ra és az adott tesztkörnyezetre érvényes.
+
+
+## 7. Új fejlesztési fókusz – 2026-11-26
+
+A PR #28 a cégkutatási előzmények read-only dashboardját vezeti be. A navigációs routing hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja. Az új CI elindult; a javítás teljes CI-eredménye még nincs igazolva. A felület Auth esetén fail-closed, nem használ service-role megkerülést.
+
+A következő munkacsomag a biztonságos háttérmotor. Első lépésként DB-től független job lifecycle modult készítünk stabil operation ID-val, lease/claim és heartbeat szabályokkal, véges retry-val, dead-letter állapottal és fake repository tesztekkel. Ezt követi a planner DB-adaptere és a scheduler. A scheduler nem aktiválható automatikusan; production DB, migráció, deploy és outbound e-mail változatlanul tiltott külön jóváhagyásig.
+
+A felhasználó kérése szerint a kisebb módosítások után nem állunk meg külön ellenőrzési körre: több összefüggő funkció elkészülte után futtatunk átfogó ellenőrzést.
