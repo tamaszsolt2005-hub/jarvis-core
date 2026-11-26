@@ -242,3 +242,34 @@ Ez a friss szakasz felülírja a dokumentum korábbi PR #26 CI-pillanatképeit �
 - CodeQL/Dependabot egyedi riasztáslisták áttekintése külön Security áttekintésben; a sikeres workflow nem egyenlő a riasztásmentesség bizonyításával.
 
 **Biztonsági határ:** production DB/app változtatás, secrets módosítása, Auth/RBAC aktiválás, GRANT/REVOKE, SMTP-küldés és PR merge továbbra sem történt; ezekhez külön, konkrét jóváhagyás kell.
+
+
+
+## 2026-11-26 – ellenőrzött PR #26 állapot és pontosított nyitott kapuk
+
+Ez a friss blokk felülírja a korábbi, elavult PR-head/CI állításokat ebben a dokumentumban. Ellenőrzött head: `6ef4020bba3949e02440e97583fc907b6bcb1f00`; PR #26 nyitott, nem merge-ölt.
+
+**Automatikus ellenőrzések – mind sikeres:**
+- JARVIS CI: **838 passed, 3 skipped, 0 failed**, coverage **91.29%**.
+- PostgreSQL 17 backup/restore és izolált migrációs/pgTAP integráció: sikeres.
+- CodeQL: sikeres.
+- pip-audit: sikeres.
+
+### Global research concurrency – újraértékelt kockázat
+
+A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-oldalas beolvasást végez, de nem nyit közös tranzakciót a későbbi beszúrással. Két párhuzamos futás azonos hiányállapotot láthat, és mindkettő beillesztheti ugyanazt a céget. Az offset lapozás concurrent insert/delete mellett nem garantál konzisztens snapshotot. A memóriában frissített `known_names/known_sites` csak az adott futásban véd.
+
+**Nyitott, nem productionre kész feladat:** az összes lead-létrehozó útvonal leltára; a company/domain azonosság szabályainak meghatározása; majd közös tranzakciós RPC/claim protokoll, amely minden érintett íróútvonalból használható. Kötelező elfogadási teszt: két külön PostgreSQL session azonos cégnév/domain claimet próbál egyszerre; pontosan egy nyerhet, a másik determinisztikus konfliktus/duplicate eredményt kap; legitim közös domainek és névütközések ne vesszenek el. Független SQL review szükséges. Addig a kockázat dokumentált, nem megoldott.
+
+### Release gate státusz
+
+- [x] PR #26 branch automatikus CI/CodeQL/dependency audit zöld.
+- [x] Izolált PostgreSQL 17 migration/pgTAP és backup/restore tesztek zöldek.
+- [ ] Production JARVIS host/URL azonosítása és runtime health bizonyítása.
+- [ ] Friss, read-only production schema + migration ledger snapshot és eltérések egyeztetése.
+- [ ] Független SQL review és engedélyezett Auth/JWT/RLS smoke.
+- [ ] RPC app write path deploy/smoke; csak utána privilege-lock migráció külön jóváhagyással.
+- [ ] Global lead research DB-szintű konkurencia-protokoll és két-session teszt.
+- [ ] E-mail provider live E2E; addig hard-disable marad.
+
+**Biztonsági határ:** a jelenlegi munkában nem történt production DB-írás/migráció, GRANT/REVOKE, Auth/RBAC módosítás, deploy, secret-változtatás vagy e-mailküldés. A PR merge külön, konkrét jóváhagyást igényel.
