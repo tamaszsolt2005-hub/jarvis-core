@@ -48,7 +48,7 @@ jobs:
         run: cat daily_briefing.md >> "$GITHUB_STEP_SUMMARY"
       - name: Publish report artifact
         if: steps.config.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jarvis-daily-briefing
           path: daily_briefing.md

@@ -46,7 +46,7 @@ jobs:
         run: python proactive_monitor_job.py > proactive_monitor.md
       - name: Publish report artifact
         if: steps.config.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jarvis-proactive-monitor
           path: proactive_monitor.md
