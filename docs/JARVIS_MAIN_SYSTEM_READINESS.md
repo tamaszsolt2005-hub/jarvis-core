@@ -62,11 +62,11 @@ Ez nem jelenti azt, hogy az autonóm kutatás, SaaS-termékötlet motor, outreac
 
 ### P0 – kötelező lezárás
 
-1. **Aktuális CI zöldre futtatása.** A korábbi core workflow commit teljes CI-je zöld, de a dashboard audit utáni aktuális HEAD-et még újra kell ellenőrizni. A Python/unit/AppTest/browser tesztek, PostgreSQL 17 migration/pgTAP és concurrency tesztek, backup–restore, CodeQL és dependency audit eredményét az aktuális PR headhez kell kötni.
+1. **Célzott aktuális regresszióellenőrzés.** Először csak az új/módosított hibakezelési modulok unit tesztjei és a két korábban elbukott Settings AppTest futtatandó. A változatlan backup–restore, korábban sikeres core E2E és más, azóta nem módosított területek tesztjeit nem ismételjük meg. Teljes CI csak a worker/snapshot/Auth integrációs mérföldkő végén, illetve merge/release előtt szükséges.
 2. **Teljes helyi smoke teszt.** Friss, dokumentált fejlesztői környezetben telepítés, konfigurációellenőrzés, Streamlit indulás, chat, leadkutatás, lead lista, task approval, task center, memória, briefing, analitika, audit és kutatási előzmény végigpróbálása.
 3. **Végponttól végpontig tartó core workflow teszt.** Lead létrehozás/azonosítás → scoring → task javaslat → approval → atomikus DB művelet → audit → outcome feldolgozás. Ellenőrizni kell a duplikált kérés, timeout, visszajátszás, párhuzamos kérés és audit-hiba viselkedését.
 4. **Dashboard navigációs leltár – részben lezárva.** A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások mind valódi Streamlit navigációs gomb és dedikált útvonal. A Beállítások read-only konfigurációs áttekintést és kézi diagnosztikát ad. A cégkutatási előzmény Auth/RLS módban szándékosan fail-closed, az Audit külön admin Auth-belépést kér. A valós Auth/RLS és manuális smoke továbbra is szükséges.
-5. **Konfigurációs és hibaállapotok.** Hiányzó/hibás Gemini vagy Supabase konfiguráció, hálózati hiba, rate limit, jogosultsághiány és üres adatbázis esetén érthető, biztonságos hibaüzenet kell; titok nem kerülhet logba vagy UI-ra.
+5. **Konfigurációs és hibaállapotok – implementálva, célzott teszt még szükséges.** A hiányzó/hibás konfiguráció, hálózati hiba, rate limit, jogosultsághiány és timeout központi kategorizálást és titokmentes magyar útmutatót kapott. A módosított hibakezelési teszteket és a két javított Settings AppTestet célzottan ellenőrizni kell.
 
 ### P1 – megbízható belső használat és későbbi release előfeltétele
 
@@ -93,12 +93,12 @@ Production Supabase módosítás, migration futtatás, GRANT/REVOKE, Auth/RBAC, 
 
 ## 6. Javasolt lezárási sorrend
 
-1. Fejezzük be és javítsuk zöldre a PR #28 aktuális CI-jét.
-2. Készítsünk core E2E tesztet a lead → approval/task → audit folyamatra.
-3. A dashboard navigációs leltár elkészült; a Settings read-only felület és az AppTest lefedés bekerült. A valós Auth/RLS hozzáférés és manuális smoke még külön kapu.
-4. Zárjuk le a worker SQL konkurencia- és kutatási snapshot E2E tesztjeit.
+1. Futtassuk célzottan a hibakezeléshez és a javított Settings AppTestekhez tartozó teszteket; csak a hibás vagy módosított részt javítsuk.
+2. A korábban zöld core lead → approval/task → audit E2E eredményt tartsuk meg bizonyítékként; csak akkor ismételjük, ha az érintett workflow kódja változik.
+3. Zárjuk le a worker SQL konkurencia- és kutatási snapshot E2E tesztjeit izolált PostgreSQL-ben.
+4. Végezzük el az Auth/RLS szerepkör- és jogosultsági teszteket izolált környezetben.
 5. Végezzen a fejlesztői környezetben egy dokumentált teljes manuális smoke tesztet.
-6. Ezek után adjunk külön minősítést: „helyi főrendszer kész”, „belső használatra kész”, illetve „production release-re kész”.
+6. A fenti integrációs csomag után egyszer futtassuk a teljes CI-t, majd adjunk külön minősítést: „helyi főrendszer kész”, „belső használatra kész”, illetve „production release-re kész”.
 
 **Dashboard-audit megállapítás (2026-11-26):** a korábban dekoratív, nem kattintható Beállítások menüpont valódi oldalt kapott. A Settings csak konfigurációs jelenlétet mutat, titokértéket nem; Auth módban settings.read jogosultság szükséges, a Gemini diagnosztikai próbakérés pedig kizárólag kézi gombnyomásra és admin szerepkörrel fut. A Feladatközpont korábban korai `return` miatt üres tasklista esetén elrejtette a jogosultsági feltételeknek megfelelő utánkövetési sort; ezt javítottuk és regressziós AppTestet adtunk hozzá. A dashboard státuszfelirata a nem igazolt „Rendszer Online” helyett „Munkamenet aktív”.
 
