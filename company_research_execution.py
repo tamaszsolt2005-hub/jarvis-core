@@ -185,9 +185,16 @@ def build_company_research_prompt(
     *, company_name: str, company_domain: str, market: str
 ) -> str:
     """Create a bounded, structured prompt; treat company identifiers as data."""
-    company_name_json = json.dumps(company_name, ensure_ascii=False)
-    company_domain_json = json.dumps(company_domain, ensure_ascii=False)
-    market_json = json.dumps(market, ensure_ascii=False)
+    def normalize_prompt_value(value: str) -> str:
+        # Normalize whitespace supplied as either real whitespace or an escaped
+        # newline followed by whitespace, while preserving literal backslash-n
+        # sequences that are part of an untrusted company name.
+        normalized = re.sub(r"\\\\n(?=\\s)", " ", value)
+        return re.sub(r"\\s+", " ", normalized).strip()
+
+    company_name_json = json.dumps(normalize_prompt_value(company_name), ensure_ascii=False)
+    company_domain_json = json.dumps(normalize_prompt_value(company_domain), ensure_ascii=False)
+    market_json = json.dumps(normalize_prompt_value(market), ensure_ascii=False)
     return f"""Research this company using public, business-relevant information only.
 
 Company name (JSON string): {company_name_json}
