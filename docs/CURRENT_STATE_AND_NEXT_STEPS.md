@@ -135,14 +135,14 @@ A következő egység egy tiszta, DB-független admission döntés: óránkénti
 
 ### 7.6 Hosszú jobok lease-heartbeat támogatása
 
-A worker handler opcionális heartbeat callbacket kap, amely a tartós repository heartbeat RPC-jét hívja. A handler hosszabb műveletek közben saját checkpointjainál megújíthatja a lease-t; automatikus timer vagy háttérszál nem indul. Ha a lease elveszett, a callback ezt egyértelműen jelzi, a worker pedig nem írhatja felül az új tulajdonos állapotát.
+A worker handler heartbeat callbacket kap. A Gemini provider adapter a hosszú szinkron API-kérés alatt konfigurálható időközönként háttérszálból frissíti a lease-t; hamis heartbeat vagy callback-kivétel esetén a provider eredményét eldobja, és a worker nem complete-olhatja sikeresként.
 
 
 ### 7.7 Admission és költségkeret – első implementáció
 
 Elkészült a `company_research_admission.py` DB-független policy, amely globális óránkénti joblimitet, domainenkénti napi limitet, párhuzamos joblimitet és napi költségkeretet vizsgál egész mikro-USD egységben. A `company_research_refresh_queue.py` új admission-aware enqueue útvonala egyetlen batchen belül frissíti a helyi usage snapshotot, így a batch nem lépi túl saját kvótáját. Több párhuzamos folyamat közötti hard limithez még atomikus DB reservation szükséges; ez a Python policy önmagában nem biztosít globális költségplafont.
 
-A worker emellett opcionális, kétparaméteres handlernek heartbeat callbacket ad át. A handler saját checkpointjánál frissítheti a lease-t; nincs automatikus timer vagy háttérszál.
+A Gemini provider adapter a worker callbackjét leállítható daemon szálból, konfigurálható időközönként hívja a szinkron provider-kérés alatt; a szál a kérés lezárásakor leáll.
 
 
 ### 7.8 Worker- és idempotencia-hardening
@@ -191,3 +191,8 @@ A workerhez `make_company_research_handler()` adapter adható. A lease-t a provi
 Fontos: a Gemini kliens és modell injektált; a modul nem olvas secretet, nem hoz létre klienst, és nem indít önálló API-hívást. A worker/queue/dashboard éles összekötése, valós provider hívás, DB snapshot mentés és valódi tokenköltség mérés még nincs bekapcsolva. Outbound e-mail továbbra is tiltott.
 
 A `company_research_runtime.py` explicit composition root is elkészült: `run_company_research_worker_once()` összeköti az injektált repositoryt, Gemini grounding providert, one-shot workert és konfigurált tokenáras actual-cost extractort. Importkor nem futtat semmit, nem készít klienst vagy secretet; kizárólag explicit függvényhíváskor claimel legfeljebb egy jobot. Scheduler, dashboard trigger és automatikus háttérfuttatás továbbra sincs.
+
+
+### 7.14 Hosszú Gemini-kérések lease-heartbeat javítása
+
+A Gemini provider adapter most a teljes szinkron API-kérés és retry-időszak alatt periodikusan megújítja a lease-t a worker heartbeat callbackjén keresztül. A heartbeat külön leállítható daemon szálon fut; lease-vesztéskor a provider eredménye nem használható fel. A javítást két célzott teszt fedi, a teljes CI-ellenőrzés az új PR head SHA-ján következik.
