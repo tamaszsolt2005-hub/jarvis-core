@@ -18,7 +18,7 @@ _INDUSTRY = re.compile(r"tényleges ország:\s*(.*?);\s*iparág:\s*(.*?)\.\s", r
 _NEED = re.compile(r"megfigyelhető üzleti igény:\s*(.*?);\s*alátámasztó jelek:", re.I)
 
 _WORKFLOW_STAGES = (
-    ("research_validation", "Kutatási bizonyítékok ellenőrzése"),
+    ("research_validation", "Kutatási bizonyítékok kiegészítése"),
     ("business_need_validation", "Üzleti igény és szolgáltatási illeszkedés ellenőrzése"),
     ("offer_preparation", "Ajánlati koncepció előkészítése"),
     ("offer_review", "Ajánlati koncepció emberi felülvizsgálata"),
@@ -106,8 +106,12 @@ def build_lead_workflow_recommendations(
         confidence = score["research_confidence"]
         evidence_count = score["evidence_count"]
         priority_score = score["priority_score"]
-        initial_stage = "research_validation"
         research_is_sufficient = confidence != "low" and evidence_count >= 2
+        initial_stage = (
+            "business_need_validation"
+            if research_is_sufficient
+            else "research_validation"
+        )
         stage = _next_stage(
             tasks_by_lead.get(lead_id, []),
             initial_stage,
