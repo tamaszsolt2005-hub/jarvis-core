@@ -282,3 +282,20 @@ A jelenlegi `_load_existing_company_keys()` teljes, rendezett 1000-es offset-old
 - A global lead research név/domain deduplikációja továbbra is alkalmazásszintű. A teljes íróútvonal-felmérés két közvetlen lead insert útvonalat talált: `global_lead_research.py` és `lead_gen.py`. A közös, tranzakciós claim megoldás előtt tisztázni kell, hogy egy vállalat több különböző emailes kapcsolattartóval külön leadként kezelhető-e; enélkül a név/domain alapú kizárás legitim CSV rekordokat is elutasíthat.
 - 2026-11-26-án friss, read-only Supabase production ellenőrzés történt (`kiutreccucbegskxowek`, PostgreSQL 17.11): a remote migration ledger 7 verziót tartalmaz (a két 20261117 migráció már szerepel); 8/8 public tábla RLS-enabled, 0 policy; `anon` és `authenticated` közvetlen táblajogosultság nélkül, `service_role` teljes DML-joggal rendelkezik; `private` schema és public/private alkalmazási RPC-k nincsenek; `auth.users` száma 0; a `leads` táblában 11 rekord és 0 normalizált email-duplikációs csoport van. A `leads_email_normalized_uidx` index hiányzik, mert a 20261125180000 migráció nincs a remote ledgerben. A régi 2026-11-25-i snapshot történeti adat; a tényleges JARVIS host/URL továbbra sincs igazolva.
 - Security Advisor: 8 INFO `rls_enabled_no_policy`; Performance Advisor: 7 INFO unused-index; Health Advisor: nincs találat. A production lekérdezések kizárólag olvasási műveletek voltak. Production DDL/DML, ledger repair, grants/RLS/Auth változtatás, deploy és merge nem történt. A PR nyitva marad.
+
+
+## 2026-11-26 – atomikus cégazonosítás és email-prioritás implementálva a PR-ágon (CI-ellenőrzés függőben)
+
+A felhasználói üzleti szabály: **egy céghez egy CRM lead tartozik; több emailjelölt közül a legnagyobb várható válaszadási esélyű cím legyen kiválasztva.** A példában a személyes, névhez kötött `xy@gmail.com` előnyt élvez az általános `info@cukraszda.hu` címmel szemben.
+
+A PR #26 ágban elkészült:
+
+- `20261126120000_atomic_company_lead_identity_and_contact_priority.sql`: normalizált cégnév- és webdomain-alias registry, atomikus tranzakciós advisory lock mindkét aliasra, duplikált/ellentmondó régi azonosság esetén fail-closed manuális felülvizsgálat.
+- `upsert_company_lead` SECURITY DEFINER RPC fix `search_path`-tal; a `service_role` közvetlen lead INSERT-joga visszavonásra kerül, a lead-létrehozás csak ezen az RPC-n keresztül történhet. Az alias- és kontaktjelölt-táblák közvetlenül nem érhetők el API-szerepkörből.
+- A CSV-import és a global research is ugyanazt az RPC-t használja. A global research továbbra sem gyűjt személyes emailt és nem ad hozzájárulást.
+- `lead_contact_candidates` megőrzi az összes külön-külön, időbélyeges hozzájárulással igazolt emailjelöltet. A prioritás egy determinisztikus heurisztika: általános szerepkörös címek (`info@`, `contact@`, `office@`, `sales@` stb.) 10 pont; névhez kötött üzleti domain 90 pont; személyes webmail-domainen lévő, nem szerepkörös cím 120 pont. Ez kezdeti heurisztika, nem mért válaszarány-előrejelzés; később valós kampányadatok alapján kalibrálható.
+- Hozzájárulás emailcímenként külön kötelező; egy cím engedélye nem öröklődik másik címre. Ha már történt küldés, bejövő válasz, opt-out vagy kommunikációs állapotváltozás, a kiválasztott cím nem cserélhető automatikusan.
+- A migráció lockolja a `leads` táblát az aliasok backfillje alatt; nem töröl és nem egyesít meglévő leadet. Az ütköző legacy név/domain/email adatok megállítják a migrációt.
+- PostgreSQL tesztek lefedik a prioritást, consent fail-closed viselkedést, már megkezdett outreach utáni címfagyasztást, idempotens migrációt és két párhuzamos session cégclaimjét.
+
+**Még nincs készre igazolva:** az új migration/SQL tesztek, Python tesztek, két-session concurrency teszt és teljes CI/CodeQL/dependency audit lefutása az új PR-headen. Production migráció/deploy nem történt; a production állapotot ez a PR-ág nem változtatta meg.
