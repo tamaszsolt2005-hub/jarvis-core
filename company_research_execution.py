@@ -186,11 +186,11 @@ def build_company_research_prompt(
 ) -> str:
     """Create a bounded, structured prompt; treat company identifiers as data."""
     def normalize_prompt_value(value: str) -> str:
-        # Normalize whitespace supplied as either real whitespace or an escaped
-        # newline followed by whitespace, while preserving literal backslash-n
-        # sequences that are part of an untrusted company name.
-        normalized = re.sub(r"\\n(?=\s)", " ", value)
-        return re.sub(r"\s+", " ", normalized).strip()
+        # Normalize escaped newlines that separate words, but preserve an
+        # embedded newline as a JSON-escaped data character for prompt safety.
+        normalized = re.sub(r"\\n(?=\s)", " ", value).replace(r"\n", "\n")
+        normalized = re.sub(r"[ \t\r\f\v]+", " ", normalized)
+        return normalized.strip()
 
     company_name_json = json.dumps(normalize_prompt_value(company_name), ensure_ascii=False)
     company_domain_json = json.dumps(normalize_prompt_value(company_domain), ensure_ascii=False)
