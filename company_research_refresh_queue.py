@@ -52,8 +52,8 @@ def enqueue_company_research_refreshes(
     """Plan and enqueue using mandatory database-enforced cost/rate limits.
 
     Pricing is mandatory and must match the worker's actual-cost extractor.
-    The reservation is computed here from the provider's hard token/attempt
-    limits; callers cannot supply an arbitrarily low estimate.
+    The reservation is computed from provider token limits and an explicit
+    Search-query allowance; the query allowance is not a provider-side hard cap.
     """
     estimated_cost_microusd_per_job = estimate_research_cost_ceiling_microusd(
         input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
@@ -110,8 +110,8 @@ def enqueue_company_research_refreshes_with_admission(
     """Enqueue candidates through snapshot admission and atomic DB quotas.
 
     Pricing is mandatory and must match the worker's actual-cost extractor.
-    The reservation is computed here from the provider's hard token/attempt
-    limits; callers cannot supply an arbitrarily low estimate.
+    The reservation is computed from provider token limits and an explicit
+    Search-query allowance; the query allowance is not a provider-side hard cap.
 
     The database is authoritative for hourly, per-domain daily and daily cost
     ceilings across concurrent enqueue calls. The local snapshot still provides
