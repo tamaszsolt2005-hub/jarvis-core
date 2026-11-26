@@ -96,7 +96,7 @@ def test_worker_dead_letters_non_retryable_validation_errors():
         handler=lambda _payload: (_ for _ in ()).throw(ValueError("invalid input")),
     )
     assert result["status"] == "dead_letter"
-    assert repository.calls[-1][-1] is False
+    assert repository.calls[-1][-2] is False
 
 
 def test_worker_rejects_non_object_handler_result():
