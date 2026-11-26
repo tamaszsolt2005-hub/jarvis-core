@@ -732,3 +732,65 @@ def test_streamlit_task_center_renders_task_metrics_and_due_dates(monkeypatch):
     assert any("Feladatközpont" in item.value for item in app.title)
     assert len(app.get("dataframe")) == 1
     assert any("LEJÁRT FELADATOK" in item.value for item in app.warning)
+
+
+
+def test_streamlit_company_research_page_renders_read_only_snapshot_history(monkeypatch):
+    from datetime import datetime, timezone
+
+    lead_id = "123e4567-e89b-42d3-a456-426614174000"
+    snapshot = {
+        "snapshot_id": "223e4567-e89b-42d3-a456-426614174001",
+        "company_domain": "example.com",
+        "schema_version": 1,
+        "researched_at": datetime.now(timezone.utc).isoformat(),
+        "content_sha256": "a" * 64,
+        "dossier": {
+            "decision_maker": {
+                "name": "Teszt Vezető",
+                "role": "Ügyvezető",
+                "professional_background": "Nyilvános szakmai háttér.",
+                "source_url": "https://example.com/leadership",
+            },
+            "facts": [{
+                "category": "business_model",
+                "fact": "A vállalat B2B szolgáltatást nyújt.",
+                "source_url": "https://example.com/about",
+            }],
+        },
+    }
+
+    class ResearchQuery(_Query):
+        def __init__(self, rows):
+            super().__init__(rows)
+
+    class ResearchDB:
+        def table(self, name):
+            if name == "leads":
+                return ResearchQuery([{
+                    "id": lead_id,
+                    "company_name": "Teszt Vállalat",
+                    "source": "gemini_google_search_grounding:google",
+                }])
+            if name == "company_research_snapshots":
+                return ResearchQuery([snapshot])
+            raise AssertionError(f"Unexpected table access: {name}")
+
+    db = ResearchDB()
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    monkeypatch.setattr(jarvis_common, "get_legacy_dashboard_supabase", lambda: db)
+
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+    app.button(key="jarvis_nav_research").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "research"
+    assert any("Cégkutatási előzmények" in item.value for item in app.title)
+    assert any("Teszt Vállalat" in item.value for item in app.selectbox)
+    rendered = " ".join(_markdown_values(app)) + " " + " ".join(item.value for item in app.text)
+    assert "Teszt Vezető" in rendered
+    assert "A vállalat B2B szolgáltatást nyújt." in rendered
+    assert "example.com/about" in rendered
+    assert len(app.chat_input) == 0
