@@ -259,6 +259,115 @@ st.markdown(
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
 
 
+def render_tasks_page(db: Any) -> None:
+    """Render a read-only task workspace; all mutations remain in chat approval flow."""
+    st.title("Feladatközpont")
+    st.caption(
+        "A feladatok itt áttekinthetők és szűrhetők. Létrehozás, módosítás és lezárás "
+        "a chatben, külön jóváhagyással történik."
+    )
+    task_status: dict[str, Any] = {}
+    tasks = _safe_rows(
+        db, "tasks",
+        "id,title,notes,priority,status,due_at,completed_at,created_at,lead_id",
+        500, status=task_status,
+    )
+    if task_status.get("error"):
+        st.error("A feladatlista nem érhető el. Az adatforrás hibáját nem tekintem üres listának.")
+        st.caption(f"Hibatípus: {task_status.get('error_type') or 'ismeretlen'}")
+        return
+
+    now = pd.Timestamp.now(tz="UTC")
+    normalized = []
+    for task in tasks:
+        item = dict(task)
+        due = pd.to_datetime(item.get("due_at"), utc=True, errors="coerce")
+        status = str(item.get("status") or "open").strip().casefold()
+        is_closed = status in {"done", "completed", "complete", "closed", "cancelled", "kész", "befejezett"}
+        item["_due"] = due
+        item["_closed"] = is_closed
+        item["_overdue"] = bool(pd.notna(due) and due < now and not is_closed)
+        normalized.append(item)
+
+    open_tasks = [item for item in normalized if not item["_closed"]]
+    overdue_tasks = [item for item in open_tasks if item["_overdue"]]
+    completed_tasks = [item for item in normalized if str(item.get("status") or "").casefold() in {"done", "completed", "complete", "closed", "kész", "befejezett"}]
+    urgent_tasks = [item for item in open_tasks if str(item.get("priority") or "").casefold() == "urgent"]
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Összes feladat", len(normalized))
+    metric_cols[1].metric("Nyitott", len(open_tasks))
+    metric_cols[2].metric("Lejárt", len(overdue_tasks))
+    metric_cols[3].metric("Sürgős", len(urgent_tasks))
+
+    if not normalized:
+        st.info("Még nincs feladat. A chatben például így hozhatsz létre egyet: Hozz létre feladat: Első feladat; prioritás=normal")
+        return
+
+    filter_col, sort_col = st.columns([2, 2])
+    with filter_col:
+        selected_status = st.selectbox(
+            "Feladatok szűrése",
+            ["Aktív és lejárt", "Összes", "Lezárt", "Csak lejárt", "Sürgős"],
+            key="jarvis_task_filter",
+        )
+    with sort_col:
+        sort_order = st.selectbox(
+            "Rendezés",
+            ["Határidő szerint", "Prioritás szerint", "Legújabb elöl"],
+            key="jarvis_task_sort",
+        )
+
+    visible = normalized
+    if selected_status == "Aktív és lejárt":
+        visible = open_tasks
+    elif selected_status == "Lezárt":
+        visible = [item for item in normalized if item["_closed"]]
+    elif selected_status == "Csak lejárt":
+        visible = overdue_tasks
+    elif selected_status == "Sürgős":
+        visible = urgent_tasks
+
+    if sort_order == "Határidő szerint":
+        visible = sorted(visible, key=lambda item: (pd.isna(item["_due"]), item["_due"].timestamp() if pd.notna(item["_due"]) else float("inf")))
+    elif sort_order == "Prioritás szerint":
+        priority_rank = {"urgent": 0, "high": 1, "normal": 2}
+        visible = sorted(visible, key=lambda item: priority_rank.get(str(item.get("priority") or "").casefold(), 3))
+    else:
+        visible = sorted(visible, key=lambda item: str(item.get("created_at") or ""), reverse=True)
+
+    rows = []
+    for item in visible:
+        due = item["_due"]
+        rows.append({
+            "Feladat": str(item.get("title") or "Névtelen feladat")[:180],
+            "Státusz": str(item.get("status") or "open"),
+            "Prioritás": str(item.get("priority") or "normal"),
+            "Határidő": due.tz_convert("Europe/Budapest").strftime("%Y-%m-%d %H:%M") if pd.notna(due) else "Nincs",
+            "Figyelmeztetés": "LEJÁRT" if item["_overdue"] else "",
+            "Kapcsolt lead": str(item.get("lead_id") or "—"),
+            "Feladatazonosító": str(item.get("id") or ""),
+        })
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
+
+    with st.expander("Feladatműveletek a chatben"):
+        st.markdown(
+            "A változtatások nem innen, közvetlenül történnek: a JARVIS előbb megmutatja a pontos "
+            "módosítást, majd külön jóváhagyást kér. Példák:"
+        )
+        st.code(
+            "Módosítsd a feladatot: <UUID>; határidő=2026-12-01; prioritás=high\n"
+            "Módosítsd a feladatot: <UUID>; eredmény=Az üzleti igény igazolódott\n"
+            "Zárd le a feladatot: <UUID>",
+            language="text",
+        )
+        st.caption(
+            "Az eredmény a meglévő jegyzethez fűződik; a workflow-szakaszjelölő megmarad. "
+            "Külső e-mail vagy kapcsolatfelvétel ebből az oldalból nem indul."
+        )
+
+
 def render_audit_admin_page() -> None:
     """Render the audit viewer only after a separately verified Supabase admin login."""
     st.title("Központi auditnapló")
@@ -1339,13 +1448,11 @@ with st.sidebar:
         type="primary" if current_page == "chat" else "secondary",
         width="stretch",
     )
-    st.markdown(
-        '<div class="jarvis-nav">'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">◈</span><span>Emlékezet</span></div>'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">☑</span><span>Feladatok</span></div>'
-        '<div class="jarvis-nav-item"><span class="jarvis-nav-icon">▣</span><span>Üzleti Infók</span></div>'
-        '</div>',
-        unsafe_allow_html=True,
+    tasks_clicked = st.button(
+        "☑   Feladatok",
+        key="jarvis_nav_tasks",
+        type="primary" if current_page == "tasks" else "secondary",
+        width="stretch",
     )
     analytics_clicked = st.button(
         "▥   Analitika",
@@ -1373,6 +1480,9 @@ with st.sidebar:
 if chat_clicked:
     st.session_state["jarvis_page"] = "chat"
     st.rerun()
+if tasks_clicked:
+    st.session_state["jarvis_page"] = "tasks"
+    st.rerun()
 if analytics_clicked:
     st.session_state["jarvis_page"] = "analytics"
     st.rerun()
@@ -1383,6 +1493,25 @@ if audit_clicked:
 if st.session_state.get("jarvis_page") == "audit":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     render_audit_admin_page()
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "tasks":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        tasks_db = st.session_state.get("_jarvis_db")
+        if tasks_db is None:
+            tasks_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = tasks_db
+        if _auth_login_enabled() and not has_permission(
+            st.session_state.get("_jarvis_user_role"), "tasks.read"
+        ):
+            st.error("A feladatok megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_tasks_page(tasks_db)
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_tasks_page", severity="error")
+        st.error("A Feladatok oldal nem tudott betöltődni.")
+        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
