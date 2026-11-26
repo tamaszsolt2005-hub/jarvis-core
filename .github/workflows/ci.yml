@@ -117,6 +117,13 @@ jobs:
           export PGOPTIONS="-c search_path=public,extensions"
           snapshot_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_snapshots.test.sql)"
           printf '%s\n' "$snapshot_output"
+          security_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_security.test.sql)"
+          printf '%s\n' "$security_output"
+          if grep -q '^not ok ' <<< "$security_output"; then
+            echo "pgTAP reported failed company research worker security assertions."
+            exit 1
+          fi
+          grep -q '1..10' <<< "$security_output"
           lifecycle_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs.test.sql)"
           printf '%s\n' "$lifecycle_output"
           if grep -q '^not ok ' <<< "$lifecycle_output"; then
