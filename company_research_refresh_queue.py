@@ -73,12 +73,17 @@ def enqueue_company_research_refreshes_with_admission(
     cannot oversubscribe its own supplied snapshot. Concurrent invocations still
     require a future atomic database reservation to enforce hard global limits.
     """
+    if not isinstance(usage_snapshot, dict):
+        raise ValueError("usage_snapshot must be an object")
+    domain_usage = usage_snapshot.get("jobs_by_domain_today", {})
+    if not isinstance(domain_usage, dict):
+        raise ValueError("jobs_by_domain_today must be an object")
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
     )
     usage = {
         "jobs_last_hour": usage_snapshot.get("jobs_last_hour", 0),
-        "jobs_by_domain_today": dict(usage_snapshot.get("jobs_by_domain_today", {})),
+        "jobs_by_domain_today": dict(domain_usage),
         "running_jobs": usage_snapshot.get("running_jobs", 0),
         "spent_today_microusd": usage_snapshot.get("spent_today_microusd", 0),
     }
