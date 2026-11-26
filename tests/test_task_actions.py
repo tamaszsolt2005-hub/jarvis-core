@@ -77,6 +77,7 @@ def test_non_explicit_command_is_not_action():
 
 @pytest.mark.parametrize("action", [
     _create_action(),
+    {**_create_action(), "lead_id": TASK_ID},
     {"type": "close", "id": TASK_ID, "operation_id": OPERATION_ID},
     {"type": "update", "id": TASK_ID, "updates": {"title": "Új cím"}, "operation_id": OPERATION_ID},
 ])
@@ -240,6 +241,7 @@ def test_close_and_update_parser_rejects_invalid_commands(command, expected):
     {**_create_action(), "notes": 3},
     {**_create_action(), "notes": "x" * 1001},
     {**_create_action(), "due_at": "not-a-date"},
+    {**_create_action(), "lead_id": "not-a-uuid"},
     {"type": "unknown", "operation_id": OPERATION_ID},
     {"type": "close", "id": TASK_ID, "operation_id": OPERATION_ID, "extra": 1},
     {"type": "update", "id": TASK_ID, "updates": {"title": " "}, "operation_id": OPERATION_ID},
