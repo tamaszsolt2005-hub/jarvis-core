@@ -553,7 +553,8 @@ def render_settings_page() -> None:
             st.session_state["jarvis_settings_diagnostics_report"] = str(diagnostic_report)
         except Exception as exc:
             report_error(exc, module="dashboard", operation="settings_diagnostics", severity="warning")
-            st.error("A rendszerdiagnosztika nem futott le. Érzékeny konfigurációs értéket nem jelenítettünk meg.")
+            st.error("A rendszerdiagnosztika nem futott le.")
+            st.warning(user_facing_error(exc))
     diagnostic_report = st.session_state.get("jarvis_settings_diagnostics_report")
     if diagnostic_report:
         st.markdown(str(diagnostic_report))
@@ -621,7 +622,7 @@ def render_company_research_page(db: Any) -> None:
             severity="warning", db=db,
         )
         st.error("A cégkutatási előzmények nem olvashatók. A hozzáférési hibát nem kerültem meg.")
-        st.caption(f"Hibatípus: {type(exc).__name__}")
+        st.caption(user_facing_error(exc))
         return
 
     st.metric("Mentett kutatási pillanatképek", len(history))
@@ -1854,7 +1855,7 @@ if st.session_state.get("jarvis_page") == "tasks":
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_tasks_page", severity="error")
         st.error("A Feladatok oldal nem tudott betöltődni.")
-        st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+        st.caption(user_facing_error(exc) + " A Chat működését ez nem érinti.")
     st.stop()
 
 if st.session_state.get("jarvis_page") == "analytics":
