@@ -2,7 +2,7 @@
 -- Execute only against the isolated PostgreSQL integration fixture.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(13);
+SELECT plan(12);
 
 SELECT is(
   (SELECT count(*) FROM pg_class c
