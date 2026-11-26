@@ -16,6 +16,7 @@ RPC_CLAIM = "company_research_job_claim"
 RPC_HEARTBEAT = "company_research_job_heartbeat"
 RPC_COMPLETE = "company_research_job_complete"
 RPC_FAIL = "company_research_job_fail"
+RPC_AUDIT_LIST = "company_research_job_audit_list"
 
 
 class CompanyResearchJobRepositoryError(RuntimeError):
@@ -32,6 +33,7 @@ class CompanyResearchJobRepository(Protocol):
     def claim(self, *, worker_id: str, lease_seconds: int = 60, max_concurrent_jobs: int = 3) -> dict[str, Any] | None: ...
     def heartbeat(self, *, operation_id: str, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None: ...
     def complete(self, *, operation_id: str, worker_id: str, result: dict[str, Any] | None = None) -> dict[str, Any] | None: ...
+    def list_audit(self, *, operation_id: str, limit: int = 100) -> list[dict[str, Any]]: ...
     def fail(
         self, *, operation_id: str, worker_id: str, error_code: str,
         error_message: str, retryable: bool, retry_delay_seconds: int = 60,
@@ -162,6 +164,22 @@ class SupabaseCompanyResearchJobRepository:
              "p_result": result or {}},
             allow_none=True,
         )
+
+    def list_audit(self, *, operation_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        operation_id = _operation_id(operation_id)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
+        try:
+            response = self._client.rpc(
+                RPC_AUDIT_LIST,
+                {"p_operation_id": operation_id, "p_limit": limit},
+            ).execute()
+        except Exception as exc:
+            raise CompanyResearchJobRepositoryError("Audit list RPC failed.") from exc
+        data = getattr(response, "data", None)
+        if not isinstance(data, list) or any(not isinstance(row, dict) for row in data):
+            raise CompanyResearchJobRepositoryError("Audit list RPC returned an unexpected response shape.")
+        return data
 
     def fail(
         self, *, operation_id: str, worker_id: str, error_code: str,
