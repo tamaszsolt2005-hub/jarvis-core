@@ -472,6 +472,9 @@ def render_settings_page() -> None:
 
     auth_mode = _auth_login_enabled()
     role = str(st.session_state.get("_jarvis_user_role") or "legacy dashboard")
+    if auth_mode and not has_permission(role, "settings.read"):
+        st.error("A beállítások megtekintéséhez nincs megfelelő jogosultság.")
+        return
     supabase_url_ready = bool((get_secret("SUPABASE_URL") or "").strip())
     if auth_mode:
         supabase_key_ready = bool(
