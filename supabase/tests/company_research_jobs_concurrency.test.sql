@@ -5,8 +5,24 @@
 CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(12);
+SELECT plan(16);
 
+-- Make reruns safe after an interrupted prior attempt.
+DELETE FROM public.company_research_budget_reservations
+WHERE operation_id IN (
+  'research-race-budget-a-0001', 'research-race-budget-b-0001',
+  'research-race-claim-a-0001', 'research-race-claim-b-0001'
+);
+DELETE FROM public.company_research_job_audit
+WHERE operation_id IN (
+  'research-race-budget-a-0001', 'research-race-budget-b-0001',
+  'research-race-claim-a-0001', 'research-race-claim-b-0001'
+);
+DELETE FROM public.company_research_jobs
+WHERE operation_id IN (
+  'research-race-budget-a-0001', 'research-race-budget-b-0001',
+  'research-race-claim-a-0001', 'research-race-claim-b-0001'
+);
 INSERT INTO public.leads (id, company_name, status)
 VALUES ('74000000-0000-4000-8000-000000000002', 'Worker concurrency fixture', 'research')
 ON CONFLICT (id) DO NOTHING;
@@ -19,12 +35,21 @@ SELECT lives_ok(
   'first independent PostgreSQL session connects'
 );
 SELECT lives_ok(
-  $$SELECT extensions.dblink_connect('research_worker_b', 'dbname=' || current_database() || ' user=' || current_user)$$,
+  $SELECT extensions.dblink_connect('research_worker_b', 'dbname=' || current_database() || ' user=' || current_user)$,
   'second independent PostgreSQL session connects'
 );
+SELECT lives_ok(
+  $SELECT extensions.dblink_connect('research_lock_holder', 'dbname=' || current_database() || ' user=' || current_user)$,
+  'independent advisory-lock coordinator session connects'
+);
 
+-- Hold the exact transaction-lock key first. Both requests must queue behind
+-- this independent session, proving that two sessions overlap at the lock.
+SELECT * FROM extensions.dblink(
+  'research_lock_holder',
+  'SELECT pg_advisory_lock(742026, 2)'
+) AS result(locked boolean);
 -- Two sessions reserve 700 each against the same 1000 micro-USD daily cap.
--- Both requests are in flight before either result is collected.
 SELECT is(
   extensions.dblink_send_query(
     'research_worker_a',
@@ -58,6 +83,30 @@ SELECT is(
   'second budget reservation query starts asynchronously'
 );
 
+DO $wait_for_budget_race$
+DECLARE
+  v_waiting integer;
+  v_deadline timestamptz := clock_timestamp() + interval '5 seconds';
+BEGIN
+  LOOP
+    SELECT count(*) INTO v_waiting
+    FROM pg_stat_activity
+    WHERE pid <> pg_backend_pid()
+      AND wait_event_type = 'Lock'
+      AND query LIKE '%company_research_job_create%';
+    EXIT WHEN v_waiting >= 2 OR clock_timestamp() >= v_deadline;
+    PERFORM pg_sleep(0.01);
+  END LOOP;
+  IF v_waiting < 2 THEN
+    RAISE EXCEPTION 'both budget reservation sessions did not reach the advisory lock';
+  END IF;
+END
+$wait_for_budget_race$;
+SELECT * FROM extensions.dblink(
+  'research_lock_holder',
+  'SELECT pg_advisory_unlock(742026, 2)'
+) AS result(unlocked boolean);
+
 INSERT INTO _research_create_race
 SELECT 'a', created
 FROM extensions.dblink_get_result('research_worker_a', false) AS result(created integer);
@@ -82,7 +131,8 @@ SELECT is(
 );
 
 -- Ensure at least two jobs are ready, then race two independent workers with
--- a global active lease ceiling of one.
+-- a global active lease ceiling of one. Hold the claim lock until both sessions
+-- are confirmed waiting so the test cannot pass as a merely sequential check.
 SELECT * FROM public.company_research_job_create(
   jsonb_build_object(
     'operation_id', 'research-race-claim-a-0001',
@@ -102,10 +152,15 @@ SELECT * FROM public.company_research_job_create(
   ), 0, NULL, NULL, NULL
 );
 
+SELECT * FROM extensions.dblink(
+  'research_lock_holder',
+  'SELECT pg_advisory_lock(742026, 1)'
+) AS result(locked boolean);
+
 SELECT is(
   extensions.dblink_send_query(
     'research_worker_a',
-    $$SELECT count(*)::integer FROM public.company_research_job_claim('race-worker-a', 120, 1)$$
+    $SELECT count(*)::integer FROM public.company_research_job_claim('race-worker-a', 120, 1)$
   ),
   1,
   'first worker claim starts asynchronously'
@@ -118,6 +173,30 @@ SELECT is(
   1,
   'second worker claim starts asynchronously'
 );
+
+DO $wait_for_claim_race$
+DECLARE
+  v_waiting integer;
+  v_deadline timestamptz := clock_timestamp() + interval '5 seconds';
+BEGIN
+  LOOP
+    SELECT count(*) INTO v_waiting
+    FROM pg_stat_activity
+    WHERE pid <> pg_backend_pid()
+      AND wait_event_type = 'Lock'
+      AND query LIKE '%company_research_job_claim%';
+    EXIT WHEN v_waiting >= 2 OR clock_timestamp() >= v_deadline;
+    PERFORM pg_sleep(0.01);
+  END LOOP;
+  IF v_waiting < 2 THEN
+    RAISE EXCEPTION 'both worker claim sessions did not reach the advisory lock';
+  END IF;
+END
+$wait_for_claim_race$;
+SELECT * FROM extensions.dblink(
+  'research_lock_holder',
+  'SELECT pg_advisory_unlock(742026, 1)'
+) AS result(unlocked boolean);
 
 INSERT INTO _research_claim_race
 SELECT 'a', claimed
@@ -145,8 +224,12 @@ SELECT lives_ok(
   'first independent PostgreSQL session disconnects'
 );
 SELECT lives_ok(
-  $$SELECT extensions.dblink_disconnect('research_worker_b')$$,
+  $SELECT extensions.dblink_disconnect('research_worker_b')$,
   'second independent PostgreSQL session disconnects'
+);
+SELECT lives_ok(
+  $SELECT extensions.dblink_disconnect('research_lock_holder')$,
+  'advisory-lock coordinator session disconnects'
 );
 SELECT * FROM finish();
 
