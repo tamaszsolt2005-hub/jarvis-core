@@ -162,6 +162,7 @@ def build_daily_briefing(db: Any, today: date | None = None) -> str:
                 f"üzleti illeszkedés: {item['business_fit_score']}/100; "
                 f"bizonyosság: {item['research_confidence']}; "
                 f"bizonyítékok: {item['evidence_count']}. {item['rationale']} "
+                f"Ez belső ellenőrzési javaslat, nem kapcsolatfelvételi engedély. "
                 f"(lead: {item['lead_id']})"
             )
     else:
