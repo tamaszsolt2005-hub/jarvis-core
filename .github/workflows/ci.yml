@@ -137,7 +137,7 @@ jobs:
             echo "pgTAP reported failed company research lifecycle edge assertions."
             exit 1
           fi
-          grep -q '1..19' <<< "$lifecycle_edges_output"
+          grep -q '1..20' <<< "$lifecycle_edges_output"
           concurrency_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_concurrency.test.sql)"
           printf '%s\n' "$concurrency_output"
           if grep -q '^not ok ' <<< "$concurrency_output"; then
