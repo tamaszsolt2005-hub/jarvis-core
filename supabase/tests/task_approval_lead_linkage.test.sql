@@ -9,10 +9,12 @@ DECLARE
   v_second_operation uuid := '73000000-0000-4000-8000-000000000003';
   v_third_operation uuid := '73000000-0000-4000-8000-000000000004';
   v_bad_operation uuid := '73000000-0000-4000-8000-000000000008';
+  v_update_operation uuid := '73000000-0000-4000-8000-000000000010';
   v_invalid_rejected boolean := false;
   v_first jsonb;
   v_second jsonb;
   v_third jsonb;
+  v_updated jsonb;
 BEGIN
   INSERT INTO public.leads (id, company_name, status)
   VALUES (v_lead, 'Lead-linked task fixture', 'research')
@@ -114,6 +116,37 @@ BEGIN
     RAISE EXCEPTION 'A subsequent workflow task was not allowed after completion';
   END IF;
 
+  -- Outcome notes are editable only through the same one-use approval RPC.
+  IF NOT public.issue_pending_approval(
+    repeat('a', 64),
+    'legacy:73000000-0000-4000-8000-000000000011',
+    jsonb_build_object(
+      'type', 'update', 'operation_id', v_update_operation,
+      'id', v_third ->> 'task_id',
+      'updates', jsonb_build_object('notes', 'Eredmény: az üzleti igény igazolódott.')
+    ),
+    300
+  ) THEN
+    RAISE EXCEPTION 'Could not issue task outcome update approval';
+  END IF;
+
+  v_updated := public.execute_approved_task_action(
+    repeat('a', 64),
+    'legacy:73000000-0000-4000-8000-000000000011',
+    v_update_operation,
+    jsonb_build_object(
+      'type', 'update', 'operation_id', v_update_operation,
+      'id', v_third ->> 'task_id',
+      'updates', jsonb_build_object('notes', 'Eredmény: az üzleti igény igazolódott.')
+    )
+  );
+
+  IF v_updated ->> 'status' IS DISTINCT FROM 'success'
+     OR (SELECT notes FROM public.tasks WHERE id = (v_third ->> 'task_id')::uuid)
+        IS DISTINCT FROM 'Eredmény: az üzleti igény igazolódott.' THEN
+    RAISE EXCEPTION 'Approved task outcome notes were not persisted';
+  END IF;
+
   IF NOT public.issue_pending_approval(
     repeat('c', 64),
     'legacy:73000000-0000-4000-8000-000000000009',
@@ -149,11 +182,11 @@ BEGIN
   END IF;
 
   DELETE FROM public.tasks
-   WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation);
+   WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation, v_update_operation);
   DELETE FROM private.task_action_operations
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation);
   DELETE FROM private.task_approvals
-   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64));
+   WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64), repeat('a', 64));
   DELETE FROM public.leads WHERE id = v_lead;
 END
 $lead_linked_task$;
