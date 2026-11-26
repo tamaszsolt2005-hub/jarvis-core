@@ -150,3 +150,8 @@ A worker emellett opcionális, kétparaméteres handlernek heartbeat callbacket 
 A worker most már ellenőrzi a claim válasz alakját, a handler eredményének JSON-kompatibilitását és maximális méretét (alapértelmezésben 256 KiB), másolatot ad a handlernek a payloadból, és a provider által adott hibakódot szűri, hogy titok vagy tetszőleges szöveg ne kerüljön a job állapotába. A repository create művelete az `operation_id` egyezése mellett a `job_type`, `lead_id` és payload egyezését is megköveteli; azonos idempotency key eltérő tartalommal konfliktus. A domain kvótakulcsok kis-/nagybetűtől függetlenül normalizálódnak.
 
 A költségbecsléshez elkészült az `estimate_research_cost_microusd()` egész számú, felfelé kerekítő segédfüggvény. A szolgáltatói tokenárakat a hívó adja át; a kód nem tartalmaz beégetett modellárakat.
+
+
+### 7.9 Atomikus worker concurrency limit
+
+A claim RPC most már tranzakciós advisory lockkal sorosítja a claim döntéseket, megszámolja az aktív, le nem járt lease-eket, és csak a konfigurált párhuzamossági plafon alatt vesz fel új jobot. A Python repository és az egyszeri worker a `max_concurrent_jobs` értéket átadja az RPC-nek. Ez a korlát a claim műveletnél érvényesül, nem pusztán az enqueue előtti usage snapshotban. A SQL migration repository-fájl marad, production adatbázisra nem futott le; izolált PostgreSQL konkurenciateszt még szükséges.
