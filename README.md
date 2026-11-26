@@ -60,12 +60,12 @@ A tartós fejlesztési ág a `main`. A production Supabase migrációs eltérés
 
 ## Aktuális fejlesztési állapot – 2026-11-26
 
-A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. A 2026-11-26-án CI-vel igazolt commit `79dfb5b85afaa3ae21405b295bb23880019ec54d`; az ezt követő változtatások dokumentációs frissítések. Ezen a commiton a CI 838 tesztet sikeresen futtatott (3 kihagyott), 91,29%-os lefedettséggel; a PostgreSQL 17 backup–restore integráció, CodeQL és dependency audit is sikeres.
+A fejlesztés a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) nyitott ágán folyik (`docs/pre-feature-readiness-gates`); a PR nincs merge-ölve. Az új cég-RPC, CSV-kontaktprioritás és kétfázisú lead write-lockdown kódja a `96d4aa48a312b1942e61bb7c659dce6cdd790b0f` commiton teljes CI-vel igazolt.
 
-- JARVIS CI: **838 passed, 3 skipped, 0 failed**, 91.29% coverage.
-- PostgreSQL 17 izolált migrációs/pgTAP és backup/restore integráció: sikeres.
+- JARVIS CI: Python/AppTest/browser tesztjob sikeres; coverage artifact feltöltve.
+- PostgreSQL 17 migráció replay, SQL/pgTAP, két-session cégclaim és backup/restore integráció: sikeres.
 - CodeQL: sikeres.
-- pip-audit: sikeres.
+- Dependency vulnerability audit: sikeres.
 
 A PR #26 ágban elkészült a közös, tranzakciós `upsert_company_lead` RPC: a normalizált cégnév és webdomain aliasokat advisory lock védi. A kompatibilis rollout miatt a közvetlen INSERT-jog visszavonása külön, második migrációban történik az új RPC-t használó alkalmazás telepítése után. A CSV-import az összes külön hozzájárulással igazolt emailjelöltet megőrzi, és rangsor alapján választ; a személyes Gmail-jelölt (pl. `xy@gmail.com`) előzi az általános `info@` címet. Már megkezdett kommunikáció után a cím nem cserélhető. A két párhuzamos PostgreSQL session race teszt és a teljes CI még ellenőrzés alatt áll.
 
