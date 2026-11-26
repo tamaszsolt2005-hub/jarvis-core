@@ -9,7 +9,10 @@ import hashlib
 from datetime import datetime
 from typing import Any
 
-from company_research_job_repository import CompanyResearchJobRepository
+from company_research_job_repository import (
+    CompanyResearchBudgetExceeded,
+    CompanyResearchJobRepository,
+)
 from company_research_admission import evaluate_research_admission
 from company_research_refresh_planner import plan_company_research_refresh_candidates
 
@@ -100,18 +103,25 @@ def enqueue_company_research_refreshes_with_admission(
         if not decision["allowed"]:
             rejected.append({"lead_id": candidate["lead_id"], "reason": decision["reason"]})
             continue
-        jobs.append(repository.create(
-            operation_id=_operation_id(candidate),
-            lead_id=candidate["lead_id"],
-            payload={
-                "lead_id": candidate["lead_id"],
-                "company_domain": domain,
-                "company_name": candidate["company_name"],
-                "reason": candidate["reason"],
-                "researched_at": candidate["researched_at"],
-                "estimated_cost_microusd": estimated_cost_microusd_per_job,
-            },
-        ))
+        try:
+            job = repository.create(
+                operation_id=_operation_id(candidate),
+                lead_id=candidate["lead_id"],
+                payload={
+                    "lead_id": candidate["lead_id"],
+                    "company_domain": domain,
+                    "company_name": candidate["company_name"],
+                    "reason": candidate["reason"],
+                    "researched_at": candidate["researched_at"],
+                    "estimated_cost_microusd": estimated_cost_microusd_per_job,
+                },
+                estimated_cost_microusd=estimated_cost_microusd_per_job,
+                daily_budget_microusd=limits["max_daily_cost_microusd"],
+            )
+        except CompanyResearchBudgetExceeded:
+            rejected.append({"lead_id": candidate["lead_id"], "reason": "daily_cost_limit"})
+            continue
+        jobs.append(job)
         usage["jobs_last_hour"] += 1
         usage["jobs_by_domain_today"][domain] = usage["jobs_by_domain_today"].get(domain, 0) + 1
         usage["spent_today_microusd"] += estimated_cost_microusd_per_job
