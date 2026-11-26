@@ -1,8 +1,8 @@
 # JARVIS – központi projekt- és műszaki dokumentáció
 
 **Dokumentációs verzió:** 2026-11-26  
-**Érvényességi kör:** a `feature/company-research-phase-1` branch aktuális kódja és a PR #27  
-**Pull request:** [#27 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27)  
+**Érvényességi kör:** a `feature/company-research-dashboard-readonly` branch aktuális kódja és a PR #28 (a #27-re épülő stacked PR)  
+**Pull request:** [#28 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28)  
 **Alap / stacked PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)
 
 > Ez a dokumentum a jelenlegi fejlesztési állapot és a hosszú távú cél közötti különbséget egyértelműen kezeli. A „kódban van”, „CI-ben tesztelt”, „külső integrációval igazolt” és „productionben aktív” külön státuszok. A dokumentáció önmagában nem jelent engedélyt adatbázis-módosításra, deployra vagy külső kapcsolatfelvételre.
@@ -32,7 +32,7 @@ A hosszú távú cél egy kutatásvezérelt üzleti ügynök: a JARVIS önálló
 | AI-termékfejlesztési pipeline | Célarchitektúra | Nincs automatikus projektindítás |
 | Production Supabase | Külön létező projekt, korábbi read-only auditokkal | A jelenlegi feature migrációk nincsenek oda telepítve |
 
-A PR #27 a PR #26-ra épülő stacked pull request. A #26-nak kell előbb integrálódnia, mielőtt a #27 a `main` ágra kerülhetne. Egyik PR sincs merge-ölve. A CI státuszt mindig a PR aktuális head SHA-ján kell ellenőrizni; korábbi zöld futás nem igazolja az újabb commitokat.
+A PR #28 a #27-re, a #27 pedig a #26-ra épülő stacked pull request. Integrálásuk sorrendje: #26, #27, #28. Egyik PR sincs merge-ölve. A CI státuszt mindig a PR aktuális head SHA-ján kell ellenőrizni; korábbi zöld futás nem igazolja az újabb commitokat.
 
 ## 3. Jelenlegi architektúra – fő komponensek
 
@@ -223,3 +223,22 @@ Az adatbázis-migrációs és pgTAP teszteket a GitHub Actions CI izolált Postg
 - [Production állapot és migrációs terv](PRODUCTION_STATE_AND_MIGRATION_PLAN.md)
 - [E-mail provider/idempotencia](EMAIL_PROVIDER_IDEMPOTENCY.md)
 
+
+
+## 10. Frissített végrehajtási állapot – 2026-11-26
+
+A PR #28 (feature/company-research-dashboard-readonly) a cégkutatási előzmények read-only Streamlit felületét adja hozzá. A dashboard navigációs útvonalának hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja: a research oldal most a render_company_research_page() függvényt hívja, a meglévő adatbázis-kapcsolatot használja, hibát kezel és a chat helyett dedikált oldalként megáll. A javítás CI-je elindult; a funkció teljes CI-igazolása még függőben van.
+
+A kutatási előzmény UI jelenlegi korlátai: legfeljebb 500 leadből választ céget, és legfeljebb 20 snapshotot kér le; a forrás URL-ek HTTP(S), hostname, credential, localhost és .local ellenőrzésen mennek át; Auth login esetén fail-closed módon jelzi a hiányzó felhasználói SELECT jogosultságot, service-role megkerülés nélkül; productionben nem aktív.
+
+### Következő végrehajtási fázis – biztonságos kutatási háttérmotor
+
+A következő fejlesztés az autonóm kutatás előfeltételeit készíti elő, nem indít azonnal automatikus kutatást:
+1. DB-től független, tesztelhető job-lifecycle és idempotencia szerződés.
+2. Lease/claim, lease-expiry, heartbeat és operation ID kezelés.
+3. Bounded retry, dead-letter és hibakategorizálás.
+4. Korlátos batch, concurrency, domain/API rate limit és költségkeret.
+5. Csak ezután injektált repository-adapter és izolált tesztkörnyezetű DB-integráció.
+6. Scheduler csak explicit feature flag és emberi operációs kontroll mellett; production scheduler nincs engedélyezve.
+
+Az első implementációs szelet nem használhat production Supabase-t, nem futtathat migrációt, nem indíthat Gemini-kutatást és nem küldhet outbound üzenetet. A worker csak előkészített jobokat kezelhet; a tényleges kutatási végrehajtás későbbi külön lépés.
