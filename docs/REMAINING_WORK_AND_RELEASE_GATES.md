@@ -1,11 +1,13 @@
 # JARVIS – production és release gate-ek
 
-> **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A 2026-11-26-i ellenőrzéskor a PR #26 összes checkje sikeres volt; a mindenkori állapot a [PR-oldalon](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) látható.
+ > **Hatókör:** ez a dokumentum kizárólag a későbbi production telepítés és production módosítás feltételeit írja le; nem tiltja a helyi funkciófejlesztést. A JARVIS app jelenleg nincs telepítve, nincs kiválasztott app-host/URL. Az aktuális helyi fejlesztési állapot: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). A PR #26 aktuális CI-státuszát a PR Checks oldalon, az aktuális head SHA alapján kell ellenőrizni; a korábbi sikeres futás nem igazolja az újabb dokumentációs commitot.
 
 
 Ez a dokumentum csak azt határozza meg, mi kell egy production változtatás vagy élesítés előtt. A fejlesztési teendők a [fejlesztési backlogban](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) vannak.
 
 ## Jelenlegi döntési állapot
+
+**Aktualizálási szabály:** az alábbi dátumozott main/PR #21/23/25 pillanatképek történeti bejegyzések. A jelenlegi fejlesztési ág a PR #26; aktuális merge/deploy/CI státusz kizárólag a PR aktuális headjéből olvasható ki. A JARVIS alkalmazás nincs production hostra telepítve.
 
 **Production Auth/RBAC: OFF. Production migráció: blokkolt. Production deploy: nincs jóváhagyva. A produkciós logikai backup és izolált PostgreSQL 17 restore 2026-11-25-én igazoltan sikeres.**
 
