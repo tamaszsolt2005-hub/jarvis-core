@@ -307,54 +307,54 @@ def render_tasks_page(db: Any) -> None:
 
     if not normalized:
         st.info("Még nincs feladat. A chatben például így hozhatsz létre egyet: Hozz létre feladat: Első feladat; prioritás=normal")
-        return
 
-    filter_col, sort_col = st.columns([2, 2])
-    with filter_col:
-        selected_status = st.selectbox(
-            "Feladatok szűrése",
-            ["Aktív és lejárt", "Összes", "Lezárt", "Csak lejárt", "Sürgős"],
-            key="jarvis_task_filter",
-        )
-    with sort_col:
-        sort_order = st.selectbox(
-            "Rendezés",
-            ["Határidő szerint", "Prioritás szerint", "Legújabb elöl"],
-            key="jarvis_task_sort",
-        )
+    if normalized:
+        filter_col, sort_col = st.columns([2, 2])
+        with filter_col:
+            selected_status = st.selectbox(
+                "Feladatok szűrése",
+                ["Aktív és lejárt", "Összes", "Lezárt", "Csak lejárt", "Sürgős"],
+                key="jarvis_task_filter",
+            )
+        with sort_col:
+            sort_order = st.selectbox(
+                "Rendezés",
+                ["Határidő szerint", "Prioritás szerint", "Legújabb elöl"],
+                key="jarvis_task_sort",
+            )
 
-    visible = normalized
-    if selected_status == "Aktív és lejárt":
-        visible = open_tasks
-    elif selected_status == "Lezárt":
-        visible = [item for item in normalized if item["_closed"]]
-    elif selected_status == "Csak lejárt":
-        visible = overdue_tasks
-    elif selected_status == "Sürgős":
-        visible = urgent_tasks
+        visible = normalized
+        if selected_status == "Aktív és lejárt":
+            visible = open_tasks
+        elif selected_status == "Lezárt":
+            visible = [item for item in normalized if item["_closed"]]
+        elif selected_status == "Csak lejárt":
+            visible = overdue_tasks
+        elif selected_status == "Sürgős":
+            visible = urgent_tasks
 
-    if sort_order == "Határidő szerint":
-        visible = sorted(visible, key=lambda item: (pd.isna(item["_due"]), item["_due"].timestamp() if pd.notna(item["_due"]) else float("inf")))
-    elif sort_order == "Prioritás szerint":
-        priority_rank = {"urgent": 0, "high": 1, "normal": 2}
-        visible = sorted(visible, key=lambda item: priority_rank.get(str(item.get("priority") or "").casefold(), 3))
-    else:
-        visible = sorted(visible, key=lambda item: str(item.get("created_at") or ""), reverse=True)
+        if sort_order == "Határidő szerint":
+            visible = sorted(visible, key=lambda item: (pd.isna(item["_due"]), item["_due"].timestamp() if pd.notna(item["_due"]) else float("inf")))
+        elif sort_order == "Prioritás szerint":
+            priority_rank = {"urgent": 0, "high": 1, "normal": 2}
+            visible = sorted(visible, key=lambda item: priority_rank.get(str(item.get("priority") or "").casefold(), 3))
+        else:
+            visible = sorted(visible, key=lambda item: str(item.get("created_at") or ""), reverse=True)
 
-    rows = []
-    for item in visible:
-        due = item["_due"]
-        rows.append({
-            "Feladat": str(item.get("title") or "Névtelen feladat")[:180],
-            "Státusz": str(item.get("status") or "open"),
-            "Prioritás": str(item.get("priority") or "normal"),
-            "Határidő": due.tz_convert("Europe/Budapest").strftime("%Y-%m-%d %H:%M") if pd.notna(due) else "Nincs",
-            "Figyelmeztetés": "LEJÁRT" if item["_overdue"] else "",
-            "Kapcsolt lead": str(item.get("lead_id") or "—"),
-            "Feladatazonosító": str(item.get("id") or ""),
-        })
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-    st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
+        rows = []
+        for item in visible:
+            due = item["_due"]
+            rows.append({
+                "Feladat": str(item.get("title") or "Névtelen feladat")[:180],
+                "Státusz": str(item.get("status") or "open"),
+                "Prioritás": str(item.get("priority") or "normal"),
+                "Határidő": due.tz_convert("Europe/Budapest").strftime("%Y-%m-%d %H:%M") if pd.notna(due) else "Nincs",
+                "Figyelmeztetés": "LEJÁRT" if item["_overdue"] else "",
+                "Kapcsolt lead": str(item.get("lead_id") or "—"),
+                "Feladatazonosító": str(item.get("id") or ""),
+            })
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+        st.caption(f"{len(visible)} feladat látható · legfeljebb 500 rekord kerül betöltésre.")
 
     st.subheader("Utánkövetési sor")
     st.caption(
