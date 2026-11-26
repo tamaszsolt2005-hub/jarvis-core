@@ -501,7 +501,7 @@ def render_settings_page() -> None:
         ("Munkamenet", "Hitelesített" if st.session_state.get("authenticated") else "Nem hitelesített"),
         ("Gemini modell", model_name),
         ("Időzóna", "Europe/Budapest"),
-        ("Kutatási worker", "Kézzel indítható one-shot runtime; automatikus scheduler nincs bekapcsolva"),
+        ("Kutatási worker", "One-shot runtime modul elérhető; automatikus scheduler nincs bekapcsolva"),
     ]
     for label, value in access_rows:
         left, right = st.columns([1, 2])
@@ -518,12 +518,16 @@ def render_settings_page() -> None:
         ),
         ("GEMINI_API_KEY", gemini_ready, "AI chat és kutatási szolgáltatás"),
         ("Dashboard hitelesítés", dashboard_password_ready, "Megosztott jelszó vagy egyéni Auth"),
+        ("Chat e-mail funkciókapcsoló", env_bool("CHAT_EMAIL_ENABLED", False), "Piszkozat/jóváhagyási út; önmagában nem enged küldést"),
         ("E-mail-küldési kódzár", EMAIL_DELIVERY_ENABLED is False, "Az e-mail-küldés kódszinten tiltott"),
     ]
     for label, configured, description in configuration_rows:
         left, middle, right = st.columns([1.25, 1, 2])
         left.write(label)
-        middle.success("Beállítva" if configured else "Hiányzik / ellenőrizendő") if configured else middle.warning("Hiányzik / ellenőrizendő")
+        if configured:
+            middle.success("Beállítva")
+        else:
+            middle.warning("Hiányzik / ellenőrizendő")
         right.caption(description)
 
     if EMAIL_DELIVERY_ENABLED is False:
