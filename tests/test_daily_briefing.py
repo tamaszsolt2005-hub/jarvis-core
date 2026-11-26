@@ -29,6 +29,7 @@ class FakeDB:
     def __init__(self):
         self.rows = {
             "leads": [{
+                "id": "lead-example-1",
                 "company_name": "Példa Kft.", "website": "https://example.com",
                 "status": "research", "source": "gemini_google_search_grounding:example.com",
                 "created_at": "2026-11-15T06:00:00Z",
@@ -59,6 +60,27 @@ def test_daily_briefing_builds_action_plan_from_overdue_task_and_top_lead():
     assert "Javasolt napi akcióterv" in report
     assert "Rendezd a lejárt feladatot" in report
     assert "Ellenőrizd a legmagasabb kutatási prioritású céget" in report
+
+def test_daily_briefing_adds_evidence_based_lead_task_proposal_without_writing():
+    db = FakeDB()
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Következő belső feladatjavaslatok" in report
+    assert "Üzleti igény és szolgáltatási illeszkedés ellenőrzése – Példa Kft." in report
+    assert "lead-example-1" in report
+    assert "kapcsolatfelvételi engedély" in report
+    assert db.rows["leads"][0]["status"] == "research"
+    assert db.rows["tasks"][0]["title"] == "Ajánlat ellenőrzése"
+
+
+def test_daily_briefing_does_not_repeat_task_proposal_for_linked_lead():
+    db = FakeDB()
+    db.rows["tasks"].append({
+        "id": "task-linked", "lead_id": "lead-example-1",
+        "title": "Kutatás ellenőrzése", "status": "open", "priority": "normal",
+    })
+    report = build_daily_briefing(db, today=date(2026, 11, 15))
+    assert "Nincs olyan strukturált kutatási lead, amelyhez még ne tartozna feladat." in report
+    assert "Üzleti igény és szolgáltatási illeszkedés ellenőrzése – Példa Kft." not in report
 
 
 def test_daily_briefing_prioritizes_urgent_overdue_tasks():
