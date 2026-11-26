@@ -203,6 +203,7 @@ from jarvis_errors import classify_error, user_facing_error
         (type("Unavailable", (Exception,), {"code": 503})("unavailable"), "service_unavailable", True),
         (type("BadRequest", (Exception,), {"code": 400, "status": "INVALID_ARGUMENT"})("bad request"), "invalid_request", False),
         (type("GeminiQuotaError", (Exception,), {"code": 429, "status": "RESOURCE_EXHAUSTED"})("quota"), "rate_limited", True),
+        (type("GeminiSymbolicQuotaError", (Exception,), {"code": "RESOURCE_EXHAUSTED", "status": "RESOURCE_EXHAUSTED"})("quota"), "rate_limited", True),
         (type("GeminiUnavailableError", (Exception,), {"code": 503, "status": "UNAVAILABLE"})("temporarily unavailable"), "service_unavailable", True),
         (type("GeminiDeadlineError", (Exception,), {"code": 504, "status": "DEADLINE_EXCEEDED"})("deadline exceeded"), "timeout", True),
         (type("GeminiPermissionError", (Exception,), {"code": 403, "status": "PERMISSION_DENIED"})("denied"), "permission_denied", False),
