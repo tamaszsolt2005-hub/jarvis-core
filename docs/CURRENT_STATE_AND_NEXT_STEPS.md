@@ -229,3 +229,12 @@ A felhasználói tesztelési elvárás szerint nem ismételjük meg minden commi
 A konfigurációs és runtime hibakezelési kód bekerült: hiányzó/hibás kötelező secret, hibás Supabase HTTP(S) URL, hálózati hiba, timeout, API rate limit/kvóta, szolgáltatáskiesés, hitelesítési és jogosultsági hiba kategorizálása. A Gemini modellváltás kizárólag rate-limit/szolgáltatás-túlterhelés esetén engedélyezett; hitelesítési és permission hiba esetén nincs fallback. A felhasználói felület kategorizált, titokmentes segítséget mutat.
 
 A CI #3019 korábbi tesztjobja 1104 tesztet sikeresen teljesített, 3 tesztet kihagyott, 2 Settings AppTesten elbukott; a coverage 90,24% volt. A backup–restore job sikeres volt. A két AppTest elvárást javítottuk, de a javítások utáni aktuális HEAD célzott teszteredménye még nincs igazolva. Ezért a következő ellenőrzés elsődlegesen az érintett tesztmodulokra korlátozandó, nem kell a változatlan backup–restore tesztet újra futtatni.
+
+
+### 7.9 PostgreSQL worker konkurencia- és kvótatesztek
+
+A PR #28 ágon elkészült két új SQL tesztfájl, de futtatási eredmény még nincs:
+- `supabase/tests/company_research_jobs.test.sql`: 15 pgTAP assertion az idempotenciára, napi költségfoglalásra, óránkénti/domain kvótára, claim plafonra, heartbeat-re, actual-cost settlementre és auditra.
+- `supabase/tests/company_research_jobs_concurrency.test.sql`: 12 pgTAP assertion két független `dblink` PostgreSQL sessionnel. Valódi párhuzamos budget reservation és párhuzamos worker claim versenyt indít.
+
+Következő lépés: a helyi Supabase/PostgreSQL elindítása után `supabase test db` futtatása izolált környezetben, majd az esetleges hibák javítása és az eredmény commit SHA-hoz kötött dokumentálása. A concurrency teszthez `dblink` extension kell. A production DB-n sem tesztet, sem migrációt nem futtatunk.
