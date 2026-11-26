@@ -279,3 +279,8 @@ A job futtatása előtt determinisztikus admission policy ellenőrizze a globál
 ### 10.6 Hosszú jobok heartbeat callbackje
 
 A worker a kétparaméteres handlernek explicit heartbeat callbacket adhat át. Ez csak a handler által meghívott checkpointoknál végez repository heartbeat RPC-t, nem indít saját timert vagy szálat. A lease-vesztés hamis completiont nem eredményezhet; a handlernek a callback hamis eredményét tiszteletben kell tartania.
+
+
+### 10.7 Admission policy és queue integráció
+
+A `company_research_admission.py` determinisztikus admission döntést ad a globális óránkénti limit, domainenkénti napi limit, concurrency és napi költség alapján. A költség mikro-USD egész szám. A `company_research_refresh_queue.py` admission-aware batch enqueue útvonala elfogadott jobonként növeli a helyi számlálókat, így ugyanazon batchen belül nem oversubscribe-ol. A több folyamat közötti kvótafoglalás még nem atomikus; ehhez később DB/RPC reservation szükséges. A policy nem hív külső API-t.
