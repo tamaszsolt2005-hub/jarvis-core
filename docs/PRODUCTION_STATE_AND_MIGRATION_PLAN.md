@@ -191,3 +191,15 @@ A korábbi production snapshot a két `20261117` ledger gap reconciliation után
 ## Email provider státusz – 2026-11-25
 
 A Resend API adapter a PR #26 branchben van, de productionben nincs aktiválva. A GitHub email workflow a RESEND_API_KEY secretet várja és EMAIL_PROVIDER=resend értéket ad át, miközben a küldési lépés if: false és a kódbeli EMAIL_DELIVERY_ENABLED konstans False. Nem történt API-hívás, secretmódosítás vagy levélküldés. A Resend 24 órás idempotencia-retenciója miatt az unknown küldéseket provider-oldalon kell egyeztetni; a hard-disable feloldása külön jóváhagyás nélkül tilos.
+
+
+
+## 2026-11-26 – production bizonyítékok frissessége és PR #26 határ
+
+**Fontos frissességi megjegyzés:** a dokumentum korábbi, 2026-11-25-i Supabase read-only snapshotja történeti megfigyelés. Ebben a munkamenetben nem történt új production Supabase-lekérdezés, ezért a korábbi hét ledger-bejegyzésre, hiányzó objektumokra, RLS/policy állapotra és privilege-ekre vonatkozó számok nem tekinthetők 2026-11-26-i állapotigazolásnak. Production módosítás nem történt.
+
+A PR #26 branch legutóbbi ellenőrzött CI-je (head `6ef4020bba3949e02440e97583fc907b6bcb1f00`) sikeres: 838 passed, 3 skipped, 91.29% coverage; PostgreSQL 17 izolált migráció/pgTAP/backup-restore, CodeQL és pip-audit szintén sikeres. Ezek kizárólag branch/CI bizonyítékok, nem production séma vagy migrációs állapot.
+
+A PR-ben szereplő `20261125180000_unique_normalized_lead_email.sql` és audit/approval/RPC/privilege-lock migrációk productionben történő alkalmazása nincs igazolva, és nem történt meg ebben a munkában. A production migráció előtt friss read-only schema + ledger snapshot, email duplikációs preflight, független SQL review, izolált teljes PG17 replay és külön konkrét jóváhagyás szükséges. A service_role task DML revoke továbbra is csak a tényleges RPC app path deployja és sikeres smoke után jöhet szóba.
+
+A global lead research párhuzamos cég/domain duplikációs kockázata alkalmazásszintű maradt; DB/RPC atomikus claim nincs implementálva. Ez branchben is nyitott fejlesztési feladat, nem production hotfix.
