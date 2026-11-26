@@ -6,12 +6,13 @@ communication. A caller supplies the handler and repository.
 """
 from __future__ import annotations
 
+from inspect import Parameter, signature
 from typing import Any, Callable
 
 from company_research_job_repository import CompanyResearchJobRepository
 from company_research_jobs import retry_backoff_seconds
 
-ResearchJobHandler = Callable[[dict[str, Any]], dict[str, Any]]
+ResearchJobHandler = Callable[..., dict[str, Any]]
 
 
 def run_one_company_research_job(
@@ -59,8 +60,27 @@ def run_one_company_research_job(
         )
         return {"status": "failed" if failed else "lease_lost", "operation_id": operation_id}
 
+    def heartbeat() -> bool:
+        """Renew this job's lease at an explicit handler checkpoint."""
+        renewed = repository.heartbeat(
+            operation_id=operation_id,
+            worker_id=worker_id.strip(),
+            lease_seconds=lease_seconds,
+        )
+        return renewed is not None
+
     try:
-        result = handler(payload)
+        try:
+            parameters = signature(handler).parameters.values()
+            accepts_heartbeat = any(
+                parameter.kind == Parameter.VAR_POSITIONAL for parameter in parameters
+            ) or len([
+                parameter for parameter in parameters
+                if parameter.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+            ]) >= 2
+        except (TypeError, ValueError):
+            accepts_heartbeat = False
+        result = handler(payload, heartbeat) if accepts_heartbeat else handler(payload)
         if not isinstance(result, dict):
             raise TypeError("handler_result_must_be_object")
     except Exception as exc:
