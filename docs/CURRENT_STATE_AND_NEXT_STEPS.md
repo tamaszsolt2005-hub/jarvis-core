@@ -1,14 +1,16 @@
 # JARVIS – aktuális állapot és következő lépések
 
 **Frissítve:** 2026-11-26  
-**Aktív fejlesztési ág:** `feature/company-research-dashboard-readonly`  
-**Aktuális PR:** [#28 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28)  
-**Alap PR:** [#26 – nyitott, nem merge-ölt](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26)  
-**Aktuális head és CI:** mindig a [PR #28 aktuális headjén és Checks oldalán](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28/checks) ellenőrizendő. Csak az aktuális headhez tartozó, befejezett és sikeres futás tekinthető igazolásnak; régebbi futás nem.
+**Aktív fejlesztési ág:** `main`  
+**PR állapot:** #26, #27 és #28 merge-ölve a `main` ágba.  
+**Legutóbbi main commit:** `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`  
+**Legutóbbi CI:** [#3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820), mindhárom job sikeres. A merge commit külön post-merge CI-je nincs igazolva.
 
 A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md).
 
 ## Aktuális P1 végrehajtási állapot
+
+> **Frissítés – 2026-11-26:** PR #26–#28 merge-ölve a main ágba. A worker lifecycle, repository/RPC, queue bridge, injektálható grounded Gemini adapter, snapshot-persist→complete, idempotencia, lease/heartbeat/retry/dead-letter és költségelszámolási callback kódban implementált, CI #3187-ben tesztelt. Scheduleres automatikus indítás, élő Gemini/staging smoke, Auth-os snapshot SELECT (fail-closed), teljes manuális dashboard smoke és production deploy még nincs. A napi hard budget cap teljes kikényszerítése még fejlesztendő; production DB és deploy nem módosult.
 
 - A one-shot runtime kötelezően injektált snapshot-adatbázist kap, és a worker sikeres lezárása előtt elmenti a validált dossziét a `company_research_snapshots` táblába.
 - A snapshot az `operation_id` alapján determinisztikus UUID-t kap. Ha a snapshot insert sikerült, de a job complete lease-vesztés vagy átmeneti hiba miatt nem, az ismételt worker futás ugyanazt a snapshotot ismeri fel; eltérő tartalommal nem írja felül.
@@ -289,7 +291,7 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 
 ### PR és környezeti állapot
 
-PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
+PR #26, #27 és #28 merge-ölve a main ágba; a stacked PR-lánc lezárult. A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
 
 
 ### 7.8 Worker SQL-életciklus szélső esetei – 2026-11-26
