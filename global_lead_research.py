@@ -14,6 +14,7 @@ from jarvis_common import get_gemini_client, get_model_name, log_event, audit_ev
 from jarvis_errors import report_error
 from lead_identity import upsert_company_lead
 from company_dossier import build_company_dossier, render_company_dossier, stamp_company_dossier
+from company_research_store import save_company_research_snapshot
 
 
 MAX_RESULTS = 15
@@ -388,9 +389,35 @@ def research_global_companies(
             },
         ):
             raise RuntimeError("A kutatási lead mentése megtörtént, de a záró auditbejegyzés nem menthető.")
-        # Keep a compact, append-only snapshot manifest in the existing audit log.
-        # Full facts remain in the lead dossier; the manifest makes versions traceable
-        # without expanding the production schema or storing personal contact data.
+        # Persist the complete, immutable dossier version separately from the mutable lead notes.
+        if not audit_event(
+            db,
+            module="global_lead_research",
+            action="company_research_snapshot",
+            status="pending",
+            operation_id=dossier["snapshot_id"],
+            result={"company_domain": site_domain, "lead_id": identity_result["lead_id"]},
+        ):
+            raise RuntimeError("A cégkutatási snapshot mentése leállítva: a pending audit nem menthető.")
+        try:
+            save_company_research_snapshot(
+                db,
+                lead_id=identity_result["lead_id"],
+                company_domain=site_domain,
+                dossier=dossier,
+            )
+        except Exception as exc:
+            audit_event(
+                db,
+                module="global_lead_research",
+                action="company_research_snapshot",
+                status="failed",
+                operation_id=dossier["snapshot_id"],
+                error=exc,
+                result={"company_domain": site_domain, "lead_id": identity_result["lead_id"]},
+                level="error",
+            )
+            raise
         if not audit_event(
             db,
             module="global_lead_research",
