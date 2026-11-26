@@ -23,7 +23,7 @@ import jarvis_common
 from jarvis_common import estimate_response_tokens, generate_text, get_secret, get_legacy_dashboard_supabase, get_user_supabase, get_service_supabase, get_enforced_user_supabase, get_model_name, log_event, env_bool
 from jarvis_auth import sign_in_user, sign_out_user, has_permission
 import jarvis_errors
-from jarvis_errors import sanitize_log_text
+from jarvis_errors import sanitize_log_text, user_facing_error
 import audit_admin
 from email_utils import EMAIL_DELIVERY_ENABLED, send_email
 from chat_email import is_chat_email_request, extract_explicit_recipient, build_chat_email_draft
@@ -2378,9 +2378,9 @@ if prompt:
             exc, module="dashboard", operation=f"chat_request:{stage}",
             severity="error", db=db,
         )
-        detail = sanitize_log_text(exc, max_length=500) or "Nincs további hibaüzenet."
+        guidance = user_facing_error(exc)
         st.error(f"A JARVIS művelet a következő szakaszban állt meg: {stage}.")
-        st.warning(f"Hiba típusa: {type(exc).__name__} · Részlet: {detail}")
-        st.info("A fenti hibaüzenet alapján célzottan javítható a kapcsolat vagy a konfiguráció. API-kulcsot és jelszót ne küldj be.")
-        st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. Hibatípus: {type(exc).__name__}. A részletes hiba a képernyőn látható."))
+        st.warning(guidance)
+        st.info("A részletes technikai hiba csak a titokmentesített naplóba kerül. API-kulcsot, jelszót vagy teljes hozzáférési tokent ne küldj be.")
+        st.session_state.chat.append(("assistant", f"A művelet itt akadt el: {stage}. {guidance}"))
 
