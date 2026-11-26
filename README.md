@@ -40,7 +40,7 @@ Titokértéket ne másolj chatbe, naplóba vagy Gitbe. A .env* és .streamlit/se
 ## Dokumentumtérkép
 | Dokumentum | Mire való |
 |---|---|
-| [Fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) | Fejlesztési irány és prioritások |
+| [Fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) | Fejlesztési irány és prioritások |\n| [Önálló SaaS-ügynök vízió](docs/JARVIS_AUTONOMOUS_SAAS_VISION.md) | Automatikus cégkutatás, egyedi SaaS-ajánlat, tiltó napló, személyes outreach és AI-termékfejlesztés célarchitektúrája |
 | [Aktuális állapot](docs/CURRENT_STATE_AND_NEXT_STEPS.md) | Mi van kész, mi fut, mi nincs telepítve |
 | [Parancs- és kifejezéskalauz](docs/JARVIS_COMMAND_GUIDE.md) | Magyar parancsok, példák, jóváhagyás |
 | [Rendszer- és architektúra-dokumentáció](docs/JARVIS_DOCUMENTATION.md) | Modulok, adatfolyamok, jogosultságok |
