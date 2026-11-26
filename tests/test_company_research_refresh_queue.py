@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -133,3 +134,30 @@ def test_admission_aware_queue_rejects_malformed_usage_snapshot():
             repository, [], {}, limits={}, usage_snapshot=None,
             estimated_cost_microusd_per_job=0,
         )
+
+
+
+def test_admission_queue_matches_domain_usage_case_insensitively():
+    lead_id = str(uuid4())
+    repository = FakeRepository()
+    result = enqueue_company_research_refreshes_with_admission(
+        repository,
+        [{"id": lead_id, "company_name": "Alpha", "website": "https://alpha.example"}],
+        {},
+        limits={
+            "max_jobs_per_hour": 10,
+            "max_jobs_per_domain_per_day": 1,
+            "max_concurrent_jobs": 2,
+            "max_daily_cost_microusd": 1_000_000,
+        },
+        usage_snapshot={
+            "jobs_last_hour": 0,
+            "jobs_by_domain_today": {"ALPHA.EXAMPLE": 1},
+            "running_jobs": 0,
+            "spent_today_microusd": 0,
+        },
+        estimated_cost_microusd_per_job=10,
+        now=datetime(2026, 11, 26, tzinfo=timezone.utc),
+    )
+    assert result["jobs"] == []
+    assert result["rejected"] == [{"lead_id": lead_id, "reason": "domain_daily_limit"}]
