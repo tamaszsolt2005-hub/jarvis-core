@@ -181,9 +181,9 @@ def test_required_secret_points_to_runtime_secret_locations(monkeypatch):
     monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: None)
     with pytest.raises(RuntimeError) as error:
         jarvis_common.required_secret("GEMINI_API_KEY")
-    assert "Codespaces secretként" in str(error.value)
+    assert "helyi környezeti változókhoz" in str(error.value)
     assert ".streamlit/secrets.toml" in str(error.value)
-    assert "GitHub Actions Secretként" not in str(error.value)
+    assert "GEMINI_API_KEY" in str(error.value)
 
 
 
