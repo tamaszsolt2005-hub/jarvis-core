@@ -42,8 +42,10 @@ class CompanyResearchRuntimeConfig:
                 raise ValueError(f"{name} must be a positive integer")
         if self.max_output_tokens_per_attempt < 128 or self.max_output_tokens_per_attempt > 4096:
             raise ValueError("max_output_tokens_per_attempt must be between 128 and 4096")
-        if self.max_attempts > 3:
-            raise ValueError("max_attempts must be between 1 and 3")
+        # Failed provider attempts do not currently expose measurable usage.
+        # Allowing retries would under-report billable cost at settlement.
+        if self.max_attempts != 1:
+            raise ValueError("max_attempts must be 1 until every provider attempt is billable-measured")
         if isinstance(self.max_age_days, bool) or not isinstance(self.max_age_days, int) or self.max_age_days < 0:
             raise ValueError("max_age_days must be a non-negative integer")
 
@@ -160,6 +162,11 @@ def run_company_research_worker_with_config(
     """Run one worker claim using the same immutable settings as queue admission."""
     from company_research_runtime import run_company_research_worker_once
 
+    if worker_options.get("max_attempts", 1) != 1:
+        raise ValueError("worker max_attempts must be 1 while failed-attempt cost is not measurable")
+    # Job-level retries would issue additional provider calls outside the
+    # reservation's single measured attempt. Fail closed instead.
+    worker_options["max_attempts"] = 1
     provider = TokenBoundedGeminiProvider(client=client, model=model, config=config)
     return run_company_research_worker_once(
         repository,
