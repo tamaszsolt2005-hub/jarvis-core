@@ -124,3 +124,12 @@ def test_admission_aware_queue_rejects_job_over_remaining_daily_budget():
     assert result["jobs"] == []
     assert result["rejected"] == [{"lead_id": lead_id, "reason": "daily_cost_limit"}]
     assert repository.by_operation_id == {}
+
+
+def test_admission_aware_queue_rejects_malformed_usage_snapshot():
+    repository = FakeRepository()
+    with pytest.raises(ValueError, match="usage_snapshot"):
+        enqueue_company_research_refreshes_with_admission(
+            repository, [], {}, limits={}, usage_snapshot=None,
+            estimated_cost_microusd_per_job=0,
+        )
