@@ -37,9 +37,11 @@ A teljes összefüggő leírás: [JARVIS Master Documentation](JARVIS_MASTER_DOC
 - `company_research_snapshots` SQL migráció: RLS engedélyezés, anon/authenticated tiltás, service_role SELECT/INSERT.
 - Fail-closed dosszié-frissességi szabály.
 - `company_research_policy.py`: elutasítás/opt-out kizárása, két válasz nélküli utánkövetés után automatikus refresh szüneteltetése, meg nem keresett leadek megtartása.
+- `company_research_refresh_planner.py`: read-only stale candidate kiválasztás, uncontacted prioritás, friss snapshot kihagyása, duplikációszűrés és limit.
 
 ## 3. Mi nincs még kész?
 
+- A planner bekötése a DB-ből lapozva beolvasott leadekhez és legfrissebb snapshotokhoz.
 - Automatikus cégkutatási scheduler és háttérworker.
 - Claim/lease, heartbeat, retry limit, dead-letter és költség/rate limit a kutatási workerhez.
 - A refresh policy bekötése a teljes CRM/outreach eseményállapotba.
@@ -70,7 +72,7 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 
 1. A jelenlegi PR #27 CI-jének befejeződése és minden hiba javítása az aktuális headen.
 2. A dokumentált snapshot migráció és store kód további ellenőrzése.
-3. Read-only refresh candidate planner: csak az alkalmas és ténylegesen stale cégek kiválasztása.
+3. A read-only planner bekötése lapozott lead- és snapshot-lekérdezéshez, majd tesztelés nagy adathalmazon.
 4. Megbízható outreach eseményszámláló és állapotmapping a follow-up policy-hoz.
 5. Idempotens, jóváhagyott ütemezésű kutatási worker.
 6. Kutatási UI és emberi ellenőrzés.
