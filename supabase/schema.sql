@@ -760,6 +760,32 @@ WHERE l.email IS NOT NULL
 ON CONFLICT (email_normalized) DO NOTHING;
 
 -- The deployed application uses the RPC for inserts; direct writes are closed.
-REVOKE INSERT, DELETE, TRUNCATE, REFERENCES, TRIGGER
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.leads FROM service_role;
-GRANT SELECT, UPDATE ON TABLE public.leads TO service_role;
+GRANT SELECT ON TABLE public.leads TO service_role;
+
+-- Keep routine CRM status/outreach updates, but only the SECURITY DEFINER
+-- company RPC may change company identity, selected email or consent proof.
+DO $lead_update_column_grants$
+DECLARE
+  update_columns text;
+BEGIN
+  SELECT string_agg(format('%I', column_name), ', ' ORDER BY ordinal_position)
+    INTO update_columns
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'leads'
+    AND column_name NOT IN (
+      'id', 'company_name', 'website', 'email',
+      'consent_basis', 'approved_to_contact', 'consent_confirmed_at',
+      'created_at'
+    );
+
+  IF update_columns IS NOT NULL THEN
+    EXECUTE format(
+      'GRANT UPDATE (%s) ON TABLE public.leads TO service_role',
+      update_columns
+    );
+  END IF;
+END
+$lead_update_column_grants$;
