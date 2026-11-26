@@ -65,6 +65,7 @@ def test_actual_cost_settlement_is_atomic_with_job_completion():
     assert "p_actual_cost_microusd bigint DEFAULT NULL" in complete_fn
     assert "SET reserved_cost_microusd = p_actual_cost_microusd" in complete_fn
     assert "reservation_status = 'settled'" in complete_fn
+    assert "research_budget_reservation_missing_or_settled" in complete_fn
     assert "'actual_cost_microusd', p_actual_cost_microusd" in complete_fn
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_budget_reservations TO service_role" in sql
     assert "GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb, bigint) TO service_role" in sql
