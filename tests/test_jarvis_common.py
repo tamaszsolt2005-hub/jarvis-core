@@ -326,3 +326,30 @@ def test_generate_text_does_not_fallback_on_permission_or_auth_failure(monkeypat
         with pytest.raises(type(error)):
             jarvis_common.generate_text("hello", client)
         assert client.models.calls == 1
+
+
+def test_required_secret_rejects_whitespace_only_values(monkeypatch):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: "   ")
+    with pytest.raises(RuntimeError, match="Hiányzó beállítás"):
+        jarvis_common.required_secret("SUPABASE_URL")
+
+
+@pytest.mark.parametrize("value", [
+    "ftp://supabase.example.test",
+    "not-a-url",
+    "https://user:password@supabase.example.test",
+    "https://",
+])
+def test_required_http_url_rejects_invalid_endpoints(monkeypatch, value):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: value)
+    with pytest.raises(ValueError, match="Hibás konfiguráció"):
+        jarvis_common.required_http_url("SUPABASE_URL")
+
+
+@pytest.mark.parametrize("value", [
+    "https://project.supabase.co",
+    "http://localhost:54321",
+])
+def test_required_http_url_accepts_http_service_endpoints(monkeypatch, value):
+    monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: value)
+    assert jarvis_common.required_http_url("SUPABASE_URL") == value
