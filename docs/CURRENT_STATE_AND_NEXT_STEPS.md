@@ -208,3 +208,12 @@ A legfrissebb összesített funkcióleltár, a „kész főrendszer” elfogadá
 A Chat, Feladatok, Analitika, Cégkutatás, Audit napló és Beállítások navigációs útvonalait áttekintettük. A Settings korábban csak dekoratív HTML volt; most dedikált, kattintható, read-only konfigurációs oldal, titokértékek megjelenítése nélkül. A rendszerdiagnosztika csak kézi indításra fut, és jelzi a Gemini próbakérés lehetséges költségét. Auth módban a Settings settings.read jogosultságot igényel, a teljes diagnosztika admin-only. A runtime titkok, Auth/RBAC, RLS és outbound e-mail zár UI-ból nem módosítható.
 
 A Feladatközpont üres tasklista esetén korábban elrejtette az utánkövetési sort; a korai visszatérést javítottuk és AppTestet adtunk hozzá. A Cégkutatás Auth/RLS módban továbbra is fail-closed, az Audit külön Supabase Auth-admin belépést kér. A dashboard tesztcsomag két Settings teszttel és egy üres tasklista/utánkövetés regressziós teszttel bővült. Az audit utáni új HEAD teljes CI-ellenőrzése még szükséges.
+
+
+## 8. Központi konfiguráció- és hibakezelés – 2026-11-26
+
+A PR #28 ágán egységes, titokmentes hibakategorizálás készült a `jarvis_errors.py` modulban. A rendszer külön kezeli a hiányzó/hibás konfigurációt, jogosultság- és hitelesítési hibát, API-kvótát/rate limitet, hálózati hibát, timeoutot, átmeneti szolgáltatáskiesést és hibás kérést. A kategóriához magyar, műveleti útmutatót adó üzenet tartozik; a szolgáltatói hiba teljes szövege és a secret nem kerül a chat felületére.
+
+A Gemini kliens a kategorizálás alapján korlátozottan újrapróbálkozik hálózati, timeout, rate limit és átmeneti szolgáltatáshibánál. Hitelesítési és jogosultsági hibára nincs retry vagy másik jogosultsági útvonal. A dashboard chat megőrzi a megállási szakaszt, de a felhasználónak csak biztonságos, kategorizált segítséget mutat. A titokmentes naplózás továbbra is best-effort; naplózási hiba nem írhatja felül az eredeti hibát.
+
+A hozzáadott tesztek lefedik a hibakategóriákat, a secret UI-ból való kizárását, a hálózati retryt és az auth/permission fail-closed viselkedést. A teljes CI-t az összefüggő fejlesztési csomag lezárásakor kell futtatni; az implementáció önmagában még nem jelent zöld CI-t. Production konfiguráció, DB, jogosultság, secret és infrastruktúra nem módosult.
