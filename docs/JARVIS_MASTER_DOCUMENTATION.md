@@ -264,3 +264,8 @@ A Phase 1B repository-szelet implementációja a PR #28 branchben: `company_rese
 ### 10.3 Egyszeri worker-orchestration
 
 A `company_research_worker.py` legfeljebb egy előkészített jobot claimel, majd kizárólag injektált handlerrel hajtja végre, és repository RPC-n keresztül complete/fail állapotba teszi. A modul nem tartalmaz kutatási implementációt, Gemini/API-hívást, scheduler-t vagy automatikus futtatást. A handler exception szövegét nem menti, ezzel csökkentve a titok- és személyesadat-szivárgás kockázatát. Ha a lease közben elveszik, nem jelez hamis sikert. Fake repository tesztek fedik le az idle, success, retry, dead-letter és lease-loss ágakat; a teljes csomag ellenőrzése a későbbi összesített körben történik.
+
+
+### 10.4 Retry backoff
+
+A retry késleltetés exponenciális, determinisztikus és felső korláttal védett legyen. A számítás az attempt_count alapján történik, szigorú pozitív egész validációval; a worker nem lépheti túl a beállított maximumot. A retry-k száma továbbra is véges, a végső próbálkozás dead-letter állapotba vezet. Ez a mechanizmus önmagában nem biztosít globális rate limitet vagy költségkeretet.
