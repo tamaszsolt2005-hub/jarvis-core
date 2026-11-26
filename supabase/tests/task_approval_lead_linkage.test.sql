@@ -106,7 +106,7 @@ BEGIN
     jsonb_build_object(
       'type', 'create', 'operation_id', v_third_operation,
       'title', 'Next workflow stage', 'priority', 'normal',
-      'due_at', NULL, 'notes', 'Allowed after previous task completion',
+      'due_at', NULL, 'notes', '[JARVIS_STAGE:offer_preparation] Allowed after previous task completion',
       'lead_id', v_lead
     )
   );
@@ -186,7 +186,7 @@ BEGIN
   DELETE FROM public.tasks
    WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation, v_update_operation);
   DELETE FROM private.task_action_operations
-   WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation);
+   WHERE operation_id IN (v_first_operation, v_second_operation, v_third_operation, v_update_operation);
   DELETE FROM private.task_approvals
    WHERE token_hash IN (repeat('7', 64), repeat('8', 64), repeat('9', 64), repeat('c', 64), repeat('a', 64));
   DELETE FROM public.leads WHERE id = v_lead;
