@@ -284,3 +284,8 @@ A worker a kétparaméteres handlernek explicit heartbeat callbacket adhat át. 
 ### 10.7 Admission policy és queue integráció
 
 A `company_research_admission.py` determinisztikus admission döntést ad a globális óránkénti limit, domainenkénti napi limit, concurrency és napi költség alapján. A költség mikro-USD egész szám. A `company_research_refresh_queue.py` admission-aware batch enqueue útvonala elfogadott jobonként növeli a helyi számlálókat, így ugyanazon batchen belül nem oversubscribe-ol. A több folyamat közötti kvótafoglalás még nem atomikus; ehhez később DB/RPC reservation szükséges. A policy nem hív külső API-t.
+
+
+### 10.8 Worker eredmény- és idempotencia-biztonság
+
+A worker csak objektum alakú claimelt jobot dolgoz fel, a handlernek másolt payloadot ad át, a visszatérő eredményt JSON-kompatibilitásra és alapértelmezett 256 KiB méretkorlátra ellenőrzi. Nem JSON vagy túlméretes eredmény nem kerül completionbe. A hibakód szűrt, a kivételüzenet nem kerül tartós tárolásba. A repository azonos `operation_id` esetén összeveti a `job_type`, `lead_id` és payload értékeket is; eltérő bemenet idempotencia-konfliktus, nem sikeres duplikáció. A költségbecslő egész mikro-USD-ben, felfelé kerekítve számol, a szolgáltatói tokenárakat konfigurációból kapja.
