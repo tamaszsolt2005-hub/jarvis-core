@@ -36,7 +36,7 @@ A PR #28 nyitva marad. Merge, production deploy, production migration és produc
 | PostgreSQL backup–restore CI job | CI run `45875325010` | Sikeres; nem kell újrafuttatni, amíg a backup/restore útvonal nem változik |
 | Unit/AppTest/browser tesztcsomag a korábbi dashboard HEAD-en | CI run `45875325010` | 1104 passed, 3 skipped, 2 failed; coverage 90,24%. A két hiba Settings AppTest assertion volt |
 | Compile/egyéb előkészítő CI lépések | CI run `45875325010` | A naplóban sikeresek |
-| Worker SQL konkurencia és snapshot end-to-end | Nincs igazolt izolált PG bizonyíték | Nincs még ellenőrizve valós adatbázis-környezetben |
+| Worker SQL konkurencia és költségkvóták | Új pgTAP lifecycle/kvóta teszt + külön, két `dblink` sessiont használó párhuzamos claim/budget teszt a PR #28 ágon | A tesztek megíródtak, de még nem futottak le izolált PostgreSQL-en; eredmény nem igazolt |
 | Valós Gemini provider smoke | Nincs | Nem futott productionben; izolált tesztkörnyezetben még szükséges |
 
 A két korábbi Settings AppTest hibát javítottuk, de a javítás utáni aktuális kódon ezek célzott újrafuttatása még nem igazolt. Nem állítjuk, hogy a legfrissebb ág CI-je zöld.
@@ -64,12 +64,11 @@ A két korábbi Settings AppTest hibát javítottuk, de a javítás utáni aktu�
    - Hiba, retry, lease-vesztés és duplikált operation ID esetén konzisztens állapot.
    - Most még a provider/runtime alap és a snapshot store külön-külön létezik; a teljes bekötött adatút nincs igazolva.
 
-4. **Worker SQL izolált PostgreSQL teszt**
-   - Párhuzamos claim és concurrency plafon.
-   - Lease expiry/reclaim és heartbeat.
-   - Idempotencia, retry/dead-letter.
-   - Atomikus napi költség-, óránkénti és domain kvóták.
-   - Actual-cost settlement és audit tranzakció.
+4. **Worker SQL izolált PostgreSQL teszt – tesztek előkészítve, futtatás hátra van**
+   - `supabase/tests/company_research_jobs.test.sql`: idempotencia, napi/óránkénti/domain kvóta, concurrency plafon, heartbeat, actual-cost settlement és audit.
+   - `supabase/tests/company_research_jobs_concurrency.test.sql`: két független PostgreSQL `dblink` sessionnel valódi párhuzamos budget reservation és worker claim verseny.
+   - A futtatás helyi, izolált Supabase/PostgreSQL környezetben: `supabase test db` (a lokális DB elindítása után; `dblink` extension szükséges).
+   - A SQL tesztek jelenleg nincsenek lefuttatva, ezért sem a race, sem a kvóták működését nem jelöljük igazoltnak.
    - A fake repository teszt nem helyettesíti a valódi PostgreSQL konkurenciatesztet.
 
 5. **Auth/RLS jogosultsági teszt**
@@ -116,4 +115,14 @@ A következő fejlesztési feladatok kizárólag a PR branch-en és izolált tes
 
 ## 7. Rövid döntési javaslat
 
-A következő munkamenetben a P0 célzott hibakezelési tesztkörrel folytassuk. Utána a cégkutatási worker → snapshot E2E és az izolált PostgreSQL konkurenciateszt következzen. A teljes CI-t csak e nagyobb integrációs csomag lezárása után futtassuk, a korábban már sikeresen ellenőrzött backup–restore lépést pedig ne ismételjük meg változatlan kód mellett.
+A következő lépés a két új SQL tesztcsomag futtatása kizárólag helyi/izolált PostgreSQL-en, a hibaeredmények javítása, majd a futás commit SHA-hoz kötött dokumentálása. Ezután következhet a worker → snapshot E2E. A teljes CI-t csak e nagyobb integrációs csomag lezárása után futtassuk, a korábban már sikeresen ellenőrzött backup–restore lépést pedig ne ismételjük meg változatlan kód mellett.
+
+
+## 8. Új worker SQL tesztcsomag – 2026-11-26
+
+A PR #28 ágon két új adatbázis-teszt készült:
+
+- `supabase/tests/company_research_jobs.test.sql`: 15 pgTAP ellenőrzés az idempotens job-létrehozásról, napi költségkeretről, óránkénti és domainenkénti kvótáról, aktív lease plafonról, heartbeat jogosultságról, actual-cost settlementről és audit eseményekről.
+- `supabase/tests/company_research_jobs_concurrency.test.sql`: 10 pgTAP ellenőrzés két független PostgreSQL `dblink` sessionnel. Két egyidejű, 700/1000 mikro-USD foglalásból pontosan egynek szabad sikerülnie; két párhuzamos worker claim esetén az aktív lease-ek száma nem lépheti túl az 1-et.
+
+**Ellenőrzési státusz: NEM FUTOTT.** A tesztek forrása elkészült, de lokális/izolált PostgreSQL futtatás és eredmény még nincs. Futtatási parancs a helyi Supabase DB elindítása után: `supabase test db`. A concurrency teszthez a `dblink` extension elérhetősége szükséges. Production adatbázison nem szabad futtatni. A következő jelentésben a futás pontos commit SHA-ját, pgTAP eredményét és az esetleges hibákat kell rögzíteni.
