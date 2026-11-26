@@ -355,6 +355,9 @@ REVOKE ALL ON FUNCTION public.normalize_lead_company_domain(text) FROM PUBLIC, a
 REVOKE ALL ON FUNCTION public.lead_email_priority_score(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamptz)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.normalize_lead_company_name(text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.normalize_lead_company_domain(text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.lead_email_priority_score(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamptz)
   TO service_role;
 
