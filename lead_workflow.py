@@ -24,6 +24,10 @@ _WORKFLOW_STAGES = (
     ("offer_review", "Ajánlati koncepció emberi felülvizsgálata"),
     ("follow_up_review", "Utánkövetési jogosultság és következő lépés ellenőrzése"),
     ("outcome_measurement", "Eredmény és üzleti hatás rögzítésének ellenőrzése"),
+    ("outcome_positive_review", "Pozitív üzleti eredmény – lehetőségértékelés"),
+    ("outcome_negative_review", "Negatív üzleti eredmény – lezárási felülvizsgálat"),
+    ("outcome_no_response_review", "Válasz hiánya – újraminősítés és kutatás"),
+    ("outcome_classification_review", "Üzleti eredmény kézi besorolása"),
 )
 _STAGE_MARKER = re.compile(r"\[JARVIS_STAGE:([a-z_]+)\]")
 
@@ -64,8 +68,47 @@ def _next_stage(
     # Fresh grounded evidence must first raise the lead's confidence.
     if stage == "research_validation" and not research_is_sufficient:
         return None
+    if stage.startswith("outcome_"):
+        return None
     next_index = stage_index + 1
     return _WORKFLOW_STAGES[next_index][0] if next_index < len(_WORKFLOW_STAGES) else None
+
+
+
+def _outcome_recommendation_stage(tasks: list[dict[str, Any]]) -> str | None:
+    """Map an explicitly recorded outcome to one internal, approval-gated next task."""
+    measurement_tasks = [
+        task for task in tasks
+        if _task_stage(task) == "outcome_measurement"
+        and str(task.get("status") or "").casefold() == "done"
+    ]
+    if not measurement_tasks:
+        return None
+    latest_measurement = max(
+        measurement_tasks,
+        key=lambda task: str(task.get("completed_at") or task.get("created_at") or ""),
+    )
+    latest_staged = [task for task in tasks if _task_stage(task)]
+    latest_workflow_task = max(
+        latest_staged,
+        key=lambda task: str(task.get("completed_at") or task.get("created_at") or ""),
+    )
+    if latest_workflow_task is not latest_measurement:
+        return None
+
+    outcome = re.search(
+        r"(?:^|\s)Eredmény:\s*(pozitív|negatív|nincs\s+válasz)\s*:",
+        str(latest_measurement.get("notes") or ""),
+        re.I,
+    )
+    if not outcome:
+        return "outcome_classification_review"
+    category = re.sub(r"\s+", " ", outcome.group(1).casefold())
+    return {
+        "pozitív": "outcome_positive_review",
+        "negatív": "outcome_negative_review",
+        "nincs válasz": "outcome_no_response_review",
+    }[category]
 
 
 def build_lead_workflow_recommendations(
@@ -112,8 +155,9 @@ def build_lead_workflow_recommendations(
             if research_is_sufficient
             else "research_validation"
         )
-        stage = _next_stage(
-            tasks_by_lead.get(lead_id, []),
+        lead_tasks = tasks_by_lead.get(lead_id, [])
+        stage = _outcome_recommendation_stage(lead_tasks) or _next_stage(
+            lead_tasks,
             initial_stage,
             research_is_sufficient=research_is_sufficient,
         )
@@ -133,6 +177,10 @@ def build_lead_workflow_recommendations(
             "offer_review": "Ellenőrizd az árazást, teljesíthetőséget, kockázatokat és az ajánlat pontosságát; külső küldéshez külön jóváhagyás kell.",
             "follow_up_review": "Csak meglévő, érvényes hozzájárulás, jóváhagyott cím és leiratkozás hiánya esetén készíts utánkövetési javaslatot. Ne küldj üzenetet.",
             "outcome_measurement": "Rögzítsd a döntést, az ügyfél reakcióját, a következő lépést és a mérhető üzleti eredményt a feladat lezárása előtt.",
+            "outcome_positive_review": "Értékeld a pozitív eredmény bizonyítékait, az üzleti értéket és a jóváhagyható következő belső lépést; ne tekintsd automatikus megrendelésnek.",
+            "outcome_negative_review": "Ellenőrizd a negatív eredmény okát, rögzítsd a tanulságot, és készíts lezárási javaslatot; ne indíts új kapcsolatfelvételt.",
+            "outcome_no_response_review": "Frissítsd a nyilvános kutatást és vizsgáld felül az elérhetőségi/folyamatfeltételezéseket; új kapcsolatfelvételt ne kezdeményezz.",
+            "outcome_classification_review": "Az eredmény nem tartalmaz egyértelmű pozitív:, negatív: vagy nincs válasz: besorolást. Kérj emberi eredménybesorolást; ne következtess szabad szövegből.",
         }[stage]
         evidence = score.get("evidence", [])
         marker = f"[JARVIS_STAGE:{stage}]"
