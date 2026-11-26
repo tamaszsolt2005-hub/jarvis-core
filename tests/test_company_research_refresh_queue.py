@@ -61,6 +61,12 @@ def test_queue_bridge_enqueues_only_planner_candidates_and_is_idempotent():
     assert first[0]["payload"]["reason"] == "missing_dossier"
     assert first[0]["payload"]["company_domain"] == "eligible.example"
     assert len(repository.by_operation_id) == 1
+    assert repository.create_kwargs[0] == {
+        "estimated_cost_microusd": 100,
+        "daily_budget_microusd": 1_000_000,
+        "max_jobs_per_hour": 10,
+        "max_jobs_per_domain_per_day": 10,
+    }
 
 
 def test_new_snapshot_version_produces_a_new_refresh_operation_id():
