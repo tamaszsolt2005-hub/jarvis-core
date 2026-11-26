@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from company_research_job_repository import CompanyResearchBudgetExceeded
+from company_research_job_repository import CompanyResearchAdmissionRejected, CompanyResearchBudgetExceeded
 from company_research_refresh_queue import (
     enqueue_company_research_refreshes,
     enqueue_company_research_refreshes_with_admission,
@@ -14,10 +14,12 @@ class FakeRepository:
         self.by_operation_id = {}
         self.create_kwargs = []
 
-    def create(self, *, operation_id, lead_id, payload, estimated_cost_microusd=0, daily_budget_microusd=None):
+    def create(self, *, operation_id, lead_id, payload, estimated_cost_microusd=0, daily_budget_microusd=None, max_jobs_per_hour=None, max_jobs_per_domain_per_day=None):
         self.create_kwargs.append({
             "estimated_cost_microusd": estimated_cost_microusd,
             "daily_budget_microusd": daily_budget_microusd,
+            "max_jobs_per_hour": max_jobs_per_hour,
+            "max_jobs_per_domain_per_day": max_jobs_per_domain_per_day,
         })
         if operation_id not in self.by_operation_id:
             self.by_operation_id[operation_id] = {
@@ -109,6 +111,8 @@ def test_admission_aware_queue_limits_batch_and_tracks_cost_estimates():
     assert repository.create_kwargs[0] == {
         "estimated_cost_microusd": 600_000,
         "daily_budget_microusd": 1_000_000,
+        "max_jobs_per_hour": 1,
+        "max_jobs_per_domain_per_day": 2,
     }
 
 
@@ -200,4 +204,41 @@ def test_admission_queue_reports_atomic_database_budget_rejection():
     assert result == {
         "jobs": [],
         "rejected": [{"lead_id": lead_id, "reason": "daily_cost_limit"}],
+    }
+
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        ("global_hourly_limit", "global_hourly_limit"),
+        ("domain_daily_limit", "domain_daily_limit"),
+    ],
+)
+def test_admission_queue_reports_database_rate_limit_rejection(reason, expected):
+    class RateLimitedRepository(FakeRepository):
+        def create(self, **kwargs):
+            raise CompanyResearchAdmissionRejected(reason)
+
+    lead_id = str(uuid4())
+    result = enqueue_company_research_refreshes_with_admission(
+        RateLimitedRepository(),
+        [{"id": lead_id, "company_name": "Alpha", "website": "https://alpha.example"}],
+        {},
+        limits={
+            "max_jobs_per_hour": 10,
+            "max_jobs_per_domain_per_day": 10,
+            "max_concurrent_jobs": 2,
+            "max_daily_cost_microusd": 500,
+        },
+        usage_snapshot={
+            "jobs_last_hour": 0, "jobs_by_domain_today": {},
+            "running_jobs": 0, "spent_today_microusd": 0,
+        },
+        estimated_cost_microusd_per_job=250,
+        now=datetime(2026, 11, 26, tzinfo=timezone.utc),
+    )
+    assert result == {
+        "jobs": [],
+        "rejected": [{"lead_id": lead_id, "reason": expected}],
     }
