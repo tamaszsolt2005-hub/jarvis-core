@@ -151,6 +151,22 @@ AS $$
   END;
 $$;
 
+-- Preserve existing, individually consented recipients as ranked candidates.
+INSERT INTO public.lead_contact_candidates (
+  lead_id, email, priority_score, consent_basis, approved_to_contact,
+  consent_confirmed_at, opted_out, source
+)
+SELECT l.id, lower(btrim(l.email)), public.lead_email_priority_score(l.email),
+       'consent', true, l.consent_confirmed_at, false, l.source
+FROM public.leads l
+WHERE l.email IS NOT NULL
+  AND btrim(l.email) <> ''
+  AND l.consent_basis = 'consent'
+  AND l.approved_to_contact
+  AND l.consent_confirmed_at IS NOT NULL
+  AND NOT l.opted_out
+ON CONFLICT (email_normalized) DO NOTHING;
+
 -- The RPC is the only supported lead-creation path for research and reviewed CSV
 -- imports. It serializes both name and website aliases, preserves all consented
 -- candidate addresses, and never changes a recipient after outreach has begun.
