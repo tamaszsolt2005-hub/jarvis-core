@@ -192,6 +192,9 @@ BEGIN
      OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'SELECT')
      OR has_table_privilege('service_role', 'public.lead_contact_candidates', 'INSERT')
      OR has_table_privilege('service_role', 'public.leads', 'INSERT')
+     OR has_table_privilege('service_role', 'public.leads', 'DELETE')
+     OR NOT has_table_privilege('service_role', 'public.leads', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.leads', 'UPDATE')
      OR has_table_privilege('anon', 'public.lead_company_aliases', 'SELECT')
      OR has_table_privilege('authenticated', 'public.lead_company_aliases', 'SELECT')
      OR has_table_privilege('anon', 'public.lead_contact_candidates', 'SELECT')
@@ -200,6 +203,9 @@ BEGIN
   END IF;
 
   IF NOT (SELECT prosecdef FROM pg_proc
+       WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
+     OR NOT (SELECT proconfig @> ARRAY['search_path=pg_catalog, public']
+       FROM pg_proc
        WHERE oid = 'public.upsert_company_lead(text,text,text,text,text,text,boolean,timestamp with time zone)'::regprocedure)
      OR NOT has_function_privilege(
        'service_role',
