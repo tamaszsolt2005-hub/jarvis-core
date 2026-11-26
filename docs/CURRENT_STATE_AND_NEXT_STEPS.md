@@ -183,3 +183,10 @@ A meglévő leadkutatás, cégazonosítás, scoring, jóváhagyásos task workfl
 - A CI izolált PostgreSQL adatbázison ellenőrzi a migrációt és a jogosultságokat.
 - A migráció csak a GitHub feature branch-en van; production adatbázisra nem futott le.
 - Az automatikus frissítő worker még nincs bekapcsolva.
+### Cégkutatás-frissítés kizárási szabályai
+- Új `company_research_policy.py` modul határozza meg, mely leadeknél érdemes automatikus cégdosszié-frissítést végezni.
+- Kifejezett elutasítás, leiratkozás vagy „ne keressük” státusz esetén a frissítés kimarad.
+- Két rögzített, válasz nélküli utánkövetés (`follow_up_count >= 2`) után a cég automatikus frissítése szünetel.
+- A még meg nem keresett cégek továbbra is kutathatók és frissíthetők; ez önmagában nem ad kapcsolatfelvételi engedélyt.
+- A beérkezett, de nem elutasítóként besorolt válasz nem számít válaszhiánynak.
+- A szabály és a tesztek elkészültek, de a frissítő worker még nincs bekötve vagy ütemezve.
