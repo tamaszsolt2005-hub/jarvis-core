@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from company_research_refresh_job import load_company_research_refresh_inputs
+from company_research_config import CompanyResearchRuntimeConfig
+from company_research_refresh_job import (
+    load_company_research_refresh_inputs,
+    run_company_research_refresh_cycle,
+)
 
 
 class Query:
@@ -97,3 +101,30 @@ def test_loader_fails_closed_on_unexpected_database_shape():
 
     with pytest.raises(RuntimeError, match="Unexpected database response"):
         load_company_research_refresh_inputs(BadDB())
+
+
+def _runtime_config():
+    return CompanyResearchRuntimeConfig(
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=1_000_000,
+        pricing_model="gemini-test",
+        max_daily_cost_microusd=100_000,
+        max_jobs_per_hour=10,
+        max_jobs_per_domain_per_day=2,
+        max_concurrent_jobs=1,
+    )
+
+
+def test_refresh_cycle_rejects_model_pricing_mismatch_before_database_access():
+    with pytest.raises(ValueError, match="does not match"):
+        run_company_research_refresh_cycle(
+            object(), client=object(), model="different-model", config=_runtime_config()
+        )
+
+
+def test_refresh_cycle_rejects_unbounded_client_before_database_access():
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: None))
+    with pytest.raises(ValueError, match="token counting"):
+        run_company_research_refresh_cycle(
+            object(), client=client, model="gemini-test", config=_runtime_config()
+        )
