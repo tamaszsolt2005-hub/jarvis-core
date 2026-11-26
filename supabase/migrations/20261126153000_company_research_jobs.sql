@@ -76,7 +76,7 @@ AS $$
 DECLARE
   v_job_id uuid;
 BEGIN
-  IF p_worker_id IS NULL OR length(btrim(p_worker_id)) = 0 OR p_lease_seconds < 1 THEN
+  IF p_worker_id IS NULL OR length(btrim(p_worker_id)) = 0 OR p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN
     RAISE EXCEPTION 'invalid claim arguments';
   END IF;
 
@@ -97,8 +97,8 @@ BEGIN
     OR (status = 'running' AND lease_expires_at <= now() AND attempt_count < max_attempts)
   )
   ORDER BY available_at, created_at, job_id
-  FOR UPDATE SKIP LOCKED
-  LIMIT 1;
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED;
 
   IF v_job_id IS NULL THEN
     RETURN;
@@ -125,7 +125,7 @@ SECURITY INVOKER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_lease_seconds < 1 THEN RAISE EXCEPTION 'invalid lease duration'; END IF;
+  IF p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN RAISE EXCEPTION 'invalid lease duration'; END IF;
   RETURN QUERY
     UPDATE public.company_research_jobs
     SET lease_expires_at = now() + make_interval(secs => p_lease_seconds),
@@ -164,7 +164,8 @@ SECURITY INVOKER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_retry_delay_seconds < 1 OR p_max_attempts < 1 THEN
+  IF p_retryable IS NULL OR p_retry_delay_seconds IS NULL OR p_max_attempts IS NULL
+     OR p_retry_delay_seconds < 1 OR p_max_attempts < 1 THEN
     RAISE EXCEPTION 'invalid retry arguments';
   END IF;
   RETURN QUERY
