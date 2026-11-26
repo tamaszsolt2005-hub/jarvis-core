@@ -1,4 +1,4 @@
-> **Történeti pillanatkép – 2026-11-25.** Ez a dokumentum nem a jelenlegi PR #26 állapotot írja le. Az aktuális funkcióleltár, dokumentáció és CI státusz a [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md) és a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) oldalán található. A 2026-11-26 utáni fejlesztéseket ez a korábbi státuszjelentés nem tartalmazza.
+> **Történeti pillanatkép – 2026-11-25.** Ez a dokumentum kizárólag történeti pillanatkép. A PR #26–#28 azóta merge-ölve a main ágba. Az aktuális funkcióleltár és CI státusz a [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md) fájlban található. A 2026-11-26 utáni fejlesztéseket ez a korábbi státuszjelentés nem tartalmazza.
 
 # JARVIS – projektállapot, hátralévő feladatok és lefedettség
 
