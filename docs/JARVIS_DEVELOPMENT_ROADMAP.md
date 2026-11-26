@@ -170,7 +170,13 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Retry maximum 3 próbálkozással, exponenciális backoff.
 - Worker handler factory és lease ellenőrzés provider hívás előtt/után.
 - Provider token usage metadata és konfigurált input/output tokenáras actual cost extractor.
-- Nyitott: hosszú szinkron provider hívás közbeni heartbeat renewal, valós runtime/queue/store integráció, provider hitelesítés és end-to-end futtatás.
+- A hosszú szinkron provider hívás alatti heartbeat renewal implementálva: konfigurálható időközű, leállítható háttérszál frissíti a lease-t; lease-vesztéskor a provider eredménye nem használható fel.
+- Nyitott: valós runtime/queue/store integráció, provider hitelesítés és end-to-end futtatás.
 
 - One-shot runtime composition root: repository, grounded Gemini provider, worker és actual-cost extractor explicit injektált összekötése.
 - Még nincs scheduler, dashboard trigger, credential/client bootstrap vagy automatikus háttérfuttatás.
+
+
+#### Phase 1L hibajavítás – Gemini lease renewal
+
+A provider adapter a teljes szinkron kérés és retry-szakasz alatt külön daemon szálból, konfigurálható időközönként frissíti a worker lease-t. A heartbeat hibája vagy hamis eredménye lease-vesztést okoz; a provider válasz nem kerül visszaadásra sikeres eredményként. A heartbeat szál a kérés lezárásakor leáll. Két célzott teszt ellenőrzi a periodikus renewal és a lease-vesztés viselkedését.
