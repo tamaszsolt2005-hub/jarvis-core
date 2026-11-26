@@ -70,13 +70,53 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_jobs TO service_ro
 
 -- SECURITY INVOKER is intentional: the caller's backend role must own the
 -- permitted table privileges. No public/authenticated execution is granted.
-CREATE OR REPLACE FUNCTION public.company_research_job_create(p_job jsonb)
-RETURNS SETOF public.company_research_jobs
+CREATE OR REPLACE FUNCTION public.company_research_job_create(
+  p_job jsonb,
+  p_estimated_cost_microusd bigint DEFAULT 0,
+  p_daily_budget_microusd bigint DEFAULT NULL
+) RETURNS SETOF public.company_research_jobs
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
 AS $$
+DECLARE
+  v_existing public.company_research_jobs%ROWTYPE;
+  v_reserved bigint;
+  v_budget_date date := (now() AT TIME ZONE 'UTC')::date;
 BEGIN
+  IF jsonb_typeof(p_job) <> 'object'
+     OR p_estimated_cost_microusd IS NULL OR p_estimated_cost_microusd < 0
+     OR (p_daily_budget_microusd IS NOT NULL AND p_daily_budget_microusd < 1) THEN
+    RAISE EXCEPTION 'invalid research job reservation arguments';
+  END IF;
+
+  -- Serialize daily reservations. Replays return the original job/reservation
+  -- and cannot reserve the same operation twice.
+  PERFORM pg_advisory_xact_lock(742026, 2);
+
+  SELECT * INTO v_existing
+  FROM public.company_research_jobs
+  WHERE operation_id = p_job->>'operation_id';
+
+  IF FOUND THEN
+    IF v_existing.job_type <> p_job->>'job_type'
+       OR v_existing.lead_id <> (p_job->>'lead_id')::uuid
+       OR v_existing.payload <> p_job->'payload' THEN
+      RAISE EXCEPTION 'research_operation_id_conflict';
+    END IF;
+    RETURN NEXT v_existing;
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(sum(reserved_cost_microusd), 0) INTO v_reserved
+  FROM public.company_research_budget_reservations
+  WHERE budget_date = v_budget_date;
+
+  IF p_daily_budget_microusd IS NOT NULL
+     AND v_reserved + p_estimated_cost_microusd > p_daily_budget_microusd THEN
+    RAISE EXCEPTION 'research_daily_budget_exceeded';
+  END IF;
+
   INSERT INTO public.company_research_jobs (
     operation_id, job_type, lead_id, payload, status, attempt_count,
     max_attempts, created_at, updated_at, available_at
@@ -88,12 +128,22 @@ BEGIN
     COALESCE((p_job->>'created_at')::timestamptz, now()),
     COALESCE((p_job->>'updated_at')::timestamptz, now()),
     COALESCE((p_job->>'available_at')::timestamptz, now())
-  )
-  ON CONFLICT (operation_id) DO NOTHING;
+  ) RETURNING * INTO v_existing;
 
-  RETURN QUERY
-    SELECT * FROM public.company_research_jobs
-    WHERE operation_id = p_job->>'operation_id';
+  INSERT INTO public.company_research_budget_reservations (
+    operation_id, budget_date, reserved_cost_microusd
+  ) VALUES (
+    v_existing.operation_id, v_budget_date, p_estimated_cost_microusd
+  );
+
+  INSERT INTO public.company_research_job_audit (
+    operation_id, event_type, metadata
+  ) VALUES (
+    v_existing.operation_id, 'enqueued',
+    jsonb_build_object('estimated_cost_microusd', p_estimated_cost_microusd)
+  );
+
+  RETURN NEXT v_existing;
 END;
 $$;
 
@@ -232,13 +282,13 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_heartbeat(text, text, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) FROM PUBLIC, anon, authenticated;
 
-GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_heartbeat(text, text, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb) TO service_role;
