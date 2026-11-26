@@ -11,8 +11,13 @@ from company_research_refresh_queue import (
 class FakeRepository:
     def __init__(self):
         self.by_operation_id = {}
+        self.create_kwargs = []
 
-    def create(self, *, operation_id, lead_id, payload):
+    def create(self, *, operation_id, lead_id, payload, estimated_cost_microusd=0, daily_budget_microusd=None):
+        self.create_kwargs.append({
+            "estimated_cost_microusd": estimated_cost_microusd,
+            "daily_budget_microusd": daily_budget_microusd,
+        })
         if operation_id not in self.by_operation_id:
             self.by_operation_id[operation_id] = {
                 "operation_id": operation_id, "lead_id": lead_id,
@@ -100,6 +105,10 @@ def test_admission_aware_queue_limits_batch_and_tracks_cost_estimates():
     assert len(result["rejected"]) == 1
     assert result["rejected"][0]["reason"] == "global_hourly_limit"
     assert result["jobs"][0]["payload"]["estimated_cost_microusd"] == 600_000
+    assert repository.create_kwargs[0] == {
+        "estimated_cost_microusd": 600_000,
+        "daily_budget_microusd": 1_000_000,
+    }
 
 
 def test_admission_aware_queue_rejects_job_over_remaining_daily_budget():
