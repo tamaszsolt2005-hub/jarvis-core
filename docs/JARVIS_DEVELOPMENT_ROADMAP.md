@@ -159,3 +159,5 @@ Elkészült a `company_research_admission.py` és az admission-aware planner que
 - Sikeres job completion és reservation settlement ugyanabban az RPC-tranzakcióban.
 - Audit metadata tartalmazza a tényleges költséget.
 - Provider-specifikus token usage adapter és valós költségmérés még hátravan.
+
+- Minden Python enqueue helper a kötelező budget/hourly/domain limiteket adja át; a korlátokat megkerülő egyszerű queue útvonal megszüntetve.
