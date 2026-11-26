@@ -226,11 +226,13 @@ CREATE OR REPLACE FUNCTION public.company_research_job_heartbeat(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
-  IF p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN RAISE EXCEPTION 'invalid lease duration'; END IF;
+  IF p_lease_seconds IS NULL OR p_lease_seconds < 1 THEN
+    RAISE EXCEPTION 'invalid lease duration';
+  END IF;
   UPDATE public.company_research_jobs
   SET lease_expires_at = now() + make_interval(secs => p_lease_seconds),
       heartbeat_at = now(), updated_at = now()
@@ -252,16 +254,22 @@ CREATE OR REPLACE FUNCTION public.company_research_job_complete(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
   UPDATE public.company_research_jobs
   SET status = 'succeeded', result = COALESCE(p_result, '{}'::jsonb),
-        lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-    WHERE operation_id = p_operation_id AND status = 'running'
-      AND lease_owner = p_worker_id AND lease_expires_at > now()
-    RETURNING *;
+      lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+  WHERE operation_id = p_operation_id AND status = 'running'
+    AND lease_owner = p_worker_id AND lease_expires_at > now()
+  RETURNING * INTO v_transition;
+
+  IF FOUND THEN
+    INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id)
+    VALUES (p_operation_id, 'succeeded', p_worker_id);
+    RETURN NEXT v_transition;
+  END IF;
 END;
 $$;
 
@@ -273,7 +281,7 @@ CREATE OR REPLACE FUNCTION public.company_research_job_fail(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_transition public.company_research_jobs%ROWTYPE;
 BEGIN
