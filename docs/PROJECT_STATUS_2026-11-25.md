@@ -287,3 +287,25 @@ Ez a szakasz felülírja a dokumentum korábbi, PR #26-ra vonatkozó „CI még 
 **E-mail:** a GitHub workflow `EMAIL_PROVIDER=smtp` beállítással a meglévő Gmail SMTP utat választja. Az `EMAIL_USER` és `EMAIL_PASSWORD` secretnevek meglétét a repo tulajdonosa ellenőrizte; értékük és az SMTP hitelesítés nem lett ellenőrizve. A küldés kódszinten hard-disabled, az outbound workflow-lépés tiltott. Resend adapter csak alternatív kódútvonal.
 
 **Production:** továbbra sincs igazolt JARVIS app host/URL. Production deploy, migráció, ledger repair, DDL/DML, GRANT/REVOKE, Auth/RBAC változtatás és live e-mail-küldés nem történt. A korábban dokumentált Supabase snapshot időponthoz kötött, read-only történeti állapot; friss lekérdezés nélkül nem szabad aktuálisnak tekinteni.
+
+
+
+## 2026-11-26 – új ellenőrzött PR #26 állapot
+
+**A dokumentum korábbi részei 2026-11-25-i történeti snapshotok; a mai állapotot ez a blokk egészíti ki.** Nem szabad a korábbi CI/head számokat aktuálisnak tekinteni.
+
+- PR #26: nyitott, nem merge-ölt; branch: `docs/pre-feature-readiness-gates`.
+- Ellenőrzött head a vizsgálat kezdetén: `6ef4020bba3949e02440e97583fc907b6bcb1f00`.
+- JARVIS CI: **838 passed, 3 skipped, 0 failed**, **91.29%** coverage.
+- PostgreSQL 17 backup/restore + migrációs/pgTAP integráció: sikeres.
+- CodeQL: sikeres.
+- pip-audit: sikeres.
+- A PR leírását a fenti bizonyítékokkal frissítettük.
+
+### Global lead research audit
+
+A meglévő leadek teljes beolvasása 1000-es, `id` szerint rendezett offset-oldalakkal történik; a név/domain összehasonlítás és az új kulcsok felvétele az adott worker memóriájában zajlik. Ez nem tranzakciós dedupe: párhuzamos worker-ek azonos hiányállapotot láthatnak, és duplikált céget menthetnek. A lapozás concurrent DB-változások mellett nem garantál egységes snapshotot. Egyedi cégnév/domain index nem került be, mert a normalizáció és a legitim név-/domainütközések szabályai nincsenek tisztázva. A DB/RPC atomikus claim és a két-session versenyteszt nyitott.
+
+### Production elkülönítés
+
+Ebben az ellenőrzési körben nem történt friss production Supabase lekérdezés; a dokumentum korábbi production állapotadatai ezért történeti snapshotok, nem mai igazolások. Nem történt production DB-írás/migráció, GRANT/REVOKE, Auth/RBAC módosítás, deploy, secretmódosítás vagy e-mailküldés. A kimenő e-mail hard-disabled. A PR merge külön jóváhagyáshoz kötött.
