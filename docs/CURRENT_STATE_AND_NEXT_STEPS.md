@@ -97,7 +97,7 @@ A felhasználó kérése szerint a kisebb módosítások után nem állunk meg k
 
 ### 7.1 Háttérmotor első implementációja
 
-A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás, atomi claim, scheduler és kutatási végrehajtás még nincs bekötve. A kapcsolódó teszteket a következő összesített ellenőrzési körben futtatjuk.
+A PR #28 ágán már szerepel a company_research_jobs.py tiszta, DB-független job-lifecycle modul és a tests/test_company_research_jobs.py tesztcsomag. Megvalósított elemek: queued/running/retry_wait/succeeded/dead_letter állapotok; stabil operation ID; lease claim és expiry utáni reclaim; tulajdonoshoz kötött heartbeat és completion; véges retry és dead-letter. A tartós tárolás és az atomi RPC claim későbbi kódszeletekkel már előkészített; scheduler és tényleges kutatási végrehajtás még nincs. A kapcsolódó teszteket a következő összesített ellenőrzési körben futtatjuk.
 
 
 ### 7.2 Tartós háttérmotor – repository adapter szerződés
@@ -116,3 +116,8 @@ Az SQL migration csak verziókezelt repository-fájl lehet. A job tábla belső 
 
 
 A megvalósított fájlok: `company_research_job_repository.py` (Protocol + injektált Supabase RPC adapter), `company_research_refresh_queue.py` (planner jelöltek idempotens jobként sorba állítása), `supabase/migrations/20261126153000_company_research_jobs.sql` (service-role-only job tábla és tranzakciós RPC-kontraktus), valamint fake kliens/repository tesztek. A migration kizárólag repository-fájl, nem lett futtatva. A teljes funkciócsomag CI-ellenőrzése most következik; addig a tesztek eredménye nem tekinthető igazoltnak.
+
+
+### 7.3 Egyszeri worker-orchestration
+
+A PR #28 ágán elkészült a `company_research_worker.py`: injektált repositoryból legfeljebb egy előkészített jobot claimel, injektált handlerrel feldolgozza, majd complete vagy bounded fail művelettel lezárja. Nincs beépített kutatási handler, Gemini/API-hívás, scheduler vagy automatikus futtatás. A handler hibáinak szövege nem kerül a job rekordba, csak korlátozott hibakód és általános, titokmentes üzenet. Lejárt lease esetén a worker nem jelenti sikeresnek a műveletet.
