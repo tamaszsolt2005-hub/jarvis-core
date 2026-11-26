@@ -311,3 +311,30 @@ def test_worker_does_not_complete_when_snapshot_persistence_fails():
     assert result["status"] == "retry_scheduled"
     assert not any(call[0] == "complete" for call in repository.calls)
     assert any(call[0] == "fail" for call in repository.calls)
+
+
+
+def test_worker_reports_database_budget_overrun_as_dead_letter():
+    repository = FakeRepository(sample_job())
+    original_complete = repository.complete
+
+    def overrun_complete(**kwargs):
+        original_complete(**kwargs)
+        return {
+            "status": "dead_letter",
+            "last_error_code": "daily_budget_overrun",
+            "result": kwargs.get("result") or {},
+        }
+
+    repository.complete = overrun_complete
+    result = run_one_company_research_job(
+        repository,
+        worker_id="worker-a",
+        handler=lambda _payload: {"answer": "researched"},
+        actual_cost_extractor=lambda _output: 1500,
+    )
+    assert result == {
+        "status": "dead_letter",
+        "operation_id": sample_job()["operation_id"],
+        "error_code": "daily_budget_overrun",
+    }
