@@ -1,5 +1,8 @@
 # JARVIS – képességek és műszaki áttekintés
 
+> **Aktuális állapot – 2026-11-26:** a JARVIS alkalmazás még nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt; a cégazonosítás tranzakciós `upsert_company_lead` RPC-je és két-session concurrency tesztje elkészült. A production release kapuk nem blokkolják a helyi funkciófejlesztést. Az aktuális összefoglaló: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
+
+
 **Aktuális alap:** `main` – PR #20 squash merge: `2e2a97e182687c9b9d018da99b87095b75a21054` (2026-11-25).
 **Célközönség:** fejlesztők és AI-kódoló ügynökök. Ez a dokumentum a jelenlegi kódszerkezetet és a funkciók tényleges korlátait írja le.
 
@@ -89,7 +92,7 @@ A részletes, aktuális teendőket a [fejlesztési backlog](DEVELOPMENT_REVIEW_A
 
 ## Aktuális implementációs állapot – PR #26, 2026-11-25
 
-A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
+A dokumentum korábbi main/PR #20 hivatkozásai történeti állapotot rögzítenek; az aktuális státuszt a fenti összefoglaló és a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza. A jelenlegi fejlesztési változásokat a [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26) tartalmazza; aktuális PR-head `a PR oldalon látható aktuális head`; a kód- és tesztváltozások CI-vel igazolt commitja `38693f2f93b790608aef37a33f190a86e611ff0d`. A PR nincs merge-ölve.
 
 - **Approval:** a DB tárolja a token hashét, a principal/payload kötést és lejáratot; az egyszeri fogyasztás a végrehajtó tranzakció része. A replay/revoke SQL-tesztek hozzáadva.
 - **Task műveletek:** az `execute_approved_task_action` RPC operation ID alapján sorosítja az azonos műveletet; a már lezárt művelet eredményét adja vissza. A párhuzamos kettős végrehajtás ellenőrzésére két-session CI teszt van.
