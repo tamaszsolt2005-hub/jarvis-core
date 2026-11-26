@@ -180,3 +180,12 @@ A worker concurrency plafon továbbra is külön, atomikus claim RPC-ben érvén
 A worker opcionális `actual_cost_extractor` callbacket fogad. Ha a provider handler a normalizált, JSON-kompatibilis eredményből tényleges költséget tud számolni, a worker azt nemnegatív egész mikro-USD értékként átadja a complete RPC-nek. A job sikeres lezárása és a reservation `settled` állapotba állítása egy tranzakcióban történik; a becsült foglalást a tényleges költség váltja fel, és az audit esemény is rögzíti az actual cost értéket. Ha nincs extractor, a becsült reservation megmarad, tehát a rendszer konzervatívan számol. A provider adapter még nincs bekötve, ezért valós tokenhasználatot jelenleg nem mérünk.
 
 A régi, snapshot admission nélküli refresh enqueue útvonalat is lezártam: mostantól kötelező megadni a becsült költséget és a limit-konfigurációt, és az adapter ugyanazokat az adatbázisoldali költség/hourly/domain paramétereket küldi be. Így egyik Python enqueue belépési út sem hagyja ki a hard DB kvótákat.
+
+
+### 7.13 Gemini grounded research execution adapter
+
+Elkészült a `company_research_execution.py` provider adapter rétege. A `GeminiGoogleSearchCompanyResearchProvider` injektált Gemini klienssel és modellel működik, Google Search grounding eszközt kér, legfeljebb három próbálkozással és exponenciális backoff-fal kezeli a tranziensekre korlátozott retry-t. A grounding URL-eket a provider metaadataiból veszi át; a `build_company_dossier` csak az ezekkel egyező hostokról származó tényeket tartja meg. A döntéshozói mezők kizárólag nyilvános szakmai kontextust tartalmazhatnak; privát e-mail és telefonszám nem kerül a dossziéba.
+
+A workerhez `make_company_research_handler()` adapter adható. A lease-t a provider hívás előtt és után ellenőrzi; a Gemini hívás szinkron, ezért a hosszú kérés alatti heartbeatet még nem tudja megújítani. A provider tokenhasználatot visszaadja, a konfigurált input/output tokenárakból `make_gemini_actual_cost_extractor()` számol mikro-USD actual costot. A tokenárakat a hívó adja meg, nincs beégetett árazás.
+
+Fontos: a Gemini kliens és modell injektált; a modul nem olvas secretet, nem hoz létre klienst, és nem indít önálló API-hívást. A worker/queue/dashboard éles összekötése, valós provider hívás, DB snapshot mentés és valódi tokenköltség mérés még nincs bekapcsolva. Outbound e-mail továbbra is tiltott.
