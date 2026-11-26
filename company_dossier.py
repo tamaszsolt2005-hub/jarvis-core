@@ -24,7 +24,7 @@ _ALLOWED_FACT_CATEGORIES = {
 
 
 def _text(value: Any, limit: int = 260) -> str:
-    return re.sub(r"\\s+", " ", str(value or "")).strip()[:limit]
+    return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
 
 def _url(value: Any) -> str | None:
