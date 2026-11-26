@@ -66,9 +66,11 @@ def test_parse_close_and_update():
         f"Zárd le a feladatot: {TASK_ID}"
     ) == {"type": "close", "id": TASK_ID}
     action = task_actions.parse_task_command(
-        f"Módosítsd a feladatot: {TASK_ID}; prioritás=urgent; cím=Fontos"
+        f"Módosítsd a feladatot: {TASK_ID}; prioritás=urgent; cím=Fontos; eredmény=Az igény igazolódott"
     )
-    assert action["updates"] == {"priority": "urgent", "title": "Fontos"}
+    assert action["updates"] == {
+        "priority": "urgent", "title": "Fontos", "notes": "Az igény igazolódott"
+    }
 
 
 def test_non_explicit_command_is_not_action():
@@ -339,3 +341,20 @@ def test_create_parser_rejects_empty_segments_and_duplicate_fields(command):
 def test_update_parser_rejects_empty_segments_and_duplicate_fields(command):
     parsed = task_actions.parse_task_command(command)
     assert "error" in parsed
+
+
+def test_task_update_notes_are_bounded_and_required():
+    action = {
+        "type": "update", "id": TASK_ID,
+        "updates": {"notes": "Eredmény: az ügyfél igénye igazolódott."},
+        "operation_id": OPERATION_ID,
+    }
+    task_actions._validate_action(action)
+    with pytest.raises(ValueError):
+        task_actions._validate_action({
+            **action, "updates": {"notes": " "},
+        })
+    with pytest.raises(ValueError):
+        task_actions._validate_action({
+            **action, "updates": {"notes": "x" * 1001},
+        })
