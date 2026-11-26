@@ -269,3 +269,8 @@ A `company_research_worker.py` legfeljebb egy előkészített jobot claimel, maj
 ### 10.4 Retry backoff
 
 A retry késleltetés exponenciális, determinisztikus és felső korláttal védett legyen. A számítás az attempt_count alapján történik, szigorú pozitív egész validációval; a worker nem lépheti túl a beállított maximumot. A retry-k száma továbbra is véges, a végső próbálkozás dead-letter állapotba vezet. Ez a mechanizmus önmagában nem biztosít globális rate limitet vagy költségkeretet.
+
+
+### 10.5 Kutatási admission és költségvédelem
+
+A job futtatása előtt determinisztikus admission policy ellenőrizze a globális óránkénti limitet, a domainenkénti napi limitet, a párhuzamos jobok számát és a napi költségkeretet. Költség egész mikro-USD-ben tárolandó. A tiszta policy csak konzisztens usage snapshot alapján hoz döntést; a konkurens worker-ek közötti atomi budget reservation külön adatbázis-oldali műveletet igényel, így a Python oldali ellenőrzés önmagában nem jelent kemény költségplafont.
