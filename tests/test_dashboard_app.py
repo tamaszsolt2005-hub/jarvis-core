@@ -731,4 +731,4 @@ def test_streamlit_task_center_renders_task_metrics_and_due_dates(monkeypatch):
     assert len(app.chat_input) == 0
     assert any("Feladatközpont" in item.value for item in app.title)
     assert len(app.get("dataframe")) == 1
-    assert any("LEJÁRT" in str(item.value) for item in app.get("dataframe"))
+    assert any("LEJÁRT FELADATOK" in item.value for item in app.warning)
