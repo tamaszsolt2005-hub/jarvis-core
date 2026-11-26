@@ -412,3 +412,53 @@ def test_required_http_url_rejects_invalid_endpoints(monkeypatch, value):
 def test_required_http_url_accepts_http_service_endpoints(monkeypatch, value):
     monkeypatch.setattr(jarvis_common, "get_secret", lambda _name: value)
     assert jarvis_common.required_http_url("SUPABASE_URL") == value
+
+
+def test_generate_text_retries_real_google_genai_sdk_server_error(monkeypatch):
+    from google.genai import errors as genai_errors
+
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 2)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    sdk_error = genai_errors.ServerError(
+        503,
+        {"error": {"code": 503, "status": "UNAVAILABLE", "message": "temporarily unavailable"}},
+    )
+    client = FakeClient([sdk_error, "SDK retry succeeded"])
+
+    assert jarvis_common.generate_text("hello", client) == "SDK retry succeeded"
+    assert client.models.calls == 2
+    assert sleeps == [1]
+
+
+@pytest.mark.parametrize(
+    "sdk_error",
+    [
+        pytest.param(
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                403,
+                {"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "denied"}},
+            ),
+            id="permission-denied",
+        ),
+        pytest.param(
+            __import__("google.genai.errors", fromlist=["ClientError"]).ClientError(
+                400,
+                {"error": {"code": 400, "status": "INVALID_ARGUMENT", "message": "API_KEY_INVALID"}},
+            ),
+            id="invalid-api-key",
+        ),
+    ],
+)
+def test_generate_text_does_not_retry_real_google_genai_sdk_auth_errors(monkeypatch, sdk_error):
+    monkeypatch.setattr(jarvis_common, "get_model_name", lambda: "test-model")
+    monkeypatch.setattr(jarvis_common, "env_int", lambda *args, **kwargs: 4)
+    sleeps = []
+    monkeypatch.setattr(jarvis_common.time, "sleep", sleeps.append)
+    client = FakeClient([sdk_error])
+
+    with pytest.raises(type(sdk_error)):
+        jarvis_common.generate_text("hello", client)
+    assert client.models.calls == 1
+    assert sleeps == []
