@@ -72,3 +72,17 @@ A következőket nem kell most végrehajtani, és egyikre sem ad ez a dokumentum
 ## 6. Döntési szabály a folytatáshoz
 
 Most a helyi funkciófejlesztést folytatjuk. A hosting kiválasztását későbbre hagyjuk, amikor a szükséges always-on worker, ütemezés, hozzáférésvédelem, e-mail provider és üzemeltetési igények már világosak. A dokumentumok közül ez az aktuális összefoglaló; a [roadmap](JARVIS_DEVELOPMENT_ROADMAP.md) határozza meg a funkciófejlesztés sorrendjét, a [release gate dokumentum](REMAINING_WORK_AND_RELEASE_GATES.md) pedig az élesítés feltételeit.
+
+
+## 2026-11-26 – Feladatközpont a dashboardban
+
+A PR #26 ágban a korábban csak vizuális oldalsávbeli Feladatok menüpont működő, külön Streamlit oldalt kapott.
+
+- A Feladatközpont legfeljebb 500 feladatot olvas be a meglévő feladatmezőkkel; az adatforrás-hibát külön jelzi, nem mutatja üres listaként.
+- Összesített számokat mutat az összes, nyitott, lejárt és sürgős feladatokról.
+- Szűrés: aktív/lejárt, összes, lezárt, csak lejárt és sürgős; rendezés határidő, prioritás vagy létrehozás szerint.
+- Megjeleníti a feladatazonosítót és a kapcsolt lead UUID-t, hogy a már meglévő chat-parancsok használhatók legyenek.
+- A feladat létrehozása, módosítása és lezárása továbbra is kizárólag a chat jóváhagyási folyamatán keresztül történhet. Az oldal read-only; e-mailt nem küld és kapcsolatfelvételt nem indít.
+- AppTest lefedi az üres állapotot, navigációt, a chat input elrejtését és a lejárt/sürgős feladatok megjelenítését.
+
+**Állapot:** kódban implementálva és célzott AppTest hozzáadva; az új PR-head CI eredménye még ellenőrizendő. Production DB, konfiguráció, Auth/RBAC és deploy nem változott.
