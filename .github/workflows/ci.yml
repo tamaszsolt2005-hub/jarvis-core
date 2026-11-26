@@ -459,6 +459,17 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_replay_revoke.test.sql
           # Verify lead-linked task creation, duplicate-open-task blocking, and sequential workflow progression.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_linkage.test.sql
+          # Race two distinct approved operations for the same lead; the per-lead advisory lock must allow only one open task.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_setup.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_first.sql > "$RUNNER_TEMP/task-lead-race-1.log" &
+          lead_race_pid_1=$!
+          sleep 0.5
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_second.sql > "$RUNNER_TEMP/task-lead-race-2.log" &
+          lead_race_pid_2=$!
+          wait "$lead_race_pid_1"
+          wait "$lead_race_pid_2"
+          cat "$RUNNER_TEMP/task-lead-race-1.log" "$RUNNER_TEMP/task-lead-race-2.log"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/task_approval_lead_race_verify.sql
           # Add normalized email uniqueness only after a locked, non-destructive duplicate preflight.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261125180000_unique_normalized_lead_email.sql
