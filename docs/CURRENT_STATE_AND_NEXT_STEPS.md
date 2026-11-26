@@ -143,3 +143,10 @@ A worker handler opcionális heartbeat callbacket kap, amely a tartós repositor
 Elkészült a `company_research_admission.py` DB-független policy, amely globális óránkénti joblimitet, domainenkénti napi limitet, párhuzamos joblimitet és napi költségkeretet vizsgál egész mikro-USD egységben. A `company_research_refresh_queue.py` új admission-aware enqueue útvonala egyetlen batchen belül frissíti a helyi usage snapshotot, így a batch nem lépi túl saját kvótáját. Több párhuzamos folyamat közötti hard limithez még atomikus DB reservation szükséges; ez a Python policy önmagában nem biztosít globális költségplafont.
 
 A worker emellett opcionális, kétparaméteres handlernek heartbeat callbacket ad át. A handler saját checkpointjánál frissítheti a lease-t; nincs automatikus timer vagy háttérszál.
+
+
+### 7.8 Worker- és idempotencia-hardening
+
+A worker most már ellenőrzi a claim válasz alakját, a handler eredményének JSON-kompatibilitását és maximális méretét (alapértelmezésben 256 KiB), másolatot ad a handlernek a payloadból, és a provider által adott hibakódot szűri, hogy titok vagy tetszőleges szöveg ne kerüljön a job állapotába. A repository create művelete az `operation_id` egyezése mellett a `job_type`, `lead_id` és payload egyezését is megköveteli; azonos idempotency key eltérő tartalommal konfliktus. A domain kvótakulcsok kis-/nagybetűtől függetlenül normalizálódnak.
+
+A költségbecsléshez elkészült az `estimate_research_cost_microusd()` egész számú, felfelé kerekítő segédfüggvény. A szolgáltatói tokenárakat a hívó adja át; a kód nem tartalmaz beégetett modellárakat.
