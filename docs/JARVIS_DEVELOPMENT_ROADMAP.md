@@ -1,5 +1,8 @@
 # JARVIS – elsődleges fejlesztési útiterv
 
+> **Aktuális munkamód – 2026-11-26:** a JARVIS alkalmazás nincs telepítve; helyi Streamlit dashboardból fejlesztjük. A PR #26 nyitott, nem merge-ölt, aktuális headje `2a27a19078e6183c143e775ca9d89ccc776c7bf8`; az ehhez tartozó `test`, `backup-restore-integration`, CodeQL és pip-audit checkek sikeresek. A cégazonosítási `upsert_company_lead` RPC és a két-session concurrency teszt elkészült. A production host felderítése és a production release gate-ek nem blokkolják a helyi funkciófejlesztést. Az aktuális állapot részletei: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
+
+
 **Ez a dokumentum a JARVIS fejlesztésének elsődleges iránytűje.** Minden új fejlesztési munkamenet elején ezt kell először elolvasni. A feladatokat az alábbi sorrendben kell végrehajtani; ettől csak a felhasználó kifejezett döntésével térjünk el.
 
 ## Alapelv
@@ -122,7 +125,7 @@ A státuszokat minden munkamenetben a tényleges kód, teszteredmény, CI-futás
 
 ## ÚJ FUNKCIÓK ELŐTTI KÖTELEZŐ KAPU – 2026-11-25
 
-A következő lista a roadmap sorrendjét egészíti ki. Új funkció csak akkor kezdhető, ha a P0/P1 biztonsági és production működési kapuk teljesültek. A PR #25 utáni main: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1`; main CI `45663296144` mindkét jobja sikeres.
+A következő lista a roadmap sorrendjét egészíti ki. Ez a korábbi szabály a production release-re vonatkozott, és nem alkalmazható a jelenlegi helyi fejlesztési szakaszra. Helyi funkciófejlesztés folytatható; a P0/P1 production kapuk kizárólag éles deploy, production adatbázis-/jogosultság-változtatás vagy külső mellékhatás előtt kötelezők. A PR #25 utáni main: `c5cf1ded6d5ee3ef5635ef5dbad743073bff73e1`; main CI `45663296144` mindkét jobja sikeres.
 
 1. **Production app azonosítás és deploy:** az app URL/host jelenleg nem ismert; a repo nem tartalmaz deploy workflow-t, az elérhető Railway projekt nem JARVIS. Előbb a valódi Streamlit/egyéb hostot kell megtalálni, majd a main SMTP hard-disable változását oda deployolni és runtime-ban ellenőrizni.
 2. **Migration drift és DB biztonság:** rendezni kell a két 20261117 ledger eltérést; teljes PG17 replay és adatmegőrzés; audit/approval/private schema/RPC hiányzó objektumok migrációja; SQL review, pre/post-check és rollback terv.
@@ -224,7 +227,7 @@ A `global_lead_research.py` az adatbázis meglévő cégneveit és webdomainjeit
 3. A cégnév normalizált unique indexe legitim névazonosságokat ütköztetne; a domain-indexhez pedig a webhely-normalizálás és a közös/átirányított domainek szabályait előbb üzletileg és technikailag definiálni kell.
 4. A CSV email import külön adatbázis unique indexszel védett; ez nem véd a cég/domain alapú kutatási duplikáció ellen.
 
-**Döntés:** nem vezetünk be elhamarkodott company/domain unique indexet, és nem állítjuk, hogy a global research deduplikáció race-safe. A következő biztonságos megoldás egy közös, tranzakciós DB/RPC claim/upsert protokoll lehet, amelyet minden releváns lead-létrehozó útvonal használ, stabil normalizációs kulccsal és explicit konfliktusfeloldással. Ennek tervezése, izolált konkurenciatesztje és független SQL review-ja nyitott; production migráció nem történt.
+**Állapotkorrekció – 2026-11-26:** a korábbi, csak alkalmazásszintű global research race kockázatot a PR #26 közös, tranzakciós `upsert_company_lead` RPC-je kezeli. A `global_lead_research.py` és a `lead_gen.py` ugyanazt az RPC-t használja; a két-session PostgreSQL race teszt és a teljes CI sikeres. A konkurens cégclaim fejlesztési feladata lezárható. Production migráció/deploy nem történt.
 
 ### Friss munkasorrend
 
