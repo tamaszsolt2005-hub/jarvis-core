@@ -64,7 +64,7 @@ Provider idempotencia követelmények: stabil üzleti eseményhez kötött kulcs
 Az alábbi pontok a jelenlegi tényleges állapotot tükrözik; a már kész kódot nem kell újraimplementálni. Csak a hiányzó production integrációt, döntést és bizonyítékot kell lezárni.
 
 ### P0 – biztonságos production alap
-- [ ] JARVIS tényleges production host/URL felderítése. A repo-ban nincs app URL/deploy workflow; az elérhető Railway projekt másik termék. Ne deployoljunk találomra.
+- [ ] Későbbi release előtt app-host választása és JARVIS deploy létrehozása. Jelenleg nincs telepített JARVIS app-host; a Railway `VolleyForm` másik termék.
 - [ ] PR #23 SMTP hard-disable deployja a valós app hostra, runtime ellenőrzéssel. Main CI zöld, de production runtime nincs bizonyítva.
 - [ ] Production schema/ledger drift reconciliation: a két `20261117` migráció eredetének tisztázása; teljes PG17 migration replay és adatmegőrzés; független SQL review.
 - [ ] A hiányzó production audit/approval/operation DB objektumok migrációs csomagja és deployja: private schema, structured audit/hash-chain, `tasks.operation_id`, approval/operation táblák és RPC-k.
@@ -161,11 +161,9 @@ A korábbi PR #26 státuszblokkokban szereplő `38693f2`, `7c8e697` és régebbi
 - Global research piac-validáció, grounding ellenőrzés és teljes meglévő leadlista lapozott beolvasása.
 - Kiegészítő fake DB regressziós tesztjavítások; 838 teszt sikeres.
 
-### Nyitott technikai kockázat – global research race
+### Lezárt technikai kockázat – global research race (PR #26)
 
-A global research cégnév/domain dedupe csak alkalmazásszintű előszűrés. A lapozott beolvasás nem egy közös tranzakció a beszúrással; párhuzamos worker-ek ugyanazt a még nem létező céget egyszerre menthetik. Offset pagination concurrent változás mellett snapshot-konzisztenciát sem garantál. A company name/domain unique index jelenleg nem biztonságos megoldás a legitim névütközések és közös domainek miatt.
-
-Következő fejlesztési feladat: teljes lead insert útvonal-leltár és normalizációs üzleti szabály; utána DB/RPC-alapú tranzakciós claim/upsert, amelyet minden releváns writer használ; két külön PostgreSQL session race teszt; független SQL review. Addig ne állítsuk, hogy a kutatási duplikáció párhuzamos futás ellen védett.
+A korábban alkalmazásszintű cégnév/domain deduplikáció helyett a PR #26 közös tranzakciós `upsert_company_lead` RPC-t vezetett be. A `global_lead_research.py` és `lead_gen.py` ugyanazt a protokollt használja; normalizált név/domain aliasok advisory lockkal védettek, két PostgreSQL sessionös concurrency teszt igazolja a versenyhelyzet kezelését. Ez a fejlesztési branchre igaz; production migráció/deploy nem történt.
 
 ### Státusz-szétválasztás
 
