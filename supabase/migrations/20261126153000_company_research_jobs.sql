@@ -73,7 +73,9 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_jobs TO service_ro
 CREATE OR REPLACE FUNCTION public.company_research_job_create(
   p_job jsonb,
   p_estimated_cost_microusd bigint DEFAULT 0,
-  p_daily_budget_microusd bigint DEFAULT NULL
+  p_daily_budget_microusd bigint DEFAULT NULL,
+  p_max_jobs_per_hour integer DEFAULT NULL,
+  p_max_jobs_per_domain_per_day integer DEFAULT NULL
 ) RETURNS SETOF public.company_research_jobs
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -83,11 +85,19 @@ DECLARE
   v_existing public.company_research_jobs%ROWTYPE;
   v_reserved bigint;
   v_existing_reservation bigint;
+  v_hourly_count bigint;
+  v_domain_daily_count bigint;
+  v_domain text := lower(btrim(COALESCE(p_job->'payload'->>'company_domain', '')));
   v_budget_date date := (now() AT TIME ZONE 'UTC')::date;
+  v_hour_start timestamptz := date_trunc('hour', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  v_day_start timestamptz := date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
 BEGIN
   IF p_job IS NULL OR jsonb_typeof(p_job) <> 'object'
      OR p_estimated_cost_microusd IS NULL OR p_estimated_cost_microusd < 0
-     OR (p_daily_budget_microusd IS NOT NULL AND p_daily_budget_microusd < 1) THEN
+     OR (p_daily_budget_microusd IS NOT NULL AND p_daily_budget_microusd < 1)
+     OR (p_max_jobs_per_hour IS NOT NULL AND p_max_jobs_per_hour < 1)
+     OR (p_max_jobs_per_domain_per_day IS NOT NULL AND p_max_jobs_per_domain_per_day < 1)
+     OR (p_max_jobs_per_domain_per_day IS NOT NULL AND v_domain = '') THEN
     RAISE EXCEPTION 'invalid research job reservation arguments';
   END IF;
 
@@ -119,6 +129,25 @@ BEGIN
   FROM public.company_research_budget_reservations
   WHERE budget_date = v_budget_date;
 
+  IF p_max_jobs_per_hour IS NOT NULL THEN
+    SELECT count(*) INTO v_hourly_count
+    FROM public.company_research_jobs
+    WHERE created_at >= v_hour_start;
+    IF v_hourly_count >= p_max_jobs_per_hour THEN
+      RAISE EXCEPTION 'research_hourly_limit_exceeded';
+    END IF;
+  END IF;
+
+  IF p_max_jobs_per_domain_per_day IS NOT NULL THEN
+    SELECT count(*) INTO v_domain_daily_count
+    FROM public.company_research_jobs
+    WHERE created_at >= v_day_start
+      AND lower(COALESCE(payload->>'company_domain', '')) = v_domain;
+    IF v_domain_daily_count >= p_max_jobs_per_domain_per_day THEN
+      RAISE EXCEPTION 'research_domain_daily_limit_exceeded';
+    END IF;
+  END IF;
+
   IF p_daily_budget_microusd IS NOT NULL
      AND v_reserved + p_estimated_cost_microusd > p_daily_budget_microusd THEN
     RAISE EXCEPTION 'research_daily_budget_exceeded';
@@ -132,8 +161,8 @@ BEGIN
     p_job->'payload', p_job->>'status',
     COALESCE((p_job->>'attempt_count')::integer, 0),
     COALESCE((p_job->>'max_attempts')::integer, 3),
-    COALESCE((p_job->>'created_at')::timestamptz, now()),
-    COALESCE((p_job->>'updated_at')::timestamptz, now()),
+    now(),
+    now(),
     COALESCE((p_job->>'available_at')::timestamptz, now())
   ) RETURNING * INTO v_existing;
 
@@ -349,14 +378,14 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.company_research_job_audit_list(text, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_claim(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_heartbeat(text, text, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_complete(text, text, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.company_research_job_fail(text, text, text, text, boolean, integer, integer) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.company_research_job_audit_list(text, integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint) TO service_role;
+GRANT EXECUTE ON FUNCTION public.company_research_job_create(jsonb, bigint, bigint, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_claim(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_heartbeat(text, text, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.company_research_job_complete(text, text, jsonb) TO service_role;
