@@ -5,8 +5,12 @@ It never collects private contact details or grants outreach permission.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 from urllib.parse import urlparse
 
 
@@ -116,3 +120,21 @@ def render_company_dossier(dossier: dict[str, Any], max_chars: int = 1250) -> st
         selected.append(line)
         remaining -= len(line) + separator
     return " | ".join(selected)
+
+
+
+def stamp_company_dossier(dossier: dict[str, Any]) -> dict[str, Any]:
+    """Attach immutable snapshot metadata without changing the research facts."""
+    content = {
+        "facts": dossier.get("facts", []),
+        "decision_maker": dossier.get("decision_maker", {}),
+    }
+    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    stamped = dict(content)
+    stamped.update({
+        "schema_version": 1,
+        "snapshot_id": str(uuid4()),
+        "researched_at": datetime.now(timezone.utc).isoformat(),
+        "content_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    })
+    return stamped
