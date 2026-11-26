@@ -1,6 +1,6 @@
 # JARVIS – fejlesztési backlog
 
-> **Aktuális irányadó dokumentum:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md) és [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). Az alábbi dátumozott PR #26 bejegyzések részben történeti backlog-pillanatképek; az új cégkutatási fejlesztések a PR #27-ben vannak. Ne tekintsd a régi head SHA-kat aktuális CI-bizonyítéknak.
+> **Aktuális irányadó dokumentum:** [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md) és [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md). Az alábbi dátumozott PR #26 bejegyzések részben történeti backlog-pillanatképek; az új cégkutatási fejlesztések a PR #27-ben vannak. A PR #27 jelenlegi következő technikai feladata a read-only planner DB-lekérdezéshez kötése és a hiteles follow-up események integrációja. Ne tekintsd a régi head SHA-kat aktuális CI-bizonyítéknak.
 
 > **Aktuális munkamód – 2026-11-26:** a JARVIS még nincs telepítve; helyi Streamlit fejlesztés zajlik. A production release feladatok nem blokkolják a helyi funkciófejlesztést. A PR #26-ban az atomikus task approval/operation, audit fail-closed és a cégazonosítás tranzakciós RPC-je CI-vel tesztelt; a két-session cégclaim teszt sikeres. Az aktuális összefoglaló: [CURRENT_STATE_AND_NEXT_STEPS.md](CURRENT_STATE_AND_NEXT_STEPS.md).
 
