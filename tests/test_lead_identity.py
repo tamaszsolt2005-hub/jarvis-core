@@ -70,3 +70,13 @@ def test_company_lead_client_passes_consent_and_returns_rpc_result():
 def test_company_lead_client_fails_closed_on_unconfirmed_rpc_result(data):
     with pytest.raises(RuntimeError):
         upsert_company_lead(DB(data), company_name="Példa Kft.")
+
+
+def test_all_lead_creation_modules_use_the_atomic_company_rpc():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for filename in ("global_lead_research.py", "lead_gen.py"):
+        source = (root / filename).read_text(encoding="utf-8")
+        assert "upsert_company_lead" in source
+        assert '.table("leads").insert(' not in source
