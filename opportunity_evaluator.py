@@ -158,6 +158,8 @@ def evaluate_opportunity_candidate(
             "candidate_id": opportunity.id,
             "market_pattern_id": pattern.id,
             "weighted_score": None,
+            "requires_human_approval": True,
+            "persisted": False,
         }
     if status != "scored":
         raise OpportunityEvaluationError("unsupported_evaluation_status")
