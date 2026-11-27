@@ -388,3 +388,42 @@ Az Auth tesztek külön ellenőrzik, hogy a tárolt kliensoldali role és a user
 ## Intelligence Graph – új fejlesztési réteg
 
 A PR #35 branch tartalmazza a `intelligence_entities` és `intelligence_relationships` származtatott gráftáblákat, forrásrekordokat szinkronizáló triggeres karbantartást, idempotens backfillt, a `intelligence_graph.py` bounded Graphviz projection modult és az Opportunity Center új **Intelligence Graph** fülét. A gráf a meglévő üzleti rekordokat köti össze, nem helyettesíti azokat. A Python tesztek 9 esetet, a pgTAP teszt 24 assertiont fed le; a teszteket helyben a felhasználó kérésére nem futtattuk. A CI push után automatikusan indul. Részletek: [Intelligence Graph](INTELLIGENCE_GRAPH.md).
+
+
+---
+
+## UI és munkafolyamat állapotfrissítés – 2026-11-27 18:05 CET
+
+Ez a blokk a korábbi Opportunity Engine státusz mellé rögzíti a legutóbbi üzleti dashboard-fejlesztéseket. Nem módosítja a korábbi PR/CI állításokat; a PR aktuális HEAD-jét és CI-jét külön kell lekérdezni.
+
+### Elkészült a feature branchben
+
+| Terület | Változás | Commit |
+|---|---|---|
+| Lead Intelligence Center | Kétpaneles lista + kijelölt lead részletező panel, státusz/rendezés szűrők | `a2dbfda7a88e8c5a53fad1b3b8d051793bf0bfcf` |
+| Lead Intelligence Center | Keresés tényleges bekötése a szűrt listába | `8e4ae2b56f588d39b0c523965dee9809efc7046b` |
+| Analitika | Régebbi aktivitások dátummal jelennek meg, nem csak óra:perc formában | `cfb1da6d39b67ee02516c54759806738f14b064a` |
+| E-mail központ | Tab-tartalmak helyes indexhez rendelése | `5962eda938c2f3950097c3c24b0a2b0fb22cf717` |
+
+A Leadkezelő első UI-stílus commitja: `1e933a81dc1c3812ff408f32702d942bc10d03b4`. A kétpaneles nézet kódja GitHubról visszaolvasva ellenőrizve. A böngészős vizuális ellenőrzés még hiányzik; a jobb oldali részletező tartalom és a keskeny képernyős viselkedés felhasználói képernyőképpel ellenőrizendő. A JARVIS oldalsáv/navigáció változatlanul hagyandó.
+
+### Legutóbb ismert adatminőségi állapot
+
+- Production ellenőrzéskor 11 lead volt, de 0 lead rendelkezett grounding forrásmezővel, 0 lead bármilyen source mezővel és 0 cégkutatási snapshot volt.
+- Ugyanezen korábbi ellenőrzéskor 0 lead review approval és 0 e-mail-piszkozat/jóváhagyott/elutasított e-mail, valamint 0 bejövő e-mail válasz volt.
+- Emiatt a lead prioritási pontszám hiánya és az E-mail központ üres listái az ellenőrzött adatokkal összhangban voltak. A CRM 0 jóváhagyott lead miatt üres. A Feladatközpont jelenlegi DB-száma nem lett ebben az ellenőrzésben frissítve.
+- Ezek időponthoz kötött megfigyelések, nem garantált aktuális rekorddarabszámok.
+
+### Következő fejlesztési sorrend
+
+1. **UI-validálás és stabilizálás:** a kétpaneles Leadkezelő böngészős ellenőrzése valós felbontáson; kiválasztás, keresés, státuszfilter, rendezés, üres állapot, részletező tartalom, forráslinkek és jogosultsági állapot. Csak reprodukálható hiba esetén kódmódosítás.
+2. **Adatminőségi vertikális szelet:** egy kiválasztott leadnél grounded cégkutatás → snapshot/dossier → strukturált evidence → lead score. A pontozás csak elegendő strukturált bizonyítéknál jelenjen meg; hiányzó adatot ne töltsön ki kitalált értékkel.
+3. **Opportunity Discovery end-to-end:** több külön cég forrásolt pain rekordja → candidate market pattern → SaaS draft; idempotencia, klaszter-minőség, forrás-visszakövethetőség és emberi pattern review ellenőrzése.
+4. **Üzleti folyamat összekötése:** jóváhagyott lead → CRM státusz/interakció → feladatjavaslat és következő teendő → külön e-mail-piszkozat. Minden átmenet emberi jóváhagyású marad; lead approval nem consent, e-mail approval nem küldési engedély.
+5. **Auth/RLS és staging kapu:** reader/admin/operator/anon hozzáférési mátrix, JWT/session lejárat, snapshot és evidence olvasási jogosultság, migration replay kizárólag izolált staging környezetben.
+6. **Üzemeltetés és költségvédelem:** worker scheduler, pause/resume, napi hard budget cap és provider usage/heartbeat/retry megfigyelhetőség csak a manuális vertical slice bizonyítása után.
+7. **Release előkészítés:** migration drift és backup/restore review, külső e-mail hard gate fenntartása, CI az aktuális SHA-n, majd külön döntés a merge-ről és deployról.
+
+### Munkamód és tiltott automatikus lépések
+
+A felhasználó kérésére külön teszteket nem futtatunk. A kódolvasás és GitHub-fájl-visszaolvasás nem helyettesíti a böngészős ellenőrzést. Production adatbázis módosítása, migration futtatása, Auth/RLS éles változtatása, PR merge, deploy és e-mail küldés külön, konkrét engedély nélkül nem történhet. Részletes terv: [LEAD_INTELLIGENCE_CENTER.md](LEAD_INTELLIGENCE_CENTER.md).
