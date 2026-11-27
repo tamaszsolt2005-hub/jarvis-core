@@ -140,8 +140,17 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 
 A következő fejlesztési fókusz **ne újabb dashboard-elemek hozzáadása legyen**, hanem három végponttól végpontig működő és mérhető folyamat:
 
-1. **Automatikus, felügyelhető cégkutatás** – schedulerrel, költségkontrollal és operátori vezérléssel.
-2. **Bizonyítékból SaaS-lehetőség** – több cég problémáinak klaszterezése és emberi jóváhagyás.
-3. **Leadből ügyfél** – teljes CRM, bejövő válaszfeldolgozás, ajánlat/pilot és valós üzleti eredménymérés.
+1. **Automatikus, felügyelhető cégkutatás** – a meglévő napi cron workflow-k üzemi vezérlése, monitoringja, költségkontrollja és staging igazolása.
+2. **Bizonyítékból SaaS-lehetőség** – dossier-ból forrásolt pain hipotézis, több céges klaszter, SaaS-jelölt, evaluator preview és emberi jóváhagyás.
+3. **Leadből ügyfél** – CRM-életciklus, bejövő válaszok emberi értesítése, ajánlat/pilot és valós üzleti eredménymérés; automatikus ügyfélválasz nélkül.
 
 Ez adná a legnagyobb különbséget a jelenlegi funkciók gyűjteménye és egy valóban használható, önállóan dolgozó JARVIS között.
+
+
+## 7. Frissítés – bejövő ügyfélválaszok (2026-11-27)
+
+- A bejövő levelek kategorizálása `interested`, `later`, `rejected`, `opt_out` vagy `unknown` értékre történik.
+- Az E-mail központ **Beérkezett válaszok** füle a `logs` eseményeiből megjeleníti az ügyfélválaszokat, az érdeklődő válaszokat külön kiemelve.
+- Az utánkövetés leáll; a levél rövidített előnézete és tárgya megjelenik.
+- **Automatikus válaszadás nincs és nem is része a célfolyamatnak.** Minden további ügyfélkommunikáció előtt a felhasználó döntése szükséges.
+- Ez alkalmazáson belüli jelzés, nem telefonos push vagy külső értesítés. A workflow csak akkor működik, ha a GitHub Actions secret/config gate engedélyezett és a szükséges IMAP/Supabase titkok elérhetők.
