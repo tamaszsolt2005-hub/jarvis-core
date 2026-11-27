@@ -22,10 +22,10 @@ A funkció a `feature/opportunity-center-readonly` fejlesztési ágban, a [PR #3
 ## Folyamat
 
 1. **Cégdosszié és források:** a meglévő kutatási dossziék tényei, URL-jei és kivonatai adják a bemenetet.
-2. **Céges problémahipotézis:** egy vállalathoz kapcsolt, forrásokkal ellátott, confidence értékkel és státusszal rendelkező állítás. Hipotézis, nem automatikusan igazolt tény.
-3. **Ismétlődő piaci mintázat:** több különböző vállalat problémáit összekapcsoló minta. A `validated` státuszhoz legalább két különböző cég szükséges. Ha a támogatás két cég alá esik, a minta `under_review` állapotba kerül.
-4. **SaaS-jelölt:** egy piaci mintázathoz kötött névvel és összefoglalóval rendelkező termékötlet.
-5. **Értékelési előnézet:** az evaluator a kiválasztott, validált mintázat és a hozzá tartozó SaaS-jelölt bizonyítékait értékeli. A preview a Streamlit session state-ben marad; önmagában nem ment DB-rekordot.
+2. **Céges problémahipotézis:** a kutatási prompt külön `pain_hypotheses` listát kér. A `company_dossier.py` csak a Google groundingban szereplő pontos URL-hez kötött, kivonattal ellátott, engedélyezett kategóriájú és 0.10–0.75 confidence tartományú elemet fogadja el. Ezek a dossier snapshot részeként, majd `business_pain_hypotheses` rekordként mentődnek `hypothesis` státusszal.
+3. **Ismétlődő piaci mintázat:** a `market_pattern_discovery.py` determinisztikus token/Jaccard alapú klaszterezést végez kategóriaazonos, forrásolt, nem elutasított pain rekordokon. Legalább két különböző lead/cég és legalább két közös tartalmi token szükséges. A létrejövő minta mindig `candidate`; a rendszer nem állítja automatikusan `validated` állapotba.
+4. **SaaS-jelölt:** minden új mintázathoz legfeljebb egy idempotens, `draft` státuszú SaaS-jelölt készül. A név/összefoglaló munkacím, nem piaci validáció vagy fizetési hajlandóság állítása.
+5. **Értékelési előnézet:** az evaluator kizárólag ember által `validated` státuszba emelt mintázat és a hozzá tartozó SaaS-jelölt bizonyítékait értékeli. A preview a Streamlit session state-ben marad; önmagában nem ment DB-rekordot.
 6. **Emberi jóváhagyás:** scored előnézet esetén hitelesített `admin` vagy `operator` explicit gombnyomással végleges, append-only értékelési rekordot menthet.
 7. **Döntési előzmények:** a mentett pillanatképek megtekinthetők, de nem szerkeszthetők és nem törölhetők.
 
@@ -86,6 +86,7 @@ A kapcsolódó migrációk időrendi sorrendben:
 - `20261127120000_opportunity_score_evidence.sql`: dimenziónkénti forrásbizonyíték mező.
 - `20261127130000_opportunity_assessment_approvals.sql`: jóváhagyott, append-only értékelési előzmények.
 - `20261127140000_intelligence_evidence_store.sql`: tartós, append-only központi bizonyítékindex, három domain forrás-triggerjei, backfill, RLS és olvasási jogosultságok.
+- `20261127190000_cross_company_pattern_discovery.sql`: snapshot-szintű pain idempotencia, market-pattern fingerprint és mintázatonkénti egy SaaS-jelölt egyediség.
 
 Az `opportunity_assessments` külön értékelési pillanatképet tárol: opportunity és market pattern azonosító, a jelölt és mintázat nevét/összefoglalóját rögzítő snapshot mezők, egyedi idempotenciakulcs, hat pontszám, generált összpontszám, confidence, rationale, evidence, evaluator modell/verzió, jóváhagyó Auth user UUID és jóváhagyási időpont. A score összpontszámát az adatbázis generált oszlopa számítja, nem a kliens küldi be.
 
@@ -135,3 +136,15 @@ A fejlesztési munkamenetben a felhasználó kérésére lokális tesztfuttatás
 ## Intelligence Graph
 
 A központi evidence indexre épülő, lekérdezhető entitás- és kapcsolati gráf a [JARVIS Intelligence Graph dokumentációban](INTELLIGENCE_GRAPH.md) szerepel. A `20261127150000_intelligence_graph.sql` migráció a meglévő Lead-, cégdosszié-, pain-, market pattern-, SaaS opportunity-, assessment- és evidence rekordokból származtatott csomópontokat és éleket tart fenn. A dashboard külön **Intelligence Graph** fület ad; a nézet read-only, RLS-védett, és csak igazolt forrás-/adatkapcsolatokat jelenít meg. A gráf nem tesz AI-hipotézist automatikusan bizonyított kapcsolattá.
+
+
+## Automatikus pain → pattern → SaaS candidate pipeline
+
+A napi company research refresh worker sikeres dossier-mentése után:
+1. eltárolja a grounded `pain_hypotheses` rekordokat az immutable snapshot azonosítójához kötve;
+2. betölti a forrásolt, nem elutasított pain rekordokat;
+3. determinisztikusan klaszterez legalább két különböző vállalatot érintő hasonló problémákat;
+4. idempotens fingerprint alapján `candidate` piaci mintázatot és a kapcsolódó pain-linkeket hoz létre;
+5. egy `draft` SaaS-jelöltet készít a mintázathoz.
+
+A folyamat nem validál automatikusan mintázatot, nem pontoz, nem hagy jóvá assessmentet és nem állítja, hogy a fizetési hajlandóság bizonyított. A score preview és a végleges jóváhagyás továbbra is az Opportunity Center emberi workflow-ja. A klaszterezés heurisztikus; a hamis pozitív/negatív klaszterek dashboardos emberi ellenőrzést igényelnek. A `20261127190000_cross_company_pattern_discovery.sql` migráció kizárólag a feature branchben van; production adatbázison nem futott le.
