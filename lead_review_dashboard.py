@@ -264,10 +264,15 @@ def render_lead_review_page(
     )
     filtered_rows = [
         row for row in ranked
-        if status_filter == "Összes"
+        if (
+            not lead_search
+            or lead_search in str(row.get("company_name") or "").casefold()
+            or lead_search in str(row.get("website") or "").casefold()
+        )
+        and (status_filter == "Összes"
         or (status_filter == "Jóváhagyásra vár" and row["_review_status"] == "pending")
         or (status_filter == "Jóváhagyott" and row["_review_status"] == "approved")
-        or (status_filter == "Elutasított" and row["_review_status"] == "rejected")
+        or (status_filter == "Elutasított" and row["_review_status"] == "rejected"))
     ]
     if sort_order == "Cégnév szerint":
         filtered_rows.sort(key=lambda row: str(row.get("company_name") or "").casefold())
