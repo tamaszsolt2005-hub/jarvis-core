@@ -12,6 +12,8 @@ class Query:
     def __init__(self, db):
         self.db = db
         self.row = None
+        self.update_payload = None
+        self.filters = {}
         self.selected_columns = None
         self.start = 0
         self.end = None
@@ -35,7 +37,18 @@ class Query:
         self.row = row
         return self
 
+    def update(self, payload):
+        self.update_payload = payload
+        return self
+
+    def eq(self, key, value):
+        self.filters[key] = value
+        return self
+
     def execute(self):
+        if self.update_payload is not None:
+            self.db.updated.append({"payload": self.update_payload, "filters": self.filters})
+            return Result([])
         if self.row is not None:
             self.db.inserted.append(self.row)
             if self.db.lose_insert_response or self.selected_columns != "id":
@@ -49,6 +62,7 @@ class FakeDB:
     def __init__(self, existing=None, lose_insert_response=False):
         self.existing = existing or []
         self.inserted = []
+        self.updated = []
         self.lose_insert_response = lose_insert_response
 
     def table(self, _name):
@@ -185,6 +199,12 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     assert saved_snapshots[0]["lead_id"] == "inserted-lead-id"
     assert saved_snapshots[0]["company_domain"] == "acme.example"
     assert saved_snapshots[0]["dossier"]["snapshot_id"] == dossier["snapshot_id"]
+    assert len(db.updated) == 1
+    assert db.updated[0]["filters"] == {"id": "inserted-lead-id"}
+    lead_evidence = db.updated[0]["payload"]["research_evidence"]
+    assert lead_evidence[0]["source_url"] == "https://acme.example/about"
+    assert lead_evidence[0]["excerpt"] == "Industrial components Could benefit from process automation"
+    assert lead_evidence[0]["source_kind"] == "lead_research_note"
     snapshot_events = [event for event in audit_events if event["action"] == "company_research_snapshot"]
     assert [event["status"] for event in snapshot_events] == ["pending", "success"]
     snapshot_manifest = snapshot_events[-1]["result"]
