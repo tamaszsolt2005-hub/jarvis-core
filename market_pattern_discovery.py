@@ -11,6 +11,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from intelligence_engine import EvidenceRecord
+
 
 _STOPWORDS = frozenset({
     "the", "and", "for", "with", "from", "that", "this", "their", "they",
@@ -40,6 +42,16 @@ def _tokens(value: Any) -> set[str]:
     }
 
 
+def _valid_source_evidence(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    try:
+        EvidenceRecord.from_dict(item, default_source_kind="company_pain_hypothesis")
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def _pain_is_eligible(row: dict[str, Any]) -> bool:
     evidence = row.get("evidence")
     return (
@@ -47,14 +59,7 @@ def _pain_is_eligible(row: dict[str, Any]) -> bool:
         and bool(row.get("lead_id"))
         and row.get("status", "hypothesis") != "rejected"
         and isinstance(evidence, list)
-        and any(
-            isinstance(item, dict)
-            and isinstance(item.get("source_url"), str)
-            and item["source_url"].startswith(("https://", "http://"))
-            and isinstance(item.get("excerpt"), str)
-            and item["excerpt"].strip()
-            for item in evidence
-        )
+        and any(_valid_source_evidence(item) for item in evidence)
     )
 
 
