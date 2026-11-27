@@ -91,15 +91,6 @@ class FakeProvider:
                     "source_url": "https://example.com/about",
                 }],
                 "decision_maker": {},
-            },
-            "grounded_sources": [{"source_url": "https://example.com/about", "title": "", "snippet": ""}],
-            "research": {
-                "company_facts": [{
-                    "category": "business_model",
-                    "fact": "B2B provider",
-                    "source_url": "https://example.com/about",
-                }],
-                "decision_maker": {},
                 "lead_fit_assessment": {
                     "assessment_version": "1.0",
                     "fit_score": 80,
@@ -115,6 +106,9 @@ class FakeProvider:
                     }],
                 },
             },
+            "grounded_sources": [
+                {"source_url": "https://example.com/about", "title": "", "snippet": ""}
+            ],
             "provider_usage": {"prompt_tokens": 10, "output_tokens": 5},
         }
 
