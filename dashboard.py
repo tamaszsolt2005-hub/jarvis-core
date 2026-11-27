@@ -511,6 +511,17 @@ def render_opportunity_center_page(db: Any) -> None:
         db, "market_problem_patterns",
         "id,title,description,confidence,status,created_at", 300, status=patterns_status,
     )
+    review_events_status: dict[str, Any] = {}
+    review_events = _safe_rows(
+        db, "market_pattern_review_events",
+        "id,market_pattern_id,decision,note,reviewed_by,reviewed_at", 500,
+        status=review_events_status,
+    )
+    review_events_by_pattern: dict[str, list[dict[str, Any]]] = {}
+    for event in review_events:
+        pattern_id = str(event.get("market_pattern_id") or "")
+        if pattern_id:
+            review_events_by_pattern.setdefault(pattern_id, []).append(event)
     pattern_links_status: dict[str, Any] = {}
     pattern_links = _safe_rows(
         db, "market_pattern_pains",
@@ -725,6 +736,15 @@ def render_opportunity_center_page(db: Any) -> None:
                         f"Kapcsolt problémák: {len(linked)} · "
                         f"Érintett cégek: {len(linked_companies)}"
                     )
+                    prior_reviews = review_events_by_pattern.get(str(item.get("id") or ""), [])
+                    if prior_reviews:
+                        st.markdown("**Felülvizsgálati előzmények**")
+                        for event in prior_reviews[:10]:
+                            st.write(
+                                f"{event.get('decision') or '—'} · "
+                                f"{event.get('reviewed_at') or '—'} · "
+                                f"{event.get('note') or ''}"
+                            )
                     if linked and pains:
                         st.markdown("**Kapcsolódó cégproblémák**")
                         linked_set = set(linked)
