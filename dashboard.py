@@ -75,6 +75,7 @@ from health_check import run_self_diagnostics
 from company_research_store import get_company_research_history
 from opportunity_evaluator import evaluate_opportunity_candidate
 from intelligence_graph import build_graph_snapshot, to_graphviz_dot
+from lead_review_dashboard import render_lead_review_page
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -2420,6 +2421,12 @@ with st.sidebar:
         type="primary" if current_page == "chat" else "secondary",
         width="stretch",
     )
+    leads_clicked = st.button(
+        "▣   Leadkezelő",
+        key="jarvis_nav_leads",
+        type="primary" if current_page == "leads" else "secondary",
+        width="stretch",
+    )
     tasks_clicked = st.button(
         "☑   Feladatok",
         key="jarvis_nav_tasks",
@@ -2467,6 +2474,9 @@ with st.sidebar:
 if chat_clicked:
     st.session_state["jarvis_page"] = "chat"
     st.rerun()
+if leads_clicked:
+    st.session_state["jarvis_page"] = "leads"
+    st.rerun()
 if tasks_clicked:
     st.session_state["jarvis_page"] = "tasks"
     st.rerun()
@@ -2489,6 +2499,30 @@ if settings_clicked:
 if st.session_state.get("jarvis_page") == "settings":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     render_settings_page()
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "leads":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        lead_db = st.session_state.get("_jarvis_db")
+        if lead_db is None:
+            lead_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = lead_db
+        lead_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(lead_role, "leads.read"):
+            st.error("A leadek megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_lead_review_page(
+                lead_db,
+                auth_enabled=_auth_login_enabled(),
+                role=lead_role,
+                generate_text_fn=generate_text,
+                model_name_fn=get_model_name,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_lead_review_page", severity="error", db=lead_db if "lead_db" in locals() else None)
+        st.error("A Leadkezelő oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
     st.stop()
 
 if st.session_state.get("jarvis_page") == "opportunities":

@@ -27,7 +27,7 @@ LEAD_PRIORITY_WEIGHTS = {
 
 def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
     """Return a transparent 0-100 research-priority estimate or an unscored result."""
-    note = str(lead.get("research_intelligence") or "")
+    note = str(lead.get("research_intelligence") or lead.get("notes") or "")
     if not note.startswith("Leadkutatás;"):
         return {"scored": False, "priority_score": None, "reason": "Nincs strukturált, saját leadkutatási adat."}
     match = _FIT.search(note)
