@@ -202,8 +202,8 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
     assert len(db.updated) == 1
     assert db.updated[0]["filters"] == {"id": "inserted-lead-id"}
     lead_evidence = db.updated[0]["payload"]["research_evidence"]
-    assert lead_evidence[0]["source_url"] == "https://acme.example/about"
-    assert lead_evidence[0]["excerpt"] == "Industrial components Could benefit from process automation"
+    assert lead_evidence[0]["source_url"] == "https://acme.example/products"
+    assert lead_evidence[0]["excerpt"] == "Manufactures industrial control systems."
     assert lead_evidence[0]["source_kind"] == "lead_research_note"
     snapshot_events = [event for event in audit_events if event["action"] == "company_research_snapshot"]
     assert [event["status"] for event in snapshot_events] == ["pending", "success"]
