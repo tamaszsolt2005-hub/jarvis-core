@@ -33,6 +33,14 @@ class Query:
         self.bounds = (start, end)
         return self
 
+    def eq(self, field, value):
+        self.filters.append((field, {value}))
+        return self
+
+    def limit(self, value):
+        self.bounds = (self.bounds[0], min(self.bounds[1], self.bounds[0] + value - 1))
+        return self
+
     def execute(self):
         rows = deepcopy(self.db.tables[self.table_name])
         for field, values in self.filters:
@@ -50,6 +58,9 @@ class FakeDB:
                 {"id": "lead-a", "company_name": "Alpha"},
                 {"id": "lead-b", "company_name": "Beta"},
                 {"id": "lead-c", "company_name": "Gamma"},
+            ],
+            "company_research_runtime_control": [
+                {"singleton": True, "paused": False, "note": "Initial operating state"}
             ],
             "company_research_snapshots": [
                 {"lead_id": "lead-a", "snapshot_id": "a1", "researched_at": "2026-01-01", "dossier": {"version": 1}},
@@ -129,3 +140,16 @@ def test_refresh_cycle_rejects_unbounded_client_before_database_access():
         run_company_research_refresh_cycle(
             object(), client=client, model="gemini-test", config=_runtime_config()
         )
+
+
+def test_refresh_cycle_does_not_enqueue_or_call_provider_when_paused():
+    db = FakeDB()
+    db.tables["company_research_runtime_control"][0]["paused"] = True
+    db.tables["company_research_runtime_control"][0]["note"] = "Scheduled maintenance"
+    result = run_company_research_refresh_cycle(
+        db, client=object(), model="gemini-test", config=_runtime_config()
+    )
+    assert result["status"] == "paused"
+    assert result["queued"] == 0
+    assert result["processed"] == 0
+    assert result["pause_note"] == "Scheduled maintenance"
