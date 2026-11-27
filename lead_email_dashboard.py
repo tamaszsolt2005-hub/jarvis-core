@@ -410,8 +410,8 @@ def render_email_center(
                         if expiry:
                             datetime.fromisoformat(expiry.replace("Z", "+00:00"))
                         safe_evidence = _safe_public_source(evidence_url) if evidence_url.strip() else None
-                        if evidence_url.strip() and not safe_evidence:
-                            raise ValueError("A bizonyíték URL nem biztonságos HTTPS-cím.")
+                        if evidence_url.strip() and (not safe_evidence or not safe_evidence.startswith("https://")):
+                            raise ValueError("A bizonyíték URL-nek biztonságos HTTPS-címnek kell lennie.")
                         if not _email(email) or len(evidence_note.strip()) < 5:
                             raise ValueError("Érvényes cím és legalább 5 karakteres bizonyíték-megjegyzés szükséges.")
                         db.rpc("record_lead_email_contact_permission", {
@@ -469,8 +469,8 @@ def render_email_center(
                 if not _email(suppressed_email) or len(suppression_note.strip()) < 3:
                     raise ValueError("Érvényes e-mail-cím és legalább 3 karakteres indoklás szükséges.")
                 safe_source = _safe_public_source(suppression_source) if suppression_source.strip() else None
-                if suppression_source.strip() and not safe_source:
-                    raise ValueError("A forrás URL nem biztonságos HTTPS-cím.")
+                if suppression_source.strip() and (not safe_source or not safe_source.startswith("https://")):
+                    raise ValueError("A forrás URL-nek biztonságos HTTPS-címnek kell lennie.")
                 db.rpc("suppress_lead_email_recipient", {
                     "p_email": suppressed_email.strip(),
                     "p_reason": suppression_reason,
