@@ -122,8 +122,8 @@ BEGIN
 END;
 $worker_ops$;
 
--- Replace claim with an atomic pause gate. A claim takes a shared row lock;
--- pause/resume takes the update lock, so no new lease starts after pause commits.
+-- Replace claim with an atomic pause gate. Claims and pause/resume share an
+-- advisory transaction lock, so no new lease starts after a pause commits.
 CREATE OR REPLACE FUNCTION public.company_research_job_claim(
   p_worker_id text, p_lease_seconds integer, p_max_concurrent_jobs integer
 ) RETURNS SETOF public.company_research_jobs
