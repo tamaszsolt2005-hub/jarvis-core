@@ -406,17 +406,20 @@ GRANT EXECUTE ON FUNCTION
   TO service_role;
 
 DROP TRIGGER IF EXISTS intelligence_graph_lead_sync ON public.leads;
-CREATE TRIGGER intelligence_graph_lead_sync
+DROP TRIGGER IF EXISTS a_intelligence_graph_lead_sync ON public.leads;
+CREATE TRIGGER a_intelligence_graph_lead_sync
 AFTER INSERT OR UPDATE OF company_name, notes, status, website OR DELETE ON public.leads
 FOR EACH ROW EXECUTE FUNCTION public.sync_intelligence_graph_source();
 
 DROP TRIGGER IF EXISTS intelligence_graph_dossier_sync ON public.company_research_snapshots;
-CREATE TRIGGER intelligence_graph_dossier_sync
+DROP TRIGGER IF EXISTS a_intelligence_graph_dossier_sync ON public.company_research_snapshots;
+CREATE TRIGGER a_intelligence_graph_dossier_sync
 AFTER INSERT OR DELETE ON public.company_research_snapshots
 FOR EACH ROW EXECUTE FUNCTION public.sync_intelligence_graph_source();
 
 DROP TRIGGER IF EXISTS intelligence_graph_pain_sync ON public.business_pain_hypotheses;
-CREATE TRIGGER intelligence_graph_pain_sync
+DROP TRIGGER IF EXISTS a_intelligence_graph_pain_sync ON public.business_pain_hypotheses;
+CREATE TRIGGER a_intelligence_graph_pain_sync
 AFTER INSERT OR UPDATE OF statement, confidence, status, category, snapshot_id OR DELETE ON public.business_pain_hypotheses
 FOR EACH ROW EXECUTE FUNCTION public.sync_intelligence_graph_source();
 
