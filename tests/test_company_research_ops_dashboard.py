@@ -93,6 +93,7 @@ class RenderDB(FakeRPC):
 def _ops_state(paused=False):
     return {
         "paused": paused,
+        "updated_at": "2026-11-27T20:00:00+00:00",
         "note": "Scheduled maintenance" if paused else "Initial operating state",
         "counts": {"queued": 2, "running": 1, "retry_wait": 1, "succeeded": 8, "dead_letter": 0},
         "budget_today": {"reserved_microusd": 1500000, "actual_microusd": 900000, "jobs_today": 4},
