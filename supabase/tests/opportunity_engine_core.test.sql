@@ -1,6 +1,6 @@
 -- Run only against the isolated PostgreSQL integration fixtures.
 BEGIN;
-SELECT plan(17);
+SELECT plan(18);
 
 SELECT is(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -40,6 +40,10 @@ SELECT is(
     AND has_table_privilege('service_role',relation_name,'INSERT')
     AND has_table_privilege('service_role',relation_name,'UPDATE')),
   4::bigint, 'service_role has backend read and write privileges'
+);
+SELECT ok(
+  has_table_privilege('service_role','public.market_pattern_pains','DELETE'),
+  'service_role can remove a stale evidence link so validated patterns can be downgraded'
 );
 
 INSERT INTO public.leads (company_name, website)

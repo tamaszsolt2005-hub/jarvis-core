@@ -169,6 +169,7 @@ BEGIN
       relation_name || '_shared_read', relation_name
     );
   END LOOP;
+  EXECUTE 'GRANT DELETE ON TABLE public.market_pattern_pains TO service_role';
 END;
 $opportunity_security$;
 
