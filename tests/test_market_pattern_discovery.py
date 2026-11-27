@@ -155,3 +155,33 @@ def test_private_or_invalid_source_urls_are_not_discovery_evidence():
     valid = _pain("pain-public", "company-1", "Manual invoice reconciliation takes several days")
 
     assert build_cross_company_pattern_candidates([valid, private]) == []
+
+
+
+def test_company_pain_persistence_is_snapshot_scoped_and_idempotent():
+    from market_pattern_discovery import persist_company_pain_hypotheses
+
+    db = _DB([])
+    hypotheses = [{
+        "statement": "Manual invoice reconciliation may create delays",
+        "category": "finance",
+        "confidence": 0.62,
+        "evidence": [{
+            "source_url": "https://company-1.example.com/report",
+            "excerpt": "Invoices are reconciled manually over several days.",
+            "evidence_type": "supporting",
+        }],
+    }]
+
+    first = persist_company_pain_hypotheses(
+        db, lead_id="company-1", snapshot_id="snapshot-1", hypotheses=hypotheses
+    )
+    second = persist_company_pain_hypotheses(
+        db, lead_id="company-1", snapshot_id="snapshot-1", hypotheses=hypotheses
+    )
+
+    assert first == 1
+    assert second == 0
+    assert len(db.tables["business_pain_hypotheses"]) == 1
+    assert db.tables["business_pain_hypotheses"][0]["snapshot_id"] == "snapshot-1"
+    assert db.tables["business_pain_hypotheses"][0]["status"] == "hypothesis"
