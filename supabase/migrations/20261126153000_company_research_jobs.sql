@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS public.company_research_budget_reservations (
     CHECK (reservation_status IN ('reserved', 'settled')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.company_research_budget_reservations
+  ADD COLUMN IF NOT EXISTS daily_budget_microusd bigint
+  CHECK (daily_budget_microusd IS NULL OR daily_budget_microusd > 0);
+
 CREATE INDEX IF NOT EXISTS company_research_budget_reservations_daily_idx
   ON public.company_research_budget_reservations (budget_date);
 
