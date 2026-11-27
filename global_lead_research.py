@@ -299,7 +299,11 @@ def research_global_companies(
     )
     companies = _parse_companies(_field(response, "text", "") or "")
     grounded_urls = _grounded_sources(response)
-    grounded_domains = {_domain(url) for url in grounded_urls if _valid_http_url(url)}
+    grounded_source_urls = {
+        valid_url for url in grounded_urls
+        if (valid_url := _valid_http_url(url))
+    }
+    grounded_domains = {_domain(url) for url in grounded_source_urls}
     if not grounded_domains:
         raise RuntimeError("A Google Search nem adott ellenőrizhető forráshivatkozásokat; lead nem került mentésre.")
 
@@ -317,7 +321,7 @@ def research_global_companies(
         source_domain = _domain(source_url)
         # Require both the official site and the supporting source to appear
         # in Google's grounding references; this reduces unsupported model output.
-        if site_domain not in grounded_domains or source_domain not in grounded_domains:
+        if site_domain not in grounded_domains or source_url not in grounded_source_urls:
             skipped += 1
             continue
         if name.casefold() in known_names or site_domain in known_sites:
@@ -330,7 +334,7 @@ def research_global_companies(
         confidence, fit_score, fit_evidence = _research_quality(item)
         business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
         next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
-        dossier = stamp_company_dossier(build_company_dossier(item, grounded_domains))
+        dossier = stamp_company_dossier(build_company_dossier(item, grounded_source_urls))
         dossier_text = render_company_dossier(dossier)
         base_notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
