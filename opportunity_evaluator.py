@@ -131,10 +131,29 @@ def evaluate_opportunity_candidate(
     pattern, opportunity, linked_pains = _validate_inputs(
         market_pattern, candidate, company_pains
     )
+    prompt_pains = [
+        {
+            "id": pain.id,
+            "company_id": pain.company_id,
+            "statement": pain.statement,
+            "confidence": pain.confidence,
+            "status": pain.status,
+            "evidence": [
+                {
+                    "source_url": evidence.source_url,
+                    "excerpt": evidence.excerpt,
+                    "observed_at": evidence.observed_at,
+                    "evidence_type": evidence.evidence_type,
+                }
+                for evidence in pain.evidence
+            ],
+        }
+        for pain in linked_pains
+    ]
     prompt = build_opportunity_evaluation_prompt(
         market_pattern=market_pattern,
         candidate=candidate,
-        company_pains=company_pains,
+        company_pains=prompt_pains,
     )
     response = provider(prompt)
     if not isinstance(response, dict):
