@@ -2,6 +2,7 @@ import pytest
 
 from company_research_admission import (
     estimate_research_cost_microusd,
+    estimate_research_cost_ceiling_microusd,
     evaluate_research_admission,
 )
 
@@ -106,3 +107,60 @@ def test_cost_estimator_rounds_any_fraction_up():
 def test_cost_estimator_rejects_invalid_values(kwargs):
     with pytest.raises(ValueError):
         estimate_research_cost_microusd(**kwargs)
+
+
+
+def test_cost_ceiling_reserves_input_and_output_for_each_attempt():
+    assert estimate_research_cost_ceiling_microusd(
+        input_price_microusd_per_million_tokens=1_000_000,
+        output_price_microusd_per_million_tokens=2_000_000,
+        max_input_tokens_per_attempt=1000,
+        max_output_tokens_per_attempt=500,
+        max_attempts=2,
+    ) == 4_000
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_input_tokens_per_attempt": 0},
+    {"max_output_tokens_per_attempt": 127},
+    {"max_output_tokens_per_attempt": 4097},
+    {"max_attempts": 0},
+    {"max_attempts": 4},
+])
+def test_cost_ceiling_rejects_invalid_provider_bounds(kwargs):
+    with pytest.raises(ValueError):
+        estimate_research_cost_ceiling_microusd(
+            input_price_microusd_per_million_tokens=1,
+            output_price_microusd_per_million_tokens=1,
+            **kwargs,
+        )
+
+
+def test_cost_estimator_includes_grounding_queries_with_integer_ceiling():
+    assert estimate_research_cost_microusd(
+        input_tokens=0, output_tokens=0,
+        input_price_microusd_per_million_tokens=1,
+        output_price_microusd_per_million_tokens=1,
+        search_queries=3,
+        search_price_microusd_per_thousand_queries=1501,
+    ) == 5
+
+
+def test_cost_ceiling_reserves_configured_grounding_query_allowance():
+    assert estimate_research_cost_ceiling_microusd(
+        input_price_microusd_per_million_tokens=1,
+        output_price_microusd_per_million_tokens=1,
+        max_input_tokens_per_attempt=1,
+        max_output_tokens_per_attempt=128,
+        search_price_microusd_per_thousand_queries=1000,
+        max_search_queries_per_attempt=3,
+    ) == 4
+
+
+def test_cost_ceiling_requires_grounding_allowance_when_search_is_billable():
+    with pytest.raises(ValueError, match="max_search_queries_per_attempt"):
+        estimate_research_cost_ceiling_microusd(
+            input_price_microusd_per_million_tokens=1,
+            output_price_microusd_per_million_tokens=1,
+            search_price_microusd_per_thousand_queries=1000,
+        )

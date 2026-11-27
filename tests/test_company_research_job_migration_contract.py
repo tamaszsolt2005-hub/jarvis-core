@@ -132,3 +132,29 @@ def test_worker_security_pg_tap_suite_is_wired_into_ci():
     assert "NOT has_table_privilege('service_role', 'public.company_research_job_audit', 'UPDATE')" in security
     assert "company_research_jobs_security.test.sql" in workflow
     assert "grep -q '1..12' <<< \"$security_output\"" in workflow
+
+
+
+def test_daily_hard_budget_cap_is_persisted_and_enforced_at_settlement():
+    root = MIGRATION.parents[2]
+    hard_cap_migration = (
+        root / "supabase" / "migrations"
+        / "20261126170000_company_research_daily_hard_budget_cap.sql"
+    ).read_text(encoding="utf-8")
+    hard_cap_test = (
+        root / "supabase" / "tests"
+        / "company_research_daily_hard_budget_cap.test.sql"
+    ).read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS daily_budget_microusd" in hard_cap_migration
+    assert "pg_advisory_xact_lock(742026, 2)" in hard_cap_migration
+    assert "v_other_reserved + p_actual_cost_microusd > v_effective_budget" in hard_cap_migration
+    assert "SET reserved_cost_microusd = p_actual_cost_microusd" in hard_cap_migration
+    assert "v_final_status := 'dead_letter'" in hard_cap_migration
+    assert "actual_cost_missing" in hard_cap_migration
+    assert "daily_budget_overrun" in hard_cap_migration
+    assert "SELECT plan(8)" in hard_cap_test
+    assert "research_daily_budget_exceeded" in hard_cap_test
+    assert "company_research_daily_hard_budget_cap.test.sql" in workflow
+    assert "grep -q '1..8' <<< \"$hard_budget_output\"" in workflow

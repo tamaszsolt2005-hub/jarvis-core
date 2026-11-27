@@ -25,6 +25,7 @@ def run_company_research_worker_once(
     worker_id: str,
     input_price_microusd_per_million_tokens: int,
     output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
     **worker_options: Any,
 ) -> dict[str, Any]:
     """Run at most one explicitly claimed job with grounded Gemini and cost settlement."""
@@ -33,6 +34,7 @@ def run_company_research_worker_once(
     cost_extractor = make_gemini_actual_cost_extractor(
         input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
         output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
     )
     return run_one_company_research_job(
         repository,

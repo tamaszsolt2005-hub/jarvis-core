@@ -30,15 +30,18 @@ class CompanyResearchProvider(Protocol):
 class GeminiGoogleSearchCompanyResearchProvider:
     """Google Gemini adapter using Search grounding; client and model are injected."""
 
-    def __init__(self, *, client: Any, model: str, max_attempts: int = 3, heartbeat_interval_seconds: float = 30.0, sleep: Callable[[float], None] = time.sleep) -> None:
+    def __init__(self, *, client: Any, model: str, max_attempts: int = 1, max_output_tokens: int = 2048, heartbeat_interval_seconds: float = 30.0, sleep: Callable[[float], None] = time.sleep) -> None:
         if client is None or not callable(getattr(getattr(client, "models", None), "generate_content", None)):
             raise CompanyResearchExecutionError("invalid_gemini_client")
         if not isinstance(model, str) or not model.strip() or len(model) > 120:
             raise CompanyResearchExecutionError("invalid_gemini_model")
         if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or not 1 <= max_attempts <= 3:
             raise CompanyResearchExecutionError("invalid_provider_attempt_limit")
+        if isinstance(max_output_tokens, bool) or not isinstance(max_output_tokens, int) or not 128 <= max_output_tokens <= 4096:
+            raise CompanyResearchExecutionError("invalid_provider_output_token_limit")
         self._client = client
         self._model = model.strip()
+        self._max_output_tokens = max_output_tokens
         if not callable(sleep):
             raise CompanyResearchExecutionError("invalid_provider_sleep_callback")
         if isinstance(heartbeat_interval_seconds, bool) or not isinstance(heartbeat_interval_seconds, (int, float)) or heartbeat_interval_seconds <= 0:
@@ -50,7 +53,12 @@ class GeminiGoogleSearchCompanyResearchProvider:
     def research_company(self, *, prompt: str, heartbeat: Any) -> dict[str, Any]:
         from google.genai import types
 
-        config = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())])
+        if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 12000:
+            raise CompanyResearchExecutionError("invalid_provider_prompt_size")
+        config = types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+            max_output_tokens=self._max_output_tokens,
+        )
         stop_heartbeat = Event()
         lease_lost = Event()
         heartbeat_thread: Thread | None = None
@@ -99,8 +107,14 @@ class GeminiGoogleSearchCompanyResearchProvider:
         if lease_lost.is_set():
             raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
         grounded_sources: list[str] = []
+        search_query_count = 0
+        search_query_metadata_seen = False
         for candidate in getattr(response, "candidates", None) or []:
             metadata = getattr(candidate, "grounding_metadata", None)
+            search_queries = getattr(metadata, "web_search_queries", None)
+            if isinstance(search_queries, list):
+                search_query_count += len(search_queries)
+                search_query_metadata_seen = True
             for chunk in getattr(metadata, "grounding_chunks", None) or []:
                 uri = getattr(getattr(chunk, "web", None), "uri", None)
                 if isinstance(uri, str):
@@ -111,6 +125,8 @@ class GeminiGoogleSearchCompanyResearchProvider:
             value = getattr(usage_metadata, source_name, None)
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 usage[target_name] = value
+        if search_query_metadata_seen:
+            usage["search_queries"] = search_query_count
         return {"research": getattr(response, "text", None), "grounded_sources": grounded_sources, "provider_usage": usage}
 
 
@@ -298,13 +314,15 @@ def make_gemini_actual_cost_extractor(
     *,
     input_price_microusd_per_million_tokens: int,
     output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
 ):
-    """Build a pricing-configured extractor; missing provider usage keeps estimate reserved."""
+    """Build a token + grounding-fee extractor; missing usage keeps reservation held."""
     estimate_research_cost_microusd(
         input_tokens=0,
         output_tokens=0,
         input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
         output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
     )
 
     def extract(result: dict[str, Any]) -> int | None:
@@ -315,10 +333,17 @@ def make_gemini_actual_cost_extractor(
         output_tokens = usage.get("output_tokens")
         if input_tokens is None or output_tokens is None:
             return None
+        search_queries = usage.get("search_queries")
+        if search_price_microusd_per_thousand_queries > 0 and search_queries is None:
+            return None
+        if search_queries is None:
+            search_queries = 0
         return estimate_research_cost_microusd(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
             output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+            search_queries=search_queries,
+            search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
         )
     return extract

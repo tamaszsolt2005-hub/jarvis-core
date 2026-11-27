@@ -14,7 +14,10 @@ from company_research_job_repository import (
     CompanyResearchBudgetExceeded,
     CompanyResearchJobRepository,
 )
-from company_research_admission import evaluate_research_admission
+from company_research_admission import (
+    estimate_research_cost_ceiling_microusd,
+    evaluate_research_admission,
+)
 from company_research_refresh_planner import plan_company_research_refresh_candidates
 
 
@@ -35,12 +38,32 @@ def enqueue_company_research_refreshes(
     latest_dossiers: dict[str, Any],
     *,
     limits: dict[str, int],
-    estimated_cost_microusd_per_job: int,
+    input_price_microusd_per_million_tokens: int,
+    output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
+    max_search_queries_per_attempt: int = 0,
+    max_input_tokens_per_attempt: int = 12000,
+    max_output_tokens_per_attempt: int = 2048,
+    max_attempts: int = 1,
     now: datetime | None = None,
     max_age_days: int = 30,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Plan and enqueue using mandatory database-enforced cost/rate limits."""
+    """Plan and enqueue using mandatory database-enforced cost/rate limits.
+
+    Pricing is mandatory and must match the worker's actual-cost extractor.
+    The reservation is computed from provider token limits and an explicit
+    Search-query allowance; the query allowance is not a provider-side hard cap.
+    """
+    estimated_cost_microusd_per_job = estimate_research_cost_ceiling_microusd(
+        input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
+        output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        max_input_tokens_per_attempt=max_input_tokens_per_attempt,
+        max_output_tokens_per_attempt=max_output_tokens_per_attempt,
+        max_attempts=max_attempts,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=max_search_queries_per_attempt,
+    )
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
     )
@@ -73,17 +96,36 @@ def enqueue_company_research_refreshes_with_admission(
     *,
     limits: dict[str, int],
     usage_snapshot: dict[str, Any],
-    estimated_cost_microusd_per_job: int,
+    input_price_microusd_per_million_tokens: int,
+    output_price_microusd_per_million_tokens: int,
+    search_price_microusd_per_thousand_queries: int = 0,
+    max_search_queries_per_attempt: int = 0,
+    max_input_tokens_per_attempt: int = 12000,
+    max_output_tokens_per_attempt: int = 2048,
+    max_attempts: int = 1,
     now: datetime | None = None,
     max_age_days: int = 30,
     limit: int = 50,
 ) -> dict[str, list[dict[str, Any]]]:
     """Enqueue candidates through snapshot admission and atomic DB quotas.
 
+    Pricing is mandatory and must match the worker's actual-cost extractor.
+    The reservation is computed from provider token limits and an explicit
+    Search-query allowance; the query allowance is not a provider-side hard cap.
+
     The database is authoritative for hourly, per-domain daily and daily cost
     ceilings across concurrent enqueue calls. The local snapshot still provides
     early rejection and in-batch accounting for the concurrency estimate.
     """
+    estimated_cost_microusd_per_job = estimate_research_cost_ceiling_microusd(
+        input_price_microusd_per_million_tokens=input_price_microusd_per_million_tokens,
+        output_price_microusd_per_million_tokens=output_price_microusd_per_million_tokens,
+        max_input_tokens_per_attempt=max_input_tokens_per_attempt,
+        max_output_tokens_per_attempt=max_output_tokens_per_attempt,
+        max_attempts=max_attempts,
+        search_price_microusd_per_thousand_queries=search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=max_search_queries_per_attempt,
+    )
     if not isinstance(usage_snapshot, dict):
         raise ValueError("usage_snapshot must be an object")
     domain_usage = usage_snapshot.get("jobs_by_domain_today", {})

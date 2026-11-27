@@ -108,6 +108,7 @@ jobs:
           db_url="postgresql://postgres:postgres@127.0.0.1:5432/company_research_test"
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126153000_company_research_jobs.sql
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126170000_company_research_daily_hard_budget_cap.sql
       - name: Run snapshot, worker lifecycle/quota and true multi-session race tests
         shell: bash
         run: |
@@ -131,6 +132,13 @@ jobs:
             exit 1
           fi
           grep -q '1..15' <<< "$lifecycle_output"
+          hard_budget_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_daily_hard_budget_cap.test.sql)"
+          printf '%s\n' "$hard_budget_output"
+          if grep -q '^not ok ' <<< "$hard_budget_output"; then
+            echo "pgTAP reported failed daily hard budget assertions."
+            exit 1
+          fi
+          grep -q '1..8' <<< "$hard_budget_output"
           lifecycle_edges_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_jobs_lifecycle_edges.test.sql)"
           printf '%s\n' "$lifecycle_edges_output"
           if grep -q '^not ok ' <<< "$lifecycle_edges_output"; then

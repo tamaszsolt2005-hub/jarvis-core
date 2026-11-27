@@ -173,6 +173,12 @@ def run_one_company_research_job(
         return {"status": "lease_lost", "operation_id": operation_id}
     if not isinstance(completed, dict):
         return {"status": "invalid_repository_response", "operation_id": operation_id}
+    if completed.get("status") == "dead_letter":
+        return {
+            "status": "dead_letter",
+            "operation_id": operation_id,
+            "error_code": completed.get("last_error_code", "research_budget_rejected"),
+        }
     return {
         "status": "succeeded",
         "operation_id": operation_id,

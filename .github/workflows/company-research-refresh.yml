@@ -1,0 +1,63 @@
+name: JARVIS Company Research Refresh
+
+on:
+  schedule:
+    - cron: "15 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-company-research-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS: ${{ secrets.JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS }}
+      JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS: ${{ secrets.JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS }}
+      JARVIS_COMPANY_RESEARCH_PRICING_MODEL: ${{ secrets.JARVIS_COMPANY_RESEARCH_PRICING_MODEL }}
+      JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES: ${{ secrets.JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES }}
+      JARVIS_COMPANY_RESEARCH_MAX_SEARCH_QUERIES_PER_ATTEMPT: ${{ vars.JARVIS_COMPANY_RESEARCH_MAX_SEARCH_QUERIES_PER_ATTEMPT }}
+      JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD: ${{ secrets.JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD }}
+      JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR: ${{ secrets.JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR }}
+      JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY: ${{ secrets.JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY }}
+      JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS: ${{ secrets.JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS }}
+      JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS: ${{ vars.JARVIS_COMPANY_RESEARCH_MAX_INPUT_TOKENS }}
+      JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS: ${{ vars.JARVIS_COMPANY_RESEARCH_MAX_OUTPUT_TOKENS }}
+      JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS: ${{ vars.JARVIS_COMPANY_RESEARCH_MAX_PROVIDER_ATTEMPTS }}
+      JARVIS_COMPANY_RESEARCH_MAX_AGE_DAYS: ${{ vars.JARVIS_COMPANY_RESEARCH_MAX_AGE_DAYS }}
+      JARVIS_COMPANY_RESEARCH_BATCH_LIMIT: ${{ vars.JARVIS_COMPANY_RESEARCH_BATCH_LIMIT }}
+      JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED: ${{ vars.JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate required secrets and limits
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED" == "true" && -n "$SUPABASE_URL" && -n "$GEMINI_API_KEY" && ( -n "$SUPABASE_SERVICE_ROLE_KEY" || -n "$SUPABASE_KEY" ) && -n "$JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS" && -n "$JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS" && -n "$JARVIS_COMPANY_RESEARCH_PRICING_MODEL" && -n "$JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES" && -n "$JARVIS_COMPANY_RESEARCH_MAX_SEARCH_QUERIES_PER_ATTEMPT" && -n "$JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD" && -n "$JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR" && -n "$JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY" && -n "$JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Company research refresh skipped: schedule enable flag, database, Gemini, pricing, or hard-budget configuration is missing."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Enqueue stale dossiers and process bounded research jobs
+        if: steps.config.outputs.ready == 'true'
+        run: python company_research_refresh_job.py

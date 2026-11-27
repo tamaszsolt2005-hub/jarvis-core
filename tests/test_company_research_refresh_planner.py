@@ -129,3 +129,14 @@ def test_planner_treats_snapshot_row_without_dossier_payload_as_missing():
     )
     assert len(rows) == 1
     assert rows[0]["reason"] == "missing_dossier"
+
+
+@pytest.mark.parametrize("marker", [
+    {"first_sent_at": "2026-11-01T10:00:00+00:00"},
+    {"followed_up_at": "2026-11-02T10:00:00+00:00"},
+    {"last_message_id": "outbound-message-1"},
+])
+def test_planner_does_not_misclassify_legacy_contacted_leads_as_uncontacted(marker):
+    item = lead("new", **marker)
+    rows = plan_company_research_refresh_candidates([item], {}, now=NOW)
+    assert rows[0]["priority"] == "existing_relationship"
