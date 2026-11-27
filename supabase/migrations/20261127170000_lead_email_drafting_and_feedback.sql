@@ -140,6 +140,9 @@ BEGIN
       updated_by = v_actor, updated_at = now()
     WHERE scope = 'global';
   ELSIF p_event_type = 'reopened' THEN
+    IF v_draft.status <> 'rejected' THEN
+      RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'only_rejected_email_drafts_can_be_reopened';
+    END IF;
     UPDATE public.lead_email_drafts SET status = 'draft', approved_by = NULL,
       approved_at = NULL, updated_at = now() WHERE id = p_draft_id;
   ELSIF p_event_type NOT IN ('generated','edited') THEN
@@ -189,12 +192,28 @@ $email_rls$;
 DROP POLICY IF EXISTS lead_email_drafts_operator_write ON public.lead_email_drafts;
 CREATE POLICY lead_email_drafts_operator_write ON public.lead_email_drafts
   FOR ALL TO authenticated
-  USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator'))
-  WITH CHECK ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator'));
+  USING (
+    (SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator')
+    AND status = 'draft'
+    AND EXISTS (SELECT 1 FROM public.lead_review_states s WHERE s.lead_id = lead_email_drafts.lead_id AND s.review_status = 'approved')
+  )
+  WITH CHECK (
+    (SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator')
+    AND status = 'draft'
+    AND EXISTS (SELECT 1 FROM public.lead_review_states s WHERE s.lead_id = lead_email_drafts.lead_id AND s.review_status = 'approved')
+  );
 DROP POLICY IF EXISTS lead_email_revisions_operator_insert ON public.lead_email_draft_revisions;
 CREATE POLICY lead_email_revisions_operator_insert ON public.lead_email_draft_revisions
   FOR INSERT TO authenticated
-  WITH CHECK ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator'));
+  WITH CHECK (
+    (SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator')
+    AND EXISTS (
+      SELECT 1 FROM public.lead_email_drafts d
+      JOIN public.lead_review_states s ON s.lead_id = d.lead_id
+      WHERE d.id = lead_email_draft_revisions.draft_id
+        AND d.status = 'draft' AND s.review_status = 'approved'
+    )
+  );
 DROP POLICY IF EXISTS email_style_preferences_operator_write ON public.email_style_preferences;
 CREATE POLICY email_style_preferences_operator_write ON public.email_style_preferences
   FOR UPDATE TO authenticated
