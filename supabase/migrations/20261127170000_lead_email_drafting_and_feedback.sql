@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.lead_email_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   draft_id uuid NOT NULL REFERENCES public.lead_email_drafts(id) ON DELETE CASCADE,
   lead_id uuid NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
-  event_type text NOT NULL CHECK (event_type IN ('generated','edited','approved','rejected')),
+  event_type text NOT NULL CHECK (event_type IN ('generated','edited','approved','rejected','reopened')),
   note text,
   actor_id uuid NOT NULL DEFAULT auth.uid(),
   created_at timestamptz NOT NULL DEFAULT now()
@@ -139,6 +139,9 @@ BEGIN
       assertiveness = CASE WHEN p_feedback_category = 'not_persuasive' THEN 'direct' ELSE assertiveness END,
       updated_by = v_actor, updated_at = now()
     WHERE scope = 'global';
+  ELSIF p_event_type = 'reopened' THEN
+    UPDATE public.lead_email_drafts SET status = 'draft', approved_by = NULL,
+      approved_at = NULL, updated_at = now() WHERE id = p_draft_id;
   ELSIF p_event_type NOT IN ('generated','edited') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'lead_email_event_type_invalid';
   END IF;
@@ -162,9 +165,10 @@ REVOKE ALL ON TABLE public.lead_email_drafts, public.lead_email_draft_revisions,
 GRANT SELECT ON TABLE public.lead_email_drafts, public.lead_email_draft_revisions,
   public.lead_email_events, public.email_style_feedback, public.email_style_preferences
   TO authenticated, service_role;
-GRANT INSERT, UPDATE ON TABLE public.lead_email_drafts TO authenticated;
-GRANT INSERT ON TABLE public.lead_email_draft_revisions TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.email_style_preferences TO authenticated;
+GRANT INSERT (lead_id,subject,body,recipient_email,recipient_source_url),
+  UPDATE (recipient_email,recipient_source_url,subject,body,updated_at)
+  ON TABLE public.lead_email_drafts TO authenticated;
+GRANT INSERT (draft_id,subject,body) ON TABLE public.lead_email_draft_revisions TO authenticated;
 
 DO $email_rls$
 DECLARE t text;
