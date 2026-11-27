@@ -660,7 +660,7 @@ jobs:
             echo "pgTAP reported failed Intelligence Graph assertions."
             exit 1
           fi
-          grep -q '1..21' <<< "$graph_output"
+          grep -q '1..24' <<< "$graph_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127150000_intelligence_graph.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
