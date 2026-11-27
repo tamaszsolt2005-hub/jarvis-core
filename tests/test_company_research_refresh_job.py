@@ -147,7 +147,9 @@ def test_refresh_cycle_does_not_enqueue_or_call_provider_when_paused():
     db.tables["company_research_runtime_control"][0]["paused"] = True
     db.tables["company_research_runtime_control"][0]["note"] = "Scheduled maintenance"
     result = run_company_research_refresh_cycle(
-        db, client=object(), model="gemini-test", config=_runtime_config()
+        db,
+        client=SimpleNamespace(models=SimpleNamespace(count_tokens=lambda **_: 1, generate_content=lambda **_: None)),
+        model="gemini-test", config=_runtime_config()
     )
     assert result["status"] == "paused"
     assert result["queued"] == 0
