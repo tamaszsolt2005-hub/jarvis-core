@@ -632,7 +632,7 @@ jobs:
           # Add authenticated, append-only human approval history and verify it.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
           approval_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_assessment_approvals.test.sql)"
-          printf '%s\\n' "$approval_output"
+          printf '%s\n' "$approval_output"
           if grep -q '^not ok ' <<< "$approval_output"; then
             echo "pgTAP reported failed Opportunity approval assertions."
             exit 1
