@@ -58,13 +58,13 @@ Az első szelet tiszta Python logika és fake repository tesztek. Nem csatlakozi
 
 ## Phase 2 – üzleti problémahipotézis
 
-<badge>Első implementáció PR #35-ben</badge>
+**Állapot: első implementáció PR #35-ben.**
 
 A `business_pain_hypotheses` modell, confidence/státusz és forrás-evidence mezők, valamint az Opportunity Center céges probléma nézete elkészült. A hipotézis és bizonyított tény külön kezelendő. További feladat: a kutatási dosszié tényekből történő automatizált, ellenőrizhető hipotézis-képzés és az evidence minőségének mélyebb validálása. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
 
 ## Phase 3 – ismétlődő piaci mintázatok és SaaS-termékötlet motor
 
-<badge>Első implementáció PR #35-ben</badge>
+**Állapot: első implementáció PR #35-ben.**
 
 A több cég problémáit összekötő `market_problem_patterns` és `market_pattern_pains` modell, a legalább két különböző céges alátámasztást kikényszerítő validáció, a `saas_opportunities` jelöltek és a provider-neutral evaluator elkészült. A pontozás hat dimenziót használ: probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányos bizonyíték esetén nincs pontszám.
 
