@@ -2428,6 +2428,12 @@ with st.sidebar:
         type="primary" if current_page == "leads" else "secondary",
         width="stretch",
     )
+    email_center_clicked = st.button(
+        "✉   E-mail központ",
+        key="jarvis_nav_email_center",
+        type="primary" if current_page == "email_center" else "secondary",
+        width="stretch",
+    )
     tasks_clicked = st.button(
         "☑   Feladatok",
         key="jarvis_nav_tasks",
@@ -2477,6 +2483,9 @@ if chat_clicked:
     st.rerun()
 if leads_clicked:
     st.session_state["jarvis_page"] = "leads"
+    st.rerun()
+if email_center_clicked:
+    st.session_state["jarvis_page"] = "email_center"
     st.rerun()
 if tasks_clicked:
     st.session_state["jarvis_page"] = "tasks"
