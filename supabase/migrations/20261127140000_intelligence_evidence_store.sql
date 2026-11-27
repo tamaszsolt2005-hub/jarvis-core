@@ -171,12 +171,66 @@ CREATE TRIGGER capture_lead_intelligence_evidence
 AFTER INSERT OR UPDATE OF research_evidence ON public.leads
 FOR EACH ROW EXECUTE FUNCTION public.capture_intelligence_evidence();
 
--- Backfill only explicitly structured, source-linked records already stored.
--- Replaying the source triggers captures existing snapshot and pain evidence too.
-UPDATE public.company_research_snapshots SET dossier = dossier
-WHERE jsonb_typeof(dossier -> 'evidence_records') = 'array';
-UPDATE public.business_pain_hypotheses SET evidence = evidence
-WHERE jsonb_typeof(evidence) = 'array';
+-- Backfill existing immutable dossier and pain records without updating
+-- their source tables. These snapshots are historical records and must stay immutable.
+INSERT INTO public.intelligence_evidence (
+  evidence_id, source_domain, source_kind, entity_type, entity_id, lead_id,
+  snapshot_id, source_url, excerpt, evidence_type, observed_at, captured_at
+)
+SELECT
+  CASE WHEN length(COALESCE(item ->> 'evidence_id','')) BETWEEN 32 AND 64
+    THEN item ->> 'evidence_id'
+    ELSE md5(concat_ws('|','company_dossier',snapshot.lead_id::text,
+      item ->> 'source_url',item ->> 'excerpt',COALESCE(item ->> 'observed_at','undated'),
+      COALESCE(item ->> 'evidence_type','supporting')))
+  END,
+  'company_dossier', COALESCE(NULLIF(item ->> 'source_kind',''),'company_dossier_fact'),
+  COALESCE(NULLIF(item ->> 'entity_type',''),'company'),
+  COALESCE(NULLIF(item ->> 'entity_id',''),snapshot.lead_id::text),
+  snapshot.lead_id, COALESCE(NULLIF(item ->> 'snapshot_id',''),snapshot.snapshot_id::text),
+  item ->> 'source_url', item ->> 'excerpt',
+  CASE WHEN item ->> 'evidence_type' IN ('supporting','contradicting','context')
+    THEN item ->> 'evidence_type' ELSE 'supporting' END,
+  COALESCE(NULLIF(item ->> 'observed_at',''),'undated'),
+  COALESCE(NULLIF(item ->> 'captured_at',''),NULLIF(item ->> 'observed_at',''),'undated')
+FROM public.company_research_snapshots snapshot
+CROSS JOIN LATERAL jsonb_array_elements(
+  CASE WHEN jsonb_typeof(snapshot.dossier -> 'evidence_records') = 'array'
+    THEN snapshot.dossier -> 'evidence_records' ELSE '[]'::jsonb END
+) item
+WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+  AND length(btrim(COALESCE(item ->> 'excerpt',''))) BETWEEN 1 AND 1200
+ON CONFLICT (evidence_id) DO NOTHING;
+
+INSERT INTO public.intelligence_evidence (
+  evidence_id, source_domain, source_kind, entity_type, entity_id, lead_id,
+  snapshot_id, source_url, excerpt, evidence_type, observed_at, captured_at
+)
+SELECT
+  CASE WHEN length(COALESCE(item ->> 'evidence_id','')) BETWEEN 32 AND 64
+    THEN item ->> 'evidence_id'
+    ELSE md5(concat_ws('|','opportunity',pain.id::text,
+      item ->> 'source_url',item ->> 'excerpt',COALESCE(item ->> 'observed_at','undated'),
+      COALESCE(item ->> 'evidence_type','supporting')))
+  END,
+  'opportunity', COALESCE(NULLIF(item ->> 'source_kind',''),'company_pain_hypothesis'),
+  COALESCE(NULLIF(item ->> 'entity_type',''),'company_pain_hypothesis'),
+  COALESCE(NULLIF(item ->> 'entity_id',''),pain.id::text),
+  pain.lead_id, COALESCE(NULLIF(item ->> 'snapshot_id',''),pain.snapshot_id::text,''),
+  item ->> 'source_url', item ->> 'excerpt',
+  CASE WHEN item ->> 'evidence_type' IN ('supporting','contradicting','context')
+    THEN item ->> 'evidence_type' ELSE 'supporting' END,
+  COALESCE(NULLIF(item ->> 'observed_at',''),'undated'),
+  COALESCE(NULLIF(item ->> 'captured_at',''),NULLIF(item ->> 'observed_at',''),'undated')
+FROM public.business_pain_hypotheses pain
+CROSS JOIN LATERAL jsonb_array_elements(
+  CASE WHEN jsonb_typeof(pain.evidence) = 'array' THEN pain.evidence ELSE '[]'::jsonb END
+) item
+WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+  AND length(btrim(COALESCE(item ->> 'excerpt',''))) BETWEEN 1 AND 1200
+ON CONFLICT (evidence_id) DO NOTHING;
+
+-- Backfill only explicitly structured, source-linked Lead records as well.
 DO $intelligence_backfill$
 DECLARE
   row_data record;
