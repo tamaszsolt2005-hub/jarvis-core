@@ -220,12 +220,12 @@ Company name (JSON string): {company_name_json}
 Company website domain (JSON string): {company_domain_json}
 Target market (JSON string): {market_json}
 
-Return one JSON object with company_facts [{category,fact,source_url}], decision_maker
-{name,role,professional_background,source_url}, pain_hypotheses [{statement,category,confidence,source_url,excerpt}],
+Return one JSON object with company_facts [{{category,fact,source_url}}], decision_maker
+{{name,role,professional_background,source_url}}, pain_hypotheses [{{statement,category,confidence,source_url,excerpt}}],
 and lead_fit_assessment. The assessment object must contain assessment_version "1.0",
 fit_score (number 0-100), confidence (number 0-1), rationale, fit_signals (string array),
 risk_signals (string array), recommended_next_step, and evidence (array of
-{source_url,claim,evidence_type}). evidence_type must be fact, hypothesis, or assessment.
+{{source_url,claim,evidence_type}}). evidence_type must be fact, hypothesis, or assessment.
 Every evidence source_url must be an exact page URL present in Google grounding metadata.
 Do not invent URLs, titles, snippets, or sources. If there is insufficient grounded evidence,
 set fit_score and confidence to null and evidence to []; do not guess. Facts, hypotheses,
