@@ -42,3 +42,15 @@ def test_source_facts_only_returns_facts_with_safe_public_sources():
     assert len(facts) == 1
     assert facts[0]["category"] == "Vezetőség"
     assert facts[0]["source_url"] == "https://example.com/team"
+
+
+def test_email_delivery_is_hard_disabled():
+    from email_utils import EMAIL_DELIVERY_ENABLED, send_email
+
+    assert EMAIL_DELIVERY_ENABLED is False
+    try:
+        send_email("person@example.com", "Subject", "Body")
+    except RuntimeError as exc:
+        assert "disabled" in str(exc).casefold()
+    else:
+        raise AssertionError("Outbound email must remain hard-disabled.")
