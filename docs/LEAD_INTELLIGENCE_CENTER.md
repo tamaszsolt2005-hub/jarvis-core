@@ -274,3 +274,18 @@ A kutatási válasz külön, verziózott `lead_fit_assessment` objektumot kér �
 - A régi `Leadkutatás;` szöveges parserhez nem készül kompatibilitási szöveg; a dashboard bekötése P1.4.
 
 Kizárólag repository-kód és dokumentáció módosult. Külön teszt, worker/queue/Gemini hívás, DB/migration módosítás, merge és deploy nem történt.
+
+
+### P1.4 – Lead Intelligence Center pontozás snapshot assessmentből (2026-11-27)
+
+A Lead Intelligence Center pontozási útvonala átállt a legfrissebb `company_research_snapshots` rekord `dossier.lead_fit_assessment` mezőjére. A régi `Leadkutatás;` szövegparser többé nem része ennek a dashboard pontozásának; a külön `intelligent_lead_scoring.py` modul más fogyasztói számára változatlanul megmaradt.
+
+- A snapshotok a bejelentkezett felhasználó meglévő adatbázis-kliensén keresztül, RLS mellett olvashatók; a dashboard nem használ service-role kerülőutat. Az Auth adatút admin/operator/reader szerepköröket enged a felhasználói kliens létrehozásakor, a snapshot SELECT policy pedig ugyanezekre a szerepkörökre korlátoz.
+- A legfrissebb snapshot kiválasztása `researched_at DESC, snapshot_id DESC` sorrendben történik.
+- Pontszám csak `status=assessed`, véges 0–100 fit score, véges 0–1 confidence és legalább egy érvényes, HTTP(S) URL-hez kötött evidence esetén készül. A súlyozás: fit 60%, confidence 25%, evidence erősség 15% (legfeljebb négy bizonyíték számít a komponensben).
+- Nincs snapshot esetén „Kutatás szükséges”; hiányzó/elégtelen/hibás assessment esetén nincs pontszám; snapshot olvasási hiba esetén külön adatforrás-hiba jelenik meg, nem üres kutatási állapot.
+- A részletező panel mutatja az indoklást, fit/risk jeleket, következő kutatási lépést, confidence értéket és a validált forrásokat. A pain rekordek kifejezetten hipotézisként, nem bizonyított tényként jelennek meg.
+- A forráslinkek csak HTTP(S), hitelesítő adat nélküli, localhost/local/internal és nem publikus IP címeket kizáró URL-validálás után jelennek meg.
+- A meglévő admin/operator döntési, AI-javaslat és research enqueue műveletek jogosultsági feltételei változatlanok; reader számára csak olvasás marad.
+
+A P1.3 Gemini adapterben a `response_mime_type="application/json"` beállítás GitHub forrásban igazolt. A módosított dashboard fájlok GitHubról visszaolvasandók és statikusan ellenőrizendők. Külön teszt, böngészős UI-ellenőrzés, worker/queue/Gemini futtatás, DB-módosítás vagy migration nem történt; merge és deploy nincs.
