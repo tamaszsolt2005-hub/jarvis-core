@@ -76,6 +76,7 @@ from company_research_store import get_company_research_history
 from opportunity_evaluator import evaluate_opportunity_candidate
 from intelligence_graph import build_graph_snapshot, to_graphviz_dot
 from lead_review_dashboard import render_lead_review_page
+from lead_email_dashboard import render_email_center
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -2522,6 +2523,30 @@ if st.session_state.get("jarvis_page") == "leads":
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_lead_review_page", severity="error", db=lead_db if "lead_db" in locals() else None)
         st.error("A Leadkezelő oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "email_center":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        email_db = st.session_state.get("_jarvis_db")
+        if email_db is None:
+            email_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = email_db
+        email_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(email_role, "leads.read"):
+            st.error("Az e-mail központ megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_email_center(
+                email_db,
+                auth_enabled=_auth_login_enabled(),
+                role=email_role,
+                generate_text_fn=generate_text,
+                model_name_fn=get_model_name,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_email_center", severity="error", db=email_db if "email_db" in locals() else None)
+        st.error("Az E-mail központ oldal nem tudott betöltődni.")
         st.caption(user_facing_error(exc))
     st.stop()
 
