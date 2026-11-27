@@ -1,6 +1,6 @@
 -- Durable cross-domain evidence index and read-only dashboard access.
 BEGIN;
-SELECT plan(11);
+SELECT plan(12);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid='public.intelligence_evidence'::regclass),
@@ -63,7 +63,7 @@ INSERT INTO public.business_pain_hypotheses (
   lead_id, statement, confidence, evidence
 ) VALUES (
   :'intelligence_id', 'A sourced operational pain hypothesis', 0.650,
-  '[{"source_url":"https://sources.invalid/pain","excerpt":"Pain hypothesis evidence","evidence_type":"contradicting","observed_at":"2026-11-27T10:00:00Z"}]'::jsonb
+  '[{"evidence_id":"bad-id","source_url":"https://sources.invalid/pain","excerpt":"Pain hypothesis evidence","evidence_type":"contradicting","observed_at":"2026-11-27T10:00:00Z"}]'::jsonb
 );
 
 SELECT is(
@@ -81,6 +81,10 @@ SELECT is(
 SELECT is(
   (SELECT count(*) FROM public.intelligence_evidence),
   3::bigint, 'central evidence index unifies all three domains'
+);
+SELECT is(
+  (SELECT length(evidence_id) FROM public.intelligence_evidence WHERE source_domain='opportunity'),
+  32, 'malformed source identifiers are replaced with a deterministic fingerprint'
 );
 
 SET LOCAL ROLE authenticated;
