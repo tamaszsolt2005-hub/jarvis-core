@@ -56,11 +56,26 @@ def enqueue_single_lead_research(
     if not str(lead.get("company_name") or "").strip():
         raise LeadResearchRequestError("lead_company_name_missing")
 
+    latest_job_response = (
+        db.table("company_research_jobs")
+        .select("operation_id,status")
+        .eq("lead_id", normalized_id)
+        .order("created_at", desc=True)
+        .order("job_id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    latest_job_rows = getattr(latest_job_response, "data", None)
+    if not isinstance(latest_job_rows, list):
+        raise LeadResearchRequestError("latest_job_state_unavailable")
+    latest_job = latest_job_rows[0] if latest_job_rows and isinstance(latest_job_rows[0], dict) else None
+
     snapshot_response = (
         db.table("company_research_snapshots")
         .select("lead_id,snapshot_id,researched_at,dossier")
         .eq("lead_id", normalized_id)
         .order("researched_at", desc=True)
+        .order("snapshot_id", desc=True)
         .limit(1)
         .execute()
     )
@@ -86,6 +101,16 @@ def enqueue_single_lead_research(
         max_attempts=config.max_attempts,
         max_age_days=config.max_age_days,
         limit=1,
+        operation_id_overrides=(
+            {normalized_id: str(latest_job.get("operation_id"))}
+            if latest_job and latest_job.get("status") in {"queued", "running", "retry_wait"}
+            else None
+        ),
+        operation_nonce_by_lead=(
+            {normalized_id: str(latest_job.get("operation_id"))}
+            if latest_job and latest_job.get("status") == "dead_letter"
+            else None
+        ),
     )
     if not jobs:
         return {
