@@ -15,7 +15,7 @@ The `intelligence_entities` table represents:
 | Entity type | Source of truth | Meaning |
 |---|---|---|
 | `company` | `leads` | A researched company / Lead |
-| `company_dossier_snapshot` | `company_research_snapshots` | An immutable research snapshot |
+| `person` | `company_research_snapshots.dossier.decision_maker` | A publicly sourced professional decision-maker snapshot |\n| `company_dossier_snapshot` | `company_research_snapshots` | An immutable research snapshot |
 | `company_pain` | `business_pain_hypotheses` | A company-specific pain hypothesis |
 | `market_pattern` | `market_problem_patterns` | A cross-company problem pattern |
 | `saas_opportunity` | `saas_opportunities` | A product candidate |
@@ -28,7 +28,7 @@ Each node has a stable `(entity_type, source_id)` key, an optional Lead referenc
 
 The `intelligence_relationships` table stores directed, typed edges:
 
-- `has_dossier_snapshot`: company → dossier snapshot
+- `has_dossier_snapshot`: company → dossier snapshot\n- `has_decision_maker`: company → publicly sourced professional person
 - `has_pain`: company → pain hypothesis
 - `derived_from_snapshot`: dossier snapshot → pain hypothesis
 - `supported_by_pain`: market pattern → company pain
@@ -73,7 +73,7 @@ The dashboard is read-only. It uses the authenticated Supabase client and RLS; i
 ## Validation
 
 - `tests/test_intelligence_graph.py` covers bounded projection, malformed rows, deduplication, confidence validation and DOT escaping.
-- `supabase/tests/intelligence_graph.test.sql` contains 21 pgTAP assertions for schema, helper access, relationship integrity and RLS.
+- `supabase/tests/intelligence_graph.test.sql` contains 24 pgTAP assertions for schema, helper access, relationship integrity and RLS.
 - CI applies the migration, runs the pgTAP file, checks the assertion plan and replays the migration for idempotency.
 
 ## Release boundary
