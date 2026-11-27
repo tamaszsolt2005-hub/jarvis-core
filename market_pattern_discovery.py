@@ -273,7 +273,7 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
         existing_opportunities = _rows(
             db.table("saas_opportunities")
             .select("id")
-            .eq("market_pattern_id", pattern_id)
+            .eq("discovery_fingerprint", candidate["fingerprint"])
             .limit(1)
             .execute(),
             operation="checking existing SaaS candidate",
@@ -281,6 +281,7 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
         if not existing_opportunities:
             db.table("saas_opportunities").insert({
                 "market_pattern_id": pattern_id,
+                "discovery_fingerprint": candidate["fingerprint"],
                 "name": candidate["saas_name"],
                 "summary": candidate["saas_summary"],
                 "status": "draft",
