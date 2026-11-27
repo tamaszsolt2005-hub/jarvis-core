@@ -176,7 +176,7 @@ def persist_company_pain_hypotheses(
     )
     if existing:
         return 0
-    inserted = 0
+    rows = []
     for item in hypotheses[:8]:
         if not isinstance(item, dict):
             continue
@@ -189,11 +189,26 @@ def persist_company_pain_hypotheses(
             "status": "hypothesis",
             "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
         }
-        if not row["statement"] or not row["evidence"]:
-            continue
-        db.table("business_pain_hypotheses").insert(row).execute()
-        inserted += 1
-    return inserted
+        if row["statement"] and row["evidence"]:
+            rows.append(row)
+    if not rows:
+        return 0
+    try:
+        db.table("business_pain_hypotheses").insert(rows).execute()
+        return len(rows)
+    except Exception:
+        # A concurrent replay can win the snapshot-scoped unique constraint.
+        existing_after_race = _rows(
+            db.table("business_pain_hypotheses")
+            .select("id")
+            .eq("lead_id", lead_id)
+            .eq("snapshot_id", snapshot_id)
+            .execute(),
+            operation="checking concurrently persisted company pain hypotheses",
+        )
+        if len(existing_after_race) >= len(rows):
+            return 0
+        raise
 
 
 def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, int]:
