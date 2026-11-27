@@ -112,6 +112,7 @@ BEGIN
      OR length(btrim(p_note)) NOT BETWEEN 5 AND 500 THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'research_control_note_required';
   END IF;
+  PERFORM pg_advisory_xact_lock(742026, 3);
   UPDATE public.company_research_runtime_control
   SET paused = p_paused, note = btrim(p_note), updated_at = now(), updated_by = v_actor
   WHERE singleton = true;
@@ -141,10 +142,10 @@ BEGIN
      OR p_max_concurrent_jobs IS NULL OR p_max_concurrent_jobs < 1 THEN
     RAISE EXCEPTION 'invalid claim arguments';
   END IF;
+  PERFORM pg_advisory_xact_lock(742026, 3);
   SELECT paused INTO v_paused
   FROM public.company_research_runtime_control
-  WHERE singleton = true
-  FOR SHARE;
+  WHERE singleton = true;
   IF v_paused IS DISTINCT FROM false THEN
     RETURN;
   END IF;
