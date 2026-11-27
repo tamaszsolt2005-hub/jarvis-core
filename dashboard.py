@@ -813,7 +813,7 @@ def render_opportunity_center_page(db: Any) -> None:
                     result = stored_preview["result"]
                     st.divider()
                     st.markdown("**Értékelési javaslat**")
-                    st.caption("Előnézet · nincs mentve · emberi jóváhagyás szükséges")
+                    st.caption("Jóváhagyott és mentett döntés" if st.session_state.get("jarvis_opportunity_eval_preview", {}).get("persisted") else "Előnézet · nincs mentve · emberi jóváhagyás szükséges")
                     if result.get("status") == "insufficient_evidence":
                         st.warning("Nincs elég bizonyíték a megbízható pontozáshoz.")
                         st.write(str(result.get("reason") or ""))
