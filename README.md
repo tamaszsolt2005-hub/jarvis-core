@@ -120,3 +120,8 @@ A Leadek, cégdossziék, problémahipotézisek, piaci mintázatok, SaaS-jelölte
 ## Lead e-mail workflow
 
 A jóváhagyott leadekhez személyre szabott, szerkeszthető e-mail-piszkozat készíthető. A piszkozat külön jóváhagyása, a kötelező elutasítási visszajelzés és a strukturált globális stílusprofil részletei: [Lead Email Draft and Approval Workflow](docs/LEAD_EMAIL_WORKFLOW.md). A küldési kódzár változatlanul aktív; a jóváhagyott e-mailek nem kerülnek automatikus küldésre.
+
+## Rendszerállapot és fejlesztési hiányok
+
+- [JARVIS központi rendszer- és összeszerelési dokumentáció](docs/JARVIS_MASTER_DOCUMENTATION.md)
+- [JARVIS képességhiány- és prioritási jelentés](docs/JARVIS_CAPABILITY_GAP_REPORT.md) – mi működik már, mi nincs még kész, és milyen sorrendben érdemes továbbfejleszteni.
