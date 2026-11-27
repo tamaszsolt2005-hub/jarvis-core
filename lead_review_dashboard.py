@@ -75,22 +75,33 @@ def _score_snapshot_assessment(dossier: dict[str, Any]) -> dict[str, Any]:
     fit = assessment.get("fit_score")
     confidence = assessment.get("confidence")
     evidence = assessment.get("evidence")
+    try:
+        finite_values = (
+            not isinstance(fit, bool) and isinstance(fit, (int, float)) and math.isfinite(float(fit))
+            and not isinstance(confidence, bool) and isinstance(confidence, (int, float))
+            and math.isfinite(float(confidence))
+        )
+    except (OverflowError, TypeError, ValueError):
+        finite_values = False
+    valid_evidence = [
+        item for item in evidence if isinstance(item, dict)
+        and isinstance(item.get("claim"), str) and item.get("claim").strip()
+        and _safe_source_url(item.get("source_url"))
+    ] if isinstance(evidence, list) else []
     if (
-        status != "assessed"
-        or isinstance(fit, bool) or not isinstance(fit, (int, float))
-        or isinstance(confidence, bool) or not isinstance(confidence, (int, float))
-        or not math.isfinite(fit) or not 0 <= fit <= 100
-        or not math.isfinite(confidence) or not 0 <= confidence <= 1
-        or not isinstance(evidence, list) or not evidence
+        assessment.get("assessment_version") != "1.0"
+        or status != "assessed" or not finite_values
+        or not 0 <= float(fit) <= 100 or not 0 <= float(confidence) <= 1
+        or not valid_evidence
     ):
         return {"scored": False, "priority_score": None, "status": "invalid_assessment",
                 "reason": "A mentett kutatási értékelés hiányos vagy érvénytelen; pontszám nem készült."}
-    evidence_points = min(100, len(evidence) * 25)
+    evidence_points = min(100, len(valid_evidence) * 25)
     priority = round(0.60 * float(fit) + 0.25 * (float(confidence) * 100) + 0.15 * evidence_points)
     return {
         "scored": True, "priority_score": priority, "status": "assessed",
         "business_fit_score": float(fit), "research_confidence": float(confidence),
-        "evidence_count": len(evidence),
+        "evidence_count": len(valid_evidence),
         "reason": f"Üzleti illeszkedés {fit}/100 · bizonyosság {confidence:.0%} · forrásolt bizonyíték {len(evidence)}",
         "interpretation": "Kutatási prioritás, nem vásárlási szándék, fizetőképesség vagy kapcsolatfelvételi engedély.",
     }
