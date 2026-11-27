@@ -83,10 +83,15 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
 
     budget = state.get("budget_today") if isinstance(state.get("budget_today"), dict) else {}
     reserved = int(budget.get("reserved_microusd", 0) or 0) / 1_000_000
+    committed = int(budget.get("committed_microusd", reserved * 1_000_000) or 0) / 1_000_000
     actual = int(budget.get("actual_microusd", 0) or 0) / 1_000_000
     st.markdown("#### Mai költség")
-    st.write(f"Foglalt keret: **${reserved:,.4f}** · elszámolt tényleges költség: **${actual:,.4f}**")
-    st.caption(f"Mai foglalások: {int(budget.get('jobs_today', 0) or 0)}")
+    st.write(
+        f"Függő foglalás: **${reserved:,.4f}** · "
+        f"napi keretből lekötött összeg: **${committed:,.4f}** · "
+        f"tényleges költség: **${actual:,.4f}**"
+    )
+    st.caption(f"Mai kutatási jobok: {int(budget.get('jobs_today', 0) or 0)}")
 
     if role in {"admin", "operator"}:
         note = st.text_area(
