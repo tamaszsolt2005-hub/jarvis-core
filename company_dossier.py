@@ -13,6 +13,8 @@ from typing import Any
 from uuid import uuid4
 from urllib.parse import urlparse
 
+from intelligence_engine import evidence_records_from_dossier
+
 
 _ALLOWED_FACT_CATEGORIES = {
     "business_model",
@@ -137,6 +139,9 @@ def stamp_company_dossier(dossier: dict[str, Any]) -> dict[str, Any]:
         "researched_at": datetime.now(timezone.utc).isoformat(),
         "content_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
     })
+    # Keep the original dossier contract intact while exposing a shared,
+    # source-traceable view for cross-domain Intelligence Engine consumers.
+    stamped["evidence_records"] = evidence_records_from_dossier(stamped)
     return stamped
 
 def is_company_dossier_stale(
