@@ -129,3 +129,40 @@ class SaaSOpportunity:
             summary=_required_text(raw.get("summary"), "summary", 1600),
             status=status,
         )
+
+
+OPPORTUNITY_SCORE_WEIGHTS = {
+    "problem_evidence": 0.25,
+    "business_value": 0.20,
+    "willingness_to_pay": 0.15,
+    "feasibility": 0.15,
+    "reusability": 0.15,
+    "risk": 0.10,
+}
+
+
+def calculate_opportunity_score(scores: dict[str, Any]) -> float | None:
+    """Return a 0-100 score, or None until all dimensions have evidence.
+
+    Risk is reverse-scored: higher risk lowers the final opportunity score.
+    Missing dimensions are never silently treated as zero.
+    """
+    if not isinstance(scores, dict):
+        raise ValueError("scores must be an object")
+    if any(key not in scores or scores[key] is None for key in OPPORTUNITY_SCORE_WEIGHTS):
+        return None
+    values: dict[str, float] = {}
+    for key in OPPORTUNITY_SCORE_WEIGHTS:
+        value = scores[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+            raise ValueError(f"{key} must be a number between 0 and 100")
+        values[key] = float(value)
+    total = (
+        values["problem_evidence"] * 0.25
+        + values["business_value"] * 0.20
+        + values["willingness_to_pay"] * 0.15
+        + values["feasibility"] * 0.15
+        + values["reusability"] * 0.15
+        + (100 - values["risk"]) * 0.10
+    )
+    return round(total, 2)

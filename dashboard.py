@@ -503,7 +503,10 @@ def render_opportunity_center_page(db: Any) -> None:
             links_by_pattern.setdefault(pattern_id, []).append(pain_id)
     ideas = _safe_rows(
         db, "saas_opportunities",
-        "id,market_pattern_id,name,summary,status,created_at", 300, status=ideas_status,
+        "id,market_pattern_id,name,summary,status,scoring_status,assessment_confidence,"
+        "weighted_score,score_problem_evidence,score_business_value,score_willingness_to_pay,"
+        "score_feasibility,score_reusability,score_risk,score_rationale,created_at",
+        300, status=ideas_status,
     )
 
     cols = st.columns(3)
@@ -610,6 +613,20 @@ def render_opportunity_center_page(db: Any) -> None:
                         f"Státusz: {item.get('status') or '—'} · "
                         f"Kapcsolt piaci mintázat: {item.get('market_pattern_id') or '—'}"
                     )
+                    scoring_status = str(item.get("scoring_status") or "insufficient_evidence")
+                    if scoring_status == "scored" and item.get("weighted_score") is not None:
+                        st.metric("Magyarázható üzleti pontszám", f"{float(item['weighted_score']):.2f}/100")
+                        st.caption(f"Értékelés bizonyossága: {item.get('assessment_confidence', '—')}")
+                        rationale = item.get("score_rationale")
+                        if isinstance(rationale, dict):
+                            for dimension, explanation in rationale.items():
+                                if isinstance(explanation, str) and explanation.strip():
+                                    st.write(f"**{dimension}:** {explanation}")
+                    else:
+                        st.info(
+                            "Nincs elég bizonyíték a megbízható pontozáshoz. "
+                            "A rendszer nem helyettesíti a hiányzó adatokat nullával."
+                        )
 
     with dossier_tab:
         lead_status: dict[str, Any] = {}

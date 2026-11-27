@@ -619,6 +619,16 @@ jobs:
           grep -q '1..18' <<< "$opportunity_output"
           # Replay once to verify migration idempotence in the isolated audit database.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
+          # Add evidence-gated explainable opportunity scoring; replay for idempotence.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
+          scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
+          printf '%s\\n' "$scoring_output"
+          if grep -q '^not ok ' <<< "$scoring_output"; then
+            echo "pgTAP reported failed Opportunity scoring assertions."
+            exit 1
+          fi
+          grep -q '1..9' <<< "$scoring_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test

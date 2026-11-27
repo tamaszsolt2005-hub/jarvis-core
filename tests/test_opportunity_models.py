@@ -41,3 +41,33 @@ def test_market_pattern_deduplicates_linked_company_pains():
 def test_saas_opportunity_requires_a_market_pattern():
     with pytest.raises(ValueError):
         SaaSOpportunity.from_dict({"id": "idea-1", "name": "Workflow SaaS", "summary": "A tool"})
+
+
+from opportunity_models import calculate_opportunity_score
+
+
+def test_opportunity_score_uses_documented_weights_and_penalizes_risk():
+    score = calculate_opportunity_score({
+        "problem_evidence": 80, "business_value": 70,
+        "willingness_to_pay": 60, "feasibility": 90,
+        "reusability": 80, "risk": 20,
+    })
+    assert score == 76.5
+
+
+def test_opportunity_score_is_not_calculated_when_evidence_is_incomplete():
+    assert calculate_opportunity_score({
+        "problem_evidence": 100, "business_value": 100,
+        "willingness_to_pay": None, "feasibility": 100,
+        "reusability": 100, "risk": 0,
+    }) is None
+
+
+@pytest.mark.parametrize("value", [-0.1, 100.1, True, "90"])
+def test_opportunity_score_rejects_invalid_dimensions(value):
+    with pytest.raises(ValueError):
+        calculate_opportunity_score({
+            "problem_evidence": value, "business_value": 70,
+            "willingness_to_pay": 60, "feasibility": 90,
+            "reusability": 80, "risk": 20,
+        })
