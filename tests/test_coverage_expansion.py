@@ -70,7 +70,7 @@ class _UI:
     def __getattr__(self, name):
         if name in {
             "title", "caption", "info", "error", "warning", "success",
-            "markdown", "write", "divider",
+            "markdown", "write", "divider", "metric",
         }:
             return lambda *args, **kwargs: self.messages.append((name, args))
         if name in {"container", "spinner"}:
@@ -86,7 +86,8 @@ class _UI:
     def selectbox(self, _label, *, options, index=0, **_kwargs):
         return options[index]
 
-    def expander(self, *_args, **_kwargs):
+    def expander(self, *args, **_kwargs):
+        self.messages.append(("expander", args))
         return _Column()
 
     def dataframe(self, *_args, **_kwargs):
@@ -218,7 +219,7 @@ def test_crm_page_renders_read_only_approved_pipeline_and_history(monkeypatch):
     })
     crm.render_lead_customer_page(db, auth_enabled=True, role="reader")
     rendered = " ".join(str(args) for _, args in ui.messages)
-    assert "Example Ltd" in rendered
+    assert any(name == "expander" and "Example Ltd" in str(args) for name, args in ui.messages)
     assert "Discovery call" in rendered
     assert "Discovery completed" in rendered
     assert "Olvasási jogosultságod van" in rendered
