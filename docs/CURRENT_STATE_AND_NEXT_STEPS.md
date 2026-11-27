@@ -488,3 +488,21 @@ A Lead Intelligence Center pontozási útvonala átállt a legfrissebb `company_
 - A meglévő admin/operator döntési, AI-javaslat és research enqueue műveletek jogosultsági feltételei változatlanok; reader számára csak olvasás marad.
 
 A P1.3 Gemini adapterben a `response_mime_type="application/json"` beállítás GitHub forrásban igazolt. A módosított dashboard fájlt GitHubról visszaolvastuk, a snapshot-kiválasztást, scoring guardokat, forrásmegjelenítést és jogosultsági kapukat statikusan ellenőriztük. Külön teszt, böngészős UI-ellenőrzés, worker/queue/Gemini futtatás, DB-módosítás vagy migration nem történt; merge és deploy nincs.
+
+
+### P1.5 – Kutatási állapot, jobazonosító és audit megjelenítése (2026-11-27)
+
+A Lead Intelligence Center és a Kutatási műveletek oldal összekötése elkészült a feature branchben:
+
+- A worker control-state RPC leadenként a legutóbbi kutatási jobot adja vissza (státusz, próbálkozás, létrehozás/frissítés, lease, operation ID, hibakód), nem csupán az utolsó 25 globális jobot.
+- A Lead Intelligence Center a hitelesített `company_research_worker_control_state` RPC-ből megjeleníti a job státuszát és teljes operation ID-ját; snapshot esetén a legutóbbi kutatás időpontját és az értékelési evidence darabszámát is.
+- A Kutatási műveletek oldal megjeleníti a worker állapotot, leadenkénti legutóbbi jobokat, pause/resume auditot és az utolsó 50 job-audit eseményt.
+- A vezérlési RPC hiányzó singleton rekord esetén hibával leáll; az UI nem tekinti a hiányos állapotot engedélyezett workernek.
+- A napi költségkijelzés különválasztja a függő foglalást, a napi keretből lekötött összeget és az elszámolt tényleges költséget. A korábbi „foglalt keret” felirat félrevezető volt, mert a lezárt foglalások tényleges költségre átvezetett összege is beleszámított.
+- Az enqueue útvonal hibás vagy hiányzó snapshot-válasznál fail-closed módon leáll; a planner korábban elutasítja az IP-, localhost-, belső és hibás domaineket, valamint a hitelesítő adatot tartalmazó webcímeket.
+
+Érintett fájlok: `lead_review_dashboard.py`, `lead_research_actions.py`, `company_research_refresh_planner.py`, `company_research_ops_dashboard.py`, `supabase/migrations/20261127220000_company_research_worker_ops.sql`.
+
+**P1 összesítés:** a P1.1–P1.5 kódoldali elemei elkészültek a feature branchben. Ez nem jelenti az élő adatúton való működés igazolását: a worker-ops migration production alkalmazása nincs igazolva, a CLI/worker/queue/Gemini futtatás és a böngészős UI-ellenőrzés nem történt meg. Scheduler nincs és P1-ben szándékosan nincs bekapcsolva. A Google Search query allowance költségfoglalási feltételezés, nem provider-oldali kemény query limit; az actual usage elszámolása és a következő enqueue-k költségkeret-védelme megvan, de egyetlen provider-hívás túllépheti a becsült query foglalást. Ezért a teljes napi hard cost cap nem tekinthető garantáltnak, amíg a provider oldali korlát vagy konzervatívabb költségvédelem nincs igazolva.
+
+A migration csak repository artefaktum; production DB-hez nem nyúltunk. Külön teszt, worker/queue/Gemini futtatás, böngészős ellenőrzés, merge és deploy nem történt.
