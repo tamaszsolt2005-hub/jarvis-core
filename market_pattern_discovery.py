@@ -185,17 +185,31 @@ def persist_company_pain_hypotheses(
     for item in hypotheses[:8]:
         if not isinstance(item, dict):
             continue
-        row = {
+        statement = str(item.get("statement") or "").strip()[:1200]
+        category = str(item.get("category") or "other")
+        confidence = item.get("confidence")
+        evidence = [
+            entry for entry in item.get("evidence", [])
+            if _valid_source_evidence(entry)
+        ] if isinstance(item.get("evidence"), list) else []
+        if (
+            not statement
+            or category not in _CATEGORY_LABELS
+            or isinstance(confidence, bool)
+            or not isinstance(confidence, (int, float))
+            or not 0.1 <= confidence <= 0.75
+            or not evidence
+        ):
+            continue
+        rows.append({
             "lead_id": lead_id,
             "snapshot_id": snapshot_id,
-            "statement": str(item.get("statement") or "")[:1200],
-            "category": str(item.get("category") or "other"),
-            "confidence": float(item.get("confidence") or 0.1),
+            "statement": statement,
+            "category": category,
+            "confidence": float(confidence),
             "status": "hypothesis",
-            "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
-        }
-        if row["statement"] and row["evidence"]:
-            rows.append(row)
+            "evidence": evidence,
+        })
     if not rows:
         return 0
     try:
