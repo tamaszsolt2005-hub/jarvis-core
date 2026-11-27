@@ -155,7 +155,7 @@ jobs:
           fi
           grep -q '1..14' <<< "$concurrency_output"
           worker_ops_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_worker_ops.test.sql)"
-          printf '%s\\n' "$worker_ops_output"
+          printf '%s\n' "$worker_ops_output"
           if grep -q '^not ok ' <<< "$worker_ops_output"; then
             echo "pgTAP reported failed company research worker operations assertions."
             exit 1
