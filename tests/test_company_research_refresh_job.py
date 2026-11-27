@@ -230,13 +230,16 @@ def test_refresh_cycle_uses_generated_worker_identity_when_not_supplied(monkeypa
     assert seen[0].startswith("company-research-")
 
 
-def test_refresh_cycle_rejects_malformed_runtime_control_response():
-    db = FakeDB()
-    db.tables["company_research_runtime_control"] = [{"singleton": True, "paused": False}, "bad"]
-    client = SimpleNamespace(models=SimpleNamespace(
-        count_tokens=lambda **_: 1, generate_content=lambda **_: None
-    ))
+def test_refresh_response_rows_rejects_malformed_database_payloads():
+    from company_research_refresh_job import _response_rows
+
     with pytest.raises(RuntimeError, match="Unexpected database response"):
-        run_company_research_refresh_cycle(
-            db, client=client, model="gemini-test", config=_runtime_config()
+        _response_rows(
+            SimpleNamespace(data=[{"singleton": True, "paused": False}, "bad"]),
+            operation="checking company research worker pause state",
+        )
+    with pytest.raises(RuntimeError, match="Unexpected database response"):
+        _response_rows(
+            SimpleNamespace(data=None),
+            operation="checking company research worker pause state",
         )
