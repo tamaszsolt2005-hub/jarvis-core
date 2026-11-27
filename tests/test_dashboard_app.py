@@ -1025,3 +1025,19 @@ def test_streamlit_lead_review_navigation_renders_empty_state(monkeypatch):
     assert any("Leadkezelő" in item.value for item in app.title)
     assert any("Még nincs megjeleníthető lead." in item.value for item in app.info)
     assert len(app.chat_input) == 0
+
+
+def test_streamlit_email_center_navigation_renders_read_only_workspace(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    app.button(key="jarvis_nav_email_center").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "email_center"
+    assert any("E-mail központ" in item.value for item in app.title)
+    assert any("Piszkozatok" in item.label for item in app.tabs)
+    assert any("Jóváhagyott e-mailek" in item.label for item in app.tabs)
+    assert len(app.chat_input) == 0
