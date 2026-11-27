@@ -737,6 +737,43 @@ def render_opportunity_center_page(db: Any) -> None:
                                 f"(cég: {lead_names.get(lead_id, lead_id or '—')}, "
                                 f"confidence: {pain.get('confidence', '—')})"
                             )
+                    role = str(st.session_state.get("_jarvis_user_role") or "")
+                    can_review_pattern = _auth_login_enabled() and role in {"admin", "operator"}
+                    if can_review_pattern and str(item.get("status") or "") != "rejected":
+                        st.markdown("**Emberi mintázat-felülvizsgálat**")
+                        review_note = st.text_area(
+                            "Indoklás (kötelező, legalább 5 karakter)",
+                            key=f"jarvis_pattern_review_note_{item.get('id')}",
+                            max_chars=2000,
+                        )
+                        review_columns = st.columns(3)
+                        review_actions = [
+                            ("validated", "Mintázat validálása"),
+                            ("under_review", "További vizsgálat"),
+                            ("rejected", "Mintázat elutasítása"),
+                        ]
+                        for column, (decision, label) in zip(review_columns, review_actions):
+                            if column.button(label, key=f"jarvis_pattern_review_{decision}_{item.get('id')}"):
+                                if len(review_note.strip()) < 5:
+                                    st.error("A felülvizsgálati indoklás kötelező, legalább 5 karakter.")
+                                else:
+                                    try:
+                                        db.rpc("review_market_pattern", {
+                                            "p_market_pattern_id": str(item.get("id")),
+                                            "p_decision": decision,
+                                            "p_note": review_note.strip(),
+                                        }).execute()
+                                        st.success("A piaci mintázat döntése és indoklása naplózva lett.")
+                                        st.rerun()
+                                    except Exception as review_exc:
+                                        report_error(
+                                            review_exc, module="dashboard",
+                                            operation="market_pattern_review",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A mintázat felülvizsgálata nem sikerült. Ellenőrizd a jogosultságot és a migrációt.")
+                    elif not _auth_login_enabled():
+                        st.caption("A mintázatot megtekintheted; a döntéshez egyéni Supabase Auth-belépés szükséges.")
 
     with idea_tab:
         if ideas_status.get("error"):
