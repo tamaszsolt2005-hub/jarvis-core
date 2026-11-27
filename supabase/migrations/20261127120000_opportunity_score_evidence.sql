@@ -16,18 +16,24 @@ ALTER TABLE public.saas_opportunities
     AND (
       scoring_status <> 'scored'
       OR COALESCE((
-        jsonb_typeof(score_evidence->'problem_evidence') = 'array'
-        AND jsonb_array_length(score_evidence->'problem_evidence') > 0
-        AND jsonb_typeof(score_evidence->'business_value') = 'array'
-        AND jsonb_array_length(score_evidence->'business_value') > 0
-        AND jsonb_typeof(score_evidence->'willingness_to_pay') = 'array'
-        AND jsonb_array_length(score_evidence->'willingness_to_pay') > 0
-        AND jsonb_typeof(score_evidence->'feasibility') = 'array'
-        AND jsonb_array_length(score_evidence->'feasibility') > 0
-        AND jsonb_typeof(score_evidence->'reusability') = 'array'
-        AND jsonb_array_length(score_evidence->'reusability') > 0
-        AND jsonb_typeof(score_evidence->'risk') = 'array'
-        AND jsonb_array_length(score_evidence->'risk') > 0
+        CASE WHEN jsonb_typeof(score_evidence->'problem_evidence') = 'array'
+          THEN jsonb_array_length(score_evidence->'problem_evidence') > 0
+          ELSE FALSE END
+        AND CASE WHEN jsonb_typeof(score_evidence->'business_value') = 'array'
+          THEN jsonb_array_length(score_evidence->'business_value') > 0
+          ELSE FALSE END
+        AND CASE WHEN jsonb_typeof(score_evidence->'willingness_to_pay') = 'array'
+          THEN jsonb_array_length(score_evidence->'willingness_to_pay') > 0
+          ELSE FALSE END
+        AND CASE WHEN jsonb_typeof(score_evidence->'feasibility') = 'array'
+          THEN jsonb_array_length(score_evidence->'feasibility') > 0
+          ELSE FALSE END
+        AND CASE WHEN jsonb_typeof(score_evidence->'reusability') = 'array'
+          THEN jsonb_array_length(score_evidence->'reusability') > 0
+          ELSE FALSE END
+        AND CASE WHEN jsonb_typeof(score_evidence->'risk') = 'array'
+          THEN jsonb_array_length(score_evidence->'risk') > 0
+          ELSE FALSE END
       ), FALSE)
     )
   );

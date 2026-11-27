@@ -71,3 +71,54 @@ def test_opportunity_score_rejects_invalid_dimensions(value):
             "willingness_to_pay": 60, "feasibility": 90,
             "reusability": 80, "risk": 20,
         })
+
+
+
+def _score_evidence_fixture():
+    source = {
+        "source_url": "https://example.com/process",
+        "excerpt": "The company is hiring an operations coordinator to reconcile orders.",
+        "observed_at": "2026-11-27T00:00:00Z",
+        "evidence_type": "supporting",
+    }
+    pain = {
+        "id": "pain-1", "company_id": "company-1",
+        "statement": "Order reconciliation may be manual",
+        "confidence": 0.7, "status": "hypothesis",
+        "evidence": [source],
+    }
+    references = {
+        dimension: [{**source, "pain_hypothesis_id": "pain-1"}]
+        for dimension in (
+            "problem_evidence", "business_value", "willingness_to_pay",
+            "feasibility", "reusability", "risk",
+        )
+    }
+    return pain, references
+
+
+def test_score_evidence_must_match_existing_company_pain_sources():
+    from opportunity_models import validate_opportunity_score_evidence
+
+    pain, references = _score_evidence_fixture()
+    validated = validate_opportunity_score_evidence(references, [pain])
+    assert len(validated) == 6
+    assert validated["problem_evidence"][0]["pain_hypothesis_id"] == "pain-1"
+
+
+def test_score_evidence_rejects_missing_dimension_or_unlinked_source():
+    from opportunity_models import validate_opportunity_score_evidence
+
+    pain, references = _score_evidence_fixture()
+    incomplete = dict(references)
+    incomplete["risk"] = []
+    with pytest.raises(ValueError):
+        validate_opportunity_score_evidence(incomplete, [pain])
+
+    unlinked = dict(references)
+    unlinked["business_value"] = [{
+        **references["business_value"][0],
+        "excerpt": "This excerpt is not present in the stored company dossier.",
+    }]
+    with pytest.raises(ValueError):
+        validate_opportunity_score_evidence(unlinked, [pain])
