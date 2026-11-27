@@ -63,6 +63,9 @@ def test_shared_intelligence_snapshot_deduplicates_and_counts_sources():
 @pytest.mark.parametrize("source_url", [
     "javascript:alert(1)",
     "http://localhost/private",
+    "http://127.0.0.1/private",
+    "http://10.0.0.1/private",
+    "http://[::1]/private",
     "https://user:password@example.com/private",
 ])
 def test_shared_evidence_rejects_non_public_or_unsafe_urls(source_url):
