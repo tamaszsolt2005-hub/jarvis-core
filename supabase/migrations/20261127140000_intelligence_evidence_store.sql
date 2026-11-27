@@ -131,10 +131,11 @@ BEGIN
     v_type := COALESCE(item ->> 'evidence_type','supporting');
     v_observed := COALESCE(NULLIF(item ->> 'observed_at',''), 'undated');
     v_captured := COALESCE(NULLIF(item ->> 'captured_at',''), v_observed);
-    v_id := COALESCE(
-      NULLIF(item ->> 'evidence_id',''),
-      md5(concat_ws('|', v_domain, v_entity_id, v_url, v_excerpt, v_observed, v_type))
-    );
+    v_id := CASE
+      WHEN length(COALESCE(item ->> 'evidence_id','')) BETWEEN 32 AND 64
+        THEN item ->> 'evidence_id'
+      ELSE md5(concat_ws('|', v_domain, v_entity_id, v_url, v_excerpt, v_observed, v_type))
+    END;
     INSERT INTO public.intelligence_evidence (
       evidence_id, source_domain, source_kind, entity_type, entity_id,
       lead_id, snapshot_id, source_url, excerpt, evidence_type,
