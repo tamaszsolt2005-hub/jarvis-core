@@ -160,6 +160,7 @@ def test_streamlit_opportunity_center_is_read_only_and_shows_empty_states(monkey
     assert any("Opportunity Center" in item.value for item in app.title)
     assert any("Még nincs rögzített problémahipotézis" in item.value for item in app.info)
     assert any("Még nincs több cégen át igazolt" in item.value for item in app.info)
+    assert any("Nincs validált piaci mintázat" in item.value for item in app.info)
     assert app.session_state["_jarvis_db"].rpc_calls == []
     assert len(app.chat_input) == 0
 
