@@ -155,3 +155,88 @@ def test_refresh_cycle_does_not_enqueue_or_call_provider_when_paused():
     assert result["queued"] == 0
     assert result["processed"] == 0
     assert result["pause_note"] == "Scheduled maintenance"
+
+
+def test_refresh_cycle_requires_exactly_one_runtime_control_row():
+    db = FakeDB()
+    db.tables["company_research_runtime_control"] = []
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    with pytest.raises(RuntimeError, match="control state is missing"):
+        run_company_research_refresh_cycle(
+            db, client=client, model="gemini-test", config=_runtime_config()
+        )
+
+
+def test_refresh_cycle_enqueues_and_processes_only_until_idle(monkeypatch):
+    import company_research_refresh_job as refresh
+
+    db = FakeDB()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    monkeypatch.setattr(refresh, "_repository", lambda database: database)
+    monkeypatch.setattr(
+        refresh, "enqueue_company_research_refreshes_with_config",
+        lambda repository, leads, snapshots, *, config: [{"id": "job-1"}, {"id": "job-2"}],
+    )
+    outcomes = iter([
+        {"status": "succeeded"},
+        {"status": "retry_wait"},
+        {"status": "idle"},
+    ])
+    calls = []
+
+    def run_worker(repository, **kwargs):
+        calls.append((repository, kwargs))
+        return next(outcomes)
+
+    monkeypatch.setattr(refresh, "run_company_research_worker_with_config", run_worker)
+    result = run_company_research_refresh_cycle(
+        db, client=client, model="gemini-test", config=_runtime_config(),
+        worker_id="test-worker",
+    )
+    assert result["scanned_leads"] == 3
+    assert result["queued"] == 2
+    assert result["processed"] == 2
+    assert result["worker_outcomes"] == {"succeeded": 1, "retry_wait": 1}
+    assert result["contact_permission"] == "unchanged"
+    assert result["outreach"] == "disabled"
+    assert len(calls) == 3
+    assert all(call[1]["worker_id"] == "test-worker" for call in calls)
+
+
+def test_refresh_cycle_uses_generated_worker_identity_when_not_supplied(monkeypatch):
+    import company_research_refresh_job as refresh
+
+    db = FakeDB()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    monkeypatch.setattr(refresh, "_repository", lambda database: database)
+    monkeypatch.setattr(refresh, "enqueue_company_research_refreshes_with_config", lambda *a, **k: [])
+    seen = []
+
+    def run_worker(_repository, **kwargs):
+        seen.append(kwargs["worker_id"])
+        return {"status": "idle"}
+
+    monkeypatch.setattr(refresh, "run_company_research_worker_with_config", run_worker)
+    run_company_research_refresh_cycle(
+        db, client=client, model="gemini-test", config=_runtime_config()
+    )
+    assert len(seen) == 1
+    assert seen[0].startswith("company-research-")
+
+
+def test_refresh_cycle_rejects_malformed_runtime_control_response():
+    db = FakeDB()
+    db.tables["company_research_runtime_control"] = [{"singleton": True, "paused": False}, "bad"]
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    with pytest.raises(RuntimeError, match="Unexpected database response"):
+        run_company_research_refresh_cycle(
+            db, client=client, model="gemini-test", config=_runtime_config()
+        )
