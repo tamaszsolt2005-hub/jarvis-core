@@ -54,10 +54,31 @@ def _domain(value: str) -> str:
     return (urlparse(value).hostname or "").casefold().removeprefix("www.")
 
 
+def _grounding_key(value: str) -> str | None:
+    """Normalize a source URL for exact-page comparison with Google grounding."""
+    try:
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        host = parsed.hostname.casefold()
+        port = parsed.port
+        if port and not ((parsed.scheme == "http" and port == 80) or (parsed.scheme == "https" and port == 443)):
+            host = f"{host}:{port}"
+        return f"{parsed.scheme.casefold()}://{host}{parsed.path or '/'}" + (
+            f"?{parsed.query}" if parsed.query else ""
+        )
+    except ValueError:
+        return None
+
+
 def build_company_dossier(
-    item: dict[str, Any], grounded_domains: set[str]
+    item: dict[str, Any], grounded_sources: set[str]
 ) -> dict[str, Any]:
-    """Keep only concise facts whose cited domains are in Google grounding metadata."""
+    """Keep only facts whose exact source URLs appear in Google grounding metadata."""
+    grounded_keys = {
+        key for value in grounded_sources
+        if isinstance(value, str) and (key := _grounding_key(value))
+    }
     raw_facts = item.get("company_facts")
     facts: list[dict[str, str]] = []
     if isinstance(raw_facts, list):
@@ -71,7 +92,7 @@ def build_company_dossier(
                 category not in _ALLOWED_FACT_CATEGORIES
                 or not fact
                 or not source_url
-                or _domain(source_url) not in grounded_domains
+                or _grounding_key(source_url) not in grounded_keys
             ):
                 continue
             facts.append({
@@ -87,7 +108,7 @@ def build_company_dossier(
         role = _text(raw_leader.get("role"), 100)
         name = _text(raw_leader.get("name"), 100)
         background = _text(raw_leader.get("professional_background"), 260)
-        if source_url and _domain(source_url) in grounded_domains and (role or name or background):
+        if source_url and _grounding_key(source_url) in grounded_keys and (role or name or background):
             leader = {
                 "name": name,
                 "role": role,
