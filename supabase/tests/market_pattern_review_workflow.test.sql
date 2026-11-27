@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(7);
+SELECT plan(8);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid='public.market_pattern_review_events'::regclass),
