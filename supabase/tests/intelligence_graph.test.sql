@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(21);
+SELECT plan(24);
 
 SELECT has_table('public','intelligence_entities',
   'canonical Intelligence graph entities table exists');
@@ -50,6 +50,29 @@ SELECT is(
    WHERE (entity_type,source_id) IN (('company','graph-test-company'),('company_pain','graph-test-pain'))),
   2,
   'graph entity identifiers are unique and stable'
+);
+SELECT lives_ok(
+  $SELECT public.upsert_intelligence_entity(
+    'person','graph-test-person',NULL,'Alex Example','Managing Director','public_professional',NULL,'{}'::jsonb
+  )$,
+  'graph entity helper supports a source-linked public decision maker'
+);
+SELECT lives_ok(
+  $SELECT public.upsert_intelligence_relationship(
+    'company','graph-test-company','person','graph-test-person',
+    'has_decision_maker',NULL,'{"source":"dossier"}'::jsonb
+  )$,
+  'company can link to its source-backed decision maker'
+);
+SELECT is(
+  (SELECT count(*)::integer FROM public.intelligence_relationships relationship
+   JOIN public.intelligence_entities source_node ON source_node.id=relationship.source_entity_id
+   JOIN public.intelligence_entities target_node ON target_node.id=relationship.target_entity_id
+   WHERE source_node.source_id='graph-test-company'
+     AND target_node.source_id='graph-test-person'
+     AND relationship.relationship_type='has_decision_maker'),
+  1,
+  'decision maker edge is stored as a typed relationship'
 );
 SELECT lives_ok(
   $$SELECT public.upsert_intelligence_relationship(
