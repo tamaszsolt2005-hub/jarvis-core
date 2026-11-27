@@ -109,6 +109,7 @@ jobs:
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126153000_company_research_jobs.sql
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126170000_company_research_daily_hard_budget_cap.sql
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127220000_company_research_worker_ops.sql
       - name: Run snapshot, worker lifecycle/quota and true multi-session race tests
         shell: bash
         run: |
@@ -153,6 +154,14 @@ jobs:
             exit 1
           fi
           grep -q '1..14' <<< "$concurrency_output"
+          worker_ops_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_worker_ops.test.sql)"
+          printf '%s\\n' "$worker_ops_output"
+          if grep -q '^not ok ' <<< "$worker_ops_output"; then
+            echo "pgTAP reported failed company research worker operations assertions."
+            exit 1
+          fi
+          grep -q '1..15' <<< "$worker_ops_output"
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127220000_company_research_worker_ops.sql
 
   backup-restore-integration:
     runs-on: ubuntu-24.04
