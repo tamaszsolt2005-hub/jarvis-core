@@ -52,7 +52,7 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 - A cégkutatási prompt strukturált `pain_hypotheses` listát kér; a dossier csak pontosan groundingolt forrás URL-lel, kivonattal és korlátozott confidence értékkel fogadja el.
 - A kutatási worker a snapshothoz köti és elmenti a pain rekordokat, majd a `market_pattern_discovery.py` determinisztikus, kategória- és tokenhasonlóság-alapú klaszterezést futtat.
 - Legalább két különböző cég szükséges; a mintázat `candidate`, a SaaS-jelölt `draft` státuszú marad. Fingerprint és DB unique index biztosítja az ismételt futás idempotenciáját.
-- A rendszer nem validál automatikusan, nem futtat automatikus pontozást, és nem hagy jóvá assessmentet. A következő lépés az Opportunity Centerben a klaszterek emberi ellenőrzése, majd a validált mintázaton evaluator preview és külön jóváhagyás.
+- A rendszer nem validál automatikusan, nem futtat automatikus pontozást, és nem hagy jóvá assessmentet. Az Opportunity Centerben admin/operator külön, kötelező indoklással validálhat, további vizsgálatra tehet vagy elutasíthat egy mintázatot; minden döntés append-only eseménynaplóba kerül. Ezután a validált mintázaton evaluator preview és külön assessment-jóváhagyás következhet.
 - Korlát: a token/Jaccard klaszterezés heurisztikus; a stagingben mért precision/recall, téves klaszterek kezelése és valós pain coverage még nincs igazolva. A minimum két cég csak szükséges minimum, nem bizonyít fizetőképes piac.
 
 **3. Auth/JWT/RLS teljes végponttól végpontig ellenőrzése**
@@ -164,5 +164,7 @@ A PR #35 fejlesztési ágban elkészült az automatikus út első, forrásbizton
 - A pain hipotézis az immutable dossier snapshotban is szerepel, majd a worker külön `business_pain_hypotheses` rekordként menti.
 - A `market_pattern_discovery.py` az összes nem elutasított, forrásolt pain rekordot determinisztikusan klaszerezi; legalább két különböző cég szükséges.
 - Új mintázat `candidate`, a hozzá tartozó SaaS-jelölt `draft`; automatikus validálás, scoring és jóváhagyás nincs.
-- Az új `20261127190000_cross_company_pattern_discovery.sql` migráció snapshot-szintű pain idempotenciát, pattern fingerprintet és egy mintázat–egy SaaS-jelölt korlátot vezet be. CI pgTAP ellenőrzés és migráció replay került hozzá.
+- A `20261127190000_cross_company_pattern_discovery.sql` migráció snapshot-szintű pain idempotenciát, pattern fingerprintet és automatikus SaaS-jelölt idempotenciát vezet be. A `20261127200000_market_pattern_review_workflow.sql` admin/operator review RPC-t, kötelező indoklást, append-only döntési eseményt és RLS-t ad. Mindkét migrációhoz CI pgTAP ellenőrzés és replay került.
 - A változás még nincs stagingben vagy productionben igazolva; a migráció repository-only, production DB-n nem futott le. A lokális teszteket a felhasználó kérésére nem futtattuk.
+
+- A dashboard már tartalmazza a mintázatok admin/operator felülvizsgálati vezérlőit és a döntési előzmények megjelenítését.
