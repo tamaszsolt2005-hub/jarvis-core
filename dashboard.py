@@ -473,6 +473,12 @@ def render_opportunity_center_page(db: Any) -> None:
     pains_status: dict[str, Any] = {}
     patterns_status: dict[str, Any] = {}
     ideas_status: dict[str, Any] = {}
+    intelligence_status: dict[str, Any] = {}
+    intelligence_records = _safe_rows(
+        db, "intelligence_evidence",
+        "evidence_id,source_domain,source_kind,entity_type,entity_id,lead_id,snapshot_id,source_url,excerpt,evidence_type,observed_at,captured_at,created_at",
+        500, status=intelligence_status,
+    )
     pains = _safe_rows(
         db, "business_pain_hypotheses",
         "id,lead_id,statement,confidence,status,evidence,created_at", 500, status=pains_status,
@@ -516,10 +522,11 @@ def render_opportunity_center_page(db: Any) -> None:
         300, status=ideas_status,
     )
 
-    cols = st.columns(3)
-    cols[0].metric("Cégproblémák", len(pains) if not pains_status.get("error") else "—")
-    cols[1].metric("Piaci mintázatok", len(patterns) if not patterns_status.get("error") else "—")
-    cols[2].metric("SaaS-lehetőségek", len(ideas) if not ideas_status.get("error") else "—")
+    cols = st.columns(4)
+    cols[0].metric("Forrásolt bizonyítékok", len(intelligence_records) if not intelligence_status.get("error") else "—")
+    cols[1].metric("Cégproblémák", len(pains) if not pains_status.get("error") else "—")
+    cols[2].metric("Piaci mintázatok", len(patterns) if not patterns_status.get("error") else "—")
+    cols[3].metric("SaaS-lehetőségek", len(ideas) if not ideas_status.get("error") else "—")
 
     unavailable = [
         label for label, status in (
@@ -535,9 +542,61 @@ def render_opportunity_center_page(db: Any) -> None:
             + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
         )
 
-    pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
-        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
+    intelligence_tab, pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
+        ["Intelligence áttekintő", "Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
     )
+    with intelligence_tab:
+        st.subheader("Közös bizonyíték- és forrásnyilvántartás")
+        st.caption(
+            "A Lead-, cégdosszié- és Opportunity-területek strukturált, forrásolt rekordjai "
+            "egy közös, időbélyegzett nézetben. A hipotézisek továbbra sem minősülnek bizonyított ténynek."
+        )
+        if intelligence_status.get("error"):
+            st.warning(
+                "A központi bizonyítéktár még nem olvasható. Ellenőrizd a "
+                "20261127140000_intelligence_evidence_store.sql migrációt és az RLS-jogosultságokat."
+            )
+        elif not intelligence_records:
+            st.info("Még nincs központilag indexelt, forrással alátámasztott bizonyíték.")
+        else:
+            domain_labels = {
+                "lead": "Lead",
+                "company_dossier": "Cégdosszié",
+                "opportunity": "Opportunity",
+            }
+            domain_counts: dict[str, int] = {}
+            for record in intelligence_records:
+                domain = str(record.get("source_domain") or "other")
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            summary_rows = [
+                {"Adatterület": domain_labels.get(domain, domain), "Bizonyítékok": count}
+                for domain, count in sorted(domain_counts.items())
+            ]
+            st.dataframe(pd.DataFrame(summary_rows), width="stretch", hide_index=True)
+            st.caption(
+                f"Az áttekintő legfeljebb 500 rekordot jelenít meg; "
+                f"egyedi források: {len({str(row.get('source_url') or '') for row in intelligence_records})}."
+            )
+            for record in intelligence_records:
+                domain = domain_labels.get(str(record.get("source_domain") or ""), "Egyéb")
+                excerpt = str(record.get("excerpt") or "")
+                with st.expander(f"{domain} · {excerpt[:110] or 'Forrásrekord'}", expanded=False):
+                    st.write(excerpt)
+                    source_url = _safe_research_source_url(record.get("source_url"))
+                    if source_url:
+                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                    st.caption(
+                        f"Jelleg: {record.get('evidence_type') or '—'} · "
+                        f"Forrástípus: {record.get('source_kind') or '—'} · "
+                        f"Megfigyelés: {record.get('observed_at') or '—'} · "
+                        f"Rögzítés: {record.get('captured_at') or record.get('created_at') or '—'}"
+                    )
+                    st.caption(
+                        f"Entitás: {record.get('entity_type') or '—'} / "
+                        f"{record.get('entity_id') or '—'} · "
+                        f"Evidence ID: {record.get('evidence_id') or '—'}"
+                    )
+
     with pain_tab:
         if pains_status.get("error"):
             st.info("A cégproblémák jelenleg nem olvashatók, mert az adattábla még nincs telepítve.")
