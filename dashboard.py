@@ -469,13 +469,6 @@ def render_opportunity_center_page(db: Any) -> None:
         "Egyedi cégproblémákból indulunk, majd a több cégnél ismétlődő mintázatokat keressük. "
         "Ez a felület jelenleg kizárólag olvas; nem generál, nem hagy jóvá és nem módosít adatot."
     )
-    if _auth_login_enabled():
-        st.info(
-            "Az Opportunity-adatokhoz tartozó felhasználói RLS-olvasási szabályok még nincsenek "
-            "kivezetve. A hozzáférést nem kerülöm meg service-role klienssel."
-        )
-        return
-
     pains_status: dict[str, Any] = {}
     patterns_status: dict[str, Any] = {}
     ideas_status: dict[str, Any] = {}
@@ -483,10 +476,31 @@ def render_opportunity_center_page(db: Any) -> None:
         db, "business_pain_hypotheses",
         "id,lead_id,statement,confidence,status,evidence,created_at", 500, status=pains_status,
     )
+    lead_name_status: dict[str, Any] = {}
+    lead_name_rows = _safe_rows(db, "leads", "id,company_name", 500, status=lead_name_status)
+    lead_names = {
+        str(lead.get("id")): str(lead.get("company_name") or "Névtelen cég")
+        for lead in lead_name_rows if lead.get("id")
+    }
     patterns = _safe_rows(
         db, "market_problem_patterns",
-        "id,title,description,company_pain_ids,confidence,status,created_at", 300, status=patterns_status,
+        "id,title,description,confidence,status,created_at", 300, status=patterns_status,
     )
+    pattern_links_status: dict[str, Any] = {}
+    pattern_links = _safe_rows(
+        db, "market_pattern_pains",
+        "market_pattern_id,company_pain_id", 1500, status=pattern_links_status,
+    )
+    pain_company_by_id = {
+        str(row.get("id")): str(row.get("lead_id"))
+        for row in pains if row.get("id") and row.get("lead_id")
+    }
+    links_by_pattern: dict[str, list[str]] = {}
+    for link in pattern_links:
+        pattern_id = str(link.get("market_pattern_id") or "")
+        pain_id = str(link.get("company_pain_id") or "")
+        if pattern_id and pain_id:
+            links_by_pattern.setdefault(pattern_id, []).append(pain_id)
     ideas = _safe_rows(
         db, "saas_opportunities",
         "id,market_pattern_id,name,summary,status,created_at", 300, status=ideas_status,
@@ -527,9 +541,10 @@ def render_opportunity_center_page(db: Any) -> None:
                     expanded=False,
                 ):
                     st.write(str(item.get("statement") or ""))
+                    lead_id = str(item.get("lead_id") or "")
                     st.caption(
                         f"Confidence: {item.get('confidence', '—')} · "
-                        f"Cégazonosító: {item.get('lead_id') or '—'} · "
+                        f"Cég: {lead_names.get(lead_id, lead_id or '—')} · "
                         f"Azonosító: {item.get('id') or '—'}"
                     )
                     evidence = item.get("evidence")
@@ -558,12 +573,29 @@ def render_opportunity_center_page(db: Any) -> None:
             for item in patterns:
                 with st.expander(str(item.get("title") or "Névtelen mintázat"), expanded=False):
                     st.write(str(item.get("description") or ""))
-                    linked = item.get("company_pain_ids")
+                    linked = links_by_pattern.get(str(item.get("id") or ""), [])
+                    linked_companies = {
+                        pain_company_by_id[pain_id]
+                        for pain_id in linked if pain_id in pain_company_by_id
+                    }
                     st.caption(
                         f"Státusz: {item.get('status') or '—'} · "
                         f"Confidence: {item.get('confidence', '—')} · "
-                        f"Kapcsolt problémák: {len(linked) if isinstance(linked, list) else 0}"
+                        f"Kapcsolt problémák: {len(linked)} · "
+                        f"Érintett cégek: {len(linked_companies)}"
                     )
+                    if linked and pains:
+                        st.markdown("**Kapcsolódó cégproblémák**")
+                        linked_set = set(linked)
+                        for pain in pains:
+                            if str(pain.get("id") or "") not in linked_set:
+                                continue
+                            lead_id = str(pain.get("lead_id") or "")
+                            st.write(
+                                f"• {pain.get('statement') or 'Névtelen probléma'} "
+                                f"(cég: {lead_names.get(lead_id, lead_id or '—')}, "
+                                f"confidence: {pain.get('confidence', '—')})"
+                            )
 
     with idea_tab:
         if ideas_status.get("error"):
