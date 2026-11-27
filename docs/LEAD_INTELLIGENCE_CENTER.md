@@ -199,3 +199,26 @@ A kód részletesebb áttekintése pontosította a P1 tényleges hiányzó rész
 ### Biztonsági és működési korlát
 
 A meglévő queue SQL migrationje csak repository/branch artefaktumként kezelendő, és a jelen P1 munka nem jogosít production migrationre. Az új authenticated enqueue kapuhoz migration review és izolált staging jogosultság-ellenőrzés szükséges. A felhasználó kérésére külön tesztet nem futtatunk. A kód és dokumentáció előkészíthető a feature branchben, de production DB módosítás, worker aktiválás, merge és deploy külön engedély nélkül nem történhet.
+
+
+## P1.1 – admin/operator kutatásindítás implementálva (2026-11-27)
+
+A P1.1 első kódszelete bekerült a feature branchbe:
+
+- Új `lead_research_actions.py`: egyetlen meglévő lead kutatási frissítését készíti elő.
+- A művelet előtt friss Supabase Auth ellenőrzés és `research.manage` jogosultság-ellenőrzés történik, kizárólag `admin` vagy `operator` szerepkörrel.
+- A service-role kliens csak a sikeres hitelesítés/jogosultság-ellenőrzés után jön létre, kizárólag a szerveroldali Streamlit folyamatban.
+- A lead és legfrissebb snapshot alapján a meglévő refresh planner dönt az alkalmasságról; a meglévő queue repository atomikus napi költség-, óránkénti és domain napi limitjeit használja.
+- A pricing/token/limit konfiguráció kötelező; hiányzó konfiguráció esetén a kérés fail-closed módon nem kerül sorba.
+- A Lead Intelligence Center kiválasztott lead paneljén megjelent a **Kutatás kérése** művelet, csak admin/operator számára.
+- A művelet csak queue rekordot hoz létre. Nem indít workert, nem hív Geminit, nem módosít lead státuszt és nem kezdeményez kapcsolatfelvételt.
+
+Érintett commitok:
+- `338f70e807214857981c5f81ed3247b16581a0d5` – enqueue szolgáltatás
+- `6b1c1f67bfbfa234d5607ca8aeab7c35ed165eeb` – Leadkezelő UI művelet
+- `09024c38b4984d402e5d9ead300c4565c3946786` – dashboard Auth/RBAC bekötés
+- `926511c6890155ed313200d70e1d2a2b82976d0e` – hiányzó cégnév fail-closed ellenőrzés
+
+A három érintett Python fájlt és a hívási útvonalat GitHubról visszaolvastuk, a kulcsfontosságú jogosultsági és enqueue lépéseket statikusan ellenőriztük. Külön tesztet nem futtattunk, a Streamlit UI-t böngészőben nem ellenőriztük, a queue-t nem hívtuk meg, production DB-t nem módosítottunk. SQL migration nem kellett, mert a meglévő service-role-only enqueue RPC és a meglévő queue táblák használatban maradtak. Merge/deploy nem történt.
+
+**Korlát:** ez a lépés a kutatási kérést tartós sorba helyezi, de worker dispatch/scheduler még nincs bekapcsolva. A P1.2 feladata a kontrollált, explicit one-shot worker végrehajtás szerveroldali megvalósítása; azt külön kell megtervezni és ellenőrizni.
