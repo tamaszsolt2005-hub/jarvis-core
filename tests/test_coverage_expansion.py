@@ -20,6 +20,9 @@ class _FakeQuery:
         self.filters.append((field, value))
         return self
 
+    def order(self, *_args, **_kwargs):
+        return self
+
     def execute(self):
         rows = self.rows
         for field, value in self.filters:
@@ -70,6 +73,8 @@ class _UI:
             "markdown", "write", "divider",
         }:
             return lambda *args, **kwargs: self.messages.append((name, args))
+        if name in {"container", "spinner"}:
+            return lambda *args, **kwargs: _Column()
         raise AttributeError(name)
 
     def columns(self, spec, **_kwargs):
@@ -308,3 +313,52 @@ def test_lead_review_assessment_and_context_edge_cases():
     context = _company_context({"company_name": "No facts"}, {"facts": "invalid"})
     assert "nincs mentett forrásolt tény" in context
     assert _load_rows(_FakeDB({"leads": [{"id": "1"}, "bad"]}), "leads", "id") == [{"id": "1"}]
+
+
+def test_lead_review_renders_ranked_read_only_detail_without_side_effects(monkeypatch):
+    import lead_review_dashboard as review
+
+    ui = _UI()
+    monkeypatch.setattr(review, "st", ui)
+    db = _FakeDB(
+        {
+            "leads": [{
+                "id": "lead-1", "company_name": "Example Ltd",
+                "website": "https://example.com", "notes": "tényleges ország: Hungary; Cégprofil: B2B SaaS",
+                "status": "new", "source": "public",
+            }],
+            "lead_review_states": [{"lead_id": "lead-1", "review_status": "pending"}],
+            "lead_review_events": [],
+            "company_research_snapshots": [{
+                "lead_id": "lead-1", "snapshot_id": "snapshot-1",
+                "researched_at": "2026-11-27T10:00:00Z",
+                "dossier": {
+                    "lead_fit_assessment": {
+                        "assessment_version": "1.0", "status": "assessed",
+                        "fit_score": 80, "confidence": 0.8,
+                        "evidence": [{
+                            "claim": "Public B2B software provider",
+                            "source_url": "https://example.com/about",
+                        }],
+                        "rationale": "Grounded public evidence.",
+                        "fit_signals": ["B2B SaaS"],
+                        "risk_signals": [],
+                    },
+                    "facts": [{
+                        "category": "Business model", "fact": "B2B software",
+                        "source_url": "https://example.com/about",
+                    }],
+                },
+            }],
+        },
+        rpc_data={"recent_jobs": []},
+    )
+    review.render_lead_review_page(
+        db, auth_enabled=True, role="reader",
+        generate_text_fn=None, model_name_fn=lambda: "test-model",
+    )
+    rendered = " ".join(str(args) for _, args in ui.messages)
+    assert "Example Ltd" in rendered
+    assert "Grounded public evidence" in rendered
+    assert any(name == "info" and "Olvasási jogosultságod van" in args[0] for name, args in ui.messages)
+    assert db.rpc_calls == [("company_research_worker_control_state", {})]
