@@ -484,12 +484,12 @@ def render_opportunity_center_page(db: Any) -> None:
     graph_relationships_status: dict[str, Any] = {}
     graph_entities = _safe_rows(
         db, "intelligence_entities",
-        "id,entity_type,source_id,lead_id,label,summary,status,confidence,created_at",
+        "id,entity_type,source_id,lead_id,label,summary,status,confidence,metadata,created_at",
         120, status=graph_entities_status,
     )
     graph_relationships = _safe_rows(
         db, "intelligence_relationships",
-        "source_entity_id,target_entity_id,relationship_type,confidence,created_at",
+        "source_entity_id,target_entity_id,relationship_type,confidence,provenance,created_at",
         240, status=graph_relationships_status,
     )
     graph_snapshot = build_graph_snapshot(
@@ -642,6 +642,7 @@ def render_opportunity_center_page(db: Any) -> None:
                     "Kapcsolat": edge["relationship_type"],
                     "Cél entitás": labels_by_id.get(edge["target_entity_id"], edge["target_entity_id"]),
                     "Bizonyosság": edge["confidence"],
+                    "Forrás": (edge.get("provenance") or {}).get("source_url", ""),
                 }
                 for edge in graph_snapshot["relationships"]
             ]
@@ -653,11 +654,18 @@ def render_opportunity_center_page(db: Any) -> None:
                     "Név": node["label"],
                     "Státusz": node["status"] or "—",
                     "Bizonyosság": node["confidence"],
+                    "Forrás": (node.get("metadata") or {}).get("source_url", ""),
                 }
                 for node in graph_snapshot["nodes"]
             ]
             with st.expander("Gráf-entitások részletei", expanded=False):
                 st.dataframe(pd.DataFrame(node_rows), width="stretch", hide_index=True)
+                for node in graph_snapshot["nodes"]:
+                    source_url = _safe_research_source_url(
+                        (node.get("metadata") or {}).get("source_url")
+                    )
+                    if source_url:
+                        st.markdown(f"[{node['label']} – forrás megnyitása]({source_url})")
 
     with pain_tab:
         if pains_status.get("error"):
