@@ -646,6 +646,16 @@ jobs:
           fi
           grep -q '1..7' <<< "$market_review_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127200000_market_pattern_review_workflow.sql
+          # Add the human-controlled CRM lifecycle and interaction history.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127210000_lead_customer_lifecycle.sql
+          crm_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_customer_lifecycle.test.sql)"
+          printf '%s\n' "$crm_output"
+          if grep -q '^not ok ' <<< "$crm_output"; then
+            echo "pgTAP reported failed CRM lifecycle assertions."
+            exit 1
+          fi
+          grep -q '1..8' <<< "$crm_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127210000_lead_customer_lifecycle.sql
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
