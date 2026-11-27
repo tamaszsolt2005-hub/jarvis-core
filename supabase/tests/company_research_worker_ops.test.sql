@@ -32,7 +32,7 @@ SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"admin"},"sub":"
 SELECT ok(public.company_research_worker_control_state()->>'paused' = 'false',
   'admin can read initial unpaused state'::text);
 SELECT throws_ok(
-  $$SELECT public.company_research_worker_set_paused(true,'short')$$,
+  $$SELECT public.company_research_worker_set_paused(true,'tiny')$$,
   '22023', 'research_control_note_required',
   'pause requires an explanatory note'
 );
