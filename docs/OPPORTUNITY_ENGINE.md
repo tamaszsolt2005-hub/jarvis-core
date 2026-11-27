@@ -130,3 +130,8 @@ A fejlesztési munkamenetben a felhasználó kérésére lokális tesztfuttatás
 - A dashboard feature production deployja nem történt meg.
 - A CI izolált adatbázisa nem production-validáció.
 - Merge, production migráció, Auth/RLS éles módosítás és deploy külön, explicit jóváhagyást igényel.
+
+
+## Intelligence Graph
+
+A központi evidence indexre épülő, lekérdezhető entitás- és kapcsolati gráf a [JARVIS Intelligence Graph dokumentációban](INTELLIGENCE_GRAPH.md) szerepel. A `20261127150000_intelligence_graph.sql` migráció a meglévő Lead-, cégdosszié-, pain-, market pattern-, SaaS opportunity-, assessment- és evidence rekordokból származtatott csomópontokat és éleket tart fenn. A dashboard külön **Intelligence Graph** fület ad; a nézet read-only, RLS-védett, és csak igazolt forrás-/adatkapcsolatokat jelenít meg. A gráf nem tesz AI-hipotézist automatikusan bizonyított kapcsolattá.
