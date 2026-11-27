@@ -13,7 +13,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS market_problem_patterns_fingerprint_uidx
   ON public.market_problem_patterns (fingerprint)
   WHERE fingerprint IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS saas_opportunities_pattern_uidx
-  ON public.saas_opportunities (market_pattern_id);
+ALTER TABLE public.saas_opportunities
+  ADD COLUMN IF NOT EXISTS discovery_fingerprint text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS saas_opportunities_discovery_fingerprint_uidx
+  ON public.saas_opportunities (discovery_fingerprint)
+  WHERE discovery_fingerprint IS NOT NULL;
 
 COMMIT;
