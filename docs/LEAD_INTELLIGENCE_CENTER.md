@@ -176,3 +176,26 @@ Feladatok:
 5. Csak azután továbblépés az Opportunity Discovery és CRM integrációra.
 
 A felhasználó kérésére külön teszteket nem futtatunk. A kódolvasás nem helyettesíti a böngészős UI-ellenőrzést. Production adatbázis módosítása, migration futtatása, Auth/RLS éles változtatása, PR merge, deploy és e-mail küldés külön, konkrét jóváhagyás nélkül nem történhet.
+
+
+## P1 – részletes architektúra-ellenőrzés (2026-11-27)
+
+A kód részletesebb áttekintése pontosította a P1 tényleges hiányzó részeit:
+
+1. **A kutatási job queue létezik, de a létrehozó RPC service-role-only.** A `20261126153000_company_research_jobs.sql` migráció visszavonja a `company_research_job_create` végrehajtását a `PUBLIC`, `anon` és `authenticated` szerepköröktől, és csak `service_role` számára engedélyezi. Ez helyes biztonsági alap; a Leadkezelőből nem szabad közvetlenül meghívni, és nem szabad service-role kulcsot a dashboard kliensbe tenni.
+2. **A worker futtatása csak explicit backend függvényhívásként létezik.** A `run_company_research_worker_once()` legfeljebb egy jobot claimel, de jelenleg nincs igazolt dashboard-trigger vagy folyamatos scheduleres indítás. A Kutatási műveletek oldal a worker állapotát és pause/resume vezérlését mutatja, nem enqueue felület és nem futtat workert.
+3. **A worker snapshot-persister jelenleg nem frissíti a Lead pontozási bemenetét.** A `make_company_research_snapshot_persister()` snapshotot ment, pain hipotéziseket rögzít és market-pattern discoveryt futtat, de nem frissíti a Lead strukturált research assessment mezőit.
+4. **A jelenlegi pontozó más adatkontraktust vár.** A `score_researched_lead()` a `Leadkutatás;` kezdetű `notes/research_intelligence` szövegben keresi az üzleti illeszkedési pontszámot, bizonyosságot és alátámasztó jeleket. A worker dossier prompt jelenleg tényeket, döntéshozót és pain hipotéziseket kér, nem egységes lead-fit assessmentet. A snapshotban lévő tények ezért önmagukban nem eredményeznek Lead prioritási pontszámot.
+5. **A globális leadkutatás külön adatút.** A `research_global_companies()` már ír strukturált Leadkutatás jegyzetet, `research_evidence` rekordokat és snapshotot, de új cégeket fedez fel; nem célzottan egy meglévő kiválasztott lead frissítésére szolgál. Ezt nem szabad összekeverni a P1 meglévő-lead vertical slice-ével.
+
+### Kötelező P1 építési sorrend
+
+- **P1.1 – Biztonságos enqueue kapu:** új, szűkített authenticated RPC vagy más hitelesített backend határ, amely kizárólag admin/operator számára enged egy meglévő lead kutatását kérni. A kliens nem választhat költségkeretet, worker-azonosítót, státuszt vagy tetszőleges payloadot. A DB/backend ellenőrzi a lead azonosítóját, a cégnév/domain értéket, a szerepkört, az idempotenciát, az óránkénti/domain napi limiteket és a napi költségfoglalást.
+- **P1.2 – Kontrollált one-shot worker indítás:** a queue egyetlen jobot dolgozzon fel megbízható backend környezetben, injektált Gemini klienssel és service-role adatbázis-klienssel. Ne fusson a Streamlit request szálában, és ne legyen automatikus, korlátlan scheduler.
+- **P1.3 – Egységes kutatási assessment szerződés:** a grounded dossier tények mellett külön, validált lead-fit assessment (score, confidence, indoklás, fit evidence, ajánlott következő kutatási lépés) készüljön. A score és minden fit evidence kizárólag Google-grounding metadata által igazolt URL-hez kapcsolódhat. A hipotézis, tény és üzleti értékelés külön mező marad.
+- **P1.4 – Idempotens visszacsatolás:** a snapshot és a strukturált assessment tartósan, verziózva kerüljön mentésre. A lead dashboard a legfrissebb snapshot assessmentjéből számoljon prioritást; ne kelljen modell által írt szabad szöveget parsolni. A lead eredeti megjegyzései és a korábbi snapshotok ne vesszenek el.
+- **P1.5 – UI és audit:** a Lead Intelligence Center mutassa a kutatás állapotát (nincs kutatás / sorban / fut / sikeres / újrapróbálás / hibazsák), utolsó kutatási időt, forrásszámot, evidence részleteket, assessmentet és job/audit azonosítót. Csak admin/operator lásson kutatásindító műveletet; reader csak olvasson.
+
+### Biztonsági és működési korlát
+
+A meglévő queue SQL migrationje csak repository/branch artefaktumként kezelendő, és a jelen P1 munka nem jogosít production migrationre. Az új authenticated enqueue kapuhoz migration review és izolált staging jogosultság-ellenőrzés szükséges. A felhasználó kérésére külön tesztet nem futtatunk. A kód és dokumentáció előkészíthető a feature branchben, de production DB módosítás, worker aktiválás, merge és deploy külön engedély nélkül nem történhet.
