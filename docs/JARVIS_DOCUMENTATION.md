@@ -35,6 +35,8 @@ A JARVIS egy Python 3.11 / Streamlit alkalmazás Gemini API-val és Supabase/Pos
 | `company_research_store.py` | Teljes dosszié snapshot mentése és történetlekérdezése |
 | `company_research_policy.py` | Read-only döntés a cégkutatás-frissítés jogosultságáról |
 | `company_research_refresh_planner.py` | Stale, jogosult leadek read-only kiválasztása és prioritása |
+| `opportunity_models.py` | Opportunity score-számítás és forrásbizonyíték-validáció |
+| `opportunity_evaluator.py` | Provider-neutral, bizonyítékhoz kötött SaaS-jelölt értékelési előnézet |
 | `lead_identity.py` | Cégazonosítási és deduplikációs logika |
 | `lead_scoring.py` | Lead pontozása |
 | `lead_workflow.py` | Belső következő lépések javaslata |
@@ -88,7 +90,21 @@ A `company_research_policy.py` tiszta döntési függvény:
 
 A függvény nem módosít DB-t, nem küld üzenetet és nem ütemez munkát. A `company_research_refresh_planner.py` a policy eredményét és a snapshot frissességét kombinálva ad vissza limitált, rendezett candidate listát. Ez is tiszta, read-only függvény; nem olvas DB-t és nem foglal munkát. A DB-lekérdezés, a hiteles outreach event integráció és a tényleges worker még hátravan.
 
-## 6. Jóváhagyás és külső mellékhatások
+## 6. Opportunity Engine
+
+Az Opportunity Center a céges kutatási eredményeket összekapcsolja, hogy több cégnél ismétlődő problémákból újraértékesíthető SaaS-lehetőségeket azonosítson. A részletes folyamatot, score-súlyokat, táblákat, migrációkat és jogosultsági modellt az [Opportunity Engine dokumentáció](OPPORTUNITY_ENGINE.md) írja le.
+
+Fő elemek:
+- `business_pain_hypotheses`: forráshoz kötött, cégspecifikus problémahipotézisek;
+- `market_problem_patterns` és `market_pattern_pains`: több cég problémáit összekötő piaci mintázatok; validáláshoz legalább két különböző cég kell;
+- `saas_opportunities`: piaci mintázathoz rendelt SaaS-jelöltek, hat score-dimenzióval és score-evidence-szel;
+- `opportunity_assessments`: explicit emberi jóváhagyással mentett, append-only értékelési pillanatképek.
+
+A dashboard külön füleken mutatja a céges problémákat, piaci mintázatokat, SaaS-jelölteket, értékelési előnézetet és döntési előzményeket. A provider-neutral evaluator explicit gombnyomásra fut; preview esetén nincs DB-írás. A mentéshez hitelesített admin/operator szükséges. A reader csak olvashat. A DB trigger ellenőrzi a jogosultságot, a validált mintázatot, a két céges alátámasztást és a forrás-egyezést; az értékelési előzmények nem módosíthatók és nem törölhetők.
+
+A migrációk és dashboard-kód a PR #35 feature branchben vannak. Production DB-n nem futottak le, production deploy nem történt.
+
+## 7. Jóváhagyás és külső mellékhatások
 
 - A chat javaslata önmagában nem hajt végre műveletet.
 - A task írási műveletek explicit approval folyamaton mennek keresztül.
@@ -96,7 +112,7 @@ A függvény nem módosít DB-t, nem küld üzenetet és nem ütemez munkát. A 
 - Az outbound e-mail hard-disabled.
 - A szerződés és érdeklődés nem automatikus projektindítás.
 
-## 7. Helyi fejlesztés és ellenőrzés
+## 8. Helyi fejlesztés és ellenőrzés
 
 ```bash
 python -m pip install -r requirements.txt
