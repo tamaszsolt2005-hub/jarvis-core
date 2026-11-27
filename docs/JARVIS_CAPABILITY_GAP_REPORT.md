@@ -30,7 +30,7 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 | Kutatási worker | Queue, claim/lease, heartbeat, retry/dead-letter; ütemezett, költségkorlátos dossier-frissítő workflow | Operátori pause/resume, job-monitoring és stagingben igazolt tartós működés még hiányzik |
 | Lead scoring | 0–100 prioritás, közös scoring primitive | A pontszám kutatási prioritás, nem üzleti siker-előrejelzés |
 | Leadkezelő | Rangsorolt kártyák, dossier, elfogadás/elutasítás, megjegyzés, AI-megbeszélés | Nem teljes CRM és nem kapcsolatfelvételi engedély |
-| Opportunity Engine | Pain hipotézisek, legalább két cégre épülő pattern-validáció, SaaS jelöltek, hatdimenziós score, approval | A pain → cross-company pattern → SaaS candidate automatikus teljes adatút nincs igazolva |
+| Opportunity Engine | Forrásolt pain hipotézisek, automatikus cross-company candidate klaszterezés, draft SaaS-jelölt, hatdimenziós score és emberi approval | A klaszterezés heurisztikus; a pattern validálása, score preview és jóváhagyás emberi lépés; stagingben még nincs igazolva |
 | Intelligence Graph | Forrásolt entitások és kapcsolatok, read-only vizualizáció | Származtatott nézet; nem helyettesíti a domain adatforrásokat |
 | E-mail előkészítés | Személyre szabott draft, szerkesztés, külön jóváhagyás, stílus-visszajelzés | Küldés nincs engedélyezve és kódszinten tiltott |
 | Kapcsolatfelvételi kontroll | Címzett-engedély, jogalap-feljegyzés, globális suppression, jogosultsági ellenőrző sor | A `ready_for_manual_review` nem küldési engedély |
@@ -48,11 +48,12 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 - Kell operációs nézet: queued/running/retry/dead-letter jobok, utolsó siker, hibaok, költség és workflow futási állapot.
 - Elfogadási feltétel: stagingben több egymást követő cron ciklus idempotensen lefut, a kvóta- és költségkorlátokat betartja, a hibák riasztást adnak, és minden eredmény auditálható.
 
-**2. Teljes Opportunity Discovery adatút**
-- A meglévő pain, pattern, opportunity és evaluator elemeket egy explicit indítású pipeline-ba kell kötni.
-- Lead/dossier → bizonyítékos pain hipotézis → több cégen át történő deduplikáció/csoportosítás → market pattern → SaaS-jelölt → evaluator preview → emberi jóváhagyás.
-- A minimum két külön céghez kötött bizonyíték csak szükséges minimum, nem elégséges piaci validáció.
-- Elfogadási feltétel: ismert tesztadatokon a pipeline megismételhető, a források visszakövethetők, téves klaszterek emberileg javíthatók, és nincs automatikus jóváhagyás.
+**2. Opportunity Discovery – az automatikus első szakasz már implementálva, validálás még hátravan**
+- A cégkutatási prompt strukturált `pain_hypotheses` listát kér; a dossier csak pontosan groundingolt forrás URL-lel, kivonattal és korlátozott confidence értékkel fogadja el.
+- A kutatási worker a snapshothoz köti és elmenti a pain rekordokat, majd a `market_pattern_discovery.py` determinisztikus, kategória- és tokenhasonlóság-alapú klaszterezést futtat.
+- Legalább két különböző cég szükséges; a mintázat `candidate`, a SaaS-jelölt `draft` státuszú marad. Fingerprint és DB unique index biztosítja az ismételt futás idempotenciáját.
+- A rendszer nem validál automatikusan, nem futtat automatikus pontozást, és nem hagy jóvá assessmentet. A következő lépés az Opportunity Centerben a klaszterek emberi ellenőrzése, majd a validált mintázaton evaluator preview és külön jóváhagyás.
+- Korlát: a token/Jaccard klaszterezés heurisztikus; a stagingben mért precision/recall, téves klaszterek kezelése és valós pain coverage még nincs igazolva. A minimum két cég csak szükséges minimum, nem bizonyít fizetőképes piac.
 
 **3. Auth/JWT/RLS teljes végponttól végpontig ellenőrzése**
 - Admin/operator/reader/anon szerepkörök ellenőrzése valós JWT-vel, minden új migrációs táblán és RPC-n.
@@ -154,3 +155,14 @@ Ez adná a legnagyobb különbséget a jelenlegi funkciók gyűjteménye és egy
 - Az utánkövetés leáll; a levél rövidített előnézete és tárgya megjelenik.
 - **Automatikus válaszadás nincs és nem is része a célfolyamatnak.** Minden további ügyfélkommunikáció előtt a felhasználó döntése szükséges.
 - Ez alkalmazáson belüli jelzés, nem telefonos push vagy külső értesítés. A workflow csak akkor működik, ha a GitHub Actions secret/config gate engedélyezett és a szükséges IMAP/Supabase titkok elérhetők.
+
+
+## 8. Frissítés – automatikus Opportunity Discovery első szakasz (2026-11-27)
+
+A PR #35 fejlesztési ágban elkészült az automatikus út első, forrásbiztonságra épülő része:
+- A kutatási provider explicit, strukturált pain hipotéziseket adhat vissza; csak pontosan groundingolt URL, forráskivonat, engedélyezett kategória és 0.10–0.75 confidence fogadható el.
+- A pain hipotézis az immutable dossier snapshotban is szerepel, majd a worker külön `business_pain_hypotheses` rekordként menti.
+- A `market_pattern_discovery.py` az összes nem elutasított, forrásolt pain rekordot determinisztikusan klaszerezi; legalább két különböző cég szükséges.
+- Új mintázat `candidate`, a hozzá tartozó SaaS-jelölt `draft`; automatikus validálás, scoring és jóváhagyás nincs.
+- Az új `20261127190000_cross_company_pattern_discovery.sql` migráció snapshot-szintű pain idempotenciát, pattern fingerprintet és egy mintázat–egy SaaS-jelölt korlátot vezet be. CI pgTAP ellenőrzés és migráció replay került hozzá.
+- A változás még nincs stagingben vagy productionben igazolva; a migráció repository-only, production DB-n nem futott le. A lokális teszteket a felhasználó kérésére nem futtattuk.
