@@ -30,7 +30,11 @@ def _url_key(value: Any) -> str | None:
 def _number(value: Any, low: float, high: float, field: str) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"invalid_assessment_{field}")
-    if not math.isfinite(value) or not low <= value <= high:
+    try:
+        finite = math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        finite = False
+    if not finite or not low <= value <= high:
         raise ValueError(f"invalid_assessment_{field}")
     return value
 
