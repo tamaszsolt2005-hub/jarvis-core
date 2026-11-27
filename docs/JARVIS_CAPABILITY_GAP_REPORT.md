@@ -25,9 +25,9 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 | Terület | Jelenlegi képesség | Fontos korlát |
 |---|---|---|
 | Üzleti chat | Magyar nyelvű Gemini-alapú chat és üzleti kontextus | Élő szolgáltatói működés és konfigurációfüggő |
-| Leadkutatás | Ország-/piacválasztásos, grounding-alapú cégkeresés, duplikációszűrés | Egy futás limitált; folyamatos scheduler nincs igazolva |
+| Leadkutatás | Ország-/piacválasztásos, grounding-alapú cégkeresés, duplikációszűrés; napi GitHub Actions ütemezés | A workflow-k secret-gatedek; az élő, folyamatos működés és az operátori vezérlés külön igazolást igényel |
 | Cégdosszié | Forrásolt tények, snapshotok, döntéshozói szakmai adatok | Auth-os snapshot olvasási útvonal külön ellenőrzést igényel |
-| Kutatási worker | Queue, claim/lease, heartbeat, retry/dead-letter, one-shot runtime | Folyamatos scheduleres futás és operációs vezérlés nincs bekötve/igazolva |
+| Kutatási worker | Queue, claim/lease, heartbeat, retry/dead-letter; ütemezett, költségkorlátos dossier-frissítő workflow | Operátori pause/resume, job-monitoring és stagingben igazolt tartós működés még hiányzik |
 | Lead scoring | 0–100 prioritás, közös scoring primitive | A pontszám kutatási prioritás, nem üzleti siker-előrejelzés |
 | Leadkezelő | Rangsorolt kártyák, dossier, elfogadás/elutasítás, megjegyzés, AI-megbeszélés | Nem teljes CRM és nem kapcsolatfelvételi engedély |
 | Opportunity Engine | Pain hipotézisek, legalább két cégre épülő pattern-validáció, SaaS jelöltek, hatdimenziós score, approval | A pain → cross-company pattern → SaaS candidate automatikus teljes adatút nincs igazolva |
@@ -41,11 +41,12 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 
 ### P0 – A rendszer megbízható, napi használatához szükséges
 
-**1. Teljes kutatási automatizmus és operációs vezérlés**
-- A worker jelenleg explicit one-shot futtatási alapot ad; hiányzik a bizonyított, folyamatos scheduler/ütemező.
-- Kell kezelhető futtatási szabály: milyen piac, milyen gyakran, hány cég, költségplafon, leállítás/szüneteltetés.
-- Kell operációs nézet: queued/running/retry/dead-letter jobok, utolsó siker, hibaok, költség, újrapróbálás és kézi leállítás.
-- Elfogadási feltétel: stagingben több egymást követő ütemezett ciklus idempotensen lefut, kvóta- és leállítási szabályokat betartja, és minden eredmény auditálható.
+**1. A már meglévő kutatási ütemezés üzembiztossá tétele és operációs vezérlése**
+- A `global-lead-research.yml` napi leadkutatást, a `company-research-refresh.yml` napi dossier-frissítést ütemez; mindkettő GitHub Actions cron workflow, secret/config gate-tel.
+- A `company_research_refresh_job.py` stale dossier-kat választ, költség/rate limit mellett queue-z és egy korlátozott batch-et feldolgoz. Ez több a one-shot worker-alapnál, de önmagában még nem bizonyít élő, tartós üzemi működést.
+- Kell kezelhető futtatási szabály: piac, gyakoriság, napi limit, batch limit, költségplafon, pause/resume és biztonságos kézi újraindítás.
+- Kell operációs nézet: queued/running/retry/dead-letter jobok, utolsó siker, hibaok, költség és workflow futási állapot.
+- Elfogadási feltétel: stagingben több egymást követő cron ciklus idempotensen lefut, a kvóta- és költségkorlátokat betartja, a hibák riasztást adnak, és minden eredmény auditálható.
 
 **2. Teljes Opportunity Discovery adatút**
 - A meglévő pain, pattern, opportunity és evaluator elemeket egy explicit indítású pipeline-ba kell kötni.
@@ -76,11 +77,11 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 - Duplikáció- és cégcsoport-kezelés, kapcsolat- és interakciótörténet.
 - Jelenlegi Leadkezelő nem helyettesíti ezt a teljes CRM-et.
 
-**7. Bejövő kommunikáció feldolgozása**
-- Beérkező válaszok megbízható összekötése a megfelelő céggel/kapcsolattal/lead-del.
-- Szándékfelismerés: érdeklődés, elutasítás, későbbi visszahívás, leiratkozás, panasz.
-- Emberi felülvizsgálat és suppression automatikus, auditált frissítése.
-- A bejövő inbox komponensek megléte önmagában nem bizonyít teljes, megbízható válaszfeldolgozást.
+**7. Bejövő kommunikáció és emberi értesítési folyamat**
+- Az `email-automation.yml` ütemezett inbox workflow-ja és az `email_inbox.py` már fogadja az új leveleket, leadhez kapcsolja a feladót, leállítja az utánkövetést, kategorizálja a választ, és az E-mail központban emberi felülvizsgálati értesítést jelenít meg.
+- Érdeklődés esetén külön „Érdeklődő ügyfél válaszolt” jelzés készül; a levél tárgya és rövid előnézete látható.
+- JARVIS nem válaszol automatikusan, nem ígér ajánlatot, nem küld follow-upot; a következő lépés emberi döntés.
+- Még szükséges: stagingben IMAP/UID checkpoint és duplikációkezelés igazolása, több címzett/alias megbízható összekötése, külső push értesítési csatorna csak külön döntés esetén, valamint leiratkozás globális suppressionnel való teljes összekötése.
 
 **8. Értékesítési és ajánlatkészítési folyamat**
 - Jóváhagyott SaaS-ötletből testreszabott ajánlat, scope, ár, ROI, pilot terv és szerződés-előkészítés.
@@ -115,10 +116,10 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 
 1. **PR #34/#35 lezárás előtti review:** stacked dependency, migration/RLS review, aktuális CI eredmény és dokumentáció.
 2. **Auth/JWT/RLS staging-validáció:** anon/reader/operator/admin teszt, snapshot read path, RPC-k.
-3. **Kutatási worker operációs réteg:** scheduler, konfigurálható limit, pause/resume, job-monitoring és költségriasztás.
+3. **Kutatási worker operációs réteg:** a meglévő napi workflow-k secret/config ellenőrzése, pause/resume, job-monitoring és költségriasztás.
 4. **Opportunity Discovery vertical slice:** pain → pattern → SaaS candidate → evaluator, explicit indítással.
 5. **Gemini staging smoke és hard budget:** valós usage, retry/heartbeat, költség-elszámolás.
-6. **Teljes CRM és bejövő válaszkezelés:** csak a stabil lead/consent adatmodellre építve.
+6. **Teljes CRM és bejövő válaszkezelés bővítése:** a most bevezetett emberi válaszriasztásra építve, ügyfél-életciklus, interakciótörténet és külső értesítés külön döntésével.
 7. **Ajánlat/pilot/ügyfél-validációs workflow.**
 8. **Hosting és release runbook; staging deploy.**
 9. **Production readiness review és külön döntés.**
