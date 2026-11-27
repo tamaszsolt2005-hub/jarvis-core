@@ -1,6 +1,8 @@
 """Lead review workspace with evidence-aware ranking and human-only decisions."""
 from __future__ import annotations
 
+import ipaddress
+import math
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -8,7 +10,6 @@ from urllib.parse import urlparse
 import pandas as pd
 import streamlit as st
 
-from intelligent_lead_scoring import score_researched_lead
 
 
 _COUNTRY_FLAGS = {
@@ -59,6 +60,64 @@ def _load_rows(db: Any, table: str, columns: str, limit: int = 1000) -> list[dic
     response = db.table(table).select(columns).limit(limit).execute()
     rows = getattr(response, "data", None) or []
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def _score_snapshot_assessment(dossier: dict[str, Any]) -> dict[str, Any]:
+    """Score only the versioned, validated assessment stored in the latest snapshot."""
+    assessment = dossier.get("lead_fit_assessment")
+    if not isinstance(assessment, dict):
+        return {"scored": False, "priority_score": None, "status": "missing_assessment",
+                "reason": "Nincs még kutatási értékelés."}
+    status = assessment.get("status")
+    if status == "insufficient_evidence":
+        return {"scored": False, "priority_score": None, "status": status,
+                "reason": "A kutatás nem tartalmaz elegendő forrásolt bizonyítékot a pontozáshoz."}
+    fit = assessment.get("fit_score")
+    confidence = assessment.get("confidence")
+    evidence = assessment.get("evidence")
+    if (
+        status != "assessed"
+        or isinstance(fit, bool) or not isinstance(fit, (int, float))
+        or isinstance(confidence, bool) or not isinstance(confidence, (int, float))
+        or not math.isfinite(fit) or not 0 <= fit <= 100
+        or not math.isfinite(confidence) or not 0 <= confidence <= 1
+        or not isinstance(evidence, list) or not evidence
+    ):
+        return {"scored": False, "priority_score": None, "status": "invalid_assessment",
+                "reason": "A mentett kutatási értékelés hiányos vagy érvénytelen; pontszám nem készült."}
+    evidence_points = min(100, len(evidence) * 25)
+    priority = round(0.60 * float(fit) + 0.25 * (float(confidence) * 100) + 0.15 * evidence_points)
+    return {
+        "scored": True, "priority_score": priority, "status": "assessed",
+        "business_fit_score": float(fit), "research_confidence": float(confidence),
+        "evidence_count": len(evidence),
+        "reason": f"Üzleti illeszkedés {fit}/100 · bizonyosság {confidence:.0%} · forrásolt bizonyíték {len(evidence)}",
+        "interpretation": "Kutatási prioritás, nem vásárlási szándék, fizetőképesség vagy kapcsolatfelvételi engedély.",
+    }
+
+
+def _latest_snapshot_dossiers(db: Any) -> dict[str, dict[str, Any]]:
+    """Read latest snapshots under the caller's existing user/RLS database session."""
+    response = (
+        db.table("company_research_snapshots")
+        .select("lead_id,researched_at,dossier")
+        .order("researched_at", desc=True)
+        .order("snapshot_id", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    rows = getattr(response, "data", None) or []
+    if not isinstance(rows, list):
+        raise RuntimeError("Invalid company research snapshot response.")
+    latest: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        lead_id = str(row.get("lead_id") or "")
+        dossier = row.get("dossier")
+        if lead_id and lead_id not in latest and isinstance(dossier, dict):
+            latest[lead_id] = {**dossier, "_snapshot_researched_at": row.get("researched_at")}
+    return latest
 
 
 def _record_event(
@@ -185,15 +244,14 @@ def render_lead_review_page(
         )
         st.caption(f"Hibatípus: {type(exc).__name__}")
 
+    snapshot_error: str | None = None
     try:
-        snapshots = _load_rows(db, "company_research_snapshots", "lead_id,researched_at,dossier", 1500)
-    except Exception:
-        snapshots = []
-    dossier_by_lead: dict[str, dict[str, Any]] = {}
-    for snapshot in sorted(snapshots, key=lambda row: str(row.get("researched_at") or ""), reverse=True):
-        lead_id = str(snapshot.get("lead_id") or "")
-        if lead_id and lead_id not in dossier_by_lead and isinstance(snapshot.get("dossier"), dict):
-            dossier_by_lead[lead_id] = snapshot["dossier"]
+        dossier_by_lead = _latest_snapshot_dossiers(db)
+    except Exception as exc:
+        dossier_by_lead = {}
+        snapshot_error = type(exc).__name__
+        st.warning("A kutatási értékelések most nem olvashatók. Ez adatforrás-hiba, nem üres kutatási eredmény; pontszámot nem jelenítünk meg.")
+        st.caption(f"Hibatípus: {snapshot_error}")
 
     state_by_lead = {str(row.get("lead_id")): row for row in states if row.get("lead_id")}
     event_by_lead: dict[str, list[dict[str, Any]]] = {}
@@ -204,17 +262,22 @@ def render_lead_review_page(
     for lead in leads:
         if not lead.get("id"):
             continue
-        scoring_input = dict(lead)
-        if not scoring_input.get("research_intelligence"):
-            scoring_input["research_intelligence"] = scoring_input.get("notes") or ""
-        score = score_researched_lead(scoring_input)
+        dossier = dossier_by_lead.get(str(lead["id"]), {})
+        score = (
+            {"scored": False, "priority_score": None, "status": "snapshot_unavailable",
+             "reason": "A kutatási pillanatkép nem olvasható."}
+            if snapshot_error else
+            _score_snapshot_assessment(dossier) if dossier else
+            {"scored": False, "priority_score": None, "status": "research_required",
+             "reason": "Kutatás szükséges – még nincs mentett kutatási pillanatkép."}
+        )
         state = state_by_lead.get(str(lead["id"]), {})
         ranked.append({
             **lead,
             "_score": score,
             "_review_status": str(state.get("review_status") or "pending"),
             "_review_state": state,
-            "_dossier": dossier_by_lead.get(str(lead["id"]), {}),
+            "_dossier": dossier,
         })
     ranked.sort(
         key=lambda row: (
@@ -244,7 +307,7 @@ def render_lead_review_page(
             label_visibility="collapsed",
         ).strip().casefold()
     with hint_col:
-        st.caption("A pontozott leadek elöl; a pontozatlanok is láthatók.")
+        st.caption("A rangsor kizárólag a legfrissebb, forrásolt kutatási snapshot értékeléséből készül.")
 
     if lead_search:
         def matches_search(row: dict[str, Any]) -> bool:
@@ -357,10 +420,21 @@ def render_lead_review_page(
                 with details_left:
                     st.markdown("**AI-kutatási összefoglaló**")
                     st.write(_note_value(_SUMMARY_PATTERN, notes) or "Nincs mentett cégösszefoglaló.")
-                    st.markdown("**Üzleti illeszkedés**")
-                    st.write(_note_value(_FIT_PATTERN, notes) or "Nincs mentett illeszkedési javaslat.")
-                    st.markdown("**Megfigyelhető üzleti igény**")
-                    st.write(_note_value(_NEED_PATTERN, notes) or "Nincs rögzített üzleti igény.")
+                    st.markdown("**Kutatási értékelés**")
+                    st.write(score.get("reason") or "Nincs még kutatási értékelés.")
+                    assessment = dossier.get("lead_fit_assessment") if isinstance(dossier.get("lead_fit_assessment"), dict) else {}
+                    if assessment.get("rationale"):
+                        st.write(assessment["rationale"])
+                    if assessment.get("recommended_next_step"):
+                        st.caption(f"Következő kutatási lépés: {assessment['recommended_next_step']}")
+                    if assessment.get("fit_signals"):
+                        st.markdown("**Illeszkedési jelek**")
+                        for signal in assessment["fit_signals"][:12]:
+                            st.write(f"• {signal}")
+                    if assessment.get("risk_signals"):
+                        st.markdown("**Kockázati jelek**")
+                        for signal in assessment["risk_signals"][:12]:
+                            st.write(f"• {signal}")
                 with details_right:
                     st.markdown("**Nyilvános vezető / CEO**")
                     leader = dossier.get("decision_maker") if isinstance(dossier.get("decision_maker"), dict) else {}
@@ -371,10 +445,13 @@ def render_lead_review_page(
                     leader_url = _safe_source_url(leader.get("source_url"))
                     if leader_url:
                         st.markdown(f"[Vezetői forrás]({leader_url})")
-                    st.markdown("**Kutatási bizonyosság és indoklás**")
-                    st.write(score.get("reason") or "Nem számítható pontszám.")
+                    st.markdown("**Kutatási bizonyosság**")
+                    if score.get("research_confidence") is not None:
+                        st.metric("Bizonyosság", f"{score['research_confidence']:.0%}")
                     if score.get("interpretation"):
                         st.caption(score["interpretation"])
+                    if dossier.get("_snapshot_researched_at"):
+                        st.caption(f"Legutóbbi kutatás: {dossier['_snapshot_researched_at']}")
                 facts = dossier.get("facts") if isinstance(dossier.get("facts"), list) else []
                 if facts:
                     st.markdown("**Forrásolt céginformációk**")
@@ -388,8 +465,33 @@ def render_lead_review_page(
                 source_url = _safe_source_url(re.search(r"Forrás:\s*(https?://\S+)", notes).group(1) if re.search(r"Forrás:\s*(https?://\S+)", notes) else None)
                 if source_url:
                     st.markdown(f"[Kutatási forrás]({source_url})")
-                if lead.get("research_evidence"):
-                    st.caption(f"Forrásolt bizonyítékok: {len(lead['research_evidence']) if isinstance(lead['research_evidence'], list) else 'elérhető'}")
+                assessment = dossier.get("lead_fit_assessment") if isinstance(dossier.get("lead_fit_assessment"), dict) else {}
+                evidence = assessment.get("evidence") if isinstance(assessment.get("evidence"), list) else []
+                if evidence:
+                    st.markdown("**Az értékelés forrásai**")
+                    for item in evidence[:20]:
+                        if not isinstance(item, dict):
+                            continue
+                        kind = item.get("evidence_type")
+                        kind_label = {"fact": "Forrásolt tény", "hypothesis": "Hipotézis", "assessment": "AI-értékelés"}.get(kind, "Bizonyíték")
+                        st.write(f"**{kind_label}:** {item.get('claim') or ''}")
+                        evidence_url = _safe_source_url(item.get("source_url"))
+                        if evidence_url:
+                            st.markdown(f"[Forrás megnyitása]({evidence_url})")
+                        if item.get("title"):
+                            st.caption(str(item["title"])[:300])
+                pains = dossier.get("pain_hypotheses") if isinstance(dossier.get("pain_hypotheses"), list) else []
+                if pains:
+                    st.markdown("**Lehetséges üzleti problémák – hipotézisek, nem bizonyított tények**")
+                    for pain in pains[:10]:
+                        if isinstance(pain, dict):
+                            st.write(f"• {pain.get('statement') or ''}")
+                            pain_evidence = pain.get("evidence") if isinstance(pain.get("evidence"), list) else []
+                            for proof in pain_evidence[:3]:
+                                if isinstance(proof, dict):
+                                    pain_url = _safe_source_url(proof.get("source_url"))
+                                    if pain_url:
+                                        st.markdown(f"[Hipotézis forrása]({pain_url})")
 
                 if section == "pending" and can_decide:
                     st.divider()
@@ -568,14 +670,18 @@ def render_lead_review_page(
                 ):
                     st.session_state["lead_review_selected_id"] = row_id
                     st.rerun()
-                score_label = f"{row_score}/100" if row_score is not None else "Nem pontozott"
+                score_label = f"{row_score}/100" if row_score is not None else (
+                    "Kutatási adatok nem elérhetők" if row["_score"].get("status") == "snapshot_unavailable"
+                    else "Kutatás szükséges" if row["_score"].get("status") == "research_required"
+                    else "Nincs még kutatási értékelés"
+                )
                 st.caption(
                     f"{country_flag(extract_country(row))}  ·  "
                     f"{row.get('website') or 'Nincs weboldal megadva'}  ·  "
                     f"{score_label}  ·  {row_status}"
                 )
                 if row_score is None:
-                    st.caption("Nincs elegendő strukturált adat a pontozáshoz.")
+                    st.caption(row["_score"].get("reason") or "A pontozáshoz még nincs elegendő forrásolt értékelés.")
     with detail_col:
         selected_row = next((row for row in filtered_rows if str(row["id"]) == selected_id), None)
         if selected_row:
