@@ -60,7 +60,10 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
         st.caption(type(exc).__name__)
         return
 
-    paused = state.get("paused") is True
+    if not isinstance(state.get("paused"), bool) or not state.get("updated_at"):
+        st.error("A worker vezérlési állapota hiányos; biztonsági okból nem tekinthető engedélyezettnek.")
+        return
+    paused = state["paused"]
     if paused:
         st.warning("A kutatási worker szünetel. Új feladatot nem vesz fel.")
     else:
@@ -116,6 +119,7 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
 
     if state.get("note"):
         st.caption(f"Utolsó vezérlési indok: {state['note']}")
+    st.caption(f"Utolsó vezérlési módosítás: {state['updated_at']}")
     st.markdown("#### Legutóbbi kutatási feladatok")
     jobs = state.get("recent_jobs") if isinstance(state.get("recent_jobs"), list) else []
     if jobs:
@@ -128,3 +132,10 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
         st.dataframe(pd.DataFrame(events), width="stretch", hide_index=True)
     else:
         st.caption("Még nincs szüneteltetési vagy újraindítási esemény.")
+
+    st.markdown("#### Kutatási feladatok audit-eseményei")
+    job_events = state.get("recent_job_events") if isinstance(state.get("recent_job_events"), list) else []
+    if job_events:
+        st.dataframe(pd.DataFrame(job_events), width="stretch", hide_index=True)
+    else:
+        st.caption("Még nincs worker-audit esemény.")
