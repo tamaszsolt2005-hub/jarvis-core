@@ -4,6 +4,15 @@
 
 Az Opportunity Engine a céges kutatás során feltárt, forrásokkal alátámasztott problémákból ismétlődő piaci mintázatokat, majd újraértékesíthető SaaS-termékjelölteket keres. Nem tekinti a modell által megfogalmazott hipotézist bizonyított ténynek. Az értékelés döntéstámogatás; a végső döntést ember hozza meg.
 
+## Központi JARVIS Intelligence Engine
+
+A `intelligence_engine.py` a Lead-, cégdosszié- és Opportunity-területek közös, provider- és adatbázis-független bizonyíték/provenance szerződése. Az egységes `EvidenceRecord` megőrzi a forrás URL-t, kivonatot, forrástípust, megfigyelési és rögzítési időt, bizonyíték-jelleget, kapcsolódó entitást, opcionális snapshot-azonosítót és determinisztikus evidence-azonosítót.
+
+A meglévő cégdosszié snapshotok a régi `facts` és `decision_maker` mezők megtartása mellett `evidence_records` listát is tartalmaznak. Az Opportunity pain bizonyítékai ugyanarra a szerződésre normalizálhatók; a hipotézis státusza ettől nem változik. A `build_intelligence_snapshot` a különböző domainből érkező rekordokat deduplikálja és forrás-/domain-szintű összesítést készít.
+
+Ez az első közös adat- és provenance-réteg, nem új autonóm kutató vagy döntéshozó. Nem generál tényeket, nem ír adatbázist, nem változtat Lead/Opportunity súlyokon, és nem vonja össze a két pontszám üzleti jelentését. A strukturált, URL-lel alátámasztott bizonyítékot külön kezeli a szabad szöveges Lead-kutatási jegyzetektől; utóbbi önmagában nem válik hiteles forrásrekorddá. A dashboard és a tartós, központi DB evidence store későbbi bővítési lépés.
+
+
 A funkció a `feature/opportunity-center-readonly` fejlesztési ágban, a [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) részeként készült. A PR draft és nincs merge-ölve. A migrációk repository-fájlok; production adatbázison nem futottak le.
 
 ## Folyamat
