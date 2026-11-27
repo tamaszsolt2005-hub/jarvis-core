@@ -44,7 +44,7 @@ def enqueue_single_lead_research(
 
     lead_response = (
         db.table("leads")
-        .select("*")
+        .select("id,company_name,company_domain,website,status,opted_out,reply_category,follow_up_count,last_inbound_message_id,first_contacted_at,last_outbound_at,last_contacted_at,last_outbound_message_id,first_sent_at,followed_up_at,last_message_id")
         .eq("id", normalized_id)
         .limit(1)
         .execute()
@@ -58,13 +58,15 @@ def enqueue_single_lead_research(
 
     snapshot_response = (
         db.table("company_research_snapshots")
-        .select("lead_id,researched_at,dossier")
+        .select("lead_id,snapshot_id,researched_at,dossier")
         .eq("lead_id", normalized_id)
         .order("researched_at", desc=True)
         .limit(1)
         .execute()
     )
-    snapshot_rows = getattr(snapshot_response, "data", None) or []
+    snapshot_rows = getattr(snapshot_response, "data", None)
+    if not isinstance(snapshot_rows, list):
+        raise LeadResearchRequestError("latest_snapshot_unavailable")
     latest_dossiers: dict[str, Any] = {}
     if isinstance(snapshot_rows, list) and snapshot_rows and isinstance(snapshot_rows[0], dict):
         latest_dossiers[normalized_id] = snapshot_rows[0]
