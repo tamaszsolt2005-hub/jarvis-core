@@ -191,6 +191,13 @@ jobs:
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          # GitHub-hosted Ubuntu images may include a Microsoft feed that intermittently returns 403.
+          # It is unrelated to these packages; disable only that feed for this ephemeral runner.
+          for source_file in /etc/apt/sources.list.d/*; do
+            if [ -f "$source_file" ] && sudo grep -q 'packages.microsoft.com/ubuntu/24.04/prod' "$source_file"; then
+              sudo mv "$source_file" "${source_file}.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-17 age
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
