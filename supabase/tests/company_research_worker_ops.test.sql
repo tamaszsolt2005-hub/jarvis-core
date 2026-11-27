@@ -28,8 +28,8 @@ SELECT ok(NOT has_function_privilege('anon','public.company_research_worker_cont
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"admin"},"sub":"00000000-0000-4000-8000-000000000010"}',true);
-SELECT is(public.company_research_worker_control_state()->>'paused','false',
-  'admin can read initial unpaused state');
+SELECT is(public.company_research_worker_control_state()->>'paused','false'::text,
+  'admin can read initial unpaused state'::text);
 SELECT throws_ok(
   $$SELECT public.company_research_worker_set_paused(true,'short')$$,
   '22023', 'research_control_note_required',
@@ -42,8 +42,8 @@ SELECT throws_ok(
   'reader cannot pause or resume worker'
 );
 SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"admin"},"sub":"00000000-0000-4000-8000-000000000010"}',true);
-SELECT is(public.company_research_worker_set_paused(true,'Operator requested maintenance')->>'paused','true',
-  'admin can pause research worker');
+SELECT is(public.company_research_worker_set_paused(true,'Operator requested maintenance')->>'paused','true'::text,
+  'admin can pause research worker'::text);
 SELECT ok(NOT has_table_privilege('authenticated','public.company_research_runtime_control_events','SELECT'),
   'authenticated cannot directly read append-only event table');
 
@@ -63,8 +63,8 @@ RESET ROLE;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"operator"},"sub":"00000000-0000-4000-8000-000000000012"}',true);
-SELECT is(public.company_research_worker_set_paused(false,'Maintenance completed')->>'paused','false',
-  'operator can resume research worker');
+SELECT is(public.company_research_worker_set_paused(false,'Maintenance completed')->>'paused','false'::text,
+  'operator can resume research worker'::text);
 SELECT ok(NOT has_table_privilege('authenticated','public.company_research_runtime_control_events','SELECT'),
   'authenticated cannot directly inspect event log');
 RESET ROLE;
