@@ -642,6 +642,16 @@ jobs:
           fi
           grep -q '1..10' <<< "$approval_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
+          # Persist canonical source evidence across Lead, dossier and Opportunity domains.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
+          intelligence_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/intelligence_evidence_store.test.sql)"
+          printf '%s\n' "$intelligence_output"
+          if grep -q '^not ok ' <<< "$intelligence_output"; then
+            echo "pgTAP reported failed shared Intelligence evidence assertions."
+            exit 1
+          fi
+          grep -q '1..11' <<< "$intelligence_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
