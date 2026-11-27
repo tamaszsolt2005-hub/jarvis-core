@@ -76,6 +76,7 @@ from company_research_store import get_company_research_history
 from opportunity_evaluator import evaluate_opportunity_candidate
 from intelligence_graph import build_graph_snapshot, to_graphviz_dot
 from lead_review_dashboard import render_lead_review_page
+from lead_customer_dashboard import render_lead_customer_page
 from lead_email_dashboard import render_email_center
 
 
@@ -2491,6 +2492,12 @@ with st.sidebar:
         type="primary" if current_page == "email_center" else "secondary",
         width="stretch",
     )
+    customer_clicked = st.button(
+        "♧   Ügyfélkapcsolatok",
+        key="jarvis_nav_customers",
+        type="primary" if current_page == "customers" else "secondary",
+        width="stretch",
+    )
     tasks_clicked = st.button(
         "☑   Feladatok",
         key="jarvis_nav_tasks",
@@ -2543,6 +2550,9 @@ if leads_clicked:
     st.rerun()
 if email_center_clicked:
     st.session_state["jarvis_page"] = "email_center"
+    st.rerun()
+if customer_clicked:
+    st.session_state["jarvis_page"] = "customers"
     st.rerun()
 if tasks_clicked:
     st.session_state["jarvis_page"] = "tasks"
@@ -2613,6 +2623,28 @@ if st.session_state.get("jarvis_page") == "email_center":
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_email_center", severity="error", db=email_db if "email_db" in locals() else None)
         st.error("Az E-mail központ oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "customers":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        customer_db = st.session_state.get("_jarvis_db")
+        if customer_db is None:
+            customer_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = customer_db
+        customer_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(customer_role, "leads.read"):
+            st.error("Az ügyfélkapcsolatok megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_lead_customer_page(
+                customer_db,
+                auth_enabled=_auth_login_enabled(),
+                role=customer_role,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_lead_customer_page", severity="error", db=customer_db if "customer_db" in locals() else None)
+        st.error("Az Ügyfélkapcsolatok oldal nem tudott betöltődni.")
         st.caption(user_facing_error(exc))
     st.stop()
 
