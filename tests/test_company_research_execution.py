@@ -51,7 +51,6 @@ def grounded_response():
                 "source_url": "https://example.com/team",
                 "email": "private@example.com",
             },
-        },
             "lead_fit_assessment": {
                 "assessment_version": "1.0",
                 "fit_score": 82,
@@ -72,7 +71,6 @@ def grounded_response():
             {"source_url": "https://example.com/team", "title": "", "snippet": ""},
         ],
     }
-
 
 def test_execution_returns_stamped_dossier_with_only_grounded_sources():
     provider = FakeProvider(grounded_response())
