@@ -110,6 +110,32 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 - CI zöld státusza csak az adott SHA-ra és az adott tesztkörnyezetre érvényes.
 
 
+## Opportunity Engine – aktuális fejlesztési állapot
+
+A PR #35-ben a C stratégiához illeszkedő első Opportunity Engine-szelet készült el: egyedi céges problémákból indul, több cégen át ismétlődő mintázatokat kapcsol össze, majd SaaS-jelölteket rangsorol. A dashboard az Opportunity Center oldalon biztosítja a céges problémák, piaci mintázatok, SaaS-ötletek, értékelési előnézet és döntési előzmények áttekintését.
+
+**Kódban implementált:**
+- forrásolt cégprobléma-hipotézisek confidence és státusz mezőkkel;
+- validált piaci mintázat csak legalább két különböző céghez kötött problémával;
+- alátámasztásvesztés esetén automatikus `under_review` visszaminősítés;
+- SaaS-jelöltek, hatdimenziós súlyozott pontozás és dimenziónkénti rationale/evidence;
+- provider-neutral evaluator, explicit előnézet és elégtelen bizonyíték esetén pontozás nélküli kimenet;
+- admin/operator által explicit gombnyomással menthető, append-only értékelési előzmény;
+- reader read-only hozzáférés, actor attribution, idempotenciakulcs, immutable snapshotok;
+- DB triggeres ellenőrzés a szerepkörre, pattern állapotra, két cégre és forrás-egyezésre.
+
+**Nem állítható késznek:** a PR nincs merge-ölve; migrációk production DB-re nem kerültek; nincs production deploy; nincs valós ügyfél-validáció, piaci méret/versenytárs/árazási validáció és unit economics kalibráció. A preview Gemini-hívást indíthat, de önmagában nem ment; mentés csak külön jóváhagyásra történik.
+
+**Következő sorrend:**
+1. A PR #35 aktuális HEAD-jéhez tartozó CI eredmény megvárása és review; a lokális tesztfuttatás a felhasználó kérésére elmarad.
+2. Az approval migration és az RLS/JWT viselkedés izolált CI-környezetű eredményének áttekintése.
+3. A cégdosszié history és Opportunity Center eltérő hozzáférési modelljének dashboard-szintű hibakezelése.
+4. Evidence minőségi szabályok és az evaluator dimenziónkénti üzleti kalibrálása.
+5. Piaci alternatívák, TAM/SAM/SOM, árképzés és unit economics elemzés, majd emberi ügyfél-validáció.
+6. Csak külön engedéllyel staging/production migráció, Auth/RLS éles változtatás vagy deploy.
+
+Részletes adatmodell, score-képlet, forrásmodell és biztonsági szabály: [Opportunity Engine dokumentáció](OPPORTUNITY_ENGINE.md).
+
 ## 7. Új fejlesztési fókusz – 2026-11-26
 
 A PR #28 a cégkutatási előzmények read-only dashboardját vezeti be. A navigációs routing hiányát a 2fa7b9410d5cbd49140391a633853ad73d81a1b9 commit javítja. Az új CI elindult; a javítás teljes CI-eredménye még nincs igazolva. A felület Auth esetén fail-closed, nem használ service-role megkerülést.
