@@ -41,11 +41,11 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 
 ### P0 – A rendszer megbízható, napi használatához szükséges
 
-**1. A már meglévő kutatási ütemezés üzembiztossá tétele és operációs vezérlése**
+**1. A kutatási ütemezés üzembiztossá tétele – első pause/resume operációs réteg implementálva**
 - A `global-lead-research.yml` napi leadkutatást, a `company-research-refresh.yml` napi dossier-frissítést ütemez; mindkettő GitHub Actions cron workflow, secret/config gate-tel.
 - A `company_research_refresh_job.py` stale dossier-kat választ, költség/rate limit mellett queue-z és egy korlátozott batch-et feldolgoz. Ez több a one-shot worker-alapnál, de önmagában még nem bizonyít élő, tartós üzemi működést.
-- Kell kezelhető futtatási szabály: piac, gyakoriság, napi limit, batch limit, költségplafon, pause/resume és biztonságos kézi újraindítás.
-- Kell operációs nézet: queued/running/retry/dead-letter jobok, utolsó siker, hibaok, költség és workflow futási állapot.
+- Elkészült a Kutatási műveletek oldal: admin/operator pause/resume, reader read-only, indoklásos append-only audit, queued/running/retry/dead-letter számlálók, legutóbbi jobok és napi költségösszesítő. A pause a queue feltöltését és az atomikus claim RPC-t is megállítja; a már futó job befejeződhet.
+- Még kell: piac szerinti konfigurálható gyakoriság, külső riasztás, idősoros provider/költség-monitoring, workflow-run megfigyelés és stagingben több napi ciklusos validáció.
 - Elfogadási feltétel: stagingben több egymást követő cron ciklus idempotensen lefut, a kvóta- és költségkorlátokat betartja, a hibák riasztást adnak, és minden eredmény auditálható.
 
 **2. Opportunity Discovery – az automatikus első szakasz már implementálva, validálás még hátravan**
