@@ -222,3 +222,41 @@ A P1.1 első kódszelete bekerült a feature branchbe:
 A három érintett Python fájlt és a hívási útvonalat GitHubról visszaolvastuk, a kulcsfontosságú jogosultsági és enqueue lépéseket statikusan ellenőriztük. Külön tesztet nem futtattunk, a Streamlit UI-t böngészőben nem ellenőriztük, a queue-t nem hívtuk meg, production DB-t nem módosítottunk. SQL migration nem kellett, mert a meglévő service-role-only enqueue RPC és a meglévő queue táblák használatban maradtak. Merge/deploy nem történt.
 
 **Korlát:** ez a lépés a kutatási kérést tartós sorba helyezi, de worker dispatch/scheduler még nincs bekapcsolva. A P1.2 feladata a kontrollált, explicit one-shot worker végrehajtás szerveroldali megvalósítása; azt külön kell megtervezni és ellenőrizni.
+
+
+## P1.2 – kontrollált one-shot worker belépési pont (2026-11-27)
+
+Új `company_research_worker_cli.py` került a feature branchbe. Ez a trusted backend folyamat belépési pontja; importáláskor nem fut, és a Streamlit dashboard nem hívja.
+
+Működés:
+1. Beolvassa a kötelező `CompanyResearchRuntimeConfig` konfigurációt, és ellenőrzi, hogy a futó Gemini modell egyezik az árazáshoz beállított modellel.
+2. Szerveroldali service-role klienssel ellenőrzi a `company_research_runtime_control` singleton rekordot. Hiányzó/hibás vezérlési állapot esetén fail-closed módon leáll; szüneteltetett állapotban nem hoz létre Gemini klienst és nem claimel.
+3. Egyedi worker azonosítóval meghívja a meglévő `run_company_research_worker_with_config` útvonalat. Egy futtatás legfeljebb egy jobot claimel.
+4. A meglévő worker kezeli a heartbeat/lease állapotot, tokenkorlátot, groundingot, snapshot/pain mentést és tényleges költségelszámolást.
+5. A parancs csak státuszt, operation ID-t és nem érzékeny hibakódot ír ki; provider választ vagy cégdossziét nem.
+
+Privát backend környezetben a kézi egyszeri indítás parancsa:
+
+```bash
+python -m company_research_worker_cli
+```
+
+A futtatáshoz kötelező konfiguráció:
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (vagy a meglévő szerveroldali kompatibilis `SUPABASE_KEY`)
+- `GEMINI_API_KEY`, `GEMINI_MODEL` (vagy a kódbeli modell alapértéke)
+- `JARVIS_COMPANY_RESEARCH_INPUT_PRICE_MICROUSD_PER_MILLION_TOKENS`
+- `JARVIS_COMPANY_RESEARCH_OUTPUT_PRICE_MICROUSD_PER_MILLION_TOKENS`
+- `JARVIS_COMPANY_RESEARCH_PRICING_MODEL`
+- `JARVIS_COMPANY_RESEARCH_SEARCH_PRICE_MICROUSD_PER_THOUSAND_QUERIES`
+- `JARVIS_COMPANY_RESEARCH_MAX_DAILY_COST_MICROUSD`
+- `JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_HOUR`
+- `JARVIS_COMPANY_RESEARCH_MAX_JOBS_PER_DOMAIN_PER_DAY`
+- `JARVIS_COMPANY_RESEARCH_MAX_CONCURRENT_JOBS`
+
+A queue workerhez a meglévő queue és a `20261127220000_company_research_worker_ops.sql` pause-control migráció szükséges. A migráció repository-ban van; production alkalmazása nincs igazolva és ebben a lépésben nem történt meg. Ha a kontrolltábla vagy a konfiguráció hiányzik, a CLI nem dolgoz fel feladatot.
+
+Ez továbbra is kézi, egyszeri parancs: nincs scheduler, folyamatos worker, Streamlitből indított végrehajtás, deploy vagy automatikus futtatás.
+
+Commit: `9cf0f6b57116383e82de92062d1ca74b1d6d4b93`.
+
+A CLI fájlt GitHubról visszaolvastuk és statikusan ellenőriztük. Külön tesztet nem futtattunk, a CLI-t nem indítottuk el, Gemini API-hívás és queue claim nem történt, production DB-t nem módosítottunk. Merge/deploy nem történt.
