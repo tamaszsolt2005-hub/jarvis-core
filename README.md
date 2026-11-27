@@ -139,3 +139,16 @@ A jóváhagyott leadek kézzel követhető státuszai, interakciós naplója és
 ## Kutatási worker üzemeltetése
 
 - [Kutatási worker műveletek és pause/resume](docs/RESEARCH_WORKER_OPERATIONS.md)
+
+
+## Fejlesztési állapot – 2026-11-27 18:05 CET
+
+> Ez a frissítés a fenti, korábbi dátumozott státuszoknál újabb, célzott UI- és dokumentációs változásokat rögzíti. Nem állítja, hogy a PR aktuális HEAD-je vagy CI-je most ellenőrizve lett.
+
+- **Lead Intelligence Center:** a Leadkezelő kétpaneles elrendezést kapott: bal oldali kereshető/szűrhető leadlista, jobb oldali kiválasztott lead részletező panel. A változtatások a `feature/opportunity-center-readonly` ágon: alap UI-frissítés `1e933a81dc1c3812ff408f32702d942bc10d03b4`, kétpaneles szerkezet `a2dbfda7a88e8c5a53fad1b3b8d051793bf0bfcf`, keresés bekötése `8e4ae2b56f588d39b0c523965dee9809efc7046b`.
+- **Analitika:** a mai és korábbi események időbélyege külön formátumot használ, így a régebbi esemény nem tűnik jövőbelinek. Commit: `cfb1da6d39b67ee02516c54759806738f14b064a`.
+- **E-mail központ:** javítva a jóváhagyott, elutasított, stílusprofil és engedélyek/küldési sor fülek tartalmának index-hozzárendelése. Commit: `5962eda938c2f3950097c3c24b0a2b0fb22cf717`.
+- **Ellenőrzési korlát:** a fenti módosítások GitHub-fájl-visszaolvasással ellenőrizve; böngészős megjelenítés nem igazolt. A felhasználó kérésére külön tesztet nem futtattunk. Merge és deploy nem történt.
+- **Adatállapot értelmezése:** a legutóbb ellenőrzött production pillanatképben 11 lead mellett nem volt strukturált grounding source és nem volt cégkutatási snapshot; 0 jóváhagyott lead és 0 e-mail-piszkozat szerepelt. Ezért a Lead pontozatlansága és az E-mail/CRM üres állapota önmagában nem UI-hiba. A Feladatközpont 0-s adatbázis-állapota ehhez a frissítéshez nem lett újra lekérdezve.
+
+Részletes képernyő- és fejlesztési terv: [Lead Intelligence Center](docs/LEAD_INTELLIGENCE_CENTER.md).
