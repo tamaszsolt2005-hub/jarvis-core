@@ -56,7 +56,7 @@ BEGIN
   IF auth.uid() IS NULL OR COALESCE(v_role,'') NOT IN ('admin','operator') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'market_pattern_review_requires_admin_or_operator';
   END IF;
-  IF p_decision NOT IN ('validated','rejected','under_review') THEN
+  IF p_decision IS NULL OR p_decision NOT IN ('validated','rejected','under_review') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'unsupported_market_pattern_decision';
   END IF;
   IF p_note IS NULL OR length(btrim(p_note)) NOT BETWEEN 5 AND 2000 THEN
