@@ -12,7 +12,7 @@
 >
 > **Migrációk:** `20261127100000` core, `20261127110000` scoring, `20261127120000` score evidence, `20261127130000` approval history, `20261127140000` Intelligence evidence store. Ezek a PR branch részei; production adatbázison nem futottak le. A dashboard nincs production deployolva.
 >
-> **CI és tesztelés:** az Intelligence evidence store pgTAP tesztje 11 assertiont ellenőriz, és a migráció idempotencia-replay is bekerült a CI-be. A dashboard és Lead-kutatás AppTest/unit tesztjei frissültek. A felhasználó kérésére lokális tesztet és kézi CI-dispatch-et nem futtattunk. A pushok automatikus GitHub Actions futást indítanak; az aktuális PR HEAD-hez tartozó CI-t külön ellenőrizni kell. A CI izolált adatbázis, nem production-validáció.
+> **CI és tesztelés:** az Intelligence evidence store pgTAP tesztje 12 assertiont ellenőriz, és a migráció idempotencia-replay is bekerült a CI-be. A dashboard és Lead-kutatás AppTest/unit tesztjei frissültek. A felhasználó kérésére lokális tesztet és kézi CI-dispatch-et nem futtattunk. A pushok automatikus GitHub Actions futást indítanak; az aktuális PR HEAD-hez tartozó CI-t külön ellenőrizni kell. A CI izolált adatbázis, nem production-validáció.
 >
 > **Következő lépések:** dokumentációs és kód review; a legfrissebb CI eredmény megvárása; Auth/JWT/RLS és migrációk izolált környezetű felülvizsgálata; külön jóváhagyás után staging smoke. Production migration, Auth/RLS éles módosítás, deploy és PR merge továbbra is külön engedélyhez kötött.
 **Frissítve:** 2026-11-26  
