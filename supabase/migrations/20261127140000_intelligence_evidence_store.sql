@@ -158,6 +158,11 @@ AFTER INSERT OR UPDATE OF research_evidence ON public.leads
 FOR EACH ROW EXECUTE FUNCTION public.capture_intelligence_evidence();
 
 -- Backfill only explicitly structured, source-linked records already stored.
+-- Replaying the source triggers captures existing snapshot and pain evidence too.
+UPDATE public.company_research_snapshots SET dossier = dossier
+WHERE jsonb_typeof(dossier -> 'evidence_records') = 'array';
+UPDATE public.business_pain_hypotheses SET evidence = evidence
+WHERE jsonb_typeof(evidence) = 'array';
 DO $intelligence_backfill$
 DECLARE
   row_data record;
