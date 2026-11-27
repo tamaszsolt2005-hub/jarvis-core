@@ -92,6 +92,14 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
         f"tényleges költség: **${actual:,.4f}**"
     )
     st.caption(f"Mai kutatási jobok: {int(budget.get('jobs_today', 0) or 0)}")
+    daily_limit = int(budget.get("limit_microusd", 0) or 0) / 1_000_000
+    if budget.get("over_budget") is True:
+        st.error(
+            f"A ténylegesen lekötött napi költség (${committed:,.4f}) meghaladta "
+            f"a foglaláskor érvényes napi keretet (${daily_limit:,.4f}). Új jobot a DB kvótakapuja nem enged."
+        )
+    elif daily_limit > 0:
+        st.caption(f"Napi költségkeret: ${daily_limit:,.4f}")
 
     if role in {"admin", "operator"}:
         note = st.text_area(
