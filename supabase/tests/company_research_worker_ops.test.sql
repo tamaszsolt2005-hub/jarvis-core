@@ -27,6 +27,7 @@ SELECT ok(NOT has_function_privilege('anon','public.company_research_worker_cont
   'anon cannot call control RPCs');
 
 SET LOCAL ROLE authenticated;
+SET LOCAL search_path = public, extensions;
 SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"admin"},"sub":"00000000-0000-4000-8000-000000000010"}',true);
 SELECT ok(public.company_research_worker_control_state()->>'paused' = 'false',
   'admin can read initial unpaused state'::text);
@@ -57,11 +58,13 @@ INSERT INTO public.company_research_budget_reservations(operation_id,budget_date
 VALUES ('worker-ops-test-0001',(now() AT TIME ZONE 'UTC')::date,0);
 
 SET LOCAL ROLE service_role;
+SET LOCAL search_path = public, extensions;
 SELECT is((SELECT count(*) FROM public.company_research_job_claim('worker-ops-test',60,3)),0::bigint,
   'paused worker cannot claim queued jobs');
 RESET ROLE;
 
 SET LOCAL ROLE authenticated;
+SET LOCAL search_path = public, extensions;
 SELECT set_config('request.jwt.claims','{"app_metadata":{"role":"operator"},"sub":"00000000-0000-4000-8000-000000000012"}',true);
 SELECT ok(public.company_research_worker_set_paused(false,'Maintenance completed')->>'paused' = 'false',
   'operator can resume research worker'::text);
@@ -69,6 +72,7 @@ SELECT ok(NOT has_table_privilege('authenticated','public.company_research_runti
   'authenticated cannot directly inspect event log');
 RESET ROLE;
 SET LOCAL ROLE service_role;
+SET LOCAL search_path = public, extensions;
 SELECT is((SELECT count(*) FROM public.company_research_job_claim('worker-ops-test',60,3)),1::bigint,
   'resumed worker can claim queued jobs');
 RESET ROLE;
