@@ -225,7 +225,7 @@ def render_email_center(
                             "recipient_email": recipient.strip() or None,
                             "recipient_source_url": _safe_public_source(source),
                             "subject": subject.strip(), "body": body.strip(),
-                            "status": "draft", "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
                         }
                         db.table("lead_email_drafts").update(update).eq("id", draft_id).execute()
                         db.table("lead_email_draft_revisions").insert({
@@ -277,7 +277,15 @@ def render_email_center(
             st.info("Nincs elutasított e-mail.")
         for draft in rejected_drafts:
             lead = lead_by_id.get(str(draft.get("lead_id") or ""), {})
-            st.markdown(f"- **{lead.get('company_name') or 'Ismeretlen cég'}** — elutasított piszkozat")
+            draft_id = str(draft.get("id") or "")
+            with st.container(border=True):
+                st.markdown(f"**{lead.get('company_name') or 'Ismeretlen cég'}** — elutasított piszkozat")
+                if can_edit and st.button("Újraszerkesztés", key=f"email_reopen_{draft_id}"):
+                    try:
+                        _rpc_event(db, draft_id, "reopened", "Újraszerkesztésre visszanyitva.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Nem nyitható vissza ({type(exc).__name__}).")
 
     with tabs[3]:
         st.markdown("**Globális e-mail stílusprofil**")
