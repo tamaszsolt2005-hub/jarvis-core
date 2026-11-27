@@ -462,6 +462,172 @@ def _safe_research_source_url(value: Any) -> str | None:
         return None
 
 
+def render_opportunity_center_page(db: Any) -> None:
+    """Read-only browser for company pains, cross-company patterns and SaaS ideas."""
+    st.title("Opportunity Center")
+    st.caption(
+        "Egyedi cégproblémákból indulunk, majd a több cégnél ismétlődő mintázatokat keressük. "
+        "Ez a felület jelenleg kizárólag olvas; nem generál, nem hagy jóvá és nem módosít adatot."
+    )
+    if _auth_login_enabled():
+        st.info(
+            "Az Opportunity-adatokhoz tartozó felhasználói RLS-olvasási szabályok még nincsenek "
+            "kivezetve. A hozzáférést nem kerülöm meg service-role klienssel."
+        )
+        return
+
+    pains_status: dict[str, Any] = {}
+    patterns_status: dict[str, Any] = {}
+    ideas_status: dict[str, Any] = {}
+    pains = _safe_rows(
+        db, "business_pain_hypotheses",
+        "id,lead_id,statement,confidence,status,evidence,created_at", 500, status=pains_status,
+    )
+    patterns = _safe_rows(
+        db, "market_problem_patterns",
+        "id,title,description,company_pain_ids,confidence,status,created_at", 300, status=patterns_status,
+    )
+    ideas = _safe_rows(
+        db, "saas_opportunities",
+        "id,market_pattern_id,name,summary,status,created_at", 300, status=ideas_status,
+    )
+
+    cols = st.columns(3)
+    cols[0].metric("Cégproblémák", len(pains) if not pains_status.get("error") else "—")
+    cols[1].metric("Piaci mintázatok", len(patterns) if not patterns_status.get("error") else "—")
+    cols[2].metric("SaaS-lehetőségek", len(ideas) if not ideas_status.get("error") else "—")
+
+    unavailable = [
+        label for label, status in (
+            ("Cégprobléma-adattábla", pains_status),
+            ("Piaci mintázat-adattábla", patterns_status),
+            ("SaaS-lehetőség-adattábla", ideas_status),
+        ) if status.get("error")
+    ]
+    if unavailable:
+        st.warning(
+            "Az Opportunity Engine adattáblái még nincsenek elérhető állapotban: "
+            + ", ".join(unavailable)
+            + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
+        )
+
+    pain_tab, pattern_tab, idea_tab, dossier_tab = st.tabs(
+        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Cégdossziék"]
+    )
+    with pain_tab:
+        if pains_status.get("error"):
+            st.info("A cégproblémák jelenleg nem olvashatók, mert az adattábla még nincs telepítve.")
+        elif not pains:
+            st.info("Még nincs rögzített problémahipotézis. A JARVIS nem jelenít meg kitalált problémákat.")
+        else:
+            for item in pains:
+                with st.expander(
+                    f"{str(item.get('statement') or 'Névtelen probléma')[:140]} · "
+                    f"{str(item.get('status') or 'ismeretlen státusz')}",
+                    expanded=False,
+                ):
+                    st.write(str(item.get("statement") or ""))
+                    st.caption(
+                        f"Confidence: {item.get('confidence', '—')} · "
+                        f"Cégazonosító: {item.get('lead_id') or '—'} · "
+                        f"Azonosító: {item.get('id') or '—'}"
+                    )
+                    evidence = item.get("evidence")
+                    if isinstance(evidence, list) and evidence:
+                        st.markdown("**Bizonyítékok**")
+                        for entry in evidence[:20]:
+                            if not isinstance(entry, dict):
+                                continue
+                            st.write(str(entry.get("excerpt") or ""))
+                            source_url = _safe_research_source_url(entry.get("source_url"))
+                            if source_url:
+                                st.markdown(f"[Forrás megnyitása]({source_url})")
+                            st.caption(
+                                f"Típus: {entry.get('evidence_type') or '—'} · "
+                                f"Megfigyelés: {entry.get('observed_at') or '—'}"
+                            )
+                    else:
+                        st.warning("Ehhez a hipotézishez nincs megjeleníthető bizonyíték.")
+
+    with pattern_tab:
+        if patterns_status.get("error"):
+            st.info("A piaci mintázatok még nem olvashatók; a tárolási séma nincs telepítve.")
+        elif not patterns:
+            st.info("Még nincs több cégen át igazolt vagy vizsgálat alatt álló mintázat.")
+        else:
+            for item in patterns:
+                with st.expander(str(item.get("title") or "Névtelen mintázat"), expanded=False):
+                    st.write(str(item.get("description") or ""))
+                    linked = item.get("company_pain_ids")
+                    st.caption(
+                        f"Státusz: {item.get('status') or '—'} · "
+                        f"Confidence: {item.get('confidence', '—')} · "
+                        f"Kapcsolt problémák: {len(linked) if isinstance(linked, list) else 0}"
+                    )
+
+    with idea_tab:
+        if ideas_status.get("error"):
+            st.info("A SaaS-ötletek még nem olvashatók; a tárolási séma nincs telepítve.")
+        elif not ideas:
+            st.info("Még nincs rögzített SaaS-lehetőség. A rendszer nem minősít hipotézist kész terméknek.")
+        else:
+            for item in ideas:
+                with st.expander(str(item.get("name") or "Névtelen SaaS-ötlet"), expanded=False):
+                    st.write(str(item.get("summary") or ""))
+                    st.caption(
+                        f"Státusz: {item.get('status') or '—'} · "
+                        f"Kapcsolt piaci mintázat: {item.get('market_pattern_id') or '—'}"
+                    )
+
+    with dossier_tab:
+        lead_status: dict[str, Any] = {}
+        leads = _safe_rows(db, "leads", "id,company_name,source", 500, status=lead_status)
+        if lead_status.get("error"):
+            st.error("A céglista nem olvasható; az adatforráshibát nem tekintem üres eredménynek.")
+        else:
+            researched = [
+                lead for lead in leads
+                if lead.get("id") and str(lead.get("source") or "").startswith("gemini_google_search_grounding:")
+            ]
+            if not researched:
+                st.info("Még nincs forrásolt cégkutatási dosszié.")
+            else:
+                labels = {
+                    str(lead["id"]): str(lead.get("company_name") or "Névtelen cég")
+                    for lead in researched
+                }
+                selected = st.selectbox(
+                    "Cég kiválasztása", list(labels),
+                    format_func=lambda value: labels.get(str(value), str(value)),
+                    key="jarvis_opportunity_dossier_company",
+                )
+                try:
+                    history = get_company_research_history(db, lead_id=str(selected), limit=20)
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="opportunity_dossier_read",
+                        severity="warning", db=db,
+                    )
+                    st.error("A kiválasztott cég dossziéja nem olvasható.")
+                    return
+                for index, snapshot in enumerate(history):
+                    dossier = snapshot.get("dossier") if isinstance(snapshot, dict) else {}
+                    dossier = dossier if isinstance(dossier, dict) else {}
+                    with st.expander(
+                        f"{snapshot.get('researched_at', 'Ismeretlen dátum')} · "
+                        f"{snapshot.get('company_domain', 'ismeretlen domain')}",
+                        expanded=index == 0,
+                    ):
+                        for fact in dossier.get("facts", [])[:20]:
+                            if not isinstance(fact, dict):
+                                continue
+                            st.markdown(f"**{fact.get('category') or 'Tény'}**")
+                            st.write(str(fact.get("fact") or ""))
+                            url = _safe_research_source_url(fact.get("source_url"))
+                            if url:
+                                st.markdown(f"[Forrás megnyitása]({url})")
+
+
 def render_settings_page() -> None:
     """Render safe, read-only runtime settings and explicitly triggered diagnostics."""
     st.title("Beállítások")
@@ -1790,6 +1956,12 @@ with st.sidebar:
         type="primary" if current_page == "research" else "secondary",
         width="stretch",
     )
+    opportunity_clicked = st.button(
+        "✧   Opportunity Center",
+        key="jarvis_nav_opportunities",
+        type="primary" if current_page == "opportunities" else "secondary",
+        width="stretch",
+    )
     audit_clicked = st.button(
         "▤   Audit napló",
         key="jarvis_nav_audit",
@@ -1822,6 +1994,9 @@ if analytics_clicked:
 if research_clicked:
     st.session_state["jarvis_page"] = "research"
     st.rerun()
+if opportunity_clicked:
+    st.session_state["jarvis_page"] = "opportunities"
+    st.rerun()
 if audit_clicked:
     st.session_state["jarvis_page"] = "audit"
     st.rerun()
@@ -1832,6 +2007,20 @@ if settings_clicked:
 if st.session_state.get("jarvis_page") == "settings":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     render_settings_page()
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "opportunities":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        opportunity_db = st.session_state.get("_jarvis_db")
+        if opportunity_db is None:
+            opportunity_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = opportunity_db
+        render_opportunity_center_page(opportunity_db)
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_opportunity_center_page", severity="error", db=opportunity_db if "opportunity_db" in locals() else None)
+        st.error("Az Opportunity Center nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
     st.stop()
 
 if st.session_state.get("jarvis_page") == "audit":
