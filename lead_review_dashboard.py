@@ -252,11 +252,33 @@ def render_lead_review_page(
         approved = [row for row in approved if matches_search(row)]
         rejected = [row for row in rejected if matches_search(row)]
 
-    pending_tab, approved_tab, rejected_tab = st.tabs([
-        f"Várakozó ({len(pending)})",
-        f"Jóváhagyott / e-mail előkészítés ({len(approved)})",
-        f"Elutasított ({len(rejected)})",
-    ])
+    status_filter = st.selectbox(
+        "Státusz szűrése",
+        options=["Összes", "Jóváhagyásra vár", "Jóváhagyott", "Elutasított"],
+        key="lead_review_status_filter",
+    )
+    sort_order = st.selectbox(
+        "Rendezés",
+        options=["Kutatási prioritás szerint", "Cégnév szerint"],
+        key="lead_review_sort_order",
+    )
+    filtered_rows = [
+        row for row in ranked
+        if status_filter == "Összes"
+        or (status_filter == "Jóváhagyásra vár" and row["_review_status"] == "pending")
+        or (status_filter == "Jóváhagyott" and row["_review_status"] == "approved")
+        or (status_filter == "Elutasított" and row["_review_status"] == "rejected")
+    ]
+    if sort_order == "Cégnév szerint":
+        filtered_rows.sort(key=lambda row: str(row.get("company_name") or "").casefold())
+    if not filtered_rows:
+        st.info("A keresési és státuszfeltételeknek megfelelő lead nem található.")
+        return
+    selected_id = str(st.session_state.get("lead_review_selected_id") or "")
+    if not any(str(row["id"]) == selected_id for row in filtered_rows):
+        selected_id = str(filtered_rows[0]["id"])
+        st.session_state["lead_review_selected_id"] = selected_id
+    list_col, detail_col = st.columns([1.08, 1.72], gap="large")
 
     def render_card(lead: dict[str, Any], index: int, section: str) -> None:
         lead_id = str(lead["id"])
@@ -295,8 +317,8 @@ def render_lead_review_page(
                 elif section == "rejected":
                     st.caption("Elutasítva")
             with st.expander(
-                "⌄ Cégadatok, AI-összefoglaló és döntés",
-                expanded=st.session_state.get("lead_review_active_reject") == lead_id,
+                "Részletek, források és döntés",
+                expanded=True,
             ):
                 details_left, details_right = st.columns(2)
                 with details_left:
@@ -491,21 +513,43 @@ def render_lead_review_page(
                         if suggestion:
                             st.write(suggestion)
 
-    with pending_tab:
-        if not pending:
-            st.info("Nincs jóváhagyásra váró lead.")
-        for index, lead in enumerate(pending, start=1):
-            render_card(lead, index, "pending")
-    with approved_tab:
-        if not approved:
-            st.info("Még nincs jóváhagyott lead.")
-        for index, lead in enumerate(approved, start=1):
-            render_card(lead, index, "approved")
-    with rejected_tab:
-        if not rejected:
-            st.info("Még nincs elutasított lead.")
-        for index, lead in enumerate(rejected, start=1):
-            render_card(lead, index, "rejected")
+    with list_col:
+        st.markdown("### Leadlista")
+        st.caption(f"{len(filtered_rows)} megjelenített vállalat · pontozott leadek előre sorolva")
+        for index, row in enumerate(filtered_rows, start=1):
+            row_id = str(row["id"])
+            row_name = str(row.get("company_name") or "Névtelen cég")
+            row_score = row["_score"].get("priority_score")
+            row_status = {
+                "pending": "Jóváhagyásra vár",
+                "approved": "Jóváhagyott",
+                "rejected": "Elutasított",
+            }.get(row["_review_status"], row["_review_status"])
+            selected = row_id == selected_id
+            with st.container(border=True):
+                if st.button(
+                    f"{'▸ ' if selected else ''}{row_name}",
+                    key=f"lead_select_{row_id}",
+                    width="stretch",
+                    type="primary" if selected else "secondary",
+                ):
+                    st.session_state["lead_review_selected_id"] = row_id
+                    st.rerun()
+                score_label = f"{row_score}/100" if row_score is not None else "Nem pontozott"
+                st.caption(
+                    f"{country_flag(extract_country(row))}  ·  "
+                    f"{row.get('website') or 'Nincs weboldal megadva'}  ·  "
+                    f"{score_label}  ·  {row_status}"
+                )
+                if row_score is None:
+                    st.caption("Nincs elegendő strukturált adat a pontozáshoz.")
+    with detail_col:
+        selected_row = next((row for row in filtered_rows if str(row["id"]) == selected_id), None)
+        if selected_row:
+            st.markdown("### Kiválasztott vállalat")
+            section = selected_row["_review_status"]
+            render_card(selected_row, filtered_rows.index(selected_row) + 1, section)
+
 
     st.caption(
         f"A rangsor {len(ranked)} leadből készült. A pontozatlan rekordok a pontozottak után jelennek meg. "
