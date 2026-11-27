@@ -146,3 +146,12 @@ def test_discovery_persists_candidate_pattern_links_and_draft_saas_once():
     assert db.tables["market_problem_patterns"][0]["status"] == "candidate"
     assert db.tables["saas_opportunities"][0]["status"] == "draft"
     assert len(db.tables["market_pattern_pains"]) == 2
+
+
+
+def test_private_or_invalid_source_urls_are_not_discovery_evidence():
+    private = _pain("pain-private", "company-2", "Manual invoice reconciliation requires several days")
+    private["evidence"][0]["source_url"] = "http://127.0.0.1/private"
+    valid = _pain("pain-public", "company-1", "Manual invoice reconciliation takes several days")
+
+    assert build_cross_company_pattern_candidates([valid, private]) == []
