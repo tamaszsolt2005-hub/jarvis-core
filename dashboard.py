@@ -79,6 +79,7 @@ from lead_review_dashboard import render_lead_review_page
 from lead_customer_dashboard import render_lead_customer_page
 from lead_email_dashboard import render_email_center
 from company_research_ops_dashboard import render_company_research_ops_page
+from lead_research_actions import enqueue_single_lead_research
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -1931,6 +1932,28 @@ def _get_dashboard_supabase():
     return get_legacy_dashboard_supabase()
 
 
+def _enqueue_lead_research(lead_id: str) -> dict[str, Any]:
+    """Authorize a single-lead research enqueue before resolving service credentials."""
+    session = st.session_state.get("_jarvis_auth_session")
+
+    def authorize_research_request(current_session: dict[str, str] | None) -> Any:
+        authorization = get_enforced_user_supabase(
+            current_session,
+            "research.manage",
+            allowed_roles={"admin", "operator"},
+        )
+        if authorization is None:
+            raise PermissionError("An individual admin/operator Auth session is required.")
+        return authorization
+
+    return enqueue_single_lead_research(
+        lead_id,
+        auth_session=session,
+        authorize_user=authorize_research_request,
+        service_client_factory=get_service_supabase,
+    )
+
+
 def authenticated() -> bool:
     now = time.time()
     if _auth_login_enabled():
@@ -2607,6 +2630,7 @@ if st.session_state.get("jarvis_page") == "leads":
                 role=lead_role,
                 generate_text_fn=generate_text,
                 model_name_fn=get_model_name,
+                research_fn=_enqueue_lead_research,
             )
     except Exception as exc:
         report_error(exc, module="dashboard", operation="render_lead_review_page", severity="error", db=lead_db if "lead_db" in locals() else None)
