@@ -125,7 +125,10 @@ def evidence_records_from_dossier(dossier: dict[str, Any]) -> list[dict[str, str
     researched_at = dossier.get("researched_at", "undated")
     snapshot_id = str(dossier.get("snapshot_id") or "")
     records: list[dict[str, str]] = []
-    for fact in dossier.get("facts", []):
+    facts = dossier.get("facts", [])
+    for fact in facts if isinstance(facts, list) else []:
+        if not isinstance(fact, dict):
+            continue
         record = EvidenceRecord.from_dict(
             {"source_url": fact.get("source_url"), "excerpt": fact.get("fact"),
              "source_kind": "company_dossier_fact"},
