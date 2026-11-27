@@ -525,3 +525,17 @@ A P1.1 újrakérési viselkedésének pontosítása: ha ugyanahhoz a leadhez má
 ### P1 költségvédelmi kiegészítés
 
 A queue migration a foglaláskor érvényes napi költségkeretet is eltárolja. Sikeres job lezárásakor az actual cost tranzakciósan a foglalás helyére kerül, a napi összes lekötött összeg és az esetleges kerettúllépés pedig a `succeeded` audit esemény metaadataiba kerül. A worker-ops RPC ezt a napi limitet és `over_budget` állapotot visszaadja; a műveleti felület külön figyelmeztet, ha a ténylegesen lekötött összeg meghaladta a keretet. A következő enqueue-kat az adatbázis napi kvótakapujának összesített foglalása blokkolja. Ez észleli és megállítja a további munkákat, de nem tudja visszamenőleg megakadályozni, hogy egyetlen Google Search provider-hívás a becsült query allowance fölé kerüljön; a provider-oldali query hard limit továbbra sem igazolt.
+
+
+## Production remediation status – 2026-11-27
+
+A production adatbázis Advisor-auditja alapján az alábbi, visszafelé kompatibilis javítások ténylegesen alkalmazva lettek a Jarvis Supabase projekten:
+
+- A cégkutatási queue, a napi actual-cost elszámolás és a worker pause/ops infrastruktúra migrációi alkalmazva: `20261126153000_company_research_jobs`, `20261126170000_company_research_daily_hard_budget_cap`, `20261127220000_company_research_worker_ops`.
+- A nyolc korábban hiányzó FK index és a kutatási jobok `lead_id` indexe létrejött. A production FK-katalógus read-only ellenőrzése minden FK-hoz megfelelő vezető indexet mutatott.
+- A 38 RLS initplan figyelmeztetés megszűnt: a policy-k a nem exponált `private` sémában lévő, SECURITY INVOKER, STABLE JWT/UID segédfüggvényeket használják. A 7 többszörös permissive SELECT policy megszűnt; a write szabályok parancsonkénti INSERT/UPDATE/DELETE policy-kba kerültek, az admin/operator/reader olvasási kör változatlan.
+- A worker queue, budget, audit, runtime-control és `jarvis_proactive_state` táblákra explicit, API-szerepköröket tiltó RLS policy került. A `service_role` backend-hozzáférése változatlan.
+
+A friss Advisor teljesítményjelzései között már csak az alacsony prioritású, használatlan indexek INFO kategóriájú jelzései maradtak. A biztonsági Advisor 8 authenticated SECURITY DEFINER RPC figyelmeztetést továbbra is jelez; ezek szándékos, belső admin/operator szerepkör-ellenőrzéssel, üres search_path-szel és PUBLIC/anon revoke-val védett RPC-k. A hat RLS policy nélküli tábla közül öt worker/backend-only, egy a `jarvis_proactive_state`; ezek zárt alapértelmezett hozzáférése szándékos, nem nyitottuk meg őket.
+
+A production migrációk sikeresen lefutottak. A worker/CLI/Gemini tényleges futtatása, a böngészős UI ellenőrzés és a deploy még nincs igazolva. A CI automatikusan fut a feature branchen; merge csak zöld, teljes ellenőrzés után következhet.
