@@ -278,10 +278,13 @@ def execute_company_research(
     grounded_sources = response.get("grounded_sources")
     if not isinstance(grounded_sources, list):
         raise CompanyResearchExecutionError("missing_grounding_metadata")
-    grounded_domains = {
-        domain for domain in (_grounded_domain(url) for url in grounded_sources) if domain
+    # Preserve the exact provider-grounded URLs for page-level source matching.
+    # Domain validation is still applied, but a different page on the same host
+    # must not be accepted as evidence.
+    grounded_source_urls = {
+        url for url in grounded_sources if _grounded_domain(url) is not None
     }
-    dossier = build_company_dossier(raw_research, grounded_domains)
+    dossier = build_company_dossier(raw_research, grounded_source_urls)
     if not dossier["facts"] and not dossier["decision_maker"]:
         raise CompanyResearchExecutionError("no_grounded_company_research")
 
