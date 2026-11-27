@@ -52,7 +52,11 @@ def _timestamp(value: Any, field: str) -> str:
     except ValueError as exc:
         raise ValueError(f"{field} must be an ISO-8601 timestamp or undated") from exc
     if parsed.tzinfo is None:
-        raise ValueError(f"{field} must include a timezone")
+        # Legacy dossier/evidence rows sometimes store calendar dates only.
+        if len(raw) == 10:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        else:
+            raise ValueError(f"{field} must include a timezone")
     return parsed.astimezone(timezone.utc).isoformat()
 
 
