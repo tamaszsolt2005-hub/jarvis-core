@@ -102,6 +102,7 @@ jobs:
           CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
           CREATE EXTENSION pgtap WITH SCHEMA extensions;
           CREATE EXTENSION dblink WITH SCHEMA extensions;
+          GRANT USAGE ON SCHEMA extensions TO authenticated, service_role;
           CREATE TABLE public.leads (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             company_name text NOT NULL,
