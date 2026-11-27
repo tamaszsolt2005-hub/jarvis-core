@@ -425,7 +425,7 @@ def render_lead_review_page(
                 elif not dossier and not jobs_error and auth_enabled and str(role or "") in {"admin", "operator", "reader"}:
                     st.caption("Nincs kutatási snapshot; a legutóbbi job-listában nem szerepel kutatási feladat.")
             with middle:
-                st.metric("Lead score", f"{points}/100" if points is not None else "—")
+                st.metric("Kutatási prioritás", f"{points}/100" if points is not None else "—")
             with right:
                 if section == "pending" and can_decide:
                     if st.button("✓ Elfogadom", key=f"lead_approve_{lead_id}", width="stretch"):
