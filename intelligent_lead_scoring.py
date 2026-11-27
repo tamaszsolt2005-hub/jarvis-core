@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from intelligence_engine import evidence_records_from_lead
 from scoring_core import calculate_weighted_score
 
 
@@ -64,6 +65,7 @@ def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
         "research_confidence": confidence,
         "evidence_count": len(evidence),
         "evidence": evidence[:5],
+        "evidence_records": evidence_records_from_lead(lead),
         "reason": "; ".join(reasons),
         "interpretation": "Kutatási prioritás, nem vásárlási szándék, fizetőképesség vagy kapcsolatfelvételi engedély.",
     }
