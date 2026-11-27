@@ -106,6 +106,38 @@ def test_graphviz_output_escapes_quotes_and_drops_dangling_edges():
     assert dot.startswith("digraph JARVIS_Intelligence {")
 
 
+def test_graph_snapshot_preserves_allowlisted_source_provenance():
+    graph = build_graph_snapshot(
+        [{
+            "id": "evidence-1",
+            "entity_type": "evidence",
+            "label": "Public source excerpt",
+            "source_id": "evidence-key",
+            "metadata": {
+                "source_url": "https://example.com/source",
+                "source_kind": "company_dossier_fact",
+                "private_note": "must not be copied",
+            },
+        }],
+        [{
+            "source_entity_id": "evidence-1",
+            "target_entity_id": "company-1",
+            "relationship_type": "evidence_for",
+            "provenance": {
+                "source_url": "https://example.com/source",
+                "source": "dossier",
+                "untrusted": "must not be copied",
+            },
+        }],
+    )
+
+    assert graph["nodes"][0]["metadata"] == {
+        "source_url": "https://example.com/source",
+        "source_kind": "company_dossier_fact",
+    }
+    assert graph["edge_count"] == 0
+
+
 def test_graphviz_rejects_non_object_snapshot():
     with pytest.raises(ValueError):
         to_graphviz_dot([])
