@@ -23,11 +23,9 @@ CREATE TABLE IF NOT EXISTS public.company_research_runtime_control_events (
 
 ALTER TABLE public.company_research_runtime_control ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_research_runtime_control_events ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.company_research_runtime_control FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.company_research_runtime_control_events FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.company_research_runtime_control TO service_role;
-GRANT SELECT, INSERT ON TABLE public.company_research_runtime_control_events TO service_role;
-GRANT USAGE, SELECT ON SEQUENCE public.company_research_runtime_control_events_event_id_seq TO service_role;
+REVOKE ALL ON TABLE public.company_research_runtime_control FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.company_research_runtime_control_events FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.company_research_runtime_control TO service_role;
 
 CREATE OR REPLACE FUNCTION public.company_research_worker_control_state()
 RETURNS jsonb
@@ -43,7 +41,7 @@ DECLARE
   v_budget jsonb;
   v_events jsonb;
 BEGIN
-  IF v_role NOT IN ('admin', 'operator', 'reader') THEN
+  IF COALESCE(v_role, '') NOT IN ('admin', 'operator', 'reader') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'research_control_read_forbidden';
   END IF;
   SELECT * INTO v_state
@@ -107,7 +105,7 @@ DECLARE
   v_role text := auth.jwt() -> 'app_metadata' ->> 'role';
   v_actor uuid := NULLIF(auth.jwt() ->> 'sub', '')::uuid;
 BEGIN
-  IF v_role NOT IN ('admin', 'operator') THEN
+  IF COALESCE(v_role, '') NOT IN ('admin', 'operator') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'research_control_write_forbidden';
   END IF;
   IF p_paused IS NULL OR p_note IS NULL
@@ -147,7 +145,7 @@ BEGIN
   FROM public.company_research_runtime_control
   WHERE singleton = true
   FOR SHARE;
-  IF COALESCE(v_paused, false) THEN
+  IF v_paused IS DISTINCT FROM false THEN
     RETURN;
   END IF;
   PERFORM pg_advisory_xact_lock(742026, 1);
