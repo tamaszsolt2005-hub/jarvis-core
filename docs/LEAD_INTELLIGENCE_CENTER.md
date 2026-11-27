@@ -288,4 +288,4 @@ A Lead Intelligence Center pontozási útvonala átállt a legfrissebb `company_
 - A forráslinkek csak HTTP(S), hitelesítő adat nélküli, localhost/local/internal és nem publikus IP címeket kizáró URL-validálás után jelennek meg.
 - A meglévő admin/operator döntési, AI-javaslat és research enqueue műveletek jogosultsági feltételei változatlanok; reader számára csak olvasás marad.
 
-A P1.3 Gemini adapterben a `response_mime_type="application/json"` beállítás GitHub forrásban igazolt. A módosított dashboard fájlok GitHubról visszaolvasandók és statikusan ellenőrizendők. Külön teszt, böngészős UI-ellenőrzés, worker/queue/Gemini futtatás, DB-módosítás vagy migration nem történt; merge és deploy nincs.
+A P1.3 Gemini adapterben a `response_mime_type="application/json"` beállítás GitHub forrásban igazolt. A módosított dashboard fájlt GitHubról visszaolvastuk, a snapshot-kiválasztást, scoring guardokat, forrásmegjelenítést és jogosultsági kapukat statikusan ellenőriztük. Külön teszt, böngészős UI-ellenőrzés, worker/queue/Gemini futtatás, DB-módosítás vagy migration nem történt; merge és deploy nincs.
