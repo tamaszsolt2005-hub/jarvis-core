@@ -138,6 +138,23 @@ def _latest_snapshot_dossiers(db: Any) -> dict[str, dict[str, Any]]:
     return latest
 
 
+def _latest_research_jobs(db: Any) -> dict[str, dict[str, Any]]:
+    """Read the latest per-lead job projection through the authenticated ops RPC."""
+    if db is None or not callable(getattr(db, "rpc", None)):
+        raise RuntimeError("Authenticated research operations RPC is unavailable.")
+    response = db.rpc("company_research_worker_control_state", {}).execute()
+    data = getattr(response, "data", None)
+    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], dict):
+        data = data[0]
+    if not isinstance(data, dict) or not isinstance(data.get("recent_jobs"), list):
+        raise RuntimeError("Research operations RPC returned an invalid job projection.")
+    latest: dict[str, dict[str, Any]] = {}
+    for job in data["recent_jobs"]:
+        if isinstance(job, dict) and job.get("lead_id"):
+            latest[str(job["lead_id"])] = job
+    return latest
+
+
 def _record_event(
     db: Any,
     *,
@@ -271,6 +288,14 @@ def render_lead_review_page(
         st.warning("A kutatási értékelések most nem olvashatók. Ez adatforrás-hiba, nem üres kutatási eredmény; pontszámot nem jelenítünk meg.")
         st.caption(f"Hibatípus: {snapshot_error}")
 
+    jobs_by_lead: dict[str, dict[str, Any]] = {}
+    jobs_error: str | None = None
+    if auth_enabled and str(role or "") in {"admin", "operator", "reader"}:
+        try:
+            jobs_by_lead = _latest_research_jobs(db)
+        except Exception as exc:
+            jobs_error = type(exc).__name__
+            st.info("A kutatási sorállapot nem érhető el ezen a környezeten; a snapshotból származó értékelés ettől függetlenül olvasható.")
     state_by_lead = {str(row.get("lead_id")): row for row in states if row.get("lead_id")}
     event_by_lead: dict[str, list[dict[str, Any]]] = {}
     for event in events:
@@ -296,6 +321,7 @@ def render_lead_review_page(
             "_review_status": str(state.get("review_status") or "pending"),
             "_review_state": state,
             "_dossier": dossier,
+            "_research_job": jobs_by_lead.get(str(lead["id"])),
         })
     ranked.sort(
         key=lambda row: (
@@ -376,12 +402,28 @@ def render_lead_review_page(
         flag = country_flag(country)
         state = lead["_review_state"]
         dossier = lead["_dossier"]
+        research_job = lead.get("_research_job")
         notes = str(lead.get("notes") or "")
         with st.container(border=True):
             left, middle, right = st.columns([5, 1.25, 2.6])
             with left:
                 st.markdown(f"**{index}. {name}**")
                 st.caption(f"{flag} · {lead.get('website') or 'Nincs weboldal'}")
+                if research_job:
+                    job_labels = {
+                        "queued": "Kutatás sorban", "running": "Kutatás folyamatban",
+                        "retry_wait": "Újrapróbálásra vár", "succeeded": "Kutatás sikeres",
+                        "dead_letter": "Kutatás hibazsákban",
+                    }
+                    st.caption(
+                        f"{job_labels.get(str(research_job.get('status')), 'Kutatási job állapota ismeretlen')} · "
+                        f"Próbálkozás: {research_job.get('attempt_count', '—')} · "
+                        f"Azonosító: {str(research_job.get('operation_id') or '—')[:32]}"
+                    )
+                    if research_job.get("last_error_code"):
+                        st.caption(f"Utolsó hibakód: {str(research_job['last_error_code'])[:80]}")
+                elif not dossier and not jobs_error and auth_enabled and str(role or "") in {"admin", "operator", "reader"}:
+                    st.caption("Nincs kutatási snapshot vagy ismert kutatási job.")
             with middle:
                 st.metric("Lead score", f"{points}/100" if points is not None else "—")
             with right:
