@@ -1,3 +1,11 @@
+## CRM – ügyfél-életciklus első verzió
+
+- A jóváhagyott leadek külön Ügyfélkapcsolatok oldalon követhetők: kapcsolatfelvétel, válasz, minősítés, ajánlat, pilot, ügyfél vagy elvesztett státusz.
+- Admin/operator kézzel rögzíthet státuszváltozást, interakciót és következő teendőt határidővel.
+- Minden változás append-only eseménynaplóba kerül; reader csak olvashat.
+- A CRM nem küld levelet és nem válaszol az ügyfélnek. A kapcsolatfelvétel emberi művelet marad.
+- Migráció: 20261127210000_lead_customer_lifecycle.sql; részletek: [CRM dokumentáció](LEAD_CUSTOMER_LIFECYCLE.md).
+
 ## Automatikus Opportunity Discovery – új fejlesztési állapot
 
 - A grounded cégkutatás strukturált pain hipotéziseket is gyűjt; csak pontos forrás URL-lel és kivonattal menthető.
