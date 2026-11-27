@@ -109,7 +109,7 @@ def _score_snapshot_assessment(dossier: dict[str, Any]) -> dict[str, Any]:
         "scored": True, "priority_score": priority, "status": "assessed",
         "business_fit_score": float(fit), "research_confidence": float(confidence),
         "evidence_count": len(valid_evidence),
-        "reason": f"Üzleti illeszkedés {fit}/100 · bizonyosság {confidence:.0%} · forrásolt bizonyíték {len(evidence)}",
+        "reason": f"Üzleti illeszkedés {fit}/100 · bizonyosság {confidence:.0%} · forrásolt bizonyíték {len(valid_evidence)}",
         "interpretation": "Kutatási prioritás, nem vásárlási szándék, fizetőképesség vagy kapcsolatfelvételi engedély.",
     }
 
