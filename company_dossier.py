@@ -6,6 +6,7 @@ It never collects private contact details or grants outreach permission.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 from datetime import datetime, timezone
@@ -45,8 +46,14 @@ def _url(value: Any) -> str | None:
         or parsed.username
         or parsed.password
         or parsed.hostname.casefold() in {"localhost", "localhost.localdomain"}
+        or parsed.hostname.casefold().endswith((".localhost", ".local"))
     ):
         return None
+    try:
+        if not ipaddress.ip_address(parsed.hostname).is_global:
+            return None
+    except ValueError:
+        pass
     return raw
 
 
