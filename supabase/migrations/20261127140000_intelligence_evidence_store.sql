@@ -248,7 +248,7 @@ DECLARE
   row_data record;
 BEGIN
   FOR row_data IN
-    SELECT id, lead_id, research_evidence FROM public.leads
+    SELECT id, research_evidence FROM public.leads
     WHERE jsonb_typeof(research_evidence) = 'array'
   LOOP
     PERFORM 1;
