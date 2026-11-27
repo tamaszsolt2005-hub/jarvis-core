@@ -545,11 +545,11 @@ def render_opportunity_center_page(db: Any) -> None:
         "id,opportunity_id,market_pattern_id,opportunity_name_snapshot,opportunity_summary_snapshot,market_pattern_title_snapshot,weighted_score,assessment_confidence,evaluator_model,evaluator_version,approved_by,approved_at,created_at",
         200, status=assessments_status,
     )
+    # Read only columns present in the core opportunity schema. Optional scoring
+    # fields are displayed via .get() below when a later scoring migration exists.
     ideas = _safe_rows(
         db, "saas_opportunities",
-        "id,market_pattern_id,name,summary,status,scoring_status,assessment_confidence,"
-        "weighted_score,score_problem_evidence,score_business_value,score_willingness_to_pay,"
-        "score_feasibility,score_reusability,score_risk,score_rationale,score_evidence,created_at",
+        "id,market_pattern_id,name,summary,status,created_at",
         300, status=ideas_status,
     )
 
@@ -799,7 +799,7 @@ def render_opportunity_center_page(db: Any) -> None:
 
     with idea_tab:
         if ideas_status.get("error"):
-            st.info("A SaaS-ötletek még nem olvashatók; a tárolási séma nincs telepítve.")
+            st.info("A SaaS-ötletek nem olvashatók. Ellenőrizd a tábla elérhetőségét és az alapmezők jogosultságait.")
         elif not ideas:
             st.info("Még nincs rögzített SaaS-lehetőség. A rendszer nem minősít hipotézist kész terméknek.")
         else:
