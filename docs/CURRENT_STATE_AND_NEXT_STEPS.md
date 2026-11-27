@@ -466,3 +466,10 @@ A belépési pont kötelező pricing/limit konfigurációt és modellár-egyezé
 Commit: `9cf0f6b57116383e82de92062d1ca74b1d6d4b93`.
 
 A CLI visszaolvasva és statikusan ellenőrizve. Külön teszt nem futott, CLI/worker/queue nem indult, Gemini API-hívás és DB-módosítás nem történt. A `20261127220000_company_research_worker_ops.sql` migration szükséges a pause-controlhoz, de production alkalmazása nincs igazolva; ha hiányzik, a CLI fail-closed módon leáll. Nincs merge/deploy/scheduler.
+
+
+### P1.3 – grounded lead-fit assessment szerződés
+
+A feature branch külön, verziózott `lead_fit_assessment` objektumot validál a kutatási válaszban. A szerződés tartalmazza a fit score-t (0–100), confidence értéket (0–1), indoklást, fit/risk jeleket, következő lépést és forrásolt evidence rekordeket. A validátor elutasítja a bool, NaN/Infinity, hibás típusú és tartományon kívüli számokat. Evidence csak a Google grounding metadata-val pontos URL-egyezés esetén marad meg; a cím/snippet kizárólag a provider metadata-ból származhat. A tény, hipotézis és AI assessment külön típus. Grounded evidence hiányában score/confidence null. Az assessment része a dossier fingerprintnek és az idempotens snapshotnak.
+
+**P1.4 hátralévő:** a Lead Intelligence Center pontozását a legfrissebb snapshot assessmentjére kell átállítani; ez a lépés nem ír Lead notes mezőt és nem használja a régi `Leadkutatás;` parser útvonalat.
