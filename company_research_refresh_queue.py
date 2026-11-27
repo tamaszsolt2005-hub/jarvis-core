@@ -49,7 +49,6 @@ def enqueue_company_research_refreshes(
     now: datetime | None = None,
     max_age_days: int = 30,
     limit: int = 50,
-    operation_id_overrides: dict[str, str] | None = None,
     operation_nonce_by_lead: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Plan and enqueue using mandatory database-enforced cost/rate limits.
@@ -70,28 +69,23 @@ def enqueue_company_research_refreshes(
     candidates = plan_company_research_refresh_candidates(
         leads, latest_dossiers, now=now, max_age_days=max_age_days, limit=limit
     )
-    if operation_id_overrides is not None and not isinstance(operation_id_overrides, dict):
-        raise ValueError("operation_id_overrides must be an object")
     if operation_nonce_by_lead is not None and not isinstance(operation_nonce_by_lead, dict):
         raise ValueError("operation_nonce_by_lead must be an object")
-    overrides = operation_id_overrides or {}
     nonces = operation_nonce_by_lead or {}
     jobs = []
     for candidate in candidates:
         lead_id = candidate["lead_id"]
-        operation_id = overrides.get(lead_id)
-        if operation_id is None:
-            base_operation_id = _operation_id(candidate)
-            nonce = nonces.get(lead_id)
-            if nonce is not None:
-                if not isinstance(nonce, str) or not nonce.strip() or len(nonce) > 128:
-                    raise ValueError("invalid operation nonce")
-                suffix = hashlib.sha256(nonce.encode("utf-8")).hexdigest()[:12]
-                operation_id = f"{base_operation_id}:retry:{suffix}"
-            else:
-                operation_id = base_operation_id
+        base_operation_id = _operation_id(candidate)
+        nonce = nonces.get(lead_id)
+        if nonce is not None:
+            if not isinstance(nonce, str) or not nonce.strip() or len(nonce) > 128:
+                raise ValueError("invalid operation nonce")
+            suffix = hashlib.sha256(nonce.encode("utf-8")).hexdigest()[:12]
+            operation_id = f"{base_operation_id}:retry:{suffix}"
+        else:
+            operation_id = base_operation_id
         if not isinstance(operation_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", operation_id):
-            raise ValueError("invalid operation ID override")
+            raise ValueError("invalid operation ID")
         jobs.append(repository.create(
             operation_id=operation_id,
             lead_id=candidate["lead_id"],
