@@ -134,3 +134,8 @@ A napi cégkutatási worker a forrásolt dossier-okból strukturált problémahi
 ## CRM – ügyfél-életciklus
 
 A jóváhagyott leadek kézzel követhető státuszai, interakciós naplója és következő teendői: [CRM ügyfél-életciklus dokumentáció](docs/LEAD_CUSTOMER_LIFECYCLE.md). A folyamat nem küld e-mailt és nem válaszol automatikusan az ügyfeleknek.
+
+
+## Kutatási worker üzemeltetése
+
+- [Kutatási worker műveletek és pause/resume](docs/RESEARCH_WORKER_OPERATIONS.md)
