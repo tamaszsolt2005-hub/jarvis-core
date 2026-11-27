@@ -115,3 +115,8 @@ python -m pytest -q
 ## Intelligence Graph
 
 A Leadek, cégdossziék, problémahipotézisek, piaci mintázatok, SaaS-jelöltek, jóváhagyott értékelések és forrásbizonyítékok közötti kapcsolatok külön, származtatott gráfrétegben jelennek meg. A gráf az eredeti üzleti táblákból épül, azokat nem helyettesíti. Részletek: [Intelligence Graph architektúra](docs/INTELLIGENCE_GRAPH.md).
+
+
+## Lead e-mail workflow
+
+A jóváhagyott leadekhez személyre szabott, szerkeszthető e-mail-piszkozat készíthető. A piszkozat külön jóváhagyása, a kötelező elutasítási visszajelzés és a strukturált globális stílusprofil részletei: [Lead Email Draft and Approval Workflow](docs/LEAD_EMAIL_WORKFLOW.md). A küldési kódzár változatlanul aktív; a jóváhagyott e-mailek nem kerülnek automatikus küldésre.
