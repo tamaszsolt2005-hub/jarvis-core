@@ -233,13 +233,15 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
     for candidate in candidates:
         existing_patterns = _rows(
             db.table("market_problem_patterns")
-            .select("id,fingerprint")
+            .select("id,fingerprint,status")
             .eq("fingerprint", candidate["fingerprint"])
             .limit(1)
             .execute(),
             operation="checking existing market pattern",
         )
         if existing_patterns:
+            if str(existing_patterns[0].get("status") or "") == "rejected":
+                continue
             pattern_id = str(existing_patterns[0]["id"])
         else:
             inserted = _rows(
