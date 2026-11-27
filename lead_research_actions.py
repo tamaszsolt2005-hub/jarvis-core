@@ -58,7 +58,7 @@ def enqueue_single_lead_research(
 
     latest_job_response = (
         db.table("company_research_jobs")
-        .select("operation_id,status")
+        .select("operation_id,status,created_at,job_id")
         .eq("lead_id", normalized_id)
         .order("created_at", desc=True)
         .order("job_id", desc=True)
@@ -76,6 +76,14 @@ def enqueue_single_lead_research(
         or latest_job.get("status") not in {"queued", "running", "retry_wait", "succeeded", "dead_letter"}
     ):
         raise LeadResearchRequestError("latest_job_state_invalid")
+    if latest_job and latest_job.get("status") in {"queued", "running", "retry_wait"}:
+        return {
+            "status": str(latest_job["status"]),
+            "lead_id": normalized_id,
+            "operation_id": latest_job["operation_id"],
+            "created_at": str(latest_job.get("created_at") or ""),
+            "reason": "existing_research_job",
+        }
 
     snapshot_response = (
         db.table("company_research_snapshots")
@@ -92,6 +100,11 @@ def enqueue_single_lead_research(
     latest_dossiers: dict[str, Any] = {}
     if isinstance(snapshot_rows, list) and snapshot_rows and isinstance(snapshot_rows[0], dict):
         latest_dossiers[normalized_id] = snapshot_rows[0]
+    # A dead-letter may have failed after the immutable snapshot was inserted
+    # (e.g. during pain/pattern persistence). An explicit user re-request must
+    # be able to replay the full vertical slice with a fresh reservation.
+    if latest_job and latest_job.get("status") == "dead_letter":
+        latest_dossiers = {}
 
     repository = SupabaseCompanyResearchJobRepository(db)
     jobs = enqueue_company_research_refreshes(
@@ -108,11 +121,6 @@ def enqueue_single_lead_research(
         max_attempts=config.max_attempts,
         max_age_days=config.max_age_days,
         limit=1,
-        operation_id_overrides=(
-            {normalized_id: str(latest_job.get("operation_id"))}
-            if latest_job and latest_job.get("status") in {"queued", "running", "retry_wait"}
-            else None
-        ),
         operation_nonce_by_lead=(
             {normalized_id: str(latest_job.get("operation_id"))}
             if latest_job and latest_job.get("status") == "dead_letter"
