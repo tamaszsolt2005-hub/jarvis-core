@@ -1,6 +1,6 @@
 -- Run only against the isolated PostgreSQL integration fixtures.
 BEGIN;
-SELECT plan(14);
+SELECT plan(16);
 
 SELECT is(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -57,6 +57,26 @@ RETURNING id \gset pattern_
 
 INSERT INTO public.market_pattern_pains (market_pattern_id, company_pain_id)
 VALUES (:'pattern_id', :'pain_id');
+
+SELECT throws_ok(
+  'UPDATE public.market_problem_patterns SET status=''validated'' WHERE id=' ||
+  quote_literal(:'pattern_id'),
+  '23514', NULL, 'a one-company pattern cannot be marked validated'
+);
+
+INSERT INTO public.leads (company_name, website)
+VALUES ('Second opportunity fixture company','https://opportunity-two.invalid')
+RETURNING id \gset opportunity2_
+INSERT INTO public.business_pain_hypotheses (lead_id, statement, confidence, evidence)
+VALUES (:'opportunity2_id', 'The same manual reconciliation workflow appears here', 0.610,
+        '[{"source_url":"https://example.invalid/second-report","excerpt":"Second company evidence","evidence_type":"supporting"}]'::jsonb)
+RETURNING id \gset pain2_
+INSERT INTO public.market_pattern_pains (market_pattern_id, company_pain_id)
+VALUES (:'pattern_id', :'pain2_id');
+UPDATE public.market_problem_patterns SET status='validated' WHERE id=:'pattern_id';
+SELECT is((SELECT status FROM public.market_problem_patterns WHERE id=:'pattern_id'),
+          'validated', 'pattern can be validated after two distinct companies are linked');
+
 INSERT INTO public.saas_opportunities (market_pattern_id, name, summary)
 VALUES (:'pattern_id','Reconciliation SaaS','A product candidate linked to a recurring pattern');
 

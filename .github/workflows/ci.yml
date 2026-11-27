@@ -616,7 +616,9 @@ jobs:
             echo "pgTAP reported failed Opportunity Engine schema/security assertions."
             exit 1
           fi
-          grep -q '1..14' <<< "$opportunity_output"
+          grep -q '1..16' <<< "$opportunity_output"
+          # Replaying the schema migration must be safe and preserve the validated-pattern guard.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
