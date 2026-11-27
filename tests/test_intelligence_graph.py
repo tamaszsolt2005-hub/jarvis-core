@@ -118,6 +118,10 @@ def test_graph_snapshot_preserves_allowlisted_source_provenance():
                 "source_kind": "company_dossier_fact",
                 "private_note": "must not be copied",
             },
+        }, {
+            "id": "company-1",
+            "entity_type": "company",
+            "label": "Acme",
         }],
         [{
             "source_entity_id": "evidence-1",
@@ -131,11 +135,16 @@ def test_graph_snapshot_preserves_allowlisted_source_provenance():
         }],
     )
 
-    assert graph["nodes"][0]["metadata"] == {
+    evidence_node = next(node for node in graph["nodes"] if node["id"] == "evidence-1")
+    assert evidence_node["metadata"] == {
         "source_url": "https://example.com/source",
         "source_kind": "company_dossier_fact",
     }
-    assert graph["edge_count"] == 0
+    assert graph["edge_count"] == 1
+    assert graph["relationships"][0]["provenance"] == {
+        "source_url": "https://example.com/source",
+        "source": "dossier",
+    }
 
 
 def test_graphviz_rejects_non_object_snapshot():
