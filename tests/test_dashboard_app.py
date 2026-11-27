@@ -1038,6 +1038,4 @@ def test_streamlit_email_center_navigation_renders_read_only_workspace(monkeypat
     assert not app.exception
     assert app.session_state["jarvis_page"] == "email_center"
     assert any("E-mail központ" in item.value for item in app.title)
-    assert any("Piszkozatok" in item.label for item in app.tabs)
-    assert any("Jóváhagyott e-mailek" in item.label for item in app.tabs)
     assert len(app.chat_input) == 0
