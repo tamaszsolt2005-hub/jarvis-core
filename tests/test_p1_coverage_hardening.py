@@ -325,7 +325,7 @@ def test_lead_research_actions_returns_existing_active_job_without_new_provider_
 
     db = _ActionDB(
         [{"id": "lead-1", "company_name": "Example Ltd"}],
-        [{"operation_id": "op-existing", "status": "running", "created_at": "2026-11-27T10:00:00Z"}],
+        [{"lead_id": "lead-1", "operation_id": "op-existing", "status": "running", "created_at": "2026-11-27T10:00:00Z"}],
     )
     monkeypatch.setattr(
         actions.CompanyResearchRuntimeConfig, "from_env",
@@ -349,7 +349,7 @@ def test_lead_research_actions_fails_closed_when_lead_or_job_projection_is_inval
             "lead-1", auth_session={}, authorize_user=lambda _: True,
             service_client_factory=lambda: _ActionDB([], []),
         )
-    db = _ActionDB([{"id": "lead-1", "company_name": "Example Ltd"}], [{"operation_id": None, "status": "queued"}])
+    db = _ActionDB([{"id": "lead-1", "company_name": "Example Ltd"}], [{"lead_id": "lead-1", "operation_id": None, "status": "queued"}])
     with pytest.raises(LeadResearchRequestError, match="latest_job_state_invalid"):
         enqueue_single_lead_research(
             "lead-1", auth_session={}, authorize_user=lambda _: True,
