@@ -35,6 +35,10 @@ def _safe_public_source(value: Any) -> str | None:
         if host.casefold() == "localhost" or host.casefold().endswith((".localhost", ".local")):
             return None
         try:
+            _ = parsed.port
+        except ValueError:
+            return None
+        try:
             if not ipaddress.ip_address(host).is_global:
                 return None
         except ValueError:
