@@ -72,6 +72,7 @@ class _DB:
     def __init__(self, lead):
         self.leads = [lead]
         self.checkpoint = None
+        self.events = []
 
     def table(self, name):
         return _Query(self, name)
@@ -124,13 +125,17 @@ def _configure(monkeypatch, db, message, *, audit=True):
     monkeypatch.setattr(email_inbox, "get_service_supabase", lambda: db)
     monkeypatch.setattr(email_inbox.imaplib, "IMAP4_SSL", lambda *_args: _Mailbox({b"10": message}))
     monkeypatch.setattr(email_inbox, "audit_event", lambda *_args, **_kwargs: audit)
-    monkeypatch.setattr(email_inbox, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        email_inbox, "log_event",
+        lambda _db, module, message, **kwargs: db.events.append((module, message, kwargs)),
+    )
     monkeypatch.setattr(email_inbox, "report_error", lambda *_args, **_kwargs: None)
 
 
 def _lead():
     return {
         "id": "lead-1",
+        "company_name": "Példa Kft.",
         "email": "contact@example.test",
         "status": "sent",
         "opted_out": False,
@@ -146,8 +151,13 @@ def test_inbox_reply_updates_lead_and_advances_uid_checkpoint(monkeypatch):
     assert email_inbox._run() == 1
 
     assert db.leads[0]["status"] == "replied"
-    assert db.leads[0]["reply_category"] == "reply"
+    assert db.leads[0]["reply_category"] == "interested"
     assert db.leads[0]["opted_out"] is False
+    assert len(db.events) == 1
+    assert db.events[0][0] == "email_inbox"
+    assert "ÜGYFÉL VÁLASZ" in db.events[0][1]
+    assert "kategória=interested" in db.events[0][1]
+    assert "JARVIS nem küld automatikus választ." in db.events[0][1]
     assert db.leads[0]["next_follow_up_at"] is None
     assert db.checkpoint == {"uidvalidity": "77", "last_uid": 10}
 
