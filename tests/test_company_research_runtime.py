@@ -39,8 +39,9 @@ class FakeRepository:
 
 
 class FakeSnapshotQuery:
-    def __init__(self, db):
+    def __init__(self, db, table_name):
         self.db = db
+        self.table_name = table_name
         self.row = None
         self.filters = {}
 
@@ -51,6 +52,9 @@ class FakeSnapshotQuery:
         self.filters[key] = value
         return self
 
+    def order(self, _column, desc=False):
+        return self
+
     def limit(self, _value):
         return self
 
@@ -59,12 +63,13 @@ class FakeSnapshotQuery:
         return self
 
     def execute(self):
+        table_rows = self.db.rows if self.table_name == "company_research_snapshots" else []
         if self.row is not None:
-            if any(existing["snapshot_id"] == self.row["snapshot_id"] for existing in self.db.rows):
+            if any(existing["snapshot_id"] == self.row["snapshot_id"] for existing in table_rows):
                 raise RuntimeError("duplicate snapshot id")
-            self.db.rows.append(deepcopy(self.row))
+            table_rows.append(deepcopy(self.row))
             return type("Response", (), {"data": [deepcopy(self.row)]})()
-        rows = [row for row in self.db.rows if all(row.get(key) == value for key, value in self.filters.items())]
+        rows = [row for row in table_rows if all(row.get(key) == value for key, value in self.filters.items())]
         return type("Response", (), {"data": rows[:1]})()
 
 
@@ -72,8 +77,8 @@ class FakeSnapshotDB:
     def __init__(self):
         self.rows = []
 
-    def table(self, _name):
-        return FakeSnapshotQuery(self)
+    def table(self, name):
+        return FakeSnapshotQuery(self, name)
 
 
 class FakeProvider:
