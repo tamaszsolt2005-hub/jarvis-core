@@ -506,3 +506,14 @@ A Lead Intelligence Center és a Kutatási műveletek oldal összekötése elké
 **P1 összesítés:** a P1.1–P1.5 kódoldali elemei elkészültek a feature branchben. Ez nem jelenti az élő adatúton való működés igazolását: a worker-ops migration production alkalmazása nincs igazolva, a CLI/worker/queue/Gemini futtatás és a böngészős UI-ellenőrzés nem történt meg. Scheduler nincs és P1-ben szándékosan nincs bekapcsolva. A Google Search query allowance költségfoglalási feltételezés, nem provider-oldali kemény query limit; az actual usage elszámolása és a következő enqueue-k költségkeret-védelme megvan, de egyetlen provider-hívás túllépheti a becsült query foglalást. Ezért a teljes napi hard cost cap nem tekinthető garantáltnak, amíg a provider oldali korlát vagy konzervatívabb költségvédelem nincs igazolva.
 
 A migration csak repository artefaktum; production DB-hez nem nyúltunk. Külön teszt, worker/queue/Gemini futtatás, böngészős ellenőrzés, merge és deploy nem történt.
+
+
+### P1.1–P1.5 kiegészítő stabilizálás – idempotens újrakérés és audit (2026-11-27)
+
+- A kutatási enqueue a legutóbbi job állapotát még a queue művelet előtt lekéri; hibás vagy nem elérhető jobállapot esetén nem próbál új jobot létrehozni.
+- Már sorban/futó/újrapróbálásra váró job esetén az eredeti operation ID-t használja, így az ismételt kattintás idempotens marad.
+- Hibazsákba került job után egy új, determinisztikus retry operation ID és új költségfoglalás készül az új, kifejezett kutatáskérésre; a korábbi job/audit rekord változatlanul megmarad. A worker automatikus retry-je továbbra is egy provider próbálkozásra korlátozott, amíg a sikertelen provider-hívások költsége nem mérhető megbízhatóan.
+- A legfrissebb snapshot kiválasztása azonos kutatási időpont esetén `snapshot_id DESC` tie-breaket is használ.
+- A research planner az IP-címet, belső/localhost domaint, hibás IDNA/domain nevet és credentialt tartalmazó URL-t még a queue előtt elutasítja.
+
+A módosítások GitHubon visszaolvasandók és statikusan ellenőrizendők. Nem futott teszt, worker, queue vagy Gemini hívás; production DB-t, merge-et és deployt nem érintettünk.
