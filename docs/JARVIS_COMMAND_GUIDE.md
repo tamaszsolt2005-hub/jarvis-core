@@ -2,7 +2,7 @@
 
 **Ez a dokumentum azt tanítja meg, mit írj be a JARVIS chatbe, ha konkrét műveletet szeretnél.** A példák a main ágba merge-ölt PR #26–#28 kódjának parser- és routing-szabályaira épülnek. A természetes nyelvű kérdések egy része elemzést indít, de nem minden kifejezés parancs. Ahol külön jóváhagyás szükséges, azt minden esetben feltüntetem.
 
-Kapcsolódó dokumentum: [rendszer- és architektúra-leírás](JARVIS_DOCUMENTATION.md).
+Kapcsolódó dokumentum: [rendszer- és architektúra-leírás](JARVIS_DOCUMENTATION.md). Az Opportunity Center dashboard használatát és jóváhagyási menetét az [Opportunity Center fejezet](#7-opportunity-center--dashboard-hasznalat) és a [részletes Opportunity Engine dokumentáció](OPPORTUNITY_ENGINE.md) írja le.
 
 ## 1. A legfontosabb szabály: javaslat és végrehajtás nem ugyanaz
 
