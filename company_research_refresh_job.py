@@ -90,6 +90,27 @@ def run_company_research_refresh_cycle(
     worker_id: str | None = None,
 ) -> dict[str, Any]:
     """Enqueue stale leads, then process at most batch_limit jobs sequentially."""
+    control_rows = _response_rows(
+        db.table("company_research_runtime_control")
+        .select("paused,note")
+        .eq("singleton", True)
+        .limit(1)
+        .execute(),
+        operation="checking company research worker pause state",
+    )
+    if len(control_rows) != 1:
+        raise RuntimeError("Company research worker control state is missing; refusing to enqueue work.")
+    if control_rows[0].get("paused") is True:
+        return {
+            "status": "paused",
+            "scanned_leads": 0,
+            "queued": 0,
+            "processed": 0,
+            "worker_outcomes": {},
+            "pause_note": str(control_rows[0].get("note") or ""),
+            "contact_permission": "unchanged",
+            "outreach": "disabled",
+        }
     config.validate_model(model)
     models = getattr(client, "models", None)
     if not callable(getattr(models, "count_tokens", None)) or not callable(getattr(models, "generate_content", None)):
