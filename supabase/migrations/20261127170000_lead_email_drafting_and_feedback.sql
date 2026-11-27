@@ -124,7 +124,7 @@ BEGIN
     WHERE id = p_draft_id;
   ELSIF p_event_type = 'rejected' THEN
     IF v_note IS NULL OR length(v_note) < 5 OR length(v_note) > 2000
-       OR p_feedback_category NOT IN ('too_formal','too_long','too_generic','not_persuasive','other') THEN
+       OR p_feedback_category IS NULL OR p_feedback_category NOT IN ('too_formal','too_long','too_generic','not_persuasive','other') THEN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'lead_email_rejection_feedback_required';
     END IF;
     UPDATE public.lead_email_drafts SET status = 'rejected',
