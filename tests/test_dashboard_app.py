@@ -167,6 +167,22 @@ def test_streamlit_opportunity_center_is_read_only_and_shows_empty_states(monkey
     assert len(app.chat_input) == 0
 
 
+def test_streamlit_customer_lifecycle_navigation_renders_empty_state(monkeypatch):
+    app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
+    app.run()
+    app.text_input[0].set_value("app-test-password")
+    app.button[0].click().run()
+
+    app.button(key="jarvis_nav_customers").click().run()
+
+    assert not app.exception
+    assert app.session_state["jarvis_page"] == "customers"
+    assert any("Ügyfélkapcsolatok" in item.value for item in app.title)
+    assert any("Még nincs jóváhagyott lead" in item.value for item in app.info)
+    assert app.session_state["_jarvis_db"].rpc_calls == []
+    assert len(app.chat_input) == 0
+
+
 def test_streamlit_analytics_navigation_renders_empty_state_and_returns_to_chat(monkeypatch):
     app, _smtp_calls, _email_switch = _prepare_dashboard(monkeypatch)
     app.run()
