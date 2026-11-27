@@ -10,6 +10,7 @@ from email.header import decode_header
 from email.utils import parseaddr
 
 from jarvis_common import env_bool, get_secret, get_service_supabase, log_event, required_secret, audit_event
+from reply_analyzer import classify_reply
 
 OPTOUT_TERMS = (
     "leiratkozom", "leiratkozás", "leiratkozas", "unsubscribe", "remove me", "stop emailing",
@@ -99,7 +100,7 @@ def _run() -> int:
         checkpoint = _load_checkpoint(db)
         pending_uids = _uids_to_process(uids, checkpoint, uidvalidity)
         leads = db.table("leads").select(
-            "id,email,status,opted_out,last_inbound_message_id"
+            "id,email,company_name,status,opted_out,last_inbound_message_id"
         ).not_.is_("email", "null").limit(5000).execute().data or []
         by_email = {str(row.get("email") or "").casefold(): row for row in leads}
         for uid in pending_uids:
@@ -133,13 +134,15 @@ def _run() -> int:
                 continue
             subject = _decode(message.get("Subject"))
             body = _body(message)
-            opted_out = _is_optout(subject, body)
+            category = classify_reply(f"{subject}\\n{body}")
+            opted_out = _is_optout(subject, body) or category == "opt_out"
+            reply_category = "opt_out" if opted_out else category
             values = {
                 "last_inbound_message_id": message_id,
                 "next_follow_up_at": None,
                 "status": "opted_out" if opted_out else "replied",
                 "opted_out": bool(opted_out),
-                "reply_category": "opt_out" if opted_out else "reply",
+                "reply_category": reply_category,
             }
             action = "inbound_opt_out" if opted_out else "inbound_reply"
             audit_fields = {
@@ -162,9 +165,16 @@ def _run() -> int:
                 )
             lead["last_inbound_message_id"] = message_id
             lead["opted_out"] = bool(opted_out)
+            company = str(lead.get("company_name") or "Ismeretlen cég").strip()[:180]
+            preview = " ".join(body.split())[:500]
             log_event(
-                db, "email_inbox",
-                f"{'Leiratkozás' if opted_out else 'Válasz'} észlelve; utánkövetés leállítva (lead azonosító: {lead['id']})."
+                db,
+                "email_inbox",
+                "ÜGYFÉL VÁLASZ: "
+                f"cég={company}; feladó={sender}; kategória={reply_category}; "
+                f"tárgy={subject[:180]}; üzenet={preview}; utánkövetés leállítva. "
+                "JARVIS nem küld automatikus választ.",
+                level="warning" if opted_out else "info",
             )
             processed += 1
         if uids:
