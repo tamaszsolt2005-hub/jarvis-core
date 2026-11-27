@@ -139,6 +139,9 @@ def render_email_center(
         prefs_rows = _rows(db, "email_style_preferences", "scope,formality,concision,personalization,assertiveness,updated_at", 10)
         snapshots = _rows(db, "company_research_snapshots", "lead_id,researched_at,dossier", 1500)
         revisions = _rows(db, "lead_email_draft_revisions", "id,draft_id,subject,body,created_at", 4000)
+        permissions = _rows(db, "lead_email_contact_permissions", "lead_id,email_normalized,status,legal_basis,evidence_note,evidence_url,verified_at,valid_until", 2000)
+        suppressions = _rows(db, "email_suppression_list", "email_normalized,reason,note,created_at", 2000)
+        queue_rows = _rows(db, "lead_email_send_queue", "id,draft_id,lead_id,recipient_email,status,block_reason,evaluated_at", 2000)
     except Exception as exc:
         st.error("Az e-mail munkaterület adatforrása nem érhető el.")
         st.caption(f"Hibatípus: {type(exc).__name__}")
@@ -180,6 +183,7 @@ def render_email_center(
         f"Jóváhagyott e-mailek ({len(approved_drafts)})",
         f"Elutasított ({len(rejected_drafts)})",
         "Stílusprofil",
+        "Engedélyek és küldési sor",
     ])
 
     with tabs[0]:
@@ -339,6 +343,158 @@ def render_email_center(
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Nem nyitható vissza ({type(exc).__name__}).")
+
+    with tabs[4]:
+        st.warning("Ez a felület csak jogosultságot ellenőriz és előkészített sort vezet. E-mail-küldés nincs bekapcsolva, a sorba kerülés sem indít küldést.")
+        st.markdown("**Kapcsolatfelvételi jogosultságok**")
+        st.caption("Címenként és leadenként kell rögzíteni a jogalapot, az ellenőrzés bizonyítékát és – ha van – az érvényességi határidőt. A jogalap kiválasztása önmagában nem jogi tanács vagy automatikus megfelelőségi igazolás.")
+        permission_by_key = {
+            (str(row.get("lead_id")), str(row.get("email_normalized") or "").casefold()): row
+            for row in permissions
+        }
+        queue_by_draft = {str(row.get("draft_id")): row for row in queue_rows}
+        suppression_emails = {str(row.get("email_normalized") or "").casefold() for row in suppressions}
+        for draft in approved_drafts:
+            draft_id = str(draft.get("id") or "")
+            lead_id = str(draft.get("lead_id") or "")
+            email = str(draft.get("recipient_email") or "").strip().casefold()
+            lead = lead_by_id.get(lead_id, {})
+            current = permission_by_key.get((lead_id, email), {})
+            queue_item = queue_by_draft.get(draft_id, {})
+            with st.container(border=True):
+                st.markdown(f"**{lead.get('company_name') or 'Ismeretlen cég'}**")
+                st.caption(f"Címzett: {email or 'nincs megadva'}")
+                if email in suppression_emails:
+                    st.error("A cím szerepel a globális tiltólistán. Nem tehető küldésre előkészített állapotba.")
+                with st.form(f"email_permission_{draft_id}"):
+                    permission_status = st.selectbox(
+                        "Kapcsolatfelvételi jogosultság",
+                        ["authorized", "revoked"],
+                        index=0 if current.get("status") == "authorized" else 1 if current.get("status") == "revoked" else 0,
+                        format_func=lambda value: "Engedélyezett (ellenőrzött jogalap)" if value == "authorized" else "Visszavont",
+                        key=f"permission_status_{draft_id}",
+                    )
+                    legal_basis = st.selectbox(
+                        "Jogalap / ellenőrzés típusa",
+                        ["explicit_consent", "legitimate_interest_reviewed", "contractual_necessity", "other_reviewed"],
+                        format_func=lambda value: {
+                            "explicit_consent": "Kifejezett hozzájárulás",
+                            "legitimate_interest_reviewed": "Felülvizsgált jogos érdek",
+                            "contractual_necessity": "Szerződés teljesítéséhez szükséges",
+                            "other_reviewed": "Egyéb, felülvizsgált jogalap",
+                        }[value],
+                        key=f"permission_basis_{draft_id}",
+                    )
+                    evidence_note = st.text_area(
+                        "Bizonyíték / ellenőrzési megjegyzés (kötelező)",
+                        value=str(current.get("evidence_note") or ""),
+                        max_chars=2000,
+                        key=f"permission_note_{draft_id}",
+                    )
+                    evidence_url = st.text_input(
+                        "Bizonyíték URL (opcionális, csak HTTPS)",
+                        value=str(current.get("evidence_url") or ""),
+                        key=f"permission_url_{draft_id}",
+                    )
+                    valid_until = st.text_input(
+                        "Érvényesség vége ISO 8601 formátumban (opcionális)",
+                        value=str(current.get("valid_until") or ""),
+                        key=f"permission_until_{draft_id}",
+                        placeholder="2027-01-31T23:59:59+01:00",
+                    )
+                    permission_saved = st.form_submit_button("Jogosultság mentése", disabled=not can_edit)
+                if permission_saved and can_edit:
+                    try:
+                        from datetime import datetime
+                        expiry = valid_until.strip() or None
+                        if expiry:
+                            datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+                        safe_evidence = _safe_public_source(evidence_url) if evidence_url.strip() else None
+                        if evidence_url.strip() and not safe_evidence:
+                            raise ValueError("A bizonyíték URL nem biztonságos HTTPS-cím.")
+                        if not _email(email) or len(evidence_note.strip()) < 5:
+                            raise ValueError("Érvényes cím és legalább 5 karakteres bizonyíték-megjegyzés szükséges.")
+                        db.rpc("record_lead_email_contact_permission", {
+                            "p_lead_id": lead_id,
+                            "p_email": email,
+                            "p_status": permission_status,
+                            "p_legal_basis": legal_basis,
+                            "p_evidence_note": evidence_note.strip(),
+                            "p_evidence_url": safe_evidence,
+                            "p_valid_until": expiry,
+                        }).execute()
+                        st.success("A jogosultsági állapot és az auditbejegyzés mentve.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"A jogosultság nem menthető ({type(exc).__name__}): {str(exc)[:240]}")
+                if current:
+                    st.caption(f"Jelenlegi állapot: {current.get('status')} · Jogalap: {current.get('legal_basis')} · Ellenőrizve: {current.get('verified_at') or '—'}")
+                if can_edit and st.button("Küldési jogosultság újraellenőrzése", key=f"email_eval_{draft_id}"):
+                    try:
+                        db.rpc("evaluate_lead_email_send_eligibility", {"p_draft_id": draft_id}).execute()
+                        st.success("Az ellenőrzés lefutott. A sor státusza frissült; levél nem került kiküldésre.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Az ellenőrzés nem sikerült ({type(exc).__name__}).")
+                if queue_item:
+                    if queue_item.get("status") == "ready_for_manual_review":
+                        st.success("Jogosultsági ellenőrzés sikeres · csak kézi felülvizsgálatra előkészítve, küldés nélkül.")
+                    elif queue_item.get("status") == "cancelled":
+                        st.info("A sorbejegyzés visszavonva.")
+                    else:
+                        st.warning(f"Blokkolva: {queue_item.get('block_reason') or 'nincs megadva'}")
+                elif draft_id:
+                    st.caption("Még nem történt küldési jogosultság-ellenőrzés.")
+
+        st.divider()
+        st.markdown("**Globális leiratkozási / tiltólista**")
+        with st.form("email_suppression_add"):
+            suppressed_email = st.text_input("E-mail-cím a tiltólistára")
+            suppression_reason = st.selectbox(
+                "Tiltás oka",
+                ["unsubscribe", "direct_objection", "complaint", "invalid_address", "manual_suppression"],
+                format_func=lambda value: {
+                    "unsubscribe": "Leiratkozás",
+                    "direct_objection": "Közvetlen tiltakozás",
+                    "complaint": "Panasz",
+                    "invalid_address": "Érvénytelen cím",
+                    "manual_suppression": "Kézi tiltás",
+                }[value],
+            )
+            suppression_note = st.text_input("Megjegyzés (kötelező, legalább 3 karakter)")
+            suppression_source = st.text_input("Forrás URL (opcionális, HTTPS)")
+            suppression_saved = st.form_submit_button("Cím tiltólistára helyezése", disabled=not can_edit)
+        if suppression_saved and can_edit:
+            try:
+                if not _email(suppressed_email) or len(suppression_note.strip()) < 3:
+                    raise ValueError("Érvényes e-mail-cím és legalább 3 karakteres indoklás szükséges.")
+                safe_source = _safe_public_source(suppression_source) if suppression_source.strip() else None
+                if suppression_source.strip() and not safe_source:
+                    raise ValueError("A forrás URL nem biztonságos HTTPS-cím.")
+                db.rpc("suppress_lead_email_recipient", {
+                    "p_email": suppressed_email.strip(),
+                    "p_reason": suppression_reason,
+                    "p_note": suppression_note.strip(),
+                    "p_source_url": safe_source,
+                }).execute()
+                st.success("A cím tiltólistára került; a hozzá tartozó aktív sorbejegyzések blokkolódtak.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"A tiltólista frissítése nem sikerült ({type(exc).__name__}): {str(exc)[:240]}")
+        if suppressions:
+            for item in suppressions[:30]:
+                st.caption(f"{item.get('email_normalized')} · {item.get('reason')} · {item.get('note')}")
+        else:
+            st.info("A tiltólista jelenleg üres.")
+
+        st.divider()
+        st.markdown("**Előkészített küldési sor – nem küldési felület**")
+        if not queue_rows:
+            st.info("Még nincs ellenőrzött e-mail a sorban.")
+        for item in sorted(queue_rows, key=lambda row: str(row.get("evaluated_at") or ""), reverse=True)[:100]:
+            lead = lead_by_id.get(str(item.get("lead_id") or ""), {})
+            label = "Kézi felülvizsgálatra előkészítve" if item.get("status") == "ready_for_manual_review" else "Blokkolva" if item.get("status") == "blocked" else "Visszavonva"
+            st.write(f"- **{lead.get('company_name') or item.get('recipient_email')}** · {label} · {item.get('block_reason') or 'Nincs blokkoló ok'}")
 
     with tabs[3]:
         st.markdown("**Globális e-mail stílusprofil**")
