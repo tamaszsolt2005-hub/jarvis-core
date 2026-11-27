@@ -505,7 +505,7 @@ def render_opportunity_center_page(db: Any) -> None:
     assessments_status: dict[str, Any] = {}
     assessments = _safe_rows(
         db, "opportunity_assessments",
-        "id,opportunity_id,market_pattern_id,weighted_score,assessment_confidence,evaluator_model,evaluator_version,approved_by,approved_at,created_at",
+        "id,opportunity_id,market_pattern_id,opportunity_name_snapshot,opportunity_summary_snapshot,market_pattern_title_snapshot,weighted_score,assessment_confidence,evaluator_model,evaluator_version,approved_by,approved_at,created_at",
         200, status=assessments_status,
     )
     ideas = _safe_rows(
@@ -921,8 +921,8 @@ def render_opportunity_center_page(db: Any) -> None:
             for item in assessments:
                 history_rows.append({
                     "Jóváhagyás dátuma": str(item.get("approved_at") or item.get("created_at") or "—"),
-                    "SaaS-jelölt": str(item.get("opportunity_id") or "—"),
-                    "Piaci mintázat": str(item.get("market_pattern_id") or "—"),
+                    "SaaS-jelölt": str(item.get("opportunity_name_snapshot") or item.get("opportunity_id") or "—"),
+                    "Piaci mintázat": str(item.get("market_pattern_title_snapshot") or item.get("market_pattern_id") or "—"),
                     "Pontszám": item.get("weighted_score"),
                     "Bizonyosság": item.get("assessment_confidence"),
                     "Modell": str(item.get("evaluator_model") or "—"),
