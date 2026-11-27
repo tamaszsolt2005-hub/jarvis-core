@@ -10,7 +10,11 @@ A `intelligence_engine.py` a Lead-, cégdosszié- és Opportunity-területek kö
 
 A meglévő cégdosszié snapshotok a régi `facts` és `decision_maker` mezők megtartása mellett `evidence_records` listát is tartalmaznak. Az Opportunity pain bizonyítékai ugyanarra a szerződésre normalizálhatók; a hipotézis státusza ettől nem változik. A Lead scoring adapter kizárólag a külön strukturált `research_evidence` rekordokat veszi át; a szabad szöveges kutatási jegyzet nem válik automatikusan forrássá. A `build_intelligence_snapshot` a különböző domainből érkező rekordokat deduplikálja és forrás-/domain-szintű összesítést készít.
 
-Ez az első közös adat- és provenance-réteg, nem új autonóm kutató vagy döntéshozó. Nem generál tényeket, nem ír adatbázist, nem változtat Lead/Opportunity súlyokon, és nem vonja össze a két pontszám üzleti jelentését. A strukturált, URL-lel alátámasztott bizonyítékot külön kezeli a szabad szöveges Lead-kutatási jegyzetektől; utóbbi önmagában nem válik hiteles forrásrekorddá. A dashboard és a tartós, központi DB evidence store későbbi bővítési lépés.
+A `intelligence_evidence` a tartós, központi evidence index. A `20261127140000_intelligence_evidence_store.sql` migráció a Lead rekordok strukturált `research_evidence` mezőjét, a `company_research_snapshots.dossier.evidence_records` listát és a `business_pain_hypotheses.evidence` elemeit append-only módon indexeli. A forrásrekordok domain-specifikus táblákban maradnak az eredeti üzleti folyamataik szerint; a központi tábla ezek egységes, kereshető és deduplikált provenance nézete. A trigger csak érvényes HTTP(S) URL-lel és kivonattal rendelkező strukturált elemet vesz át; szabad szöveges Lead-jegyzetből nem készít bizonyítékot. A `evidence_id` alapján ismételt ingest nem hoz létre duplikátumot. A központi indexből nincs UPDATE/DELETE jogosultság; authenticated admin/operator/reader szerepkör csak olvashat, a service_role csak SELECT/INSERT jogosultságot kap.
+
+A dashboard Opportunity Center oldalán az **Intelligence áttekintő** fül közös domain-összesítést, forráskivonatokat, forráslinkeket, evidence-típust, megfigyelési/rögzítési időt és entitásazonosítót jelenít meg. A nézet legfeljebb 500 rekordot mutat; ez megjelenítési korlát, nem a tárolt adatok korlátozása.
+
+Ez a réteg nem új autonóm kutató vagy döntéshozó. Nem generál tényeket, nem változtat Lead/Opportunity súlyokon, és nem vonja össze a két pontszám üzleti jelentését. A strukturált, URL-lel alátámasztott bizonyítékot külön kezeli a szabad szöveges Lead-kutatási jegyzetektől; utóbbi önmagában nem válik hiteles forrásrekorddá.
 
 
 A funkció a `feature/opportunity-center-readonly` fejlesztési ágban, a [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) részeként készült. A PR draft és nincs merge-ölve. A migrációk repository-fájlok; production adatbázison nem futottak le.
@@ -81,6 +85,7 @@ A kapcsolódó migrációk időrendi sorrendben:
 - `20261127110000_opportunity_scoring.sql`: hat score-dimenzió, assessment confidence, indoklás és generált weighted score.
 - `20261127120000_opportunity_score_evidence.sql`: dimenziónkénti forrásbizonyíték mező.
 - `20261127130000_opportunity_assessment_approvals.sql`: jóváhagyott, append-only értékelési előzmények.
+- `20261127140000_intelligence_evidence_store.sql`: tartós, append-only központi bizonyítékindex, három domain forrás-triggerjei, backfill, RLS és olvasási jogosultságok.
 
 Az `opportunity_assessments` külön értékelési pillanatképet tárol: opportunity és market pattern azonosító, a jelölt és mintázat nevét/összefoglalóját rögzítő snapshot mezők, egyedi idempotenciakulcs, hat pontszám, generált összpontszám, confidence, rationale, evidence, evaluator modell/verzió, jóváhagyó Auth user UUID és jóváhagyási időpont. A score összpontszámát az adatbázis generált oszlopa számítja, nem a kliens küldi be.
 
@@ -100,6 +105,7 @@ A táblához a service_role SELECT jogosultsága megmarad a szerveroldali olvas�
 ## Dashboard
 
 Az Opportunity Center fő részei:
+- **Intelligence áttekintő:** központi, forrásolt evidence rekordok domain-összesítése, forráslinkek, bizonyíték-jelleg és időbélyegek.
 - **Cégproblémák:** egyedi hipotézisek, confidence, státusz és források.
 - **Ismétlődő mintázatok:** a több cégnél megfigyelt problémák és a kapcsolódó céges bizonyítékok.
 - **SaaS-ötletek:** a piaci mintázatokhoz kapcsolt termékjelöltek és score állapot.
@@ -112,6 +118,8 @@ A preview nem automatikus mentés. Elégtelen bizonyíték esetén nem készül 
 ## CI és ellenőrzési korlátok
 
 A CI workflow izolált PostgreSQL környezetben futtatja a migrációkat és a pgTAP teszteket. A jóváhagyási tesztfájl: `supabase/tests/opportunity_assessment_approvals.test.sql` (10 assertion a jelenlegi implementáció szerint). A scoring és source-evidence migrációk a jóváhagyási migráció előtt kerülnek alkalmazásra; a migrációk idempotencia-ellenőrzése is része a workflow-nak.
+
+A CI az `intelligence_evidence_store.test.sql` 11 pgTAP assertionjével ellenőrzi a központi tábla RLS-jogosultságait, a három domain triggeres indexelését és a reader olvasási útvonalát; a migrációt ismételten is lefuttatja idempotencia-ellenőrzésként.
 
 A fejlesztési munkamenetben a felhasználó kérésére lokális tesztfuttatás és kézi CI-dispatch nem történt. A push után GitHub Actions automatikusan indult; a konkrét commit CI-eredményét mindig a [PR #35 Actions futásai](https://github.com/tamaszsolt2005-hub/jarvis-core/actions) alapján kell ellenőrizni. A workflow elindulása önmagában nem jelent sikeres tesztet.
 
