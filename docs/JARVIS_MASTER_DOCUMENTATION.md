@@ -482,3 +482,8 @@ PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (sta
 ## Intelligence Graph – központi kapcsolati réteg
 
 A JARVIS központi evidence indexére ráépült az `intelligence_entities` / `intelligence_relationships` gráfmodell. A Lead, cégdosszié-snapshot, céges problémahipotézis, piaci mintázat, SaaS-jelölt, jóváhagyott assessment és evidence rekordok külön csomópontok; az explicit FK-k, join táblák és evidence hivatkozások irányított éleket hoznak létre. A forrástáblák maradnak az igazság forrásai. A gráf read-only dashboard nézetet kapott, authenticated RLS olvasással; AI-javaslat önmagában nem válik hiteles kapcsolattá. A részletes modell, trigger- és jogosultsági leírás: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
+
+
+## Kutatási worker – operációs vezérlés
+
+A PR #35 fejlesztői ágán elkészült az admin/operator által vezérelhető szüneteltetés és újraindítás, valamint a Kutatási műveletek dashboard. A pause a queue-feltöltést és az atomikus job-claimet is blokkolja; a már futó lease-es feladat befejeződhet. A reader csak megtekintheti az állapotot. Részletek: [RESEARCH_WORKER_OPERATIONS.md](RESEARCH_WORKER_OPERATIONS.md).
