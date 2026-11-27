@@ -25,6 +25,8 @@ def _validated_snapshot(dossier: dict[str, Any]) -> dict[str, Any]:
     }
     if dossier.get("pain_hypotheses"):
         content["pain_hypotheses"] = dossier["pain_hypotheses"]
+    if dossier.get("lead_fit_assessment"):
+        content["lead_fit_assessment"] = dossier["lead_fit_assessment"]
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     if digest != dossier.get("content_sha256"):
@@ -68,6 +70,10 @@ def _same_snapshot(existing: dict[str, Any], expected: dict[str, Any]) -> bool:
         existing_content["pain_hypotheses"] = existing_dossier["pain_hypotheses"]
     if expected_dossier.get("pain_hypotheses"):
         expected_content["pain_hypotheses"] = expected_dossier["pain_hypotheses"]
+    if existing_dossier.get("lead_fit_assessment"):
+        existing_content["lead_fit_assessment"] = existing_dossier["lead_fit_assessment"]
+    if expected_dossier.get("lead_fit_assessment"):
+        expected_content["lead_fit_assessment"] = expected_dossier["lead_fit_assessment"]
     return (
         str(existing.get("lead_id")) == expected["lead_id"]
         and str(existing.get("company_domain", "")).casefold() == expected["company_domain"]
