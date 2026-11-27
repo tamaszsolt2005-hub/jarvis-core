@@ -11,7 +11,7 @@ SELECT ok(
 );
 SELECT ok(
   EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='market_problem_patterns_fingerprint_uidx')
-  AND EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='saas_opportunities_pattern_uidx'),
+  AND EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='saas_opportunities_discovery_fingerprint_uidx'),
   'market patterns and SaaS candidates have unique discovery keys'
 );
 
