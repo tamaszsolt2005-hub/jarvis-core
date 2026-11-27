@@ -11,3 +11,8 @@ The Leadkezelő is a human review queue over existing company leads.
 - This review state is deliberately separate from `leads.approved_to_contact`, consent fields, opt-out state and the outbound email pipeline. Approval never sends email or grants contact permission.
 - Mutations require an authenticated Supabase user with the trusted `admin` or `operator` app role. Reader and legacy shared-password sessions are read-only.
 - Apply `20261127160000_lead_review_workflow.sql` only through the reviewed deployment/migration process; it has not been applied to production by this change.
+
+
+## E-mail előkészítés
+
+A lead review jóváhagyás után az [E-mail központ](LEAD_EMAIL_WORKFLOW.md) külön piszkozatot készít. A lead jóváhagyása nem jelent e-mail-jóváhagyást, consentet vagy küldési engedélyt.
