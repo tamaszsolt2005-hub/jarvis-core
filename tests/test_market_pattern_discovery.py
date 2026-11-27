@@ -185,3 +185,26 @@ def test_company_pain_persistence_is_snapshot_scoped_and_idempotent():
     assert len(db.tables["business_pain_hypotheses"]) == 1
     assert db.tables["business_pain_hypotheses"][0]["snapshot_id"] == "snapshot-1"
     assert db.tables["business_pain_hypotheses"][0]["status"] == "hypothesis"
+
+
+
+def test_rejected_market_pattern_is_not_reopened_by_later_discovery():
+    from market_pattern_discovery import discover_market_patterns
+
+    pains = [
+        _pain("pain-1", "company-1", "Manual invoice reconciliation takes several days"),
+        _pain("pain-2", "company-2", "Manual invoice reconciliation requires several days"),
+    ]
+    candidate = build_cross_company_pattern_candidates(pains)[0]
+    db = _DB(pains)
+    db.tables["market_problem_patterns"] = [{
+        "id": "pattern-rejected",
+        "fingerprint": candidate["fingerprint"],
+        "status": "rejected",
+    }]
+
+    result = discover_market_patterns(db)
+
+    assert result["patterns_created"] == 0
+    assert result["saas_candidates_created"] == 0
+    assert db.tables.get("saas_opportunities", []) == []
