@@ -155,6 +155,7 @@ GRANT EXECUTE ON FUNCTION public.reject_opportunity_assessment_mutation() TO aut
 ALTER TABLE public.opportunity_assessments ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.opportunity_assessments FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT ON TABLE public.opportunity_assessments TO authenticated;
+GRANT SELECT ON TABLE public.opportunity_assessments TO service_role;
 DROP POLICY IF EXISTS opportunity_assessments_shared_read ON public.opportunity_assessments;
 CREATE POLICY opportunity_assessments_shared_read ON public.opportunity_assessments
   FOR SELECT TO authenticated
