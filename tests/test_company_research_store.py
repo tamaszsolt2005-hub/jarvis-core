@@ -141,3 +141,34 @@ def test_snapshot_idempotency_rejects_changed_content_for_same_operation():
         save_company_research_snapshot(db, lead_id=lead_id, company_domain="example.com",
             dossier=changed, idempotency_key="research:lead:123456")
     assert len(db.rows) == 1
+
+
+
+def test_snapshot_fingerprint_includes_grounded_pain_hypotheses():
+    db = FakeDB()
+    dossier = make_dossier()
+    dossier["pain_hypotheses"] = [{
+        "statement": "Manual invoice reconciliation may create delays.",
+        "category": "finance",
+        "confidence": 0.6,
+        "evidence": [{
+            "source_url": "https://example.com/report",
+            "excerpt": "Invoices are reconciled manually over several days.",
+            "evidence_type": "supporting",
+        }],
+    }]
+    canonical = json.dumps({
+        "facts": dossier["facts"],
+        "decision_maker": dossier["decision_maker"],
+        "pain_hypotheses": dossier["pain_hypotheses"],
+    }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    dossier["content_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    saved = save_company_research_snapshot(
+        db, lead_id=str(uuid4()), company_domain="example.com",
+        dossier=dossier, idempotency_key="research:pain:123456",
+    )
+
+    assert db.rows[0]["dossier"]["pain_hypotheses"] == dossier["pain_hypotheses"]
+    assert db.rows[0]["content_sha256"] == dossier["content_sha256"]
+    assert saved["snapshot_id"] == db.rows[0]["snapshot_id"]
