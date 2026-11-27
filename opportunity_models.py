@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from intelligence_engine import EvidenceRecord as Evidence
 from scoring_core import calculate_weighted_score
 
 
@@ -29,28 +30,6 @@ def _source_url(value: Any) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("source_url must be a public HTTP(S) URL")
     return raw
-
-
-@dataclass(frozen=True)
-class Evidence:
-    source_url: str
-    excerpt: str
-    observed_at: str = ""
-    evidence_type: str = "supporting"
-
-    @classmethod
-    def from_dict(cls, raw: dict[str, Any], *, default_observed_at: Any = None) -> "Evidence":
-        if not isinstance(raw, dict):
-            raise ValueError("evidence must be an object")
-        kind = _required_text(raw.get("evidence_type", "supporting"), "evidence_type", 40)
-        if kind not in {"supporting", "contradicting", "context"}:
-            raise ValueError("unsupported evidence_type")
-        return cls(
-            source_url=_source_url(raw.get("source_url")),
-            excerpt=_required_text(raw.get("excerpt"), "excerpt", 1200),
-            observed_at=_required_text(raw.get("observed_at") or default_observed_at or "undated", "observed_at", 80),
-            evidence_type=kind,
-        )
 
 
 @dataclass(frozen=True)
@@ -77,7 +56,7 @@ class CompanyPain:
             company_id=_required_text(raw.get("company_id") or raw.get("lead_id"), "company_id/lead_id", 80),
             statement=_required_text(raw.get("statement"), "statement", 1200),
             confidence=_confidence(raw.get("confidence")),
-            evidence=tuple(Evidence.from_dict(item, default_observed_at=raw.get("created_at") or raw.get("researched_at")) for item in evidence),
+            evidence=tuple(Evidence.from_dict(item, default_observed_at=raw.get("created_at") or raw.get("researched_at"), default_source_kind="company_pain_hypothesis", entity_type="company_pain_hypothesis", entity_id=str(raw.get("id") or "")) for item in evidence),
             status=status,
         )
 
