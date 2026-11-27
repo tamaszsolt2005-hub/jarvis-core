@@ -242,10 +242,10 @@ def render_email_center(
                     st.write(str(lead.get("notes") or "Nincs kutatási jegyzet.")[:2500])
                     source_facts = _source_facts(snapshot)
                     if source_facts:
-                        for fact in source_facts:
+                        for fact_index, fact in enumerate(source_facts):
                             st.markdown(f"**{fact['category']}**")
                             st.write(fact["fact"])
-                            st.link_button("Forrás megnyitása", fact["source_url"], key=f"draft_fact_{draft_id}_{len(fact['fact'])}")
+                            st.link_button("Forrás megnyitása", fact["source_url"], key=f"draft_fact_{draft_id}_{fact_index}")
                     else:
                         st.info("Nincs megjeleníthető, ellenőrzött forrást tartalmazó dossier-tény.")
                     history = revisions_by_draft.get(draft_id, [])
@@ -318,10 +318,10 @@ def render_email_center(
                 snapshot = snapshot_by_lead.get(str(draft.get("lead_id") or ""))
                 with st.expander("Cégadatok és források ellenőrzése"):
                     st.write(f"Weboldal: {lead.get('website') or 'nincs megadva'}")
-                    for fact in _source_facts(snapshot):
+                    for fact_index, fact in enumerate(_source_facts(snapshot)):
                         st.markdown(f"**{fact['category']}**")
                         st.write(fact["fact"])
-                        st.link_button("Forrás megnyitása", fact["source_url"], key=f"approved_fact_{draft.get('id')}_{len(fact['fact'])}")
+                        st.link_button("Forrás megnyitása", fact["source_url"], key=f"approved_fact_{draft.get('id')}_{fact_index}")
                 st.markdown(f"**{draft.get('subject') or ''}**")
                 st.write(draft.get("body") or "")
                 st.success("Jóváhagyott · küldési engedélyezés és consent ellenőrzés nélkül nem küldhető.")
