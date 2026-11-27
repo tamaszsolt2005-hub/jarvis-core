@@ -149,6 +149,28 @@ def evidence_records_from_dossier(dossier: dict[str, Any]) -> list[dict[str, str
     return records
 
 
+def evidence_records_from_lead(lead: dict[str, Any]) -> list[dict[str, str]]:
+    """Normalize only explicitly structured Lead sources; free-text notes are not sources."""
+    if not isinstance(lead, dict):
+        raise ValueError("lead must be an object")
+    raw_sources = lead.get("research_evidence")
+    if raw_sources is None:
+        return []
+    if not isinstance(raw_sources, list):
+        raise ValueError("research_evidence must be a list")
+    records: list[dict[str, str]] = []
+    for raw in raw_sources:
+        record = EvidenceRecord.from_dict(
+            raw,
+            default_observed_at=lead.get("researched_at") or lead.get("updated_at"),
+            default_source_kind="lead_research_note",
+            entity_type="lead",
+            entity_id=str(lead.get("id") or ""),
+        )
+        records.append(record.to_dict())
+    return records
+
+
 def evidence_records_from_pains(pains: Iterable[dict[str, Any]]) -> list[dict[str, str]]:
     """Normalize Opportunity pain evidence without promoting hypotheses to facts."""
     records: list[dict[str, str]] = []
