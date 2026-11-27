@@ -5,7 +5,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.intelligence_entities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   entity_type text NOT NULL CHECK (entity_type IN (
-    'company','company_dossier_snapshot','company_pain','market_pattern',
+    'company','person','company_dossier_snapshot','company_pain','market_pattern',
     'saas_opportunity','opportunity_assessment','evidence'
   )),
   source_id text NOT NULL CHECK (length(btrim(source_id)) BETWEEN 1 AND 120),
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.intelligence_relationships (
   source_entity_id uuid NOT NULL REFERENCES public.intelligence_entities(id) ON DELETE CASCADE,
   target_entity_id uuid NOT NULL REFERENCES public.intelligence_entities(id) ON DELETE CASCADE,
   relationship_type text NOT NULL CHECK (relationship_type IN (
-    'has_dossier_snapshot','has_pain','derived_from_snapshot',
+    'has_dossier_snapshot','has_decision_maker','has_pain','derived_from_snapshot',
     'supported_by_pain','addresses_pattern','evaluates_opportunity',
     'evaluates_pattern','evidence_for'
   )),
@@ -190,6 +190,7 @@ BEGIN
     IF TG_TABLE_NAME = 'leads' THEN
       DELETE FROM public.intelligence_entities WHERE entity_type = 'company' AND source_id = OLD.id::text;
     ELSIF TG_TABLE_NAME = 'company_research_snapshots' THEN
+      DELETE FROM public.intelligence_entities WHERE entity_type = 'person' AND source_id = OLD.snapshot_id::text;
       DELETE FROM public.intelligence_entities WHERE entity_type = 'company_dossier_snapshot' AND source_id = OLD.snapshot_id::text;
     ELSIF TG_TABLE_NAME = 'business_pain_hypotheses' THEN
       DELETE FROM public.intelligence_entities WHERE entity_type = 'company_pain' AND source_id = OLD.id::text;
@@ -228,6 +229,30 @@ BEGIN
       'company', v_lead_id::text, 'company_dossier_snapshot', v_id,
       'has_dossier_snapshot', NULL, jsonb_build_object('source','company_research_snapshots')
     );
+    IF jsonb_typeof(NEW.dossier -> 'decision_maker') = 'object'
+      AND length(btrim(COALESCE(NEW.dossier #>> '{decision_maker,name}',''))) > 0 THEN
+      PERFORM public.upsert_intelligence_entity(
+        'person', v_id, v_lead_id,
+        NEW.dossier #>> '{decision_maker,name}',
+        concat_ws(' · ',
+          NULLIF(NEW.dossier #>> '{decision_maker,role}',''),
+          NULLIF(NEW.dossier #>> '{decision_maker,professional_background}','')
+        ),
+        'public_professional', NULL,
+        jsonb_build_object(
+          'source_url', COALESCE(NEW.dossier #>> '{decision_maker,source_url}',''),
+          'snapshot_id', v_id
+        )
+      );
+      PERFORM public.upsert_intelligence_relationship(
+        'company', v_lead_id::text, 'person', v_id,
+        'has_decision_maker', NULL,
+        jsonb_build_object(
+          'snapshot_id',v_id,
+          'source_url',COALESCE(NEW.dossier #>> '{decision_maker,source_url}','')
+        )
+      );
+    END IF;
 
   ELSIF TG_TABLE_NAME = 'business_pain_hypotheses' THEN
     v_id := NEW.id::text;
@@ -376,6 +401,12 @@ BEGIN
       'evidence', NEW.evidence_id, 'company_dossier_snapshot', NEW.snapshot_id,
       'evidence_for', NULL, jsonb_build_object('source_url', NEW.source_url)
     );
+    IF NEW.source_kind = 'company_dossier_leadership' THEN
+      PERFORM public.upsert_intelligence_relationship(
+        'evidence', NEW.evidence_id, 'person', NEW.snapshot_id,
+        'evidence_for', NULL, jsonb_build_object('source_url', NEW.source_url)
+      );
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -479,6 +510,30 @@ BEGIN
       'company', item.lead_id::text, 'company_dossier_snapshot', item.snapshot_id::text,
       'has_dossier_snapshot', NULL, jsonb_build_object('source','company_research_snapshots')
     );
+    IF jsonb_typeof(item.dossier -> 'decision_maker') = 'object'
+      AND length(btrim(COALESCE(item.dossier #>> '{decision_maker,name}',''))) > 0 THEN
+      PERFORM public.upsert_intelligence_entity(
+        'person', item.snapshot_id::text, item.lead_id,
+        item.dossier #>> '{decision_maker,name}',
+        concat_ws(' · ',
+          NULLIF(item.dossier #>> '{decision_maker,role}',''),
+          NULLIF(item.dossier #>> '{decision_maker,professional_background}','')
+        ),
+        'public_professional', NULL,
+        jsonb_build_object(
+          'source_url', COALESCE(item.dossier #>> '{decision_maker,source_url}',''),
+          'snapshot_id',item.snapshot_id::text
+        )
+      );
+      PERFORM public.upsert_intelligence_relationship(
+        'company', item.lead_id::text, 'person', item.snapshot_id::text,
+        'has_decision_maker', NULL,
+        jsonb_build_object(
+          'snapshot_id',item.snapshot_id::text,
+          'source_url',COALESCE(item.dossier #>> '{decision_maker,source_url}','')
+        )
+      );
+    END IF;
   END LOOP;
 
   FOR item IN SELECT id, lead_id, snapshot_id, statement, category, confidence, status
@@ -582,6 +637,12 @@ BEGIN
         'evidence', item.evidence_id, 'company_dossier_snapshot', item.snapshot_id,
         'evidence_for', NULL, jsonb_build_object('source_url',item.source_url)
       );
+      IF item.source_kind = 'company_dossier_leadership' THEN
+        PERFORM public.upsert_intelligence_relationship(
+          'evidence', item.evidence_id, 'person', item.snapshot_id,
+          'evidence_for', NULL, jsonb_build_object('source_url',item.source_url)
+        );
+      END IF;
     END IF;
   END LOOP;
 END;
