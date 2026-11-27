@@ -52,16 +52,16 @@ SELECT is(
   'graph entity identifiers are unique and stable'
 );
 SELECT lives_ok(
-  $SELECT public.upsert_intelligence_entity(
+  $graph$SELECT public.upsert_intelligence_entity(
     'person','graph-test-person',NULL,'Alex Example','Managing Director','public_professional',NULL,'{}'::jsonb
-  )$,
+  )$graph$,
   'graph entity helper supports a source-linked public decision maker'
 );
 SELECT lives_ok(
-  $SELECT public.upsert_intelligence_relationship(
+  $graph$SELECT public.upsert_intelligence_relationship(
     'company','graph-test-company','person','graph-test-person',
     'has_decision_maker',NULL,'{"source":"dossier"}'::jsonb
-  )$,
+  )$graph$,
   'company can link to its source-backed decision maker'
 );
 SELECT is(
