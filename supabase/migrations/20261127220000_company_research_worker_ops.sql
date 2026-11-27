@@ -79,6 +79,9 @@ BEGIN
     'reserved_microusd', COALESCE(sum(reserved_cost_microusd) FILTER (WHERE reservation_status = 'reserved'), 0),
     'committed_microusd', COALESCE(sum(reserved_cost_microusd), 0),
     'actual_microusd', COALESCE(sum(actual_cost_microusd), 0),
+    'limit_microusd', COALESCE(min(daily_budget_microusd), 0),
+    'over_budget', COALESCE(sum(reserved_cost_microusd), 0) > COALESCE(min(daily_budget_microusd), 0)
+                   AND min(daily_budget_microusd) IS NOT NULL,
     'jobs_today', count(*)
   ) INTO v_budget
   FROM public.company_research_budget_reservations
