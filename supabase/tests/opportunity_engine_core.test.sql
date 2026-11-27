@@ -109,8 +109,8 @@ SELECT throws_ok(
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"reader"}}',true);
-SELECT is((SELECT count(*) FROM public.business_pain_hypotheses),1::bigint,
-          'reader role can read company pain hypotheses');
+SELECT is((SELECT count(*) FROM public.business_pain_hypotheses),2::bigint,
+          'reader role can read all persisted company pain hypotheses');
 SELECT is((SELECT count(*) FROM public.market_problem_patterns),1::bigint,
           'reader role can read market patterns');
 SELECT is((SELECT count(*) FROM public.saas_opportunities),1::bigint,
