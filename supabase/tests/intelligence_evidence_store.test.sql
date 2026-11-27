@@ -1,6 +1,6 @@
 -- Durable cross-domain evidence index and read-only dashboard access.
 BEGIN;
-SELECT plan(12);
+SELECT plan(11);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid='public.intelligence_evidence'::regclass),
