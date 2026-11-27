@@ -252,9 +252,10 @@ def render_email_center(
                     if history:
                         st.caption(f"Verzióelőzmény: {len(history)} mentett változat")
                         for version_index, version in enumerate(history[:5], start=1):
-                            with st.expander(f"Korábbi változat · {version.get('created_at') or version_index}"):
-                                st.markdown(f"**{version.get('subject') or '(nincs tárgy)'}**")
-                                st.write(version.get("body") or "")
+                            st.divider()
+                            st.caption(f"Korábbi változat {version_index} · {version.get('created_at') or 'időpont nélkül'}")
+                            st.markdown(f"**{version.get('subject') or '(nincs tárgy)'}**")
+                            st.write(version.get("body") or "")
                 with st.form(f"email_edit_{draft_id}"):
                     recipient = st.text_input("Vezető e-mail-címe", value=str(draft.get("recipient_email") or ""))
                     source = st.text_input("A címzett e-mail-címének nyilvános forrása", value=str(draft.get("recipient_source_url") or ""))
@@ -263,7 +264,6 @@ def render_email_center(
                     saved = st.form_submit_button("Módosítások mentése", disabled=not can_edit)
                 if saved and can_edit:
                     try:
-                        old_subject, old_body = str(draft.get("subject") or ""), str(draft.get("body") or "")
                         update = {
                             "recipient_email": recipient.strip() or None,
                             "recipient_source_url": _safe_public_source(source),
