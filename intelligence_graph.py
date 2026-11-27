@@ -59,7 +59,7 @@ def build_graph_snapshot(
             for key in ("source_url", "source_kind", "source_domain", "snapshot_id", "website")
             if isinstance(raw_metadata.get(key), str) and raw_metadata.get(key).strip()
         }
-        normalized[entity_id] = {
+        candidate = {
             "id": entity_id,
             "entity_type": entity_type,
             "source_id": _clean_text(raw.get("source_id"), 120),
@@ -71,6 +71,39 @@ def build_graph_snapshot(
             "metadata": metadata,
             "created_at": created_at,
         }
+        # Duplicate IDs can appear in joined or paginated inputs. Select the
+        # same winner regardless of input order: newest timestamps first,
+        # then a stable content-based tie-break for incomplete/equal timestamps.
+        candidate_rank = (
+            created_at,
+            _clean_text(raw.get("updated_at"), 80),
+            candidate["label"].casefold(),
+            candidate["source_id"],
+            candidate["summary"],
+            candidate["status"],
+            tuple(sorted(metadata.items())),
+        )
+        existing = normalized.get(entity_id)
+        if existing is None:
+            normalized[entity_id] = candidate
+        else:
+            existing_rank = (
+                existing["created_at"],
+                existing.get("_updated_at", ""),
+                existing["label"].casefold(),
+                existing["source_id"],
+                existing["summary"],
+                existing["status"],
+                tuple(sorted(existing["metadata"].items())),
+            )
+            if candidate_rank > existing_rank:
+                normalized[entity_id] = candidate
+                normalized[entity_id]["_updated_at"] = candidate_rank[1]
+        if entity_id in normalized and "_updated_at" not in normalized[entity_id]:
+            normalized[entity_id]["_updated_at"] = _clean_text(raw.get("updated_at"), 80)
+
+    for item in normalized.values():
+        item.pop("_updated_at", None)
 
     ordered_nodes = sorted(
         normalized.values(),
