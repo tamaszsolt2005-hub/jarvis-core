@@ -228,8 +228,8 @@ def render_lead_review_page(
     )
     st.title("Leadkezelő")
     st.caption(
-        "A strukturált kutatási adatokkal rendelkező leadek 0–100 pontos kutatási prioritás szerint "
-        "jelennek meg; a hiányos kutatási adatokkal rendelkező rekordok pontozatlanok maradnak. "
+        "A 0–100 pontos kutatási prioritás kizárólag a legfrissebb, forrásolt snapshot strukturált értékeléséből "
+        "készül; hiányzó vagy elégtelen bizonyíték esetén a lead pontozatlan marad. "
         "A pontszám kutatási triázs, nem vásárlási szándék vagy kapcsolatfelvételi engedély."
     )
     can_decide = auth_enabled and str(role or "") in {"admin", "operator"}
@@ -698,6 +698,20 @@ def render_lead_review_page(
                     f"{row.get('website') or 'Nincs weboldal megadva'}  ·  "
                     f"{score_label}  ·  {row_status}"
                 )
+                assessment = row["_dossier"].get("lead_fit_assessment") if isinstance(row["_dossier"].get("lead_fit_assessment"), dict) else {}
+                if row["_score"].get("research_confidence") is not None:
+                    st.caption(
+                        f"Bizonyosság: {row['_score']['research_confidence']:.0%} · "
+                        f"Források: {row['_score'].get('evidence_count', 0)}"
+                    )
+                st.caption(str(assessment.get("rationale") or row["_score"].get("reason") or "Nincs még kutatási értékelés.")[:220])
+                compact_signals = []
+                if assessment.get("fit_signals"):
+                    compact_signals.append("Illeszkedés: " + "; ".join(str(x) for x in assessment["fit_signals"][:2]))
+                if assessment.get("risk_signals"):
+                    compact_signals.append("Kockázat: " + "; ".join(str(x) for x in assessment["risk_signals"][:2]))
+                if compact_signals:
+                    st.caption(" · ".join(compact_signals)[:260])
                 if row_score is None:
                     st.caption(row["_score"].get("reason") or "A pontozáshoz még nincs elegendő forrásolt értékelés.")
     with detail_col:
