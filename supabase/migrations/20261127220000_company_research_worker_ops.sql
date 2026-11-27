@@ -40,6 +40,7 @@ DECLARE
   v_jobs jsonb;
   v_budget jsonb;
   v_events jsonb;
+  v_job_events jsonb;
 BEGIN
   IF COALESCE(v_role, '') NOT IN ('admin', 'operator', 'reader') THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'research_control_read_forbidden';
@@ -47,6 +48,9 @@ BEGIN
   SELECT * INTO v_state
   FROM public.company_research_runtime_control
   WHERE singleton = true;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '55000', MESSAGE = 'research_runtime_control_unavailable';
+  END IF;
   SELECT COALESCE(jsonb_object_agg(status, total), '{}'::jsonb) INTO v_counts
   FROM (
     SELECT status, count(*)::integer AS total
@@ -82,6 +86,17 @@ BEGIN
     ORDER BY created_at DESC, event_id DESC
     LIMIT 20
   ) recent_events;
+  SELECT COALESCE(jsonb_agg(job_event ORDER BY job_event->>'created_at' DESC), '[]'::jsonb)
+  INTO v_job_events
+  FROM (
+    SELECT jsonb_build_object(
+      'operation_id', operation_id, 'event_type', event_type,
+      'worker_id', worker_id, 'metadata', metadata, 'created_at', created_at
+    ) AS job_event
+    FROM public.company_research_job_audit
+    ORDER BY created_at DESC, event_id DESC
+    LIMIT 50
+  ) recent_job_events;
   RETURN jsonb_build_object(
     'paused', COALESCE(v_state.paused, false),
     'note', COALESCE(v_state.note, ''),
@@ -89,7 +104,8 @@ BEGIN
     'counts', v_counts,
     'recent_jobs', v_jobs,
     'budget_today', v_budget,
-    'recent_events', v_events
+    'recent_events', v_events,
+    'recent_job_events', v_job_events
   );
 END;
 $worker_ops$;
