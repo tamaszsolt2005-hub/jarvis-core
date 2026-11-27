@@ -151,7 +151,10 @@ def test_global_research_stores_company_only_without_contact_permission(monkeypa
         "text": json.dumps({"companies": [company]}),
         "candidates": [{
             "grounding_metadata": {
-                "grounding_chunks": [{"web": {"uri": "https://acme.example/about"}}]
+                "grounding_chunks": [
+                    {"web": {"uri": "https://acme.example/about"}},
+                    {"web": {"uri": "https://acme.example/products"}},
+                ]
             }
         }],
     }
