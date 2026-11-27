@@ -440,3 +440,18 @@ A részletes kódáttekintés alapján a meglévő kutatási worker nem kapcsolh
 - A globális leadkutatás meglévő új-cég-felderítő útja nem helyettesíti a kiválasztott meglévő lead célzott újrakutatását.
 
 Ezért P1 első fejlesztési egysége nem egy UI-gomb, hanem a szűkített admin/operator enqueue határ, a kontrollált one-shot worker indítás, az egységes grounded assessment adatkontraktus és az idempotens snapshot→Lead dashboard visszacsatolás. Részletesen: [P1 architektúra és végrehajtási terv](LEAD_INTELLIGENCE_CENTER.md#p1--részletes-architektúra-ellenőrzés-2026-11-27).
+
+
+### P1.1 előrehaladás – egyedi lead kutatásának sorba állítása
+
+A feature branchben elkészült az admin/operator jogosultsághoz kötött, egyetlen leadre szóló kutatásindítási kérés:
+
+- Új `lead_research_actions.py` szerveroldali enqueue szolgáltatás.
+- Friss Auth + `research.manage` jogosultság ellenőrzése a service-role kliens létrehozása előtt.
+- Kötelező runtime pricing/token/limit konfiguráció, meglévő atomikus queue kvóták.
+- Lead Intelligence Center „Kutatás kérése” művelet admin/operator számára.
+- Csak tartós queue rekord jön létre; worker, Gemini API és outbound kapcsolatfelvétel nem indul.
+
+Commitok: `338f70e8`, `6b1c1f67`, `09024c38`, `926511c6`.
+
+A módosított fájlokat GitHubról visszaolvastuk, a hívási útvonalat statikusan ellenőriztük. Külön teszt nem futott, böngészős UI-ellenőrzés nem történt, a queue-t nem hívtuk meg és production adatbázist nem módosítottunk. Migration, merge és deploy nem történt. Következő: P1.2 kontrollált one-shot worker végrehajtás, a scheduler és automatikus futás bekapcsolása nélkül.
