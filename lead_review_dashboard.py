@@ -122,7 +122,7 @@ def _latest_snapshot_dossiers(db: Any) -> dict[str, dict[str, Any]]:
     """Read latest snapshots under the caller's existing user/RLS database session."""
     response = (
         db.table("company_research_snapshots")
-        .select("lead_id,researched_at,dossier")
+        .select("lead_id,snapshot_id,researched_at,dossier")
         .order("researched_at", desc=True)
         .order("snapshot_id", desc=True)
         .limit(5000)
