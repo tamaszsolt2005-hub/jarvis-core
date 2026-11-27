@@ -72,11 +72,12 @@ Ezek nem felcserélhető állapotok. A PR #35 még nincs merge-ölve, a benne l�
 
 ### P1 – A JARVIS üzleti értékét jelentősen növelő funkciók
 
-**6. Teljes CRM / ügyfél-életciklus**
-- Egy helyen legyen látható lead → kapcsolat → beszélgetés → ajánlat → pilot → ügyfél → megtartás állapot.
-- Következő teendők, felelős, határidő, üzleti eredmény és elvesztési ok.
-- Duplikáció- és cégcsoport-kezelés, kapcsolat- és interakciótörténet.
-- Jelenlegi Leadkezelő nem helyettesíti ezt a teljes CRM-et.
+**6. CRM / ügyfél-életciklus – első verzió implementálva, további bővítés szükséges**
+- Az Ügyfélkapcsolatok oldal a jóváhagyott leadeket státusz szerint követi: jóváhagyott lead, kapcsolatfelvétel, válasz, minősítés, ajánlat, pilot, ügyfél, elvesztett.
+- Admin/operator kézzel rögzíthet státuszváltozást, e-mail/telefon/megbeszélés/jegyzet interakciót és következő teendőt határidővel; az események append-only előzményként mentődnek.
+- A művelet csak jóváhagyott leadre engedélyezett, RLS és authenticated RPC védi; reader csak olvas.
+- Még hiányzik: felelős/owner kezelés, cégcsoport és duplikáció-összevonás, ajánlat/pilot dokumentum- és bevételkövetés, megtartás/lemorzsolódás, valós üzleti eredménymérés.
+- A CRM nem küld e-mailt és nem válaszol automatikusan; a kimenő e-mail hard gate változatlanul aktív.
 
 **7. Bejövő kommunikáció és emberi értesítési folyamat**
 - Az `email-automation.yml` ütemezett inbox workflow-ja és az `email_inbox.py` már fogadja az új leveleket, leadhez kapcsolja a feladót, leállítja az utánkövetést, kategorizálja a választ, és az E-mail központban emberi felülvizsgálati értesítést jelenít meg.
@@ -168,3 +169,13 @@ A PR #35 fejlesztési ágban elkészült az automatikus út első, forrásbizton
 - A változás még nincs stagingben vagy productionben igazolva; a migráció repository-only, production DB-n nem futott le. A lokális teszteket a felhasználó kérésére nem futtattuk.
 
 - A dashboard már tartalmazza a mintázatok admin/operator felülvizsgálati vezérlőit és a döntési előzmények megjelenítését.
+
+
+## 9. Frissítés – CRM ügyfél-életciklus első verzió (2026-11-27)
+
+- Elkészült az Ügyfélkapcsolatok dashboard, amely csak jóváhagyott leadeket mutat.
+- A CRM státuszai: approved_lead, contacted, responded, qualified, proposal, pilot, customer, lost.
+- Admin/operator státuszt, kézzel rögzített interakciót és következő teendőt/határidőt menthet; minden esemény append-only.
+- A SECURITY DEFINER RPC ellenőrzi a JWT szerepkört és a lead jóváhagyott állapotát; reader csak olvashat, anon nem fér hozzá.
+- A CRM semmilyen levelet nem küld és nem indít follow-upot. A bejövő ügyfélválaszra továbbra is csak értesítés készül.
+- Migráció: 20261127210000_lead_customer_lifecycle.sql; CI pgTAP teszt és migráció replay hozzáadva. Production DB-n nem futott le.
