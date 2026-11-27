@@ -53,14 +53,22 @@ def build_graph_snapshot(
         if not entity_id or not entity_type:
             continue
         created_at = _clean_text(raw.get("created_at"), 80)
+        raw_metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+        metadata = {
+            key: _clean_text(raw_metadata.get(key), 2048 if key == "source_url" else 160)
+            for key in ("source_url", "source_kind", "source_domain", "snapshot_id", "website")
+            if isinstance(raw_metadata.get(key), str) and raw_metadata.get(key).strip()
+        }
         normalized[entity_id] = {
             "id": entity_id,
             "entity_type": entity_type,
+            "source_id": _clean_text(raw.get("source_id"), 120),
             "label": _clean_text(raw.get("label")) or entity_type,
             "summary": _clean_text(raw.get("summary"), 500),
             "status": _clean_text(raw.get("status"), 60),
             "confidence": _confidence(raw.get("confidence")),
             "lead_id": _clean_text(raw.get("lead_id"), 80),
+            "metadata": metadata,
             "created_at": created_at,
         }
 
@@ -84,11 +92,18 @@ def build_graph_snapshot(
         ):
             continue
         key = (source_id, target_id, relationship_type)
+        raw_provenance = raw.get("provenance") if isinstance(raw.get("provenance"), dict) else {}
+        provenance = {
+            key: _clean_text(raw_provenance.get(key), 2048 if key == "source_url" else 160)
+            for key in ("source_url", "source", "snapshot_id")
+            if isinstance(raw_provenance.get(key), str) and raw_provenance.get(key).strip()
+        }
         ordered_edges[key] = {
             "source_entity_id": source_id,
             "target_entity_id": target_id,
             "relationship_type": relationship_type,
             "confidence": _confidence(raw.get("confidence")),
+            "provenance": provenance,
         }
 
     edges = [
