@@ -1,3 +1,10 @@
+## Bejövő ügyfélválaszok – kötelező emberi döntés
+
+- A bejövő leveleket az inbox workflow leadhez kapcsolja és kategorizálja.
+- Az E-mail központ Beérkezett válaszok füle az érdeklődő ügyfeleket kiemeli.
+- JARVIS nem küld automatikus választ és nem indít automatikus follow-upot; minden további kommunikációhoz a felhasználó döntése kell.
+- A jelzés jelenleg az alkalmazáson belüli; külső push értesítés nincs bekapcsolva.
+
 > **Rendszer-összeszerelési állapot – 2026-11-27 (frissítés).** A vizsgált JARVIS rendszer a PR #35 `feature/opportunity-center-readonly` ágán áll. A képességhiány- és prioritási felmérés külön dokumentumba került: [JARVIS Capability Gap Report](JARVIS_CAPABILITY_GAP_REPORT.md). A jelentés elkülöníti a kódban meglévő, CI-ben ellenőrzött, stagingben igazolt és production-kész funkciókat. Fő következtetés: a kutatási worker, Opportunity Engine, Leadkezelő és e-mail-előkészítés fontos építőelemei megvannak, de a folyamatos scheduleres kutatás, az end-to-end pain→pattern→SaaS discovery, az Auth/JWT/RLS staging-validáció, a valós Gemini smoke, az operációs monitoring és a release/deploy folyamat még nem tekinthető teljesen igazoltnak. A teljes CRM/ügyfél-életciklus, bejövő válaszok strukturált feldolgozása, ajánlat/pilot folyamat és valós piaci validáció további fontos termékfeladat.
 >
 > **Aktuális PR/CI pillanatkép a dokumentációs munka kezdetén:** PR #35 nyitott draft, nem merge-ölt; base `feature/daily-hard-budget-cap`. A `b0965a7ab384fe97ea759ddeb7b63316d7fbb995` commiton a JARVIS CI run `46010506152` futott: PostgreSQL research integration és backup/restore sikeres, compileall sikeres, a unit/AppTest/browser tesztlépés a lekérdezés pillanatában még futott. Ez nem végleges CI-eredmény, és nem igazolja az újabb dokumentációs commitot. Lokális tesztet és kézi CI-dispatch-et nem futtattunk.
