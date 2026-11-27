@@ -92,7 +92,29 @@ class FakeProvider:
                 }],
                 "decision_maker": {},
             },
-            "grounded_sources": ["https://example.com/about"],
+            "grounded_sources": [{"source_url": "https://example.com/about", "title": "", "snippet": ""}],
+            "research": {
+                "company_facts": [{
+                    "category": "business_model",
+                    "fact": "B2B provider",
+                    "source_url": "https://example.com/about",
+                }],
+                "decision_maker": {},
+                "lead_fit_assessment": {
+                    "assessment_version": "1.0",
+                    "fit_score": 80,
+                    "confidence": 0.7,
+                    "rationale": "Grounded B2B company facts support a preliminary fit.",
+                    "fit_signals": ["B2B provider"],
+                    "risk_signals": [],
+                    "recommended_next_step": "Confirm the current operational need.",
+                    "evidence": [{
+                        "source_url": "https://example.com/about",
+                        "claim": "B2B provider",
+                        "evidence_type": "fact",
+                    }],
+                },
+            },
             "provider_usage": {"prompt_tokens": 10, "output_tokens": 5},
         }
 
