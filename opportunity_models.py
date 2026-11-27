@@ -33,11 +33,11 @@ def _source_url(value: Any) -> str:
 class Evidence:
     source_url: str
     excerpt: str
-    observed_at: str
+    observed_at: str = ""
     evidence_type: str = "supporting"
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "Evidence":
+    def from_dict(cls, raw: dict[str, Any], *, default_observed_at: Any = None) -> "Evidence":
         if not isinstance(raw, dict):
             raise ValueError("evidence must be an object")
         kind = _required_text(raw.get("evidence_type", "supporting"), "evidence_type", 40)
@@ -46,7 +46,7 @@ class Evidence:
         return cls(
             source_url=_source_url(raw.get("source_url")),
             excerpt=_required_text(raw.get("excerpt"), "excerpt", 1200),
-            observed_at=_required_text(raw.get("observed_at"), "observed_at", 80),
+            observed_at=_required_text(raw.get("observed_at") or default_observed_at or "undated", "observed_at", 80),
             evidence_type=kind,
         )
 
@@ -72,10 +72,10 @@ class CompanyPain:
             raise ValueError("evidence must be a list")
         return cls(
             id=_required_text(raw.get("id"), "id", 80),
-            company_id=_required_text(raw.get("company_id"), "company_id", 80),
+            company_id=_required_text(raw.get("company_id") or raw.get("lead_id"), "company_id/lead_id", 80),
             statement=_required_text(raw.get("statement"), "statement", 1200),
             confidence=_confidence(raw.get("confidence")),
-            evidence=tuple(Evidence.from_dict(item) for item in evidence),
+            evidence=tuple(Evidence.from_dict(item, default_observed_at=raw.get("created_at") or raw.get("researched_at")) for item in evidence),
             status=status,
         )
 
