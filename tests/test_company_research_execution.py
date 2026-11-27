@@ -53,8 +53,9 @@ def grounded_response():
             },
         },
         "grounded_sources": [
-            "https://example.com/about",
+            "https://www.example.com/about",
             "https://news.example.org/company",
+            "https://example.com/team",
             "javascript:alert(1)",
         ],
     }
