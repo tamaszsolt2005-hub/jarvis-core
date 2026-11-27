@@ -464,11 +464,11 @@ def _safe_research_source_url(value: Any) -> str | None:
 
 
 def render_opportunity_center_page(db: Any) -> None:
-    """Read-only browser for company pains, cross-company patterns and SaaS ideas."""
+    """Evidence-linked opportunity browser with explicit, RBAC-protected approval."""
     st.title("Opportunity Center")
     st.caption(
         "Egyedi cégproblémákból indulunk, majd a több cégnél ismétlődő mintázatokat keressük. "
-        "Ez a felület jelenleg kizárólag olvas; nem generál, nem hagy jóvá és nem módosít adatot."
+        "Az értékelés előnézet; csak hitelesített admin/operator menthet külön jóváhagyással, append-only döntési naplóba."
     )
     pains_status: dict[str, Any] = {}
     patterns_status: dict[str, Any] = {}
@@ -502,6 +502,12 @@ def render_opportunity_center_page(db: Any) -> None:
         pain_id = str(link.get("company_pain_id") or "")
         if pattern_id and pain_id:
             links_by_pattern.setdefault(pattern_id, []).append(pain_id)
+    assessments_status: dict[str, Any] = {}
+    assessments = _safe_rows(
+        db, "opportunity_assessments",
+        "id,opportunity_id,market_pattern_id,weighted_score,assessment_confidence,evaluator_model,evaluator_version,approved_by,approved_at,created_at",
+        200, status=assessments_status,
+    )
     ideas = _safe_rows(
         db, "saas_opportunities",
         "id,market_pattern_id,name,summary,status,scoring_status,assessment_confidence,"
@@ -529,8 +535,8 @@ def render_opportunity_center_page(db: Any) -> None:
             + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
         )
 
-    pain_tab, pattern_tab, idea_tab, evaluation_tab, dossier_tab = st.tabs(
-        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Cégdossziék"]
+    pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
+        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
     )
     with pain_tab:
         if pains_status.get("error"):
@@ -784,6 +790,7 @@ def render_opportunity_center_page(db: Any) -> None:
                         st.session_state["jarvis_opportunity_eval_preview"] = {
                             "pattern_id": str(selected_pattern_id),
                             "candidate_id": str(selected_candidate_id),
+                            "approval_key": str(uuid4()),
                             "result": preview,
                         }
                     except (ValueError, json.JSONDecodeError) as exc:
@@ -838,7 +845,92 @@ def render_opportunity_center_page(db: Any) -> None:
                                         f"Típus: {reference.get('evidence_type') or '—'} · "
                                         f"Megfigyelés: {reference.get('observed_at') or '—'}"
                                     )
-                    st.info("Ez csak javaslat. Mentés, jóváhagyás vagy státuszváltás nem történt.")
+                    if result.get("status") == "scored":
+                        role = str(st.session_state.get("_jarvis_user_role") or "")
+                        can_approve = _auth_login_enabled() and role in {"admin", "operator"}
+                        if not _auth_login_enabled():
+                            st.warning("A mentéshez egyéni Supabase Auth-belépés szükséges. A megosztott dashboard-jelszó nem ad jóváhagyási jogosultságot.")
+                        elif not can_approve:
+                            st.info("A javaslatot megtekintheted, de jóváhagyni csak admin vagy operator szerepkörrel lehet.")
+                        elif not stored_preview.get("persisted"):
+                            st.warning("A jóváhagyás végleges, append-only döntési rekordot hoz létre. A források és pontszámok pillanatképként kerülnek mentésre.")
+                            if st.button(
+                                "Jóváhagyom és véglegesen mentem",
+                                key=f"jarvis_opportunity_approve_{stored_preview.get('approval_key')}",
+                                type="primary",
+                            ):
+                                try:
+                                    score_values = result["scores"]
+                                    payload = {
+                                        "opportunity_id": str(selected_candidate_id),
+                                        "market_pattern_id": str(selected_pattern_id),
+                                        "idempotency_key": str(stored_preview["approval_key"]),
+                                        "evaluator_model": str(get_model_name())[:120],
+                                        "evaluator_version": "opportunity-evaluator-v1",
+                                        "score_problem_evidence": score_values["problem_evidence"],
+                                        "score_business_value": score_values["business_value"],
+                                        "score_willingness_to_pay": score_values["willingness_to_pay"],
+                                        "score_feasibility": score_values["feasibility"],
+                                        "score_reusability": score_values["reusability"],
+                                        "score_risk": score_values["risk"],
+                                        "assessment_confidence": result["assessment_confidence"],
+                                        "score_rationale": result["score_rationale"],
+                                        "score_evidence": result["score_evidence"],
+                                    }
+                                    db.table("opportunity_assessments").insert(payload).execute()
+                                    stored_preview["persisted"] = True
+                                    st.session_state["jarvis_opportunity_eval_preview"] = stored_preview
+                                    st.success("A jóváhagyott értékelés tartósan rögzítve lett.")
+                                    st.rerun()
+                                except Exception as save_exc:
+                                    # If the server committed but the response was lost,
+                                    # the unique idempotency key makes a retry safe.
+                                    try:
+                                        existing = (
+                                            db.table("opportunity_assessments")
+                                            .select("id,opportunity_id")
+                                            .eq("idempotency_key", str(stored_preview["approval_key"]))
+                                            .limit(1).execute().data or []
+                                        )
+                                    except Exception:
+                                        existing = []
+                                    if existing and str(existing[0].get("opportunity_id")) == str(selected_candidate_id):
+                                        stored_preview["persisted"] = True
+                                        st.session_state["jarvis_opportunity_eval_preview"] = stored_preview
+                                        st.success("Ez az értékelés már korábban rögzítésre került; nem hoztam létre második rekordot.")
+                                    else:
+                                        report_error(
+                                            save_exc, module="dashboard",
+                                            operation="opportunity_assessment_approval",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A jóváhagyás mentése nem sikerült. Ellenőrizd a jogosultságot és az adatbázis-migrációt; service_role kerülőutat nem használtam.")
+                    if stored_preview.get("persisted"):
+                        st.success("Ez az értékelés már jóváhagyott, tartós döntési rekordként szerepel.")
+                    else:
+                        st.info("Ez csak javaslat. Jóváhagyás és mentés még nem történt.")
+
+    with history_tab:
+        st.subheader("Jóváhagyott értékelések – változtathatatlan előzmények")
+        if assessments_status.get("error"):
+            st.info("A döntési előzmények még nem olvashatók. Ellenőrizd az opportunity_assessments migrációt és az RLS-jogosultságokat.")
+        elif not assessments:
+            st.info("Még nincs elmentett, ember által jóváhagyott értékelés.")
+        else:
+            history_rows = []
+            for item in assessments:
+                history_rows.append({
+                    "Jóváhagyás dátuma": str(item.get("approved_at") or item.get("created_at") or "—"),
+                    "SaaS-jelölt": str(item.get("opportunity_id") or "—"),
+                    "Piaci mintázat": str(item.get("market_pattern_id") or "—"),
+                    "Pontszám": item.get("weighted_score"),
+                    "Bizonyosság": item.get("assessment_confidence"),
+                    "Modell": str(item.get("evaluator_model") or "—"),
+                    "Jóváhagyó": str(item.get("approved_by") or "—"),
+                    "Értékelésazonosító": str(item.get("id") or "—"),
+                })
+            st.dataframe(pd.DataFrame(history_rows), width="stretch", hide_index=True)
+            st.caption("Az előzmények legfeljebb 200 rekordot mutatnak; a jóváhagyott értékelések nem szerkeszthetők és nem törölhetők.")
 
     with dossier_tab:
         lead_status: dict[str, Any] = {}
