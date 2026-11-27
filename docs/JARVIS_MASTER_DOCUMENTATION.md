@@ -433,3 +433,8 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 ### PR és környezeti állapot
 
 PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
+
+
+## Intelligence Graph – központi kapcsolati réteg
+
+A JARVIS központi evidence indexére ráépült az `intelligence_entities` / `intelligence_relationships` gráfmodell. A Lead, cégdosszié-snapshot, céges problémahipotézis, piaci mintázat, SaaS-jelölt, jóváhagyott assessment és evidence rekordok külön csomópontok; az explicit FK-k, join táblák és evidence hivatkozások irányított éleket hoznak létre. A forrástáblák maradnak az igazság forrásai. A gráf read-only dashboard nézetet kapott, authenticated RLS olvasással; AI-javaslat önmagában nem válik hiteles kapcsolattá. A részletes modell, trigger- és jogosultsági leírás: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
