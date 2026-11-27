@@ -64,20 +64,27 @@ BEGIN
           AND assessment_confidence IS NULL)
       );
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='saas_opportunities_score_rationale_check') THEN
-    ALTER TABLE public.saas_opportunities ADD CONSTRAINT saas_opportunities_score_rationale_check
-      CHECK (
-        jsonb_typeof(score_rationale) = 'object'
-        AND (scoring_status <> 'scored' OR (
+  -- Recreate this constraint on every replay so fixes are applied to existing
+  -- installations too. PostgreSQL CHECK accepts NULL, so the scored branch
+  -- must explicitly coalesce missing JSON keys to FALSE.
+  ALTER TABLE public.saas_opportunities
+    DROP CONSTRAINT IF EXISTS saas_opportunities_score_rationale_check;
+  ALTER TABLE public.saas_opportunities
+    ADD CONSTRAINT saas_opportunities_score_rationale_check
+    CHECK (
+      jsonb_typeof(score_rationale) = 'object'
+      AND (
+        scoring_status <> 'scored'
+        OR COALESCE((
           jsonb_typeof(score_rationale->'problem_evidence') = 'string' AND length(btrim(score_rationale->>'problem_evidence')) > 0
           AND jsonb_typeof(score_rationale->'business_value') = 'string' AND length(btrim(score_rationale->>'business_value')) > 0
           AND jsonb_typeof(score_rationale->'willingness_to_pay') = 'string' AND length(btrim(score_rationale->>'willingness_to_pay')) > 0
           AND jsonb_typeof(score_rationale->'feasibility') = 'string' AND length(btrim(score_rationale->>'feasibility')) > 0
           AND jsonb_typeof(score_rationale->'reusability') = 'string' AND length(btrim(score_rationale->>'reusability')) > 0
           AND jsonb_typeof(score_rationale->'risk') = 'string' AND length(btrim(score_rationale->>'risk')) > 0
-        ))
-      );
-  END IF;
+        ), FALSE)
+      )
+    );
 END;
 $scoring_constraints$;
 
