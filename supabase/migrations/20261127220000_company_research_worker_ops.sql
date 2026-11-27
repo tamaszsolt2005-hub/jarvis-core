@@ -65,10 +65,16 @@ BEGIN
       'updated_at', updated_at, 'available_at', available_at,
       'lease_expires_at', lease_expires_at, 'last_error_code', last_error_code
     ) AS job
-    FROM public.company_research_jobs
+    FROM (
+      SELECT DISTINCT ON (lead_id)
+        operation_id, lead_id, status, attempt_count, created_at,
+        updated_at, available_at, lease_expires_at, last_error_code, job_id
+      FROM public.company_research_jobs
+      ORDER BY lead_id, created_at DESC, job_id DESC
+    ) latest_per_lead
     ORDER BY created_at DESC, job_id DESC
-    LIMIT 25
-  ) recent;
+    LIMIT 1000
+  ) latest_jobs;
   SELECT jsonb_build_object(
     'reserved_microusd', COALESCE(sum(reserved_cost_microusd), 0),
     'actual_microusd', COALESCE(sum(actual_cost_microusd), 0),
