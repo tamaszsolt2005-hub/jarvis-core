@@ -302,3 +302,53 @@ PR #26, #27 és #28 merge-ölve a `main` ágba 2026-11-26-án. A JARVIS app tov�
 ## Intelligence Graph – fejlesztési állapot
 
 Az Intelligence Graph első implementációja PR #35-ben elkészült: gráf-adatmodell, meglévő rekordok backfillje, triggeres szinkronizálás, Python-projekció és read-only dashboard. Következő validációs feladat a friss commitok CI-eredményének ellenőrzése, majd később a gráf-szűrés, iparági/entitás-alapú fókusz és a nagyobb adatmennyiségek lapozott vizsgálata. Production migráció és deploy nem történt. Részletek: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
+
+
+---
+
+## Prioritási frissítés – 2026-11-27 18:05 CET
+
+A roadmap következő iterációja az üzleti értékhez vezető, ellenőrizhető adatfolyamot priorizálja, nem újabb elszigetelt dashboard-modulokat.
+
+### P0 – Lead Intelligence Center UI-validálás
+- A már elkészült kétpaneles elrendezés böngészős ellenőrzése.
+- Keresés, státuszfilter, rendezés, leadkiválasztás és részletező panel összhangja.
+- Részletek / Források / Döntési előzmények információs hierarchiájának befejezése, ha a képernyőn valóban hiányzik.
+- Reszponzív viselkedés és üres/hiba/jogosultság állapotok.
+- A JARVIS oldalsáv és navigáció érintetlen marad.
+
+### P1 – Grounded lead vertical slice
+- Egy kiválasztott cég kutatása valós, nyilvános forrásokkal.
+- Dossier/snapshot és központi evidence index összhangja.
+- Strukturált research evidence és lead score csak bizonyíték alapján.
+- Forrás-URL, excerpt, megfigyelési idő, confidence és bizonytalanság visszamutatása.
+- Nincs automatikus lead approval vagy outreach.
+
+### P2 – Opportunity Discovery bizonyítása
+- Több cégnél ismétlődő pain hipotézisek minőségének ellenőrzése.
+- Candidate pattern és SaaS draft idempotens létrejötte.
+- Emberi pattern review és indoklás.
+- Téves klaszterezés, duplikáció és kevés bizonyíték kezelése.
+- Fizetési hajlandóságot csak ügyfélinterjú vagy más megfelelő bizonyíték támaszthatja alá.
+
+### P3 – CRM és feladatfolyamat összekapcsolása
+- Lead approval → CRM státusz → interakció → következő teendő.
+- Task javaslat és létrehozás explicit jóváhagyással.
+- Outcome-alapú workflow stage és lezárási ok.
+- CRM esemény és task kapcsolat visszakövethető legyen.
+- Nincs automatikus ügyfélválasz vagy kapcsolatfelvétel.
+
+### P4 – E-mail munkafolyamat lezárása küldés nélkül
+- Jóváhagyott leadhez piszkozat, emberi címzettforrás, külön szerkesztés és jóváhagyás.
+- Consent, suppression és queue eligibility külön állapot.
+- Bejövő válasz kategorizálása csak jelzés; automatikus válaszadás tiltott.
+- Az outbound hard gate maradjon kikapcsolva.
+
+### P5 – Üzemeltetési érettség
+- Auth/JWT/RLS staging ellenőrzés.
+- Worker scheduler és pause/resume.
+- Napi hard budget cap és provider usage accounting.
+- Observability: futások, retry, dead-letter, provider hibák, költség.
+- Production release csak külön migrációs/security/backup review és explicit engedély után.
+
+**Elfogadási elv:** egy fázis csak akkor tekinthető késznek, ha a felület, az adatmodell, a jogosultság, az audit és a hibás/üres állapot is összhangban van. A forráskód-visszaolvasás önmagában nem UI-smoke. Külön tesztfuttatás a jelenlegi felhasználói korlátozás mellett nem indítható; merge és deploy külön engedélyt igényel.
