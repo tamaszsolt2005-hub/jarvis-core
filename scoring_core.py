@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from math import isfinite
 from typing import Any
 
 
@@ -17,7 +18,7 @@ def calculate_weighted_score(
         raise ValueError("scores and non-empty weights mappings are required")
     if any(not isinstance(key, str) or not key for key in weights):
         raise ValueError("score dimension names must be non-empty strings")
-    if any(isinstance(w, bool) or not isinstance(w, (int, float)) or w < 0 for w in weights.values()):
+    if any(isinstance(w, bool) or not isinstance(w, (int, float)) or not isfinite(w) or w < 0 for w in weights.values()):
         raise ValueError("weights must be non-negative numbers")
     if abs(sum(float(w) for w in weights.values()) - 1.0) > 1e-9:
         raise ValueError("weights must sum to 1")
@@ -28,7 +29,7 @@ def calculate_weighted_score(
     total = 0.0
     for key, weight in weights.items():
         value = scores[key]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value) or not 0 <= value <= 100:
             raise ValueError(f"{key} must be a number between 0 and 100")
         normalized = 100.0 - float(value) if key in reverse_scored else float(value)
         total += normalized * float(weight)
