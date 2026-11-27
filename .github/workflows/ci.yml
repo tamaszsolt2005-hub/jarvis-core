@@ -617,6 +617,8 @@ jobs:
             exit 1
           fi
           grep -q '1..16' <<< "$opportunity_output"
+          # Replay once to verify migration idempotence in the isolated audit database.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
           # Replaying the schema migration must be safe and preserve the validated-pattern guard.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
           # Prove duplicate legacy rows stop the migration without modifying data.

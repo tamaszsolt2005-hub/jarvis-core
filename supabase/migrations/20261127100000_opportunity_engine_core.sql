@@ -64,7 +64,7 @@ CREATE OR REPLACE FUNCTION public.assert_market_pattern_company_count(p_market_p
 RETURNS void
 LANGUAGE plpgsql
 SET search_path = ''
-AS $
+AS $opportunity_function$
 DECLARE
   v_status text;
   v_company_count integer;
@@ -84,13 +84,13 @@ BEGIN
     END IF;
   END IF;
 END;
-$;
+$opportunity_function$;
 
 CREATE OR REPLACE FUNCTION public.check_market_pattern_company_count_trigger()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
-AS $
+AS $opportunity_function$
 BEGIN
   IF TG_TABLE_NAME = 'market_problem_patterns' THEN
     PERFORM public.assert_market_pattern_company_count(NEW.id);
@@ -104,7 +104,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$;
+$opportunity_function$;
 
 DROP TRIGGER IF EXISTS market_pattern_company_count_guard ON public.market_problem_patterns;
 CREATE TRIGGER market_pattern_company_count_guard
