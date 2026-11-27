@@ -629,7 +629,7 @@ jobs:
           # Add idempotent company-pain and cross-company candidate discovery keys.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127190000_cross_company_pattern_discovery.sql
           discovery_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/cross_company_pattern_discovery.test.sql)"
-          printf '%s\\n' "$discovery_output"
+          printf '%s\n' "$discovery_output"
           if grep -q '^not ok ' <<< "$discovery_output"; then
             echo "pgTAP reported failed cross-company pattern discovery assertions."
             exit 1
