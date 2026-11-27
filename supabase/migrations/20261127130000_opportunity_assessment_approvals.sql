@@ -40,12 +40,12 @@ CREATE TABLE IF NOT EXISTS public.opportunity_assessments (
   ),
   CONSTRAINT opportunity_assessments_evidence_shape_check CHECK (
     jsonb_typeof(score_evidence) = 'object'
-    AND jsonb_typeof(score_evidence->'problem_evidence') = 'array' AND jsonb_array_length(score_evidence->'problem_evidence') > 0
-    AND jsonb_typeof(score_evidence->'business_value') = 'array' AND jsonb_array_length(score_evidence->'business_value') > 0
-    AND jsonb_typeof(score_evidence->'willingness_to_pay') = 'array' AND jsonb_array_length(score_evidence->'willingness_to_pay') > 0
-    AND jsonb_typeof(score_evidence->'feasibility') = 'array' AND jsonb_array_length(score_evidence->'feasibility') > 0
-    AND jsonb_typeof(score_evidence->'reusability') = 'array' AND jsonb_array_length(score_evidence->'reusability') > 0
-    AND jsonb_typeof(score_evidence->'risk') = 'array' AND jsonb_array_length(score_evidence->'risk') > 0
+    AND CASE WHEN jsonb_typeof(score_evidence->'problem_evidence') = 'array' THEN jsonb_array_length(score_evidence->'problem_evidence') > 0 ELSE FALSE END
+    AND CASE WHEN jsonb_typeof(score_evidence->'business_value') = 'array' THEN jsonb_array_length(score_evidence->'business_value') > 0 ELSE FALSE END
+    AND CASE WHEN jsonb_typeof(score_evidence->'willingness_to_pay') = 'array' THEN jsonb_array_length(score_evidence->'willingness_to_pay') > 0 ELSE FALSE END
+    AND CASE WHEN jsonb_typeof(score_evidence->'feasibility') = 'array' THEN jsonb_array_length(score_evidence->'feasibility') > 0 ELSE FALSE END
+    AND CASE WHEN jsonb_typeof(score_evidence->'reusability') = 'array' THEN jsonb_array_length(score_evidence->'reusability') > 0 ELSE FALSE END
+    AND CASE WHEN jsonb_typeof(score_evidence->'risk') = 'array' THEN jsonb_array_length(score_evidence->'risk') > 0 ELSE FALSE END
   )
 );
 
@@ -65,7 +65,7 @@ DECLARE
   v_pain_id uuid;
 BEGIN
   v_role := auth.jwt() -> 'app_metadata' ->> 'role';
-  IF v_role NOT IN ('admin', 'operator') OR auth.uid() IS NULL THEN
+  IF COALESCE(v_role, '') NOT IN ('admin', 'operator') OR auth.uid() IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'opportunity_approval_requires_admin_or_operator';
   END IF;
   IF NEW.approved_by IS DISTINCT FROM auth.uid() THEN
