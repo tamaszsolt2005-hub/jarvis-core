@@ -652,6 +652,16 @@ jobs:
           fi
           grep -q '1..12' <<< "$intelligence_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
+          # Build the canonical entity/relationship graph over the shared evidence and Opportunity records.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127150000_intelligence_graph.sql
+          graph_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/intelligence_graph.test.sql)"
+          printf '%s\n' "$graph_output"
+          if grep -q '^not ok ' <<< "$graph_output"; then
+            echo "pgTAP reported failed Intelligence Graph assertions."
+            exit 1
+          fi
+          grep -q '1..21' <<< "$graph_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127150000_intelligence_graph.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test
