@@ -334,7 +334,7 @@ def render_email_center(
                                 except Exception as exc:
                                     st.error(f"Elutasítás nem menthető ({type(exc).__name__}); legalább 5 karakteres indoklás kell.")
 
-    with tabs[1]:
+    with tabs[2]:
         if not approved_drafts:
             st.info("Még nincs külön jóváhagyott e-mail.")
         for draft in approved_drafts:
@@ -355,7 +355,7 @@ def render_email_center(
                 st.markdown(f"**{draft.get('subject') or ''}**")
                 st.write(draft.get("body") or "")
                 st.success("Jóváhagyott · küldési engedélyezés és consent ellenőrzés nélkül nem küldhető.")
-    with tabs[2]:
+    with tabs[3]:
         if not rejected_drafts:
             st.info("Nincs elutasított e-mail.")
         for draft in rejected_drafts:
@@ -370,7 +370,7 @@ def render_email_center(
                     except Exception as exc:
                         st.error(f"Nem nyitható vissza ({type(exc).__name__}).")
 
-    with tabs[4]:
+    with tabs[5]:
         st.warning("Ez a felület csak jogosultságot ellenőriz és előkészített sort vezet. E-mail-küldés nincs bekapcsolva, a sorba kerülés sem indít küldést.")
         st.markdown("**Kapcsolatfelvételi jogosultságok**")
         st.caption("Címenként és leadenként kell rögzíteni a jogalapot, az ellenőrzés bizonyítékát és – ha van – az érvényességi határidőt. A jogalap kiválasztása önmagában nem jogi tanács vagy automatikus megfelelőségi igazolás.")
@@ -522,7 +522,7 @@ def render_email_center(
             label = "Kézi felülvizsgálatra előkészítve" if item.get("status") == "ready_for_manual_review" else "Blokkolva" if item.get("status") == "blocked" else "Visszavonva"
             st.write(f"- **{lead.get('company_name') or item.get('recipient_email')}** · {label} · {item.get('block_reason') or 'Nincs blokkoló ok'}")
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("**Globális e-mail stílusprofil**")
         st.caption("A visszajelzések rögzített kategóriákból frissítik. Ez strukturált preferencia, nem modell-újratanítás.")
         st.write(f"Formalitás: **{prefs.get('formality')}**")
