@@ -644,7 +644,7 @@ jobs:
             echo "pgTAP reported failed market pattern review assertions."
             exit 1
           fi
-          grep -q '1..7' <<< "$market_review_output"
+          grep -q '1..8' <<< "$market_review_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127200000_market_pattern_review_workflow.sql
           # Install the approved-lead state required by the CRM lifecycle gate.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127160000_lead_review_workflow.sql
