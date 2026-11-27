@@ -455,3 +455,14 @@ A feature branchben elkészült az admin/operator jogosultsághoz kötött, egye
 Commitok: `338f70e8`, `6b1c1f67`, `09024c38`, `926511c6`.
 
 A módosított fájlokat GitHubról visszaolvastuk, a hívási útvonalat statikusan ellenőriztük. Külön teszt nem futott, böngészős UI-ellenőrzés nem történt, a queue-t nem hívtuk meg és production adatbázist nem módosítottunk. Migration, merge és deploy nem történt. Következő: P1.2 kontrollált one-shot worker végrehajtás, a scheduler és automatikus futás bekapcsolása nélkül.
+
+
+### P1.2 – one-shot worker belépési pont
+
+Új `company_research_worker_cli.py` került a feature branchbe. Privát backend környezetből kézzel futtatható: `python -m company_research_worker_cli`. Importáláskor nem indul el, és a Streamlit nem hívja.
+
+A belépési pont kötelező pricing/limit konfigurációt és modellár-egyezést ellenőriz, service-role klienssel fail-closed módon ellenőrzi a worker pause-control rekordot, majd legfeljebb egy jobot futtat a meglévő config-alapú worker útvonalon. A meglévő heartbeat, token limit, grounded provider, snapshot/pain mentés és költségelszámolás marad használatban. Kimenete nem tartalmaz kutatási tartalmat.
+
+Commit: `9cf0f6b57116383e82de92062d1ca74b1d6d4b93`.
+
+A CLI visszaolvasva és statikusan ellenőrizve. Külön teszt nem futott, CLI/worker/queue nem indult, Gemini API-hívás és DB-módosítás nem történt. A `20261127220000_company_research_worker_ops.sql` migration szükséges a pause-controlhoz, de production alkalmazása nincs igazolva; ha hiányzik, a CLI fail-closed módon leáll. Nincs merge/deploy/scheduler.
