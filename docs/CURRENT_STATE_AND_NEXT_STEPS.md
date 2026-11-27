@@ -372,3 +372,7 @@ Az Auth tesztek külön ellenőrzik, hogy a tárolt kliensoldali role és a user
 >
 > A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
 
+
+## Intelligence Graph – új fejlesztési réteg
+
+A PR #35 branch tartalmazza a `intelligence_entities` és `intelligence_relationships` származtatott gráftáblákat, forrásrekordokat szinkronizáló triggeres karbantartást, idempotens backfillt, a `intelligence_graph.py` bounded Graphviz projection modult és az Opportunity Center új **Intelligence Graph** fülét. A gráf a meglévő üzleti rekordokat köti össze, nem helyettesíti azokat. A Python tesztek 8 esetet, a pgTAP teszt 21 assertiont fed le; a teszteket helyben a felhasználó kérésére nem futtattuk. A CI push után automatikusan indul. Részletek: [Intelligence Graph](INTELLIGENCE_GRAPH.md).
