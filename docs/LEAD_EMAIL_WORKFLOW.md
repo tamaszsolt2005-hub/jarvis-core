@@ -38,3 +38,15 @@ The sidebar has a dedicated E-mail központ page with Piszkozatok, Jóváhagyott
 - A jóváhagyott e-mail listában külön megnyitható a címzett e-mail-címének megadott forrása, valamint a személyre szabáshoz használt dossier-források.
 - A piszkozatoknál az utolsó öt mentett verzió megtekinthető; a verziótörténet append-only.
 - A forráslinkek csak HTTP(S) URL-ek lehetnek, localhost és privát IP címek nem jeleníthetők meg hivatkozásként.
+
+
+## Contact authorization, suppression and non-sending queue
+
+- Contact permission is recorded per lead and normalized recipient address. The record requires a reviewed legal-basis category, a written evidence note, the reviewing admin/operator and verification timestamp; an HTTPS evidence URL and expiry may also be supplied.
+- Supported basis labels are explicit consent, reviewed legitimate interest, contractual necessity, and other reviewed basis. Selecting a label is an internal record, not legal advice or proof that the underlying processing is lawful.
+- Revoking permission automatically adds the address to the global suppression list. A suppressed address blocks all leads using that address; this interface does not provide an unsuppress action.
+- An admin/operator can re-evaluate an approved draft. The eligibility RPC checks the draft approval, current permission for the exact lead/address pair, expiry and global suppression.
+- Queue states are `blocked`, `ready_for_manual_review` and `cancelled`. The `ready_for_manual_review` state is only an eligibility result; it is not a delivery authorization or an active send job.
+- Suppression immediately changes existing non-cancelled queue rows for that address to blocked. Permission events and queue events are append-only.
+- No worker, scheduler, provider call or delivery action is connected to this queue. `EMAIL_DELIVERY_ENABLED` in `email_utils.py` remains hard-coded to `False`; actual outbound delivery stays disabled pending a separate review and explicit authorization.
+- The migration is repository-only and must not be applied to production as part of this PR.
