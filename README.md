@@ -60,7 +60,7 @@ python -m pytest -q
 | [Aktuális állapot](docs/CURRENT_STATE_AND_NEXT_STEPS.md) | Kész, folyamatban lévő és hátralévő munka |
 | [Fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) | Fázisok, prioritások, elfogadási feltételek |
 | [Architektúra](docs/JARVIS_DOCUMENTATION.md) | Modulok, adatfolyamok, adatbiztonság |
-| [Opportunity Engine](docs/OPPORTUNITY_ENGINE.md) | Problémahipotézisek, piaci mintázatok, pontozás és emberi jóváhagyás |
+| [Opportunity Engine](docs/OPPORTUNITY_ENGINE.md) | Problémahipotézisek, közös Intelligence Engine provenance, piaci mintázatok, pontozás és emberi jóváhagyás |
 | [SaaS-vízió](docs/JARVIS_AUTONOMOUS_SAAS_VISION.md) | Cégkutatásból egyedi SaaS-ajánlat és fejlesztés |
 | [Parancs kalauz](docs/JARVIS_COMMAND_GUIDE.md) | Ténylegesen támogatott chat-parancsok |
 | [Fejlesztési backlog](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) | Technikai hiányok és következő feladatok |
