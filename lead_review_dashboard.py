@@ -113,7 +113,8 @@ def render_lead_review_page(
     """Render the ranked lead queue; outbound email is deliberately out of scope."""
     st.title("Leadkezelő")
     st.caption(
-        "A leadek a meglévő 100 pontos kutatási prioritásuk szerint jelennek meg. "
+        "A strukturált kutatási adatokkal rendelkező leadek 0–100 pontos kutatási prioritás szerint "
+        "jelennek meg; a hiányos kutatási adatokkal rendelkező rekordok pontozatlanok maradnak. "
         "A pontszám kutatási triázs, nem vásárlási szándék vagy kapcsolatfelvételi engedély."
     )
     can_decide = auth_enabled and str(role or "") in {"admin", "operator"}
@@ -230,9 +231,11 @@ def render_lead_review_page(
                     if st.button("✕ Elutasítom", key=f"lead_reject_open_{lead_id}", width="stretch"):
                         st.session_state["lead_review_active_reject"] = lead_id
                         st.rerun()
+                elif section == "pending":
+                    st.caption("Jóváhagyásra vár")
                 elif section == "approved":
                     st.caption("Jóváhagyva")
-                else:
+                elif section == "rejected":
                     st.caption("Elutasítva")
             with st.expander(
                 "⌄ Cégadatok, AI-összefoglaló és döntés",
