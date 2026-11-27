@@ -21,6 +21,9 @@
 
 Ez a dokumentum a jelenlegi fejlesztési branch rendszerhatárait és a fő adatfolyamokat foglalja össze. Nem állítja, hogy minden modul productionben aktív.
 
+> **Fejlesztési ág kiegészítés – 2026-11-27:** az Opportunity Center és az Opportunity Engine az open, draft [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) része. A migrációk repository-only állapotúak; production DB-módosítás és deploy nem történt. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
+
+
 ## 1. Környezet
 
 A JARVIS egy Python 3.11 / Streamlit alkalmazás Gemini API-val és Supabase/PostgreSQL háttérrel. A dashboard helyi fejlesztés alatt áll; nincs JARVIS production app-host. A Supabase production projekt különálló, és a branch migrációi nincsenek rá alkalmazva.
