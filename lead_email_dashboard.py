@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -224,7 +225,7 @@ def render_email_center(
                             "recipient_email": recipient.strip() or None,
                             "recipient_source_url": _safe_public_source(source),
                             "subject": subject.strip(), "body": body.strip(),
-                            "status": "draft", "updated_at": "now()",
+                            "status": "draft", "updated_at": datetime.now(timezone.utc).isoformat(),
                         }
                         db.table("lead_email_drafts").update(update).eq("id", draft_id).execute()
                         db.table("lead_email_draft_revisions").insert({
