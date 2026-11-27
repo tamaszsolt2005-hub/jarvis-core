@@ -44,7 +44,7 @@ def enqueue_single_lead_research(
 
     lead_response = (
         db.table("leads")
-        .select("id,company_name,company_domain,website,status,opted_out,reply_category,follow_up_count,last_inbound_message_id,first_contacted_at,last_outbound_at,last_contacted_at,last_outbound_message_id,first_sent_at,followed_up_at,last_message_id")
+        .select("*")
         .eq("id", normalized_id)
         .limit(1)
         .execute()
