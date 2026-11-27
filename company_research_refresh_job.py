@@ -90,6 +90,10 @@ def run_company_research_refresh_cycle(
     worker_id: str | None = None,
 ) -> dict[str, Any]:
     """Enqueue stale leads, then process at most batch_limit jobs sequentially."""
+    config.validate_model(model)
+    models = getattr(client, "models", None)
+    if not callable(getattr(models, "count_tokens", None)) or not callable(getattr(models, "generate_content", None)):
+        raise ValueError("Gemini client must support token counting and content generation")
     control_rows = _response_rows(
         db.table("company_research_runtime_control")
         .select("paused,note")
@@ -111,10 +115,6 @@ def run_company_research_refresh_cycle(
             "contact_permission": "unchanged",
             "outreach": "disabled",
         }
-    config.validate_model(model)
-    models = getattr(client, "models", None)
-    if not callable(getattr(models, "count_tokens", None)) or not callable(getattr(models, "generate_content", None)):
-        raise ValueError("Gemini client must support token counting and content generation")
     leads, latest_dossiers = load_company_research_refresh_inputs(db)
     enqueued = enqueue_company_research_refreshes_with_config(
         _repository(db), leads, latest_dossiers, config=config
