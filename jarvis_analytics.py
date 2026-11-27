@@ -416,7 +416,7 @@ def render_analytics(db: Any) -> None:
         .jarvis-recent:last-child {border-bottom:0;}
         .jarvis-recent-dot {width:9px;height:9px;min-width:9px;border-radius:50%;background:#168BFF;box-shadow:0 0 9px rgba(22,139,255,.6);}
         .jarvis-recent-dot.error {background:#FF667A;box-shadow:0 0 9px rgba(255,102,122,.5);}
-        .jarvis-recent-time {width:48px;min-width:48px;color:#9AAAC5;font-size:.76rem;font-variant-numeric:tabular-nums;}
+        .jarvis-recent-time {width:76px;min-width:76px;color:#9AAAC5;font-size:.76rem;font-variant-numeric:tabular-nums;}
         .jarvis-recent-label {color:#E7EFFC;font-size:.82rem;line-height:1.35;}
         .jarvis-data-note {padding:12px 15px;border:1px solid #244365;border-radius:12px;background:rgba(9,26,48,.7);color:#AFC1DC;font-size:.8rem;line-height:1.6;margin-top:14px;}
         div[data-testid="stVerticalBlockBorderWrapper"] {border-color:#203957 !important;border-radius:17px !important;background:linear-gradient(145deg,rgba(11,23,43,.78),rgba(6,15,30,.9)) !important;}
@@ -686,7 +686,12 @@ def render_analytics(db: Any) -> None:
                 recent_rows = current.sort_values("created_at_utc", ascending=False).head(8).to_dict("records")
                 recent_html = []
                 for row in recent_rows:
-                    local_time = row["local_ts"].strftime("%H:%M")
+                    event_time = row["local_ts"]
+                    local_time = (
+                        event_time.strftime("%H:%M")
+                        if event_time.date() == now_local.date()
+                        else event_time.strftime("%d.%m %H:%M")
+                    )
                     is_error = str(row.get("level") or "").casefold() in {"error", "critical", "fatal", "warn", "warning"}
                     dot_class = "jarvis-recent-dot error" if is_error else "jarvis-recent-dot"
                     description = escape(_activity_label(row))
