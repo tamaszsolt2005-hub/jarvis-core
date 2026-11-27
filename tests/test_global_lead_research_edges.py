@@ -24,6 +24,9 @@ def test_research_parsers_and_quality_helpers_reject_untrusted_shapes():
     assert research._valid_http_url("https://user:pass@example.com") is None
     assert research._valid_http_url("file:///etc/passwd") is None
     assert research._valid_http_url("https://localhost") is None
+    assert research._valid_http_url("http://127.0.0.1/private") is None
+    assert research._valid_http_url("http://10.0.0.1/private") is None
+    assert research._valid_http_url("http://[::1]/private") is None
     assert research._domain("https://www.Example.com/path") == "example.com"
 
     confidence, score, evidence = research._research_quality({
