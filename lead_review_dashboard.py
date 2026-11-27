@@ -418,12 +418,12 @@ def render_lead_review_page(
                     st.caption(
                         f"{job_labels.get(str(research_job.get('status')), 'Kutatási job állapota ismeretlen')} · "
                         f"Próbálkozás: {research_job.get('attempt_count', '—')} · "
-                        f"Azonosító: {str(research_job.get('operation_id') or '—')[:32]}"
+                        f"Azonosító: {str(research_job.get('operation_id') or '—')}"
                     )
                     if research_job.get("last_error_code"):
                         st.caption(f"Utolsó hibakód: {str(research_job['last_error_code'])[:80]}")
                 elif not dossier and not jobs_error and auth_enabled and str(role or "") in {"admin", "operator", "reader"}:
-                    st.caption("Nincs kutatási snapshot vagy ismert kutatási job.")
+                    st.caption("Nincs kutatási snapshot; a legutóbbi job-listában nem szerepel kutatási feladat.")
             with middle:
                 st.metric("Lead score", f"{points}/100" if points is not None else "—")
             with right:
@@ -740,6 +740,31 @@ def render_lead_review_page(
                     f"{row.get('website') or 'Nincs weboldal megadva'}  ·  "
                     f"{score_label}  ·  {row_status}"
                 )
+                row_job = row.get("_research_job")
+                if row_job:
+                    job_labels = {
+                        "queued": "Kutatás sorban", "running": "Kutatás folyamatban",
+                        "retry_wait": "Újrapróbálásra vár", "succeeded": "Kutatás sikeres",
+                        "dead_letter": "Hibazsák",
+                    }
+                    st.caption(
+                        f"{job_labels.get(str(row_job.get('status')), 'Ismeretlen kutatási állapot')} · "
+                        f"próbálkozás {row_job.get('attempt_count', '—')} · "
+                        f"job: {str(row_job.get('operation_id') or '—')}"
+                    )
+                    if row_job.get("last_error_code"):
+                        st.caption(f"Utolsó hibakód: {str(row_job['last_error_code'])[:80]}")
+                elif not row["_dossier"] and not jobs_error and auth_enabled and str(role or "") in {"admin", "operator", "reader"}:
+                    st.caption("Nincs kutatási snapshot; a legutóbbi job-listában nem szerepel kutatási feladat.")
+                if row["_dossier"].get("_snapshot_researched_at"):
+                    evidence_items = (
+                        row["_dossier"].get("lead_fit_assessment", {}).get("evidence", [])
+                        if isinstance(row["_dossier"].get("lead_fit_assessment"), dict) else []
+                    )
+                    st.caption(
+                        f"Utolsó kutatás: {row['_dossier']['_snapshot_researched_at']} · "
+                        f"Forrásolt értékelési elemek: {len(evidence_items) if isinstance(evidence_items, list) else 0}"
+                    )
                 assessment = row["_dossier"].get("lead_fit_assessment") if isinstance(row["_dossier"].get("lead_fit_assessment"), dict) else {}
                 if row["_score"].get("research_confidence") is not None:
                     st.caption(
