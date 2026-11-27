@@ -70,7 +70,7 @@ SELECT is((SELECT approval_status FROM public.opportunity_assessments
            WHERE idempotency_key='10000000-0000-0000-0000-000000000092'),
           'approved','inserted assessment is explicitly recorded as approved');
 SELECT throws_ok(
-  'INSERT INTO public.opportunity_assessments (opportunity_id,market_pattern_id,idempotency_key,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version) SELECT opportunity_id,market_pattern_id,idempotency_key,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version FROM public.opportunity_assessments WHERE idempotency_key = '10000000-0000-0000-0000-000000000092'",
+  'INSERT INTO public.opportunity_assessments (opportunity_id,market_pattern_id,idempotency_key,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version) SELECT opportunity_id,market_pattern_id,idempotency_key,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version FROM public.opportunity_assessments WHERE idempotency_key = ''10000000-0000-0000-0000-000000000092''",
   '23505',NULL,'duplicate approval idempotency key is rejected'
 );
 RESET ROLE;
