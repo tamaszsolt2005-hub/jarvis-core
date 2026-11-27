@@ -53,6 +53,8 @@ def enqueue_single_lead_research(
     if not isinstance(lead_rows, list) or len(lead_rows) != 1 or not isinstance(lead_rows[0], dict):
         raise LeadResearchRequestError("lead_not_found_or_unavailable")
     lead = lead_rows[0]
+    if not str(lead.get("company_name") or "").strip():
+        raise LeadResearchRequestError("lead_company_name_missing")
 
     snapshot_response = (
         db.table("company_research_snapshots")
