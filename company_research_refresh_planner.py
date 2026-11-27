@@ -24,7 +24,10 @@ def _domain(lead: dict[str, Any]) -> str:
     else:
         try:
             parsed = urlparse(website)
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            if (
+                parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password
+            ):
                 return ""
             host = parsed.hostname.casefold().removeprefix("www.")
         except ValueError:
