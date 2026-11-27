@@ -39,7 +39,7 @@ jobs:
       JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED: ${{ vars.JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
