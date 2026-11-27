@@ -96,4 +96,6 @@ python -m pytest -q
 >
 > A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
 
+## Intelligence Graph
 
+A Leadek, cégdossziék, problémahipotézisek, piaci mintázatok, SaaS-jelöltek, jóváhagyott értékelések és forrásbizonyítékok közötti kapcsolatok külön, származtatott gráfrétegben jelennek meg. A gráf az eredeti üzleti táblákból épül, azokat nem helyettesíti. Részletek: [Intelligence Graph architektúra](docs/INTELLIGENCE_GRAPH.md).
