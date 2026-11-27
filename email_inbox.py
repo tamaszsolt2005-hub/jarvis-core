@@ -134,7 +134,7 @@ def _run() -> int:
                 continue
             subject = _decode(message.get("Subject"))
             body = _body(message)
-            category = classify_reply(f"{subject}\\n{body}")
+            category = classify_reply(f"{subject}\n{body}")
             opted_out = _is_optout(subject, body) or category == "opt_out"
             reply_category = "opt_out" if opted_out else category
             values = {
