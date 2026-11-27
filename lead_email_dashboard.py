@@ -73,17 +73,32 @@ def _split_draft(raw: str) -> tuple[str, str]:
     return subject[:200], body[:20000]
 
 
-def _company_context(lead: dict[str, Any], snapshot: dict[str, Any] | None) -> str:
+def _source_facts(snapshot: dict[str, Any] | None) -> list[dict[str, str]]:
     dossier = (snapshot or {}).get("dossier")
     dossier = dossier if isinstance(dossier, dict) else {}
     facts = dossier.get("facts") if isinstance(dossier.get("facts"), list) else []
-    selected = []
-    for item in facts[:8]:
-        if isinstance(item, dict) and item.get("fact") and _safe_public_source(item.get("source_url")):
-            selected.append(
-                f"- {str(item.get('category') or 'Tény')}: {str(item.get('fact'))[:350]} "
-                f"(forrás: {str(item.get('source_url'))[:500]})"
-            )
+    result: list[dict[str, str]] = []
+    for item in facts[:20]:
+        if not isinstance(item, dict) or not item.get("fact"):
+            continue
+        source = _safe_public_source(item.get("source_url"))
+        if not source:
+            continue
+        result.append({
+            "category": str(item.get("category") or "Tény")[:100],
+            "fact": str(item.get("fact"))[:500],
+            "source_url": source,
+        })
+    return result
+
+
+def _company_context(lead: dict[str, Any], snapshot: dict[str, Any] | None) -> str:
+    dossier = (snapshot or {}).get("dossier")
+    dossier = dossier if isinstance(dossier, dict) else {}
+    selected = [
+        f"- {item['category']}: {item['fact']} (forrás: {item['source_url']})"
+        for item in _source_facts(snapshot)[:8]
+    ]
     leader = dossier.get("decision_maker") if isinstance(dossier.get("decision_maker"), dict) else {}
     return "\n".join([
         f"Cég: {str(lead.get('company_name') or 'Ismeretlen')[:200]}",
@@ -123,6 +138,7 @@ def render_email_center(
         )
         prefs_rows = _rows(db, "email_style_preferences", "scope,formality,concision,personalization,assertiveness,updated_at", 10)
         snapshots = _rows(db, "company_research_snapshots", "lead_id,researched_at,dossier", 1500)
+        revisions = _rows(db, "lead_email_draft_revisions", "id,draft_id,subject,body,created_at", 4000)
     except Exception as exc:
         st.error("Az e-mail munkaterület adatforrása nem érhető el.")
         st.caption(f"Hibatípus: {type(exc).__name__}")
@@ -143,6 +159,11 @@ def render_email_center(
     waiting = [row for row in drafts if row.get("status") == "draft"]
     approved_drafts = [row for row in drafts if row.get("status") == "approved"]
     rejected_drafts = [row for row in drafts if row.get("status") == "rejected"]
+    revisions_by_draft: dict[str, list[dict[str, Any]]] = {}
+    for revision in revisions:
+        revisions_by_draft.setdefault(str(revision.get("draft_id") or ""), []).append(revision)
+    for history in revisions_by_draft.values():
+        history.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
 
     metrics = st.columns(4)
     metrics[0].metric("Jóváhagyott lead", len(approved_ids))
@@ -215,6 +236,25 @@ def render_email_center(
             with st.container(border=True):
                 st.markdown(f"**{lead.get('company_name') or 'Ismeretlen cég'}**")
                 st.caption("Szerkeszthető piszkozat · emberi jóváhagyás szükséges")
+                snapshot = snapshot_by_lead.get(lead_id)
+                with st.expander("Cégdosszié és a személyre szabás forrásai"):
+                    st.write(f"Weboldal: {lead.get('website') or 'nincs megadva'}")
+                    st.write(str(lead.get("notes") or "Nincs kutatási jegyzet.")[:2500])
+                    source_facts = _source_facts(snapshot)
+                    if source_facts:
+                        for fact in source_facts:
+                            st.markdown(f"**{fact['category']}**")
+                            st.write(fact["fact"])
+                            st.link_button("Forrás megnyitása", fact["source_url"], key=f"draft_fact_{draft_id}_{len(fact['fact'])}")
+                    else:
+                        st.info("Nincs megjeleníthető, ellenőrzött forrást tartalmazó dossier-tény.")
+                    history = revisions_by_draft.get(draft_id, [])
+                    if history:
+                        st.caption(f"Verzióelőzmény: {len(history)} mentett változat")
+                        for version_index, version in enumerate(history[:5], start=1):
+                            with st.expander(f"Korábbi változat · {version.get('created_at') or version_index}"):
+                                st.markdown(f"**{version.get('subject') or '(nincs tárgy)'}**")
+                                st.write(version.get("body") or "")
                 with st.form(f"email_edit_{draft_id}"):
                     recipient = st.text_input("Vezető e-mail-címe", value=str(draft.get("recipient_email") or ""))
                     source = st.text_input("A címzett e-mail-címének nyilvános forrása", value=str(draft.get("recipient_source_url") or ""))
@@ -272,6 +312,16 @@ def render_email_center(
             with st.container(border=True):
                 st.markdown(f"**{lead.get('company_name') or 'Ismeretlen cég'}**")
                 st.caption(f"Címzett: {draft.get('recipient_email') or 'nincs megadva'} · Jóváhagyva: {draft.get('approved_at') or '—'}")
+                source_url = _safe_public_source(draft.get("recipient_source_url"))
+                if source_url:
+                    st.link_button("Címzett e-mail-címének forrása", source_url, key=f"approved_recipient_source_{draft.get('id')}")
+                snapshot = snapshot_by_lead.get(str(draft.get("lead_id") or ""))
+                with st.expander("Cégadatok és források ellenőrzése"):
+                    st.write(f"Weboldal: {lead.get('website') or 'nincs megadva'}")
+                    for fact in _source_facts(snapshot):
+                        st.markdown(f"**{fact['category']}**")
+                        st.write(fact["fact"])
+                        st.link_button("Forrás megnyitása", fact["source_url"], key=f"approved_fact_{draft.get('id')}_{len(fact['fact'])}")
                 st.markdown(f"**{draft.get('subject') or ''}**")
                 st.write(draft.get("body") or "")
                 st.success("Jóváhagyott · küldési engedélyezés és consent ellenőrzés nélkül nem küldhető.")
