@@ -260,3 +260,17 @@ Ez továbbra is kézi, egyszeri parancs: nincs scheduler, folyamatos worker, Str
 Commit: `9cf0f6b57116383e82de92062d1ca74b1d6d4b93`.
 
 A CLI fájlt GitHubról visszaolvastuk és statikusan ellenőriztük. Külön tesztet nem futtattunk, a CLI-t nem indítottuk el, Gemini API-hívás és queue claim nem történt, production DB-t nem módosítottunk. Merge/deploy nem történt.
+
+
+### P1.3 – grounded lead-fit assessment szerződés
+
+A kutatási válasz külön, verziózott `lead_fit_assessment` objektumot kér és validál: `assessment_version`, `fit_score` (0–100), `confidence` (0–1), `rationale`, `fit_signals[]`, `risk_signals[]`, `recommended_next_step`, `evidence[]`.
+
+- Új `lead_fit_assessment.py` validátor szigorúan ellenőrzi a verziót, a számok típusát és véges tartományát; bool, NaN, Infinity, tartományon kívüli vagy hibás score/confidence nem fogadható el.
+- Evidence csak akkor marad meg, ha a modell URL-je pontos oldalszinten szerepel a Gemini Google Search grounding metadata-ban. Title/snippet kizárólag provider metadata-ból származhat.
+- A tény (`fact`), hipotézis (`hypothesis`) és AI-értékelés (`assessment`) külön evidence típus. A pain hipotézisek külön mezőben maradnak.
+- Grounded evidence nélkül az állapot `insufficient_evidence`, score és confidence null.
+- A dossier fingerprint és az append-only, operation ID-alapú snapshot az assessmentet is tartalmazza.
+- A régi `Leadkutatás;` szöveges parserhez nem készül kompatibilitási szöveg; a dashboard bekötése P1.4.
+
+Kizárólag repository-kód és dokumentáció módosult. Külön teszt, worker/queue/Gemini hívás, DB/migration módosítás, merge és deploy nem történt.
