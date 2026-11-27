@@ -57,10 +57,18 @@ Először DB- és külső API-független job-lifecycle modult kell készíteni. 
 Az első szelet tiszta Python logika és fake repository tesztek. Nem csatlakozik production Supabase-hez, nem futtat migrációt, nem hív Gemini API-t, nem ütemez automatikus munkát és nem küld üzenetet.
 
 ## Phase 2 – üzleti problémahipotézis
-A dosszié tényekből különítse el a bizonyítékot, következtetést és hipotézist. A problémákhoz confidence, forrás és ellenőrizendő kérdés tartozzon. Bizonyítékhiány esetén további kutatás legyen a kimenet, ne kitalált probléma.
 
-## Phase 3 – egyedi SaaS-termékötlet motor
-Cégenként több termékkoncepció; magyarázható értékelés üzleti érték, illeszkedés, bizonyítottság, megvalósíthatóság, kockázat, költség és differenciálás alapján; alternatívák és piaci megoldások vizsgálata; indokolt esetben tartózkodás az ajánlástól.
+<badge>Első implementáció PR #35-ben</badge>
+
+A `business_pain_hypotheses` modell, confidence/státusz és forrás-evidence mezők, valamint az Opportunity Center céges probléma nézete elkészült. A hipotézis és bizonyított tény külön kezelendő. További feladat: a kutatási dosszié tényekből történő automatizált, ellenőrizhető hipotézis-képzés és az evidence minőségének mélyebb validálása. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
+
+## Phase 3 – ismétlődő piaci mintázatok és SaaS-termékötlet motor
+
+<badge>Első implementáció PR #35-ben</badge>
+
+A több cég problémáit összekötő `market_problem_patterns` és `market_pattern_pains` modell, a legalább két különböző céges alátámasztást kikényszerítő validáció, a `saas_opportunities` jelöltek és a provider-neutral evaluator elkészült. A pontozás hat dimenziót használ: probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányos bizonyíték esetén nincs pontszám.
+
+Az evaluator csak előnézetet készít; explicit emberi jóváhagyás szükséges a tartós mentéshez. Az append-only értékelési előzmény, az admin/operator írási és reader olvasási jogosultság, a forrás-egyezés és az idempotencia alapja PR #35-ben implementált. További feladat: piaci alternatívák, TAM/SAM/SOM, árképzés, unit economics, ügyfél-validáció és a pontozási dimenziók üzleti adatokkal történő kalibrálása. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
 
 ## Phase 4 – globális és cégenkénti termék-tiltó napló
 Globális, iparági és cégenkénti kizárások; elutasított ajánlatok és korábbi sikertelen ötletek; determinisztikus fingerprint és szemantikus hasonlóságvizsgálat; aktív projektek és ügyfélközi kizárólagosság ellenőrzése; auditált feloldás és emberi jóváhagyás.
