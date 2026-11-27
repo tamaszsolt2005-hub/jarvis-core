@@ -41,8 +41,11 @@ def _record(db: Any, **payload: Any) -> None:
 def _parse_due_date(value: str) -> str | None:
     if not value.strip():
         return None
+    normalized = value.strip()
+    if len(normalized) != 10 or normalized[4:5] != "-" or normalized[7:8] != "-":
+        raise ValueError("A határidő formátuma YYYY-MM-DD legyen.")
     try:
-        return date.fromisoformat(value.strip()).isoformat()
+        return date.fromisoformat(normalized).isoformat()
     except ValueError as exc:
         raise ValueError("A határidő formátuma YYYY-MM-DD legyen.") from exc
 
