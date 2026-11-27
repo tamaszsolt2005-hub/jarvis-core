@@ -109,6 +109,7 @@ def render_lead_review_page(
     role: str | None,
     generate_text_fn: Any,
     model_name_fn: Any,
+    research_fn: Any = None,
 ) -> None:
     """Render the ranked lead queue; outbound email is deliberately out of scope."""
     # Page-local styling. The JARVIS sidebar and global application shell are untouched.
@@ -321,6 +322,33 @@ def render_lead_review_page(
                     st.caption("Jóváhagyva")
                 elif section == "rejected":
                     st.caption("Elutasítva")
+            if can_decide and callable(research_fn):
+                st.markdown("**Forrásolt cégkutatás**")
+                st.caption(
+                    "A kérés a háttérsorba kerül. Ez a művelet nem indít azonnali worker-futtatást "
+                    "és nem kezdeményez kapcsolatfelvételt."
+                )
+                if st.button("Kutatás kérése", key=f"lead_research_enqueue_{lead_id}", type="secondary"):
+                    try:
+                        with st.spinner("A kutatási kérés biztonságos rögzítése…"):
+                            research_result = research_fn(lead_id)
+                        if research_result.get("status") in {"queued", "running", "retry_wait"}:
+                            st.success("A kutatási kérés a háttérsorban van.")
+                            st.caption(
+                                f"Állapot: {research_result.get('status')} · "
+                                f"Azonosító: {research_result.get('operation_id') or '—'}"
+                            )
+                        elif research_result.get("status") == "not_eligible":
+                            st.info(
+                                "A lead most nem kerülhet a kutatási sorba. Ellenőrizd a weboldalt, "
+                                "a kapcsolatfelvételi/opt-out állapotot és a kutatási pillanatkép korát."
+                            )
+                        else:
+                            st.warning("A kutatási kérés állapota nem egyértelmű; ellenőrizd a kutatási sort.")
+                    except Exception as exc:
+                        st.error("A kutatási kérés nem került a háttérsorba.")
+                        st.caption(f"Hibatípus: {type(exc).__name__}")
+
             with st.expander(
                 "Részletek, források és döntés",
                 expanded=True,
