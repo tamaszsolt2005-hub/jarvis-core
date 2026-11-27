@@ -51,6 +51,6 @@ def test_email_delivery_is_hard_disabled():
     try:
         send_email("person@example.com", "Subject", "Body")
     except RuntimeError as exc:
-        assert "disabled" in str(exc).casefold()
+        assert "letiltva" in str(exc).casefold()
     else:
         raise AssertionError("Outbound email must remain hard-disabled.")
