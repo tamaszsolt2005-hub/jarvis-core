@@ -622,13 +622,16 @@ jobs:
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
-          printf '%s\\n' "$scoring_output"
+          printf '%s\n' "$scoring_output"
           if grep -q '^not ok ' <<< "$scoring_output"; then
             echo "pgTAP reported failed Opportunity scoring assertions."
             exit 1
           fi
           grep -q '1..9' <<< "$scoring_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
+          # Require source-linked evidence on every scored opportunity; replay for idempotence.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127120000_opportunity_score_evidence.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127120000_opportunity_score_evidence.sql
           # Add authenticated, append-only human approval history and verify it.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
           approval_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_assessment_approvals.test.sql)"
