@@ -399,9 +399,10 @@ GRANT EXECUTE ON FUNCTION public.upsert_intelligence_relationship(text,text,text
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_intelligence_relationship(text,text,text,text,text)
   TO service_role;
-GRANT EXECUTE ON FUNCTION public.sync_intelligence_graph_source(),
-  FUNCTION public.sync_intelligence_graph_pattern_pain(),
-  FUNCTION public.sync_intelligence_graph_evidence()
+GRANT EXECUTE ON FUNCTION
+  public.sync_intelligence_graph_source(),
+  public.sync_intelligence_graph_pattern_pain(),
+  public.sync_intelligence_graph_evidence()
   TO service_role;
 
 DROP TRIGGER IF EXISTS intelligence_graph_lead_sync ON public.leads;
