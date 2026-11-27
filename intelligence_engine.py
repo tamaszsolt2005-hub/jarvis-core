@@ -6,6 +6,7 @@ changing domain-specific scoring semantics. It has no database or provider I/O.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -36,8 +37,15 @@ def _public_url(value: Any) -> str:
         parsed.scheme not in {"http", "https"} or not parsed.hostname
         or parsed.username or parsed.password
         or parsed.hostname.casefold() in {"localhost", "localhost.localdomain"}
+        or parsed.hostname.casefold().endswith((".localhost", ".local"))
     ):
         raise ValueError("source_url must be a public HTTP(S) URL")
+    try:
+        if not ipaddress.ip_address(parsed.hostname).is_global:
+            raise ValueError("source_url must not target a private or reserved IP address")
+    except ValueError as exc:
+        if "private or reserved" in str(exc):
+            raise
     return raw
 
 
