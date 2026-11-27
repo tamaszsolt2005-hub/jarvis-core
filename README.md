@@ -1,18 +1,18 @@
 # JARVIS
 
-> **AKTUÁLIS, FELÜLÍRÓ ÁLLAPOT – 2026-11-27 (PR #34).** Ez a blokk felülírja a dokumentum alábbi részeiben szereplő korábbi PR-, branch-, CI-, budget-cap-, worker- és scheduler-státuszokat. Aktív fejlesztési ág: `feature/daily-hard-budget-cap`. PR: [#34](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/34), továbbra is **open + draft, merged=false**. Ellenőrzött PR HEAD: `52713c448a370b505ed700995eea2b231752a86b`. A `main` ellenőrzött SHA-ja: `477d73afa7d6ebd12eb7d1da7a2e52b68ff2abc0` (változatlan).
+> **AKTUÁLIS FEJLESZTÉSI ÁLLAPOT – 2026-11-27 (PR #34 és PR #35).** A `feature/daily-hard-budget-cap` ág PR #34-e továbbra is open + draft, merged=false. Az Opportunity Engine fejlesztése a `feature/opportunity-center-readonly` ágon, a [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) részeként található; PR #35 a PR #34-re épül, open + draft, merged=false. A legutóbb ellenőrzött kód-HEAD `8cb080856f745dc5f8278f78a836791a75b48355`; a dokumentációs commitok ezt a HEAD-et tovább fogják mozgatni. Egyik PR sem merge-ölhető külön, konkrét felhasználói engedély nélkül.
 >
-> **Kódban elkészült és CI-ben ellenőrzött:** napi hard budget ceiling per reservation; tranzakciós/advisory-lock alapú admission és actual-cost settlement; túlköltés esetén dead-letter és további foglalások megállítása; hiányzó, nem mérhető költségadatnál fail-closed viselkedés; közös modellhez kötött token- és Google Search grounding-árazási konfiguráció; prompt token-count ellenőrzés és output-token limit; Search query költség becslése és actual-cost elszámolása; paginált stale-lead refresh planner/queue/runtime; bounded refresh worker és napi GitHub Actions workflow. A provider- és job-retry egy próbálkozásra korlátozott, amíg a sikertelen próbák költsége nem mérhető megbízhatóan.
+> **PR #35-ben implementált:** Opportunity Center dashboard; forrásolt céges problémahipotézisek; legalább két különböző vállalathoz kötött, validálható piaci mintázatok; SaaS-jelöltek; hatdimenziós, bizonyítékhoz kötött pontozás; provider-neutral evaluator és session-state előnézet; explicit admin/operator jóváhagyás; immutable, append-only döntési előzmény, idempotenciakulcs, actor/model/version/time és opportunity/pattern snapshot mezők.
 >
-> **CI-állapot:** a PR HEAD-hez tartozó JARVIS CI, PostgreSQL integrációs/race tesztek, compileall, unit, AppTest, böngészős tesztek, CodeQL és dependency audit sikeres. Ez izolált CI-ellenőrzés, nem production-validáció.
+> **Pontozás:** probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányzó score-dimenzió esetén nincs összpontszám. Minden dimenzióhoz rationale és source evidence szükséges; a hipotézis nem válik automatikusan ténnyé.
 >
-> **Még nincs beállítva / élesben igazolva:** a tényleges Gemini modellhez tartozó tokenárak és Search grounding ár; napi költségkeret és rate/domain/concurrency limitek GitHub Secrets/Variables értékei; élő, nem production Gemini staging smoke; production migration, deploy és scheduler-aktiválás. A napi workflow csak a PR merge-je után, main ágon, a kötelező konfigurációval válhat aktívvá. A Search query allowance foglalási becslés, nem szolgáltatói hard cap; a tényleges költség elszámolása és túllépéskezelése a DB settlement feladata.
+> **Jogosultság:** hitelesített `admin` és `operator` szerepkör explicit gombnyomással menthet; `reader` csak olvashat; anon nem fér hozzá. A DB trigger ellenőrzi a szerepkört, a validált mintázatot, a két külön céges alátámasztást és a forrás-egyezést. A jóváhagyási előzmény UPDATE/DELETE művelete tiltott. A dashboard user path nem használ service-role írási megkerülést.
 >
-> **PC-N ELVÉGZENDŐ – NE CHATBEN:** GitHub → Settings → Secrets and variables → Actions alatt a Gemini API kulcs és Supabase service-role kulcs meglétének ellenőrzése, majd a pontos modellnévhez tartozó input/output tokenár, Search grounding ár, napi hard budget, óránkénti joblimit, domainenkénti napi limit, párhuzamos joblimit, valamint Search query allowance beállítása. Titokértéket ne másolj chatbe, és árakat ne becsüljünk. A beállítás után először csak konfiguráció-validálás és külön jóváhagyott, korlátozott staging smoke következhet; production futtatás/deploy/migráció külön döntést igényel.
+> **Migrációk:** `20261127100000` core, `20261127110000` scoring, `20261127120000` score evidence, `20261127130000` approval history. Ezek a PR branch részei; production adatbázison nem futottak le. A dashboard nincs production deployolva.
 >
-> **Következő sorrend:** (1) PR #34 kód- és dokumentációs review; (2) PC-s GitHub Secrets/Variables konfigurálás; (3) konfiguráció-validálás és staging smoke, valós usage/grounding költség ellenőrzéssel; (4) Auth/JWT/RLS snapshot-hozzáférés és production migration drift külön felülvizsgálata; (5) csak ezek után release-döntés. PR merge nem történt, és nem történhet explicit kérés nélkül. Production DB/infrastruktúra nem módosult, Gemini éles hívás és scheduled workflow dispatch nem történt.
-
-
+> **CI és tesztelés:** a felhasználó kérésére lokális tesztet és kézi CI-dispatch-et nem futtattunk. A kód commitján a GitHub Actions automatikusan indult; a korábbi ellenőrzéskor run `45987043894` folyamatban volt, ez nem jelent zöld CI-t. A dokumentációs commit után az aktuális PR HEAD-hez tartozó legfrissebb CI-t külön kell ellenőrizni. A CI izolált adatbázis, nem production-validáció.
+>
+> **Következő lépések:** dokumentációs és kód review; a legfrissebb CI eredmény megvárása; Auth/JWT/RLS és migrációk izolált környezetű felülvizsgálata; külön jóváhagyás után staging smoke. Production migration, Auth/RLS éles módosítás, deploy és PR merge továbbra is külön engedélyhez kötött.
 Magyar nyelvű, Streamlit-alapú üzleti asszisztens, jelenleg helyi fejlesztés alatt.
 
 **Központi dokumentáció:** [JARVIS Master Documentation](docs/JARVIS_MASTER_DOCUMENTATION.md)  
@@ -60,6 +60,7 @@ python -m pytest -q
 | [Aktuális állapot](docs/CURRENT_STATE_AND_NEXT_STEPS.md) | Kész, folyamatban lévő és hátralévő munka |
 | [Fejlesztési útiterv](docs/JARVIS_DEVELOPMENT_ROADMAP.md) | Fázisok, prioritások, elfogadási feltételek |
 | [Architektúra](docs/JARVIS_DOCUMENTATION.md) | Modulok, adatfolyamok, adatbiztonság |
+| [Opportunity Engine](docs/OPPORTUNITY_ENGINE.md) | Problémahipotézisek, piaci mintázatok, pontozás és emberi jóváhagyás |
 | [SaaS-vízió](docs/JARVIS_AUTONOMOUS_SAAS_VISION.md) | Cégkutatásból egyedi SaaS-ajánlat és fejlesztés |
 | [Parancs kalauz](docs/JARVIS_COMMAND_GUIDE.md) | Ténylegesen támogatott chat-parancsok |
 | [Fejlesztési backlog](docs/DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md) | Technikai hiányok és következő feladatok |
