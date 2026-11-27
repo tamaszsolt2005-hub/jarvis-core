@@ -199,6 +199,12 @@ CROSS JOIN LATERAL jsonb_array_elements(
     THEN snapshot.dossier -> 'evidence_records' ELSE '[]'::jsonb END
 ) item
 WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT IN ('localhost','localhost.localdomain')
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT LIKE '%.localhost'
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT LIKE '%.local'
   AND length(btrim(COALESCE(item ->> 'excerpt',''))) BETWEEN 1 AND 1200
 ON CONFLICT (evidence_id) DO NOTHING;
 
@@ -227,6 +233,12 @@ CROSS JOIN LATERAL jsonb_array_elements(
   CASE WHEN jsonb_typeof(pain.evidence) = 'array' THEN pain.evidence ELSE '[]'::jsonb END
 ) item
 WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT IN ('localhost','localhost.localdomain')
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT LIKE '%.localhost'
+  AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+    NOT LIKE '%.local'
   AND length(btrim(COALESCE(item ->> 'excerpt',''))) BETWEEN 1 AND 1200
 ON CONFLICT (evidence_id) DO NOTHING;
 
