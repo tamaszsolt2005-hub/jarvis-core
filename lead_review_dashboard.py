@@ -52,6 +52,10 @@ def _safe_source_url(value: Any) -> str | None:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
         return None
     host = parsed.hostname.rstrip(".").casefold()
+    try:
+        _ = parsed.port
+    except ValueError:
+        return None
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
         return None
     try:
