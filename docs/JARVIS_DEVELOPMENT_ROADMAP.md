@@ -286,3 +286,7 @@ PR #26, #27 és #28 merge-ölve a `main` ágba 2026-11-26-án. A JARVIS app tov�
 >
 > A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
 
+
+## Intelligence Graph – fejlesztési állapot
+
+Az Intelligence Graph első implementációja PR #35-ben elkészült: gráf-adatmodell, meglévő rekordok backfillje, triggeres szinkronizálás, Python-projekció és read-only dashboard. Következő validációs feladat a friss commitok CI-eredményének ellenőrzése, majd később a gráf-szűrés, iparági/entitás-alapú fókusz és a nagyobb adatmennyiségek lapozott vizsgálata. Production migráció és deploy nem történt. Részletek: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
