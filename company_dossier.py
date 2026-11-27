@@ -108,6 +108,39 @@ def build_company_dossier(
                 "source_url": source_url,
             })
 
+    pain_hypotheses: list[dict[str, Any]] = []
+    raw_pains = item.get("pain_hypotheses")
+    allowed_pain_categories = {
+        "operational_process", "sales_marketing", "finance",
+        "customer_support", "technology", "compliance", "other",
+    }
+    if isinstance(raw_pains, list):
+        for raw in raw_pains[:8]:
+            if not isinstance(raw, dict):
+                continue
+            statement = _text(raw.get("statement"), 600)
+            category = _text(raw.get("category"), 40).casefold()
+            excerpt = _text(raw.get("excerpt"), 1200)
+            source_url = _url(raw.get("source_url"))
+            confidence = raw.get("confidence", 0.55)
+            if (
+                not statement or not excerpt or category not in allowed_pain_categories
+                or not source_url or _grounding_key(source_url) not in grounded_keys
+                or isinstance(confidence, bool) or not isinstance(confidence, (int, float))
+                or not 0.1 <= confidence <= 0.75
+            ):
+                continue
+            pain_hypotheses.append({
+                "statement": statement,
+                "category": category,
+                "confidence": float(confidence),
+                "evidence": [{
+                    "source_url": source_url,
+                    "excerpt": excerpt,
+                    "evidence_type": "supporting",
+                }],
+            })
+
     leader: dict[str, str] = {}
     raw_leader = item.get("decision_maker")
     if isinstance(raw_leader, dict):
@@ -123,7 +156,10 @@ def build_company_dossier(
                 "source_url": source_url,
             }
 
-    return {"facts": facts[:8], "decision_maker": leader}
+    result = {"facts": facts[:8], "decision_maker": leader}
+    if pain_hypotheses:
+        result["pain_hypotheses"] = pain_hypotheses
+    return result
 
 
 def render_company_dossier(dossier: dict[str, Any], max_chars: int = 1250) -> str:
@@ -159,6 +195,8 @@ def stamp_company_dossier(dossier: dict[str, Any]) -> dict[str, Any]:
         "facts": dossier.get("facts", []),
         "decision_maker": dossier.get("decision_maker", {}),
     }
+    if dossier.get("pain_hypotheses"):
+        content["pain_hypotheses"] = dossier["pain_hypotheses"]
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     stamped = dict(content)
     stamped.update({
