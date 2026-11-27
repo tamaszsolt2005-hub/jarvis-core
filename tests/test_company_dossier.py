@@ -71,6 +71,7 @@ def test_company_dossier_rejects_untrusted_urls_and_unknown_categories():
                 {"category": "business_model", "fact": "Fact", "source_url": "file:///etc/passwd"},
                 {"category": "unknown", "fact": "Fact", "source_url": "https://example.com"},
                 {"category": "markets", "fact": "Fact", "source_url": "https://localhost/private"},
+                {"category": "markets", "fact": "Fact", "source_url": "http://127.0.0.1/private"},
             ],
             "decision_maker": {
                 "name": "Unverified Person",
