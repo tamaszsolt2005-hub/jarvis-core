@@ -73,6 +73,7 @@ from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
 from company_research_store import get_company_research_history
+from opportunity_evaluator import evaluate_opportunity_candidate
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -528,8 +529,8 @@ def render_opportunity_center_page(db: Any) -> None:
             + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
         )
 
-    pain_tab, pattern_tab, idea_tab, dossier_tab = st.tabs(
-        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Cégdossziék"]
+    pain_tab, pattern_tab, idea_tab, evaluation_tab, dossier_tab = st.tabs(
+        ["Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Cégdossziék"]
     )
     with pain_tab:
         if pains_status.get("error"):
@@ -656,6 +657,188 @@ def render_opportunity_center_page(db: Any) -> None:
                             "Nincs elég bizonyíték a megbízható pontozáshoz. "
                             "A rendszer nem helyettesíti a hiányzó adatokat nullával."
                         )
+
+    with evaluation_tab:
+        st.subheader("Forrásalapú SaaS-értékelés")
+        st.caption(
+            "A JARVIS csak validált, legalább két különböző cég által alátámasztott "
+            "mintázatot értékel. A modell javaslatot készít; sem pontszámot, sem státuszt "
+            "nem ment el automatikusan."
+        )
+        validated_patterns = [
+            item for item in patterns
+            if str(item.get("status") or "").casefold() == "validated"
+            and item.get("id")
+        ]
+        if pains_status.get("error") or patterns_status.get("error") or ideas_status.get("error") or pattern_links_status.get("error"):
+            st.warning("Az értékeléshez szükséges valamelyik adatforrás nem olvasható. Előbb az adatkapcsolatot kell helyreállítani.")
+        elif not validated_patterns:
+            st.info("Nincs validált piaci mintázat. Az értékelő addig nem készít pontszámot.")
+        else:
+            pattern_labels = {
+                str(item["id"]): str(item.get("title") or item["id"])
+                for item in validated_patterns
+            }
+            selected_pattern_id = st.selectbox(
+                "Validált piaci mintázat",
+                list(pattern_labels),
+                format_func=lambda value: pattern_labels.get(str(value), str(value)),
+                key="jarvis_opportunity_eval_pattern",
+            )
+            selected_pattern = next(
+                item for item in validated_patterns
+                if str(item.get("id")) == str(selected_pattern_id)
+            )
+            linked_ids = list(dict.fromkeys(
+                links_by_pattern.get(str(selected_pattern_id), [])
+            ))
+            linked_pains = [
+                item for item in pains
+                if str(item.get("id") or "") in set(linked_ids)
+            ]
+            linked_company_ids = {
+                str(item.get("lead_id") or "")
+                for item in linked_pains if item.get("lead_id")
+            }
+            st.caption(
+                f"Kapcsolt problémák: {len(linked_pains)} · "
+                f"különböző cégek: {len(linked_company_ids)}"
+            )
+            candidate_rows = [
+                item for item in ideas
+                if str(item.get("market_pattern_id") or "") == str(selected_pattern_id)
+                and item.get("id") and item.get("name") and item.get("summary")
+            ]
+            if len(linked_company_ids) < 2:
+                st.warning("Ehhez a mintázathoz nem érhető el legalább két különböző cégből származó probléma. Értékelés nem indítható.")
+            elif not candidate_rows:
+                st.info("Ehhez a mintázathoz még nincs rögzített SaaS-jelölt.")
+            else:
+                candidate_labels = {
+                    str(item["id"]): str(item.get("name") or item["id"])
+                    for item in candidate_rows
+                }
+                selected_candidate_id = st.selectbox(
+                    "SaaS-jelölt",
+                    list(candidate_labels),
+                    format_func=lambda value: candidate_labels.get(str(value), str(value)),
+                    key="jarvis_opportunity_eval_candidate",
+                )
+                selected_candidate = next(
+                    item for item in candidate_rows
+                    if str(item.get("id")) == str(selected_candidate_id)
+                )
+                if st.button(
+                    "Értékelési előnézet készítése",
+                    key="jarvis_opportunity_eval_run",
+                    type="primary",
+                ):
+                    pain_payload = []
+                    for pain in linked_pains:
+                        evidence_items = pain.get("evidence")
+                        pain_payload.append({
+                            "id": str(pain.get("id") or ""),
+                            "lead_id": str(pain.get("lead_id") or ""),
+                            "statement": str(pain.get("statement") or ""),
+                            "confidence": pain.get("confidence"),
+                            "status": str(pain.get("status") or "hypothesis"),
+                            "created_at": pain.get("created_at"),
+                            "evidence": evidence_items if isinstance(evidence_items, list) else [],
+                        })
+                    pattern_payload = {
+                        "id": str(selected_pattern.get("id") or ""),
+                        "title": str(selected_pattern.get("title") or ""),
+                        "company_pain_ids": [str(item.get("id") or "") for item in linked_pains],
+                        "confidence": selected_pattern.get("confidence"),
+                        "status": str(selected_pattern.get("status") or ""),
+                    }
+                    candidate_status = str(selected_candidate.get("status") or "draft")
+                    if candidate_status not in {"draft", "under_review", "shortlisted", "rejected"}:
+                        candidate_status = "draft"
+                    candidate_payload = {
+                        "id": str(selected_candidate.get("id") or ""),
+                        "market_pattern_id": str(selected_candidate.get("market_pattern_id") or ""),
+                        "name": str(selected_candidate.get("name") or ""),
+                        "summary": str(selected_candidate.get("summary") or ""),
+                        "status": candidate_status,
+                    }
+                    try:
+                        with st.spinner("A JARVIS ellenőrzi a forrásokat és elkészíti az értékelési javaslatot…"):
+                            def _opportunity_provider(prompt: str) -> dict[str, Any]:
+                                raw = generate_text(prompt, max_output_tokens=4096).strip()
+                                if raw.startswith("```"):
+                                    raw = raw.split("\n", 1)[-1]
+                                    if raw.rstrip().endswith("```"):
+                                        raw = raw.rstrip()[:-3].strip()
+                                parsed = json.loads(raw)
+                                if not isinstance(parsed, dict):
+                                    raise ValueError("A modell válasza nem JSON objektum.")
+                                return parsed
+
+                            preview = evaluate_opportunity_candidate(
+                                market_pattern=pattern_payload,
+                                candidate=candidate_payload,
+                                company_pains=pain_payload,
+                                provider=_opportunity_provider,
+                            )
+                        st.session_state["jarvis_opportunity_eval_preview"] = {
+                            "pattern_id": str(selected_pattern_id),
+                            "candidate_id": str(selected_candidate_id),
+                            "result": preview,
+                        }
+                    except (ValueError, json.JSONDecodeError) as exc:
+                        st.error(f"Az értékelés nem fogadható el: {exc}")
+                    except Exception as exc:
+                        report_error(
+                            exc, module="dashboard",
+                            operation="opportunity_evaluation_preview",
+                            severity="warning", db=db,
+                        )
+                        st.error("Az értékelési előnézet most nem készült el. Az adatbázis nem változott.")
+
+                stored_preview = st.session_state.get("jarvis_opportunity_eval_preview")
+                if (
+                    isinstance(stored_preview, dict)
+                    and stored_preview.get("pattern_id") == str(selected_pattern_id)
+                    and stored_preview.get("candidate_id") == str(selected_candidate_id)
+                    and isinstance(stored_preview.get("result"), dict)
+                ):
+                    result = stored_preview["result"]
+                    st.divider()
+                    st.markdown("**Értékelési javaslat**")
+                    st.caption("Előnézet · nincs mentve · emberi jóváhagyás szükséges")
+                    if result.get("status") == "insufficient_evidence":
+                        st.warning("Nincs elég bizonyíték a megbízható pontozáshoz.")
+                        st.write(str(result.get("reason") or ""))
+                        st.write("Hiányzó dimenziók: " + ", ".join(result.get("missing_dimensions") or []))
+                    elif result.get("status") == "scored":
+                        st.metric("Súlyozott pontszám", f"{float(result['weighted_score']):.2f}/100")
+                        st.caption(f"Értékelési bizonyosság: {float(result['assessment_confidence']):.0%}")
+                        labels = {
+                            "problem_evidence": "Probléma bizonyítottsága",
+                            "business_value": "Üzleti érték",
+                            "willingness_to_pay": "Fizetési hajlandóság",
+                            "feasibility": "Megvalósíthatóság",
+                            "reusability": "Újraértékesíthetőség",
+                            "risk": "Kockázat",
+                        }
+                        scores = result.get("scores") or {}
+                        rationale = result.get("score_rationale") or {}
+                        evidence_map = result.get("score_evidence") or {}
+                        for dimension, label in labels.items():
+                            with st.expander(f"{label} · {scores.get(dimension, '—')}/100", expanded=False):
+                                st.write(str(rationale.get(dimension) or ""))
+                                for reference in evidence_map.get(dimension, [])[:10]:
+                                    st.write(str(reference.get("excerpt") or ""))
+                                    source_url = _safe_research_source_url(reference.get("source_url"))
+                                    if source_url:
+                                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                                    st.caption(
+                                        f"Problémaazonosító: {reference.get('pain_hypothesis_id') or '—'} · "
+                                        f"Típus: {reference.get('evidence_type') or '—'} · "
+                                        f"Megfigyelés: {reference.get('observed_at') or '—'}"
+                                    )
+                    st.info("Ez csak javaslat. Mentés, jóváhagyás vagy státuszváltás nem történt.")
 
     with dossier_tab:
         lead_status: dict[str, Any] = {}
