@@ -29,6 +29,10 @@ def _domain(lead: dict[str, Any]) -> str:
                 or parsed.username or parsed.password
             ):
                 return ""
+            try:
+                _ = parsed.port
+            except ValueError:
+                return ""
             host = parsed.hostname.casefold().removeprefix("www.")
         except ValueError:
             return ""
