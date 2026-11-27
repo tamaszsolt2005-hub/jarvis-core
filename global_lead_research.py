@@ -363,6 +363,22 @@ def research_global_companies(
                 notes=notes,
                 source=f"{SOURCE_TAG}:{source_domain}"[:200],
             )
+            # Store only a concise excerpt tied to a URL already verified in
+            # Google's grounding metadata; free-text notes are never promoted.
+            lead_excerpt = " ".join(part for part in (summary, fit) if part).strip()[:1200]
+            lead_evidence = []
+            if lead_excerpt:
+                lead_evidence.append({
+                    "source_url": source_url,
+                    "excerpt": lead_excerpt,
+                    "source_kind": "lead_research_note",
+                    "evidence_type": "supporting",
+                    "observed_at": dossier.get("researched_at", "undated"),
+                    "captured_at": dossier.get("researched_at", "undated"),
+                })
+            db.table("leads").update({
+                "research_evidence": lead_evidence,
+            }).eq("id", identity_result["lead_id"]).execute()
         except Exception as exc:
             audit_event(
                 db,
