@@ -130,6 +130,6 @@ python -m pytest -q
 A GitHub Actions CI az aktuális commitra fut. Csak az adott SHA-n sikeresen befejezett jobok tekinthetők igazoltnak.
 
 
-## 6. Intelligence Graph
+## 9. Intelligence Graph
 
 A központi evidence store-ra épülő gráfréteg a Leadeket, cégdosszié-snapshotokat, problémahipotéziseket, piaci mintázatokat, SaaS-jelölteket, jóváhagyott értékeléseket és bizonyítékokat kapcsolja össze. A `intelligence_entities` és `intelligence_relationships` származtatott projection táblák; az eredeti domain táblák maradnak a hiteles források. A dashboard **Intelligence Graph** füle read-only, RLS-en keresztül olvas. Részletek: [Intelligence Graph dokumentáció](INTELLIGENCE_GRAPH.md).
