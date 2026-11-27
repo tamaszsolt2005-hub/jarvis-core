@@ -130,3 +130,7 @@ A jóváhagyott leadekhez személyre szabott, szerkeszthető e-mail-piszkozat k�
 ## Automatikus Opportunity Discovery
 
 A napi cégkutatási worker a forrásolt dossier-okból strukturált problémahipotéziseket ment, majd determinisztikusan keresi a több cégnél ismétlődő mintázatokat. Az eredmény csak `candidate` piaci minta és `draft` SaaS-jelölt; validálás, pontozás és jóváhagyás emberi döntés. Részletek: [Opportunity Engine pipeline](docs/OPPORTUNITY_ENGINE.md).
+
+## CRM – ügyfél-életciklus
+
+A jóváhagyott leadek kézzel követhető státuszai, interakciós naplója és következő teendői: [CRM ügyfél-életciklus dokumentáció](docs/LEAD_CUSTOMER_LIFECYCLE.md). A folyamat nem küld e-mailt és nem válaszol automatikusan az ügyfeleknek.
