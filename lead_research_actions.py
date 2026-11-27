@@ -68,7 +68,14 @@ def enqueue_single_lead_research(
     latest_job_rows = getattr(latest_job_response, "data", None)
     if not isinstance(latest_job_rows, list):
         raise LeadResearchRequestError("latest_job_state_unavailable")
-    latest_job = latest_job_rows[0] if latest_job_rows and isinstance(latest_job_rows[0], dict) else None
+    if latest_job_rows and not isinstance(latest_job_rows[0], dict):
+        raise LeadResearchRequestError("latest_job_state_invalid")
+    latest_job = latest_job_rows[0] if latest_job_rows else None
+    if latest_job and (
+        not isinstance(latest_job.get("operation_id"), str)
+        or latest_job.get("status") not in {"queued", "running", "retry_wait", "succeeded", "dead_letter"}
+    ):
+        raise LeadResearchRequestError("latest_job_state_invalid")
 
     snapshot_response = (
         db.table("company_research_snapshots")
