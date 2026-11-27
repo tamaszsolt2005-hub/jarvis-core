@@ -626,6 +626,16 @@ jobs:
           grep -q '1..18' <<< "$opportunity_output"
           # Replay once to verify migration idempotence in the isolated audit database.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
+          # Add idempotent company-pain and cross-company candidate discovery keys.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127190000_cross_company_pattern_discovery.sql
+          discovery_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/cross_company_pattern_discovery.test.sql)"
+          printf '%s\\n' "$discovery_output"
+          if grep -q '^not ok ' <<< "$discovery_output"; then
+            echo "pgTAP reported failed cross-company pattern discovery assertions."
+            exit 1
+          fi
+          grep -q '1..3' <<< "$discovery_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127190000_cross_company_pattern_discovery.sql
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
