@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
 import time
 from uuid import uuid4
@@ -80,8 +81,16 @@ def _valid_http_url(value: Any) -> str | None:
             return None
         if parsed.username or parsed.password:
             return None
-        if parsed.hostname.lower() in {"localhost", "localhost.localdomain"}:
+        if (
+            parsed.hostname.lower() in {"localhost", "localhost.localdomain"}
+            or parsed.hostname.lower().endswith((".localhost", ".local"))
+        ):
             return None
+        try:
+            if not ipaddress.ip_address(parsed.hostname).is_global:
+                return None
+        except ValueError:
+            pass
         return raw
     except ValueError:
         return None
