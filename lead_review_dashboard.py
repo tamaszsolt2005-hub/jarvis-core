@@ -111,6 +111,43 @@ def render_lead_review_page(
     model_name_fn: Any,
 ) -> None:
     """Render the ranked lead queue; outbound email is deliberately out of scope."""
+    # Page-local styling. The JARVIS sidebar and global application shell are untouched.
+    st.markdown(
+        """
+        <style>
+        .main .block-container { max-width:1680px; padding-top:1.8rem; }
+        .main h1 { color:#f2f7ff; font-size:2.35rem; font-weight:780; letter-spacing:-.035em; }
+        .main [data-testid="stMetric"] {
+            background:linear-gradient(145deg,#14243b,#101b2e);
+            border:1px solid #2a4261; border-radius:13px; padding:16px 18px;
+            box-shadow:0 8px 22px rgba(0,0,0,.16); min-height:104px;
+        }
+        .main [data-testid="stMetricLabel"] { color:#b8c9df; font-weight:650; }
+        .main [data-testid="stMetricValue"] { color:#eaf5ff; font-size:2rem; font-weight:780; }
+        .main [data-testid="stAlert"] { border:1px solid #28547b; border-radius:10px; }
+        .main [data-testid="stTabs"] [role="tab"] { font-weight:650; padding:12px 17px; }
+        .main [data-testid="stTabs"] [aria-selected="true"] { color:#50d9ff; }
+        .main [data-testid="stVerticalBlockBorderWrapper"] {
+            border-color:#2b405b !important; border-radius:13px !important;
+            background:linear-gradient(145deg,rgba(20,35,57,.94),rgba(12,23,39,.96));
+            box-shadow:0 7px 20px rgba(0,0,0,.13);
+        }
+        .main div[data-testid="stExpander"] details {
+            border:1px solid #2b4564; border-radius:10px; background:#0d192b;
+        }
+        .main div[data-testid="stTextInput"] input,
+        .main div[data-testid="stTextArea"] textarea,
+        .main div[data-baseweb="select"] > div {
+            background:#101f34 !important; border-color:#315273 !important; color:#edf5ff !important;
+        }
+        .main div.stButton > button, .main div[data-testid="stFormSubmitButton"] > button {
+            border-radius:9px !important; font-weight:700 !important; min-height:2.65rem;
+        }
+        .main hr { border-color:#263c58; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.title("Leadkezelő")
     st.caption(
         "A strukturált kutatási adatokkal rendelkező leadek 0–100 pontos kutatási prioritás szerint "
@@ -190,11 +227,31 @@ def render_lead_review_page(
     pending = [row for row in ranked if row["_review_status"] == "pending"]
     approved = [row for row in ranked if row["_review_status"] == "approved"]
     rejected = [row for row in ranked if row["_review_status"] == "rejected"]
-    metrics = st.columns(4)
+    metrics = st.columns(5)
     metrics[0].metric("Összes lead", len(ranked))
     metrics[1].metric("Jóváhagyásra vár", len(pending))
     metrics[2].metric("Jóváhagyott", len(approved))
     metrics[3].metric("Elutasított", len(rejected))
+    metrics[4].metric("Pontozott", sum(1 for row in ranked if row["_score"].get("priority_score") is not None))
+
+    search_col, hint_col = st.columns([2.2, 1])
+    with search_col:
+        lead_search = st.text_input(
+            "Keresés cégnév vagy weboldal alapján",
+            placeholder="Kezdj el gépelni egy cégnevet…",
+            key="lead_review_search",
+            label_visibility="collapsed",
+        ).strip().casefold()
+    with hint_col:
+        st.caption("A pontozott leadek elöl; a pontozatlanok is láthatók.")
+
+    if lead_search:
+        def matches_search(row: dict[str, Any]) -> bool:
+            return lead_search in str(row.get("company_name") or "").casefold() or lead_search in str(row.get("website") or "").casefold()
+        pending = [row for row in pending if matches_search(row)]
+        approved = [row for row in approved if matches_search(row)]
+        rejected = [row for row in rejected if matches_search(row)]
+
     pending_tab, approved_tab, rejected_tab = st.tabs([
         f"Várakozó ({len(pending)})",
         f"Jóváhagyott / e-mail előkészítés ({len(approved)})",
