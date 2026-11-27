@@ -517,3 +517,6 @@ A migration csak repository artefaktum; production DB-hez nem nyúltunk. Külön
 - A research planner az IP-címet, belső/localhost domaint, hibás IDNA/domain nevet és credentialt tartalmazó URL-t még a queue előtt elutasítja.
 
 A módosítások GitHubon visszaolvasandók és statikusan ellenőrizendők. Nem futott teszt, worker, queue vagy Gemini hívás; production DB-t, merge-et és deployt nem érintettünk.
+
+
+A P1.1 újrakérési viselkedésének pontosítása: ha ugyanahhoz a leadhez már `queued`, `running` vagy `retry_wait` job tartozik, a backend a meglévő operation ID/státusz visszaadásával válaszol, nem hoz létre második jobot. `dead_letter` esetén az explicit új kérés új operation ID-t és új foglalást kap, akkor is, ha a korábbi kísérlet a snapshot beszúrása után, a további persist/discovery lépés közben hibázott. A lead-lista a kutatási prioritást külön nevezi meg, és leadenként a legutóbbi job állapotát, azonosítóját, a snapshot időpontját és az evidence darabszámát mutatja.
