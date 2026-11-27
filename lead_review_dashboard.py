@@ -125,7 +125,7 @@ def render_lead_review_page(
     try:
         leads = _load_rows(
             db, "leads",
-            "id,company_name,website,status,notes,source,research_intelligence,research_evidence,approved_to_contact,opted_out,consent_basis,consent_confirmed_at",
+            "id,company_name,website,status,notes,source,research_evidence,approved_to_contact,opted_out,consent_basis,consent_confirmed_at",
         )
     except Exception as exc:
         st.error("A leadlista nem érhető el; az adatforráshibát nem tekintem üres listának.")
