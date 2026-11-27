@@ -158,3 +158,42 @@ def test_company_dossier_future_timestamp_is_stale():
 def test_company_dossier_freshness_rejects_invalid_age_configuration(age):
     with pytest.raises(ValueError):
         is_company_dossier_stale({"researched_at": "2026-11-01T00:00:00+00:00"}, max_age_days=age)
+
+
+
+def test_company_dossier_keeps_only_exact_grounded_pain_hypotheses():
+    source = "https://example.com/operations"
+    dossier = build_company_dossier({
+        "pain_hypotheses": [
+            {
+                "statement": "Manual invoice reconciliation may create delays.",
+                "category": "finance",
+                "confidence": 0.62,
+                "source_url": source,
+                "excerpt": "Invoices are reconciled manually and can take several days.",
+            },
+            {
+                "statement": "Unsupported problem",
+                "category": "finance",
+                "confidence": 0.7,
+                "source_url": "https://other.example.com/unverified",
+                "excerpt": "Unsupported excerpt",
+            },
+            {
+                "statement": "Overconfident problem",
+                "category": "finance",
+                "confidence": 0.95,
+                "source_url": source,
+                "excerpt": "Grounded excerpt",
+            },
+        ]
+    }, {source})
+
+    assert len(dossier["pain_hypotheses"]) == 1
+    pain = dossier["pain_hypotheses"][0]
+    assert pain["category"] == "finance"
+    assert pain["confidence"] == 0.62
+    assert pain["evidence"][0]["source_url"] == source
+    assert pain["evidence"][0]["excerpt"] == "Invoices are reconciled manually and can take several days."
+    first = stamp_company_dossier(dossier)
+    assert first["pain_hypotheses"] == dossier["pain_hypotheses"]
