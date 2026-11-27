@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS public.opportunity_assessments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   opportunity_id uuid NOT NULL REFERENCES public.saas_opportunities(id) ON DELETE RESTRICT,
   market_pattern_id uuid NOT NULL REFERENCES public.market_problem_patterns(id) ON DELETE RESTRICT,
+  opportunity_name_snapshot text NOT NULL CHECK (length(btrim(opportunity_name_snapshot)) BETWEEN 1 AND 240),
+  opportunity_summary_snapshot text NOT NULL CHECK (length(btrim(opportunity_summary_snapshot)) BETWEEN 1 AND 1600),
+  market_pattern_title_snapshot text NOT NULL CHECK (length(btrim(market_pattern_title_snapshot)) BETWEEN 1 AND 240),
   idempotency_key uuid NOT NULL UNIQUE,
   approval_status text NOT NULL DEFAULT 'approved' CHECK (approval_status = 'approved'),
   score_problem_evidence numeric(5,2) NOT NULL CHECK (score_problem_evidence BETWEEN 0 AND 100),
@@ -74,10 +77,13 @@ BEGIN
   NEW.approved_at := now();
   NEW.created_at := now();
 
-  IF NOT EXISTS (
-    SELECT 1 FROM public.saas_opportunities candidate
-    WHERE candidate.id = NEW.opportunity_id AND candidate.market_pattern_id = NEW.market_pattern_id
-  ) THEN
+  SELECT candidate.name, candidate.summary, pattern.title
+    INTO NEW.opportunity_name_snapshot, NEW.opportunity_summary_snapshot, NEW.market_pattern_title_snapshot
+  FROM public.saas_opportunities candidate
+  JOIN public.market_problem_patterns pattern ON pattern.id = candidate.market_pattern_id
+  WHERE candidate.id = NEW.opportunity_id
+    AND candidate.market_pattern_id = NEW.market_pattern_id;
+  IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'opportunity_pattern_mismatch';
   END IF;
   IF NOT EXISTS (
