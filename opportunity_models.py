@@ -166,3 +166,65 @@ def calculate_opportunity_score(scores: dict[str, Any]) -> float | None:
         + (100 - values["risk"]) * 0.10
     )
     return round(total, 2)
+
+
+SCORE_EVIDENCE_DIMENSIONS = tuple(OPPORTUNITY_SCORE_WEIGHTS)
+
+
+def validate_opportunity_score_evidence(
+    raw: dict[str, Any],
+    company_pains: list[dict[str, Any]],
+) -> dict[str, list[dict[str, str]]]:
+    """Validate that every scored dimension cites evidence already stored on a company pain.
+
+    This is deliberately a validator, not an inference engine: it never creates
+    evidence, changes scores, or treats a hypothesis as a proven customer fact.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("score_evidence must be an object")
+    if not isinstance(company_pains, list):
+        raise ValueError("company_pains must be a list")
+
+    evidence_by_pain: dict[str, set[tuple[str, str, str, str]]] = {}
+    for pain_raw in company_pains:
+        pain = CompanyPain.from_dict(pain_raw)
+        evidence_by_pain[pain.id] = {
+            (item.source_url, item.excerpt, item.observed_at, item.evidence_type)
+            for item in pain.evidence
+        }
+
+    validated: dict[str, list[dict[str, str]]] = {}
+    for dimension in SCORE_EVIDENCE_DIMENSIONS:
+        references = raw.get(dimension)
+        if not isinstance(references, list) or not references:
+            raise ValueError(f"{dimension} requires at least one source evidence reference")
+        normalized: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str, str, str]] = set()
+        for reference in references:
+            if not isinstance(reference, dict):
+                raise ValueError(f"{dimension} evidence references must be objects")
+            pain_id = _required_text(reference.get("pain_hypothesis_id"), "pain_hypothesis_id", 80)
+            if pain_id not in evidence_by_pain:
+                raise ValueError(f"{dimension} references an unknown company pain")
+            evidence = Evidence.from_dict(reference)
+            exact_reference = (
+                evidence.source_url, evidence.excerpt,
+                evidence.observed_at, evidence.evidence_type,
+            )
+            if exact_reference not in evidence_by_pain[pain_id]:
+                raise ValueError(
+                    f"{dimension} evidence must exactly match a stored company-pain source"
+                )
+            dedupe_key = (pain_id, *exact_reference)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            normalized.append({
+                "pain_hypothesis_id": pain_id,
+                "source_url": evidence.source_url,
+                "excerpt": evidence.excerpt,
+                "observed_at": evidence.observed_at,
+                "evidence_type": evidence.evidence_type,
+            })
+        validated[dimension] = normalized
+    return validated

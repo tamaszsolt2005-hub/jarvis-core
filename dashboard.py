@@ -505,7 +505,7 @@ def render_opportunity_center_page(db: Any) -> None:
         db, "saas_opportunities",
         "id,market_pattern_id,name,summary,status,scoring_status,assessment_confidence,"
         "weighted_score,score_problem_evidence,score_business_value,score_willingness_to_pay,"
-        "score_feasibility,score_reusability,score_risk,score_rationale,created_at",
+        "score_feasibility,score_reusability,score_risk,score_rationale,score_evidence,created_at",
         300, status=ideas_status,
     )
 
@@ -622,6 +622,35 @@ def render_opportunity_center_page(db: Any) -> None:
                             for dimension, explanation in rationale.items():
                                 if isinstance(explanation, str) and explanation.strip():
                                     st.write(f"**{dimension}:** {explanation}")
+                        score_evidence = item.get("score_evidence")
+                        if isinstance(score_evidence, dict):
+                            st.markdown("**Pontozáshoz felhasznált források**")
+                            dimension_labels = {
+                                "problem_evidence": "Probléma bizonyítottsága",
+                                "business_value": "Üzleti érték",
+                                "willingness_to_pay": "Fizetési hajlandóság",
+                                "feasibility": "Megvalósíthatóság",
+                                "reusability": "Újraértékesíthetőség",
+                                "risk": "Kockázat",
+                            }
+                            for dimension, references in score_evidence.items():
+                                if not isinstance(references, list):
+                                    continue
+                                st.markdown(f"**{dimension_labels.get(dimension, dimension)}**")
+                                for reference in references[:20]:
+                                    if not isinstance(reference, dict):
+                                        continue
+                                    excerpt = str(reference.get("excerpt") or "").strip()
+                                    if excerpt:
+                                        st.write(excerpt)
+                                    source_url = _safe_research_source_url(reference.get("source_url"))
+                                    if source_url:
+                                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                                    st.caption(
+                                        f"Cégprobléma: {reference.get('pain_hypothesis_id') or '—'} · "
+                                        f"Típus: {reference.get('evidence_type') or '—'} · "
+                                        f"Megfigyelés: {reference.get('observed_at') or '—'}"
+                                    )
                     else:
                         st.info(
                             "Nincs elég bizonyíték a megbízható pontozáshoz. "
