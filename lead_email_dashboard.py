@@ -45,7 +45,7 @@ def _safe_public_source(value: Any) -> str | None:
 
 
 def _email(value: Any) -> bool:
-    return bool(re.fullmatch(r"[^\\s@,;<>]+@[^\\s@,;<>]+\\.[^\\s@,;<>]+", str(value or "").strip()))
+    return bool(re.fullmatch(r"[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+", str(value or "").strip()))
 
 
 def _rpc_event(db: Any, draft_id: str, event: str, note: str | None = None, category: str | None = None) -> None:
@@ -61,11 +61,11 @@ def _split_draft(raw: str) -> tuple[str, str]:
     text = str(raw or "").strip()
     subject = ""
     body = text
-    match = re.match(r"(?is)^\\s*(?:tárgy|subject)\\s*:\\s*(.+?)\\s*\\n\\s*(?:\\n|levél|üzenet)?\\s*(.*)$", text)
+    match = re.match(r"(?is)^\s*(?:tárgy|subject)\s*:\s*(.+?)\s*\n\s*(?:\n|levél|üzenet)?\s*(.*)$", text)
     if match:
         subject, body = match.group(1).strip(), match.group(2).strip()
-    elif "\\n" in text:
-        first, rest = text.split("\\n", 1)
+    elif "\n" in text:
+        first, rest = text.split("\n", 1)
         if len(first) <= 160 and not first.endswith((".", "!", "?")):
             subject, body = first.strip(), rest.strip()
     if not subject:
@@ -85,7 +85,7 @@ def _company_context(lead: dict[str, Any], snapshot: dict[str, Any] | None) -> s
                 f"(forrás: {str(item.get('source_url'))[:500]})"
             )
     leader = dossier.get("decision_maker") if isinstance(dossier.get("decision_maker"), dict) else {}
-    return "\\n".join([
+    return "\n".join([
         f"Cég: {str(lead.get('company_name') or 'Ismeretlen')[:200]}",
         f"Weboldal: {str(lead.get('website') or 'nincs adat')[:500]}",
         f"Kutatási jegyzet: {str(lead.get('notes') or '')[:2500]}",
