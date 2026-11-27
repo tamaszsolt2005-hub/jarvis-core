@@ -650,7 +650,7 @@ jobs:
             echo "pgTAP reported failed shared Intelligence evidence assertions."
             exit 1
           fi
-          grep -q '1..11' <<< "$intelligence_output"
+          grep -q '1..12' <<< "$intelligence_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
