@@ -86,7 +86,8 @@ A kapcsolódó migrációk időrendi sorrendben:
 - `20261127120000_opportunity_score_evidence.sql`: dimenziónkénti forrásbizonyíték mező.
 - `20261127130000_opportunity_assessment_approvals.sql`: jóváhagyott, append-only értékelési előzmények.
 - `20261127140000_intelligence_evidence_store.sql`: tartós, append-only központi bizonyítékindex, három domain forrás-triggerjei, backfill, RLS és olvasási jogosultságok.
-- `20261127190000_cross_company_pattern_discovery.sql`: snapshot-szintű pain idempotencia, market-pattern fingerprint és mintázatonkénti egy SaaS-jelölt egyediség.
+- `20261127190000_cross_company_pattern_discovery.sql`: snapshot-szintű pain idempotencia, market-pattern fingerprint és automatikus SaaS-jelölt idempotencia.
+- `20261127200000_market_pattern_review_workflow.sql`: admin/operator által hívható review RPC, kötelező indoklás, append-only döntési események és RLS.
 
 Az `opportunity_assessments` külön értékelési pillanatképet tárol: opportunity és market pattern azonosító, a jelölt és mintázat nevét/összefoglalóját rögzítő snapshot mezők, egyedi idempotenciakulcs, hat pontszám, generált összpontszám, confidence, rationale, evidence, evaluator modell/verzió, jóváhagyó Auth user UUID és jóváhagyási időpont. A score összpontszámát az adatbázis generált oszlopa számítja, nem a kliens küldi be.
 
@@ -148,3 +149,9 @@ A napi company research refresh worker sikeres dossier-mentése után:
 5. egy `draft` SaaS-jelöltet készít a mintázathoz.
 
 A folyamat nem validál automatikusan mintázatot, nem pontoz, nem hagy jóvá assessmentet és nem állítja, hogy a fizetési hajlandóság bizonyított. A score preview és a végleges jóváhagyás továbbra is az Opportunity Center emberi workflow-ja. A klaszterezés heurisztikus; a hamis pozitív/negatív klaszterek dashboardos emberi ellenőrzést igényelnek. A `20261127190000_cross_company_pattern_discovery.sql` migráció kizárólag a feature branchben van; production adatbázison nem futott le.
+
+
+## Piaci mintázatok emberi felülvizsgálata
+
+A dashboard az admin/operator felhasználóknak validálás, további vizsgálat és elutasítás műveletet ad. Minden döntéshez legalább 5 karakteres indoklás szükséges. A `review_market_pattern` SECURITY DEFINER RPC újra ellenőrzi a JWT szerepkört, a pattern létezését, valamint validáláskor legalább két különböző, nem elutasított, forrásolt cégproblémát. A státuszváltozás és a megjegyzés egy append-only `market_pattern_review_events` rekordban is rögzül; az eseményeket a dashboard megjeleníti. A reader csak olvashat, anon nem fér hozzá, közvetlen authenticated írás nincs.
+
