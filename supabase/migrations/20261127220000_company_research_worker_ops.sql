@@ -76,7 +76,8 @@ BEGIN
     LIMIT 1000
   ) latest_jobs;
   SELECT jsonb_build_object(
-    'reserved_microusd', COALESCE(sum(reserved_cost_microusd), 0),
+    'reserved_microusd', COALESCE(sum(reserved_cost_microusd) FILTER (WHERE reservation_status = 'reserved'), 0),
+    'committed_microusd', COALESCE(sum(reserved_cost_microusd), 0),
     'actual_microusd', COALESCE(sum(actual_cost_microusd), 0),
     'jobs_today', count(*)
   ) INTO v_budget
