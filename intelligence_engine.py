@@ -66,10 +66,11 @@ class EvidenceRecord:
 
     source_url: str
     excerpt: str
-    source_kind: str = "other"
+    # Keep the original Opportunity Evidence positional field order compatible.
     observed_at: str = "undated"
-    captured_at: str = "undated"
     evidence_type: str = "supporting"
+    source_kind: str = "other"
+    captured_at: str = "undated"
     entity_type: str = "company"
     entity_id: str = ""
     snapshot_id: str = ""
