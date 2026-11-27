@@ -46,7 +46,10 @@ def test_graph_snapshot_deduplicates_nodes_and_edges_deterministically():
 
     assert graph["node_count"] == 2
     assert graph["edge_count"] == 1
-    assert graph["nodes"][0]["label"] == "Acme Updated"
+    assert next(node for node in graph["nodes"] if node["id"] == "a")["label"] == "Acme Updated"
+    reversed_graph = build_graph_snapshot(list(reversed(nodes)), [edge, edge])
+    assert reversed_graph["nodes"] == graph["nodes"]
+    assert reversed_graph["relationships"] == graph["relationships"]
 
 
 def test_graph_snapshot_bounds_nodes_and_reports_truncation():
