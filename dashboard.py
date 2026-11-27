@@ -74,6 +74,7 @@ from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
 from company_research_store import get_company_research_history
 from opportunity_evaluator import evaluate_opportunity_candidate
+from intelligence_graph import build_graph_snapshot, to_graphviz_dot
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -479,6 +480,21 @@ def render_opportunity_center_page(db: Any) -> None:
         "evidence_id,source_domain,source_kind,entity_type,entity_id,lead_id,snapshot_id,source_url,excerpt,evidence_type,observed_at,captured_at,created_at",
         500, status=intelligence_status,
     )
+    graph_entities_status: dict[str, Any] = {}
+    graph_relationships_status: dict[str, Any] = {}
+    graph_entities = _safe_rows(
+        db, "intelligence_entities",
+        "id,entity_type,source_id,lead_id,label,summary,status,confidence,created_at",
+        120, status=graph_entities_status,
+    )
+    graph_relationships = _safe_rows(
+        db, "intelligence_relationships",
+        "source_entity_id,target_entity_id,relationship_type,confidence,created_at",
+        240, status=graph_relationships_status,
+    )
+    graph_snapshot = build_graph_snapshot(
+        graph_entities, graph_relationships, max_nodes=80, max_edges=180
+    )
     pains = _safe_rows(
         db, "business_pain_hypotheses",
         "id,lead_id,statement,confidence,status,evidence,created_at", 500, status=pains_status,
@@ -542,8 +558,8 @@ def render_opportunity_center_page(db: Any) -> None:
             + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
         )
 
-    intelligence_tab, pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
-        ["Intelligence áttekintő", "Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
+    intelligence_tab, graph_tab, pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
+        ["Intelligence áttekintő", "Intelligence Graph", "Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
     )
     with intelligence_tab:
         st.subheader("Közös bizonyíték- és forrásnyilvántartás")
@@ -596,6 +612,52 @@ def render_opportunity_center_page(db: Any) -> None:
                         f"{record.get('entity_id') or '—'} · "
                         f"Evidence ID: {record.get('evidence_id') or '—'}"
                     )
+
+    with graph_tab:
+        st.subheader("Kapcsolati háló")
+        st.caption(
+            "A gráf a meglévő Lead-, cégdosszié-, probléma-, mintázat-, SaaS- és "
+            "jóváhagyási rekordokból épül. Csak tárolt, forrással vagy adatkapcsolattal "
+            "alátámasztott éleket jelenít meg; AI-javaslat önmagában nem válik kapcsolattá."
+        )
+        if graph_entities_status.get("error") or graph_relationships_status.get("error"):
+            st.warning(
+                "Az Intelligence Graph táblái még nem olvashatók. Ellenőrizd a "
+                "20261127150000_intelligence_graph.sql migrációt és az RLS-jogosultságokat."
+            )
+        elif not graph_snapshot["nodes"]:
+            st.info("Még nincs indexelt gráf-entitás. A migráció után az új és meglévő üzleti rekordok automatikusan megjelennek.")
+        else:
+            metric_cols = st.columns(3)
+            metric_cols[0].metric("Entitások", graph_snapshot["node_count"])
+            metric_cols[1].metric("Kapcsolatok", graph_snapshot["edge_count"])
+            metric_cols[2].metric("Megjelenítési korlát", "80 entitás")
+            st.graphviz_chart(to_graphviz_dot(graph_snapshot), use_container_width=True)
+            if graph_snapshot["truncated"]:
+                st.caption("A nézet legfeljebb 80 entitást és 180 kapcsolatot jelenít meg; a gráf teljes adatait nem törli vagy korlátozza.")
+            labels_by_id = {node["id"]: node["label"] for node in graph_snapshot["nodes"]}
+            edge_rows = [
+                {
+                    "Kiinduló entitás": labels_by_id.get(edge["source_entity_id"], edge["source_entity_id"]),
+                    "Kapcsolat": edge["relationship_type"],
+                    "Cél entitás": labels_by_id.get(edge["target_entity_id"], edge["target_entity_id"]),
+                    "Bizonyosság": edge["confidence"],
+                }
+                for edge in graph_snapshot["relationships"]
+            ]
+            if edge_rows:
+                st.dataframe(pd.DataFrame(edge_rows), width="stretch", hide_index=True)
+            node_rows = [
+                {
+                    "Típus": node["entity_type"],
+                    "Név": node["label"],
+                    "Státusz": node["status"] or "—",
+                    "Bizonyosság": node["confidence"],
+                }
+                for node in graph_snapshot["nodes"]
+            ]
+            with st.expander("Gráf-entitások részletei", expanded=False):
+                st.dataframe(pd.DataFrame(node_rows), width="stretch", hide_index=True)
 
     with pain_tab:
         if pains_status.get("error"):
