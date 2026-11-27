@@ -520,3 +520,8 @@ A módosítások GitHubon visszaolvasandók és statikusan ellenőrizendők. Nem
 
 
 A P1.1 újrakérési viselkedésének pontosítása: ha ugyanahhoz a leadhez már `queued`, `running` vagy `retry_wait` job tartozik, a backend a meglévő operation ID/státusz visszaadásával válaszol, nem hoz létre második jobot. `dead_letter` esetén az explicit új kérés új operation ID-t és új foglalást kap, akkor is, ha a korábbi kísérlet a snapshot beszúrása után, a további persist/discovery lépés közben hibázott. A lead-lista a kutatási prioritást külön nevezi meg, és leadenként a legutóbbi job állapotát, azonosítóját, a snapshot időpontját és az evidence darabszámát mutatja.
+
+
+### P1 költségvédelmi kiegészítés
+
+A queue migration a foglaláskor érvényes napi költségkeretet is eltárolja. Sikeres job lezárásakor az actual cost tranzakciósan a foglalás helyére kerül, a napi összes lekötött összeg és az esetleges kerettúllépés pedig a `succeeded` audit esemény metaadataiba kerül. A worker-ops RPC ezt a napi limitet és `over_budget` állapotot visszaadja; a műveleti felület külön figyelmeztet, ha a ténylegesen lekötött összeg meghaladta a keretet. A következő enqueue-kat az adatbázis napi kvótakapujának összesített foglalása blokkolja. Ez észleli és megállítja a további munkákat, de nem tudja visszamenőleg megakadályozni, hogy egyetlen Google Search provider-hívás a becsült query allowance fölé kerüljön; a provider-oldali query hard limit továbbra sem igazolt.
