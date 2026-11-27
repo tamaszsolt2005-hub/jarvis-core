@@ -37,9 +37,7 @@ def enqueue_single_lead_research(
     if authorization is None:
         raise PermissionError("research_manage_permission_required")
 
-    # Pricing, token limits, retry policy and quotas are mandatory deployment
-    # configuration. Missing settings fail closed before any job is created.
-    config = CompanyResearchRuntimeConfig.from_env()
+    # The privileged client is created only after the fresh Auth/RBAC check.
     db = service_client_factory()
 
     lead_response = (
@@ -84,6 +82,10 @@ def enqueue_single_lead_research(
             "created_at": str(latest_job.get("created_at") or ""),
             "reason": "existing_research_job",
         }
+
+    # Pricing, token limits, retry policy and quotas are mandatory. Check
+    # them only when a new queue record is actually needed.
+    config = CompanyResearchRuntimeConfig.from_env()
 
     snapshot_response = (
         db.table("company_research_snapshots")
