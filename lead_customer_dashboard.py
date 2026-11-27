@@ -1,0 +1,259 @@
+"""Human-controlled CRM lifecycle for approved leads; no outbound delivery."""
+from __future__ import annotations
+
+from datetime import date
+from typing import Any
+
+import streamlit as st
+
+
+_STAGES = {
+    "approved_lead": "Jóváhagyott lead",
+    "contacted": "Kapcsolatfelvétel megtörtént",
+    "responded": "Válaszolt",
+    "qualified": "Minősített érdeklődő",
+    "proposal": "Ajánlat előkészítése / elküldve",
+    "pilot": "Pilot",
+    "customer": "Ügyfél",
+    "lost": "Lezárt / elvesztett",
+}
+_CHANNELS = {
+    "email": "E-mail (kézzel rögzített)",
+    "phone": "Telefon",
+    "meeting": "Megbeszélés",
+    "note": "Belső megjegyzés",
+    "other": "Egyéb",
+}
+
+
+def _rows(db: Any, table: str, columns: str, limit: int = 1500) -> list[dict[str, Any]]:
+    response = db.table(table).select(columns).limit(limit).execute()
+    rows = getattr(response, "data", None)
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise RuntimeError(f"Unexpected {table} response.")
+    return rows
+
+
+def _record(db: Any, **payload: Any) -> None:
+    db.rpc("record_lead_customer_lifecycle_event", payload).execute()
+
+
+def _parse_due_date(value: str) -> str | None:
+    if not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError as exc:
+        raise ValueError("A határidő formátuma YYYY-MM-DD legyen.") from exc
+
+
+def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) -> None:
+    """Render a read-first CRM pipeline with explicit authenticated event writes."""
+    st.title("Ügyfélkapcsolatok")
+    st.caption(
+        "A jóváhagyott leadek ügyfél-életciklusát és kézzel rögzített interakcióit követi. "
+        "Egyetlen művelet sem küld e-mailt vagy automatikus választ."
+    )
+    can_manage = auth_enabled and str(role or "") in {"admin", "operator"}
+    if not auth_enabled:
+        st.info("A CRM megtekinthető, de módosítani csak egyéni Supabase Auth + RBAC munkamenetben lehet.")
+    elif not can_manage:
+        st.info("Olvasási jogosultságod van. CRM-eseményt admin vagy operator rögzíthet.")
+
+    try:
+        leads = _rows(db, "leads", "id,company_name,website")
+        review_states = _rows(db, "lead_review_states", "lead_id,review_status")
+        lifecycle_rows = _rows(
+            db, "lead_customer_lifecycle",
+            "lead_id,stage,next_action,next_action_due,last_interaction_at,updated_at",
+        )
+        events = _rows(
+            db, "lead_customer_lifecycle_events",
+            "id,lead_id,event_type,from_stage,to_stage,channel,summary,next_action,next_action_due,actor_id,created_at",
+            3000,
+        )
+    except Exception as exc:
+        st.error("A CRM-adatok nem érhetők el. Ellenőrizd a migrációt és az RLS-jogosultságokat.")
+        st.caption(f"Hibatípus: {type(exc).__name__}")
+        return
+
+    approved_ids = {
+        str(row.get("lead_id"))
+        for row in review_states
+        if row.get("lead_id") and row.get("review_status") == "approved"
+    }
+    approved_leads = [
+        row for row in leads
+        if row.get("id") and str(row.get("id")) in approved_ids
+    ]
+    state_by_lead = {
+        str(row.get("lead_id")): row for row in lifecycle_rows if row.get("lead_id")
+    }
+    events_by_lead: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        lead_id = str(event.get("lead_id") or "")
+        if lead_id:
+            events_by_lead.setdefault(lead_id, []).append(event)
+
+    if not approved_leads:
+        st.info("Még nincs jóváhagyott lead az ügyfélkapcsolati folyamatban.")
+        return
+
+    counts = {stage: 0 for stage in _STAGES}
+    for lead in approved_leads:
+        state = state_by_lead.get(str(lead["id"]), {})
+        stage = str(state.get("stage") or "approved_lead")
+        counts[stage if stage in counts else "approved_lead"] += 1
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Jóváhagyott lead", len(approved_leads))
+    metric_columns[1].metric("Minősített", counts["qualified"])
+    metric_columns[2].metric("Ajánlat / pilot", counts["proposal"] + counts["pilot"])
+    metric_columns[3].metric("Ügyfél", counts["customer"])
+
+    stage_filter = st.selectbox(
+        "Folyamat szűrése",
+        options=["all", *_STAGES.keys()],
+        format_func=lambda value: "Minden státusz" if value == "all" else _STAGES[value],
+        key="lead_customer_stage_filter",
+    )
+    ordered = sorted(
+        approved_leads,
+        key=lambda lead: (
+            str(state_by_lead.get(str(lead["id"]), {}).get("next_action_due") or "9999-12-31"),
+            str(lead.get("company_name") or "").casefold(),
+        ),
+    )
+    visible = [
+        lead for lead in ordered
+        if stage_filter == "all"
+        or str(state_by_lead.get(str(lead["id"]), {}).get("stage") or "approved_lead") == stage_filter
+    ]
+    if not visible:
+        st.info("Ebben a státuszban nincs jóváhagyott lead.")
+
+    for lead in visible:
+        lead_id = str(lead["id"])
+        name = str(lead.get("company_name") or "Névtelen cég")
+        state = state_by_lead.get(lead_id, {})
+        stage = str(state.get("stage") or "approved_lead")
+        history = sorted(
+            events_by_lead.get(lead_id, []),
+            key=lambda item: str(item.get("created_at") or ""),
+            reverse=True,
+        )
+        with st.expander(f"{name} · {_STAGES.get(stage, stage)}", expanded=False):
+            st.caption(str(lead.get("website") or "Nincs weboldal"))
+            st.write(f"**Következő teendő:** {state.get('next_action') or 'Nincs megadva'}")
+            st.caption(
+                f"Határidő: {state.get('next_action_due') or '—'} · "
+                f"Utolsó interakció: {state.get('last_interaction_at') or '—'}"
+            )
+            if history:
+                st.markdown("**Interakció- és döntési előzmények**")
+                for event in history[:8]:
+                    label = {
+                        "stage_changed": "Státuszváltozás",
+                        "interaction_logged": f"Interakció ({_CHANNELS.get(str(event.get('channel') or ''), 'Egyéb')})",
+                        "next_action_set": "Következő teendő",
+                    }.get(str(event.get("event_type") or ""), "Esemény")
+                    stage_label = _STAGES.get(str(event.get("to_stage") or ""), "")
+                    st.write(f"**{label} · {event.get('created_at') or '—'}**")
+                    if stage_label:
+                        st.caption(f"Új státusz: {stage_label}")
+                    st.write(str(event.get("summary") or ""))
+                    if event.get("next_action"):
+                        st.caption(f"Teendő: {event['next_action']} · {event.get('next_action_due') or 'határidő nélkül'}")
+            if not can_manage:
+                continue
+
+            st.divider()
+            with st.form(f"crm_stage_form_{lead_id}"):
+                st.markdown("**Életciklus-státusz módosítása**")
+                new_stage = st.selectbox(
+                    "Új státusz",
+                    options=list(_STAGES),
+                    index=list(_STAGES).index(stage) if stage in _STAGES else 0,
+                    format_func=lambda value: _STAGES[value],
+                    key=f"crm_stage_{lead_id}",
+                )
+                stage_note = st.text_area(
+                    "Mi indokolja a státuszváltozást? (kötelező)",
+                    max_chars=2000,
+                    key=f"crm_stage_note_{lead_id}",
+                )
+                stage_submit = st.form_submit_button("Státusz mentése")
+            if stage_submit:
+                if len(stage_note.strip()) < 5:
+                    st.warning("Legalább 5 karakteres indoklás szükséges.")
+                else:
+                    try:
+                        _record(
+                            db, p_lead_id=lead_id, p_event_type="stage_changed",
+                            p_stage=new_stage, p_channel=None, p_summary=stage_note.strip(),
+                            p_next_action=None, p_next_action_due=None,
+                        )
+                        st.success("A státusz és az indoklás elmentve.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("A státuszváltozás nem menthető. Ellenőrizd az engedélyezett leadet és a CRM-migrációt.")
+                        st.caption(f"Hibatípus: {type(exc).__name__}")
+
+            with st.form(f"crm_interaction_form_{lead_id}"):
+                st.markdown("**Ügyfélinterakció rögzítése**")
+                channel = st.selectbox(
+                    "Csatorna", options=list(_CHANNELS),
+                    format_func=lambda value: _CHANNELS[value],
+                    key=f"crm_channel_{lead_id}",
+                )
+                interaction_note = st.text_area(
+                    "Mi történt? (kötelező)",
+                    max_chars=2000,
+                    key=f"crm_interaction_{lead_id}",
+                )
+                interaction_submit = st.form_submit_button("Interakció naplózása")
+            if interaction_submit:
+                if len(interaction_note.strip()) < 5:
+                    st.warning("Legalább 5 karakteres összefoglaló szükséges.")
+                else:
+                    try:
+                        _record(
+                            db, p_lead_id=lead_id, p_event_type="interaction_logged",
+                            p_stage=None, p_channel=channel, p_summary=interaction_note.strip(),
+                            p_next_action=None, p_next_action_due=None,
+                        )
+                        st.success("Az interakció elmentve. E-mailt nem küldtem.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("Az interakció nem menthető.")
+                        st.caption(f"Hibatípus: {type(exc).__name__}")
+
+            with st.form(f"crm_next_action_form_{lead_id}"):
+                st.markdown("**Következő teendő beállítása**")
+                next_action = st.text_input(
+                    "Teendő", max_chars=500, key=f"crm_next_action_{lead_id}"
+                )
+                due_date = st.text_input(
+                    "Határidő (YYYY-MM-DD, opcionális)",
+                    key=f"crm_due_date_{lead_id}",
+                )
+                action_note = st.text_area(
+                    "Megjegyzés (kötelező)", max_chars=2000,
+                    key=f"crm_action_note_{lead_id}",
+                )
+                action_submit = st.form_submit_button("Teendő mentése")
+            if action_submit:
+                if not next_action.strip() or len(action_note.strip()) < 5:
+                    st.warning("A teendő és legalább 5 karakteres megjegyzés kötelező.")
+                else:
+                    try:
+                        due = _parse_due_date(due_date)
+                        _record(
+                            db, p_lead_id=lead_id, p_event_type="next_action_set",
+                            p_stage=None, p_channel=None, p_summary=action_note.strip(),
+                            p_next_action=next_action.strip(), p_next_action_due=due,
+                        )
+                        st.success("A következő teendő elmentve.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("A teendő nem menthető. Ellenőrizd a határidő formátumát.")
+                        st.caption(f"Hibatípus: {type(exc).__name__}")
