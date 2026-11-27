@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS intelligence_evidence_source_idx
   ON public.intelligence_evidence (source_url);
 
 ALTER TABLE public.intelligence_evidence ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.intelligence_evidence FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.intelligence_evidence FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.intelligence_evidence TO authenticated;
 GRANT SELECT, INSERT ON TABLE public.intelligence_evidence TO service_role;
 DROP POLICY IF EXISTS intelligence_evidence_shared_read ON public.intelligence_evidence;
