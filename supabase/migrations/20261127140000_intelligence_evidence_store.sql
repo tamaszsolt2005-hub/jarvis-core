@@ -27,7 +27,15 @@ CREATE TABLE IF NOT EXISTS public.intelligence_evidence (
   entity_id text NOT NULL DEFAULT '',
   lead_id uuid,
   snapshot_id text NOT NULL DEFAULT '',
-  source_url text NOT NULL CHECK (source_url ~ '^https?://[^[:space:]]+$'),
+  source_url text NOT NULL CHECK (
+    source_url ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+    AND lower(split_part(split_part(regexp_replace(source_url, '^https?://', ''), '/', 1), ':', 1))
+      NOT IN ('localhost','localhost.localdomain')
+    AND lower(split_part(split_part(regexp_replace(source_url, '^https?://', ''), '/', 1), ':', 1))
+      NOT LIKE '%.localhost'
+    AND lower(split_part(split_part(regexp_replace(source_url, '^https?://', ''), '/', 1), ':', 1))
+      NOT LIKE '%.local'
+  ),
   excerpt text NOT NULL CHECK (length(btrim(excerpt)) BETWEEN 1 AND 1200),
   evidence_type text NOT NULL DEFAULT 'supporting'
     CHECK (evidence_type IN ('supporting','contradicting','context')),
@@ -68,6 +76,7 @@ DECLARE
   v_lead_id uuid;
   v_snapshot_id text;
   v_url text;
+  v_host text;
   v_excerpt text;
   v_type text;
   v_observed text;
@@ -107,8 +116,12 @@ BEGIN
   FOR item IN SELECT value FROM jsonb_array_elements(evidence_array)
   LOOP
     v_url := btrim(COALESCE(item ->> 'source_url',''));
+    v_host := lower(split_part(split_part(regexp_replace(v_url, '^https?://', ''), '/', 1), ':', 1));
     v_excerpt := btrim(COALESCE(item ->> 'excerpt',''));
-    IF v_url !~ '^https?://[^[:space:]]+$'
+    IF v_url !~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+      OR v_host IN ('localhost','localhost.localdomain')
+      OR v_host LIKE '%.localhost'
+      OR v_host LIKE '%.local'
       OR length(v_excerpt) NOT BETWEEN 1 AND 1200
       OR item ->> 'evidence_type' IS NOT NULL
         AND item ->> 'evidence_type' NOT IN ('supporting','contradicting','context')
@@ -186,7 +199,13 @@ BEGIN
       COALESCE(item ->> 'evidence_type','supporting'),
       COALESCE(item ->> 'observed_at','undated'), COALESCE(item ->> 'captured_at',item ->> 'observed_at','undated')
     FROM jsonb_array_elements(row_data.research_evidence) item
-    WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^[:space:]]+$'
+    WHERE COALESCE(item ->> 'source_url','') ~ '^https?://[^/@[:space:]]+(/|[?#]|$)'
+      AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+        NOT IN ('localhost','localhost.localdomain')
+      AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+        NOT LIKE '%.localhost'
+      AND lower(split_part(split_part(regexp_replace(item ->> 'source_url', '^https?://', ''), '/', 1), ':', 1))
+        NOT LIKE '%.local'
       AND length(btrim(COALESCE(item ->> 'excerpt',''))) BETWEEN 1 AND 1200
     ON CONFLICT (evidence_id) DO NOTHING;
   END LOOP;
