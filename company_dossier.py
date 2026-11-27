@@ -79,13 +79,14 @@ def _grounding_key(value: str) -> str | None:
 
 
 def build_company_dossier(
-    item: dict[str, Any], grounded_sources: set[str]
+    item: dict[str, Any], grounded_sources: set[str] | list[dict[str, str]]
 ) -> dict[str, Any]:
-    """Keep only facts whose exact source URLs appear in Google grounding metadata."""
-    grounded_keys = {
-        key for value in grounded_sources
-        if isinstance(value, str) and (key := _grounding_key(value))
-    }
+    """Keep only facts and assessments backed by exact Google grounding URLs."""
+    grounded_keys = set()
+    for value in grounded_sources:
+        source_url = value.get("source_url") if isinstance(value, dict) else value
+        if isinstance(source_url, str) and (key := _grounding_key(source_url)):
+            grounded_keys.add(key)
     raw_facts = item.get("company_facts")
     facts: list[dict[str, str]] = []
     if isinstance(raw_facts, list):
@@ -159,6 +160,11 @@ def build_company_dossier(
     result = {"facts": facts[:8], "decision_maker": leader}
     if pain_hypotheses:
         result["pain_hypotheses"] = pain_hypotheses
+    assessment = item.get("lead_fit_assessment")
+    if isinstance(assessment, dict):
+        from lead_fit_assessment import validate_lead_fit_assessment
+        result["lead_fit_assessment"] = validate_lead_fit_assessment(
+            assessment, [x for x in grounded_sources if isinstance(x, dict)])
     return result
 
 
@@ -197,6 +203,8 @@ def stamp_company_dossier(dossier: dict[str, Any]) -> dict[str, Any]:
     }
     if dossier.get("pain_hypotheses"):
         content["pain_hypotheses"] = dossier["pain_hypotheses"]
+    if dossier.get("lead_fit_assessment"):
+        content["lead_fit_assessment"] = dossier["lead_fit_assessment"]
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     stamped = dict(content)
     stamped.update({
