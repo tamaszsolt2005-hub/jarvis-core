@@ -23,6 +23,8 @@ def _validated_snapshot(dossier: dict[str, Any]) -> dict[str, Any]:
         "facts": dossier.get("facts", []),
         "decision_maker": dossier.get("decision_maker", {}),
     }
+    if dossier.get("pain_hypotheses"):
+        content["pain_hypotheses"] = dossier["pain_hypotheses"]
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     if digest != dossier.get("content_sha256"):
@@ -62,6 +64,10 @@ def _same_snapshot(existing: dict[str, Any], expected: dict[str, Any]) -> bool:
         return False
     existing_content = {"facts": existing_dossier.get("facts", []), "decision_maker": existing_dossier.get("decision_maker", {})}
     expected_content = {"facts": expected_dossier.get("facts", []), "decision_maker": expected_dossier.get("decision_maker", {})}
+    if existing_dossier.get("pain_hypotheses"):
+        existing_content["pain_hypotheses"] = existing_dossier["pain_hypotheses"]
+    if expected_dossier.get("pain_hypotheses"):
+        expected_content["pain_hypotheses"] = expected_dossier["pain_hypotheses"]
     return (
         str(existing.get("lead_id")) == expected["lead_id"]
         and str(existing.get("company_domain", "")).casefold() == expected["company_domain"]
@@ -136,8 +142,25 @@ def make_company_research_snapshot_persister(db: Any):
             "researched_at": saved["researched_at"],
             "content_sha256": saved["content_sha256"],
         })
-        return {"company_dossier": persisted_dossier,
-                "snapshot_id": saved["snapshot_id"], "snapshot_persisted": True}
+        from market_pattern_discovery import (
+            discover_market_patterns,
+            persist_company_pain_hypotheses,
+        )
+        pain_hypotheses = persisted_dossier.get("pain_hypotheses")
+        pains_created = persist_company_pain_hypotheses(
+            db,
+            lead_id=str(lead_id),
+            snapshot_id=saved["snapshot_id"],
+            hypotheses=pain_hypotheses if isinstance(pain_hypotheses, list) else [],
+        )
+        discovery = discover_market_patterns(db)
+        return {
+            "company_dossier": persisted_dossier,
+            "snapshot_id": saved["snapshot_id"],
+            "snapshot_persisted": True,
+            "pain_hypotheses_created": pains_created,
+            "market_pattern_discovery": discovery,
+        }
 
     return persist
 
