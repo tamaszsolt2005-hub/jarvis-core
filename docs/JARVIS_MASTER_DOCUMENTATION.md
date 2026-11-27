@@ -3,8 +3,8 @@
 - A grounded cégkutatás strukturált pain hipotéziseket is gyűjt; csak pontos forrás URL-lel és kivonattal menthető.
 - A worker a dossier snapshot után elmenti a pain rekordokat, majd determinisztikus cross-company klaszterezést futtat.
 - Legalább két különböző cégből származó egyező, forrásolt probléma hozhat létre `candidate` piaci mintázatot és `draft` SaaS-jelöltet.
-- Nincs automatikus mintázat-validálás, scoring vagy approval; ezek emberi lépések maradnak.
-- Implementáció: `market_pattern_discovery.py`; migráció: `20261127190000_cross_company_pattern_discovery.sql`; részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
+- Nincs automatikus mintázat-validálás, scoring vagy approval. Az Opportunity Centerben admin/operator kötelező indoklással validálhat, további vizsgálatra tehet vagy elutasíthat mintázatot; a döntés append-only naplóba kerül.
+- Implementáció: `market_pattern_discovery.py`; migrációk: `20261127190000_cross_company_pattern_discovery.sql` és `20261127200000_market_pattern_review_workflow.sql`; részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
 - A migráció még csak a PR #35 ágban van, production DB-n nem futott le; staging validáció hátravan.
 
 ## Bejövő ügyfélválaszok – kötelező emberi döntés
