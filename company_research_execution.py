@@ -107,7 +107,7 @@ class GeminiGoogleSearchCompanyResearchProvider:
                 heartbeat_thread.join(timeout=max(1.0, self._heartbeat_interval_seconds * 2))
         if lease_lost.is_set():
             raise CompanyResearchLeaseLost("Research job lease was lost during provider execution.")
-        grounded_sources: list[str] = []
+        grounded_sources: list[dict[str, str]] = []
         search_query_count = 0
         search_query_metadata_seen = False
         for candidate in getattr(response, "candidates", None) or []:
