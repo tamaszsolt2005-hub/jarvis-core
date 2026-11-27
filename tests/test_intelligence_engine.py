@@ -80,3 +80,24 @@ def test_shared_evidence_rejects_unknown_evidence_type():
             "excerpt": "A statement",
             "evidence_type": "assumed_true",
         })
+
+
+
+def test_lead_adapter_uses_only_structured_source_records():
+    from intelligence_engine import evidence_records_from_lead
+
+    assert evidence_records_from_lead({
+        "id": "lead-1",
+        "research_intelligence": "Leadkutatás; állítás forrás nélkül",
+    }) == []
+    records = evidence_records_from_lead({
+        "id": "lead-1",
+        "researched_at": "2026-11-27T10:00:00+00:00",
+        "research_evidence": [{
+            "source_url": "https://example.com/lead",
+            "excerpt": "Publicly documented product offering.",
+        }],
+    })
+    assert records[0]["source_kind"] == "lead_research_note"
+    assert records[0]["entity_type"] == "lead"
+    assert records[0]["entity_id"] == "lead-1"
