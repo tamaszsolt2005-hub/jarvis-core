@@ -125,3 +125,8 @@ A jóváhagyott leadekhez személyre szabott, szerkeszthető e-mail-piszkozat k�
 
 - [JARVIS központi rendszer- és összeszerelési dokumentáció](docs/JARVIS_MASTER_DOCUMENTATION.md)
 - [JARVIS képességhiány- és prioritási jelentés](docs/JARVIS_CAPABILITY_GAP_REPORT.md) – mi működik már, mi nincs még kész, és milyen sorrendben érdemes továbbfejleszteni.
+
+
+## Automatikus Opportunity Discovery
+
+A napi cégkutatási worker a forrásolt dossier-okból strukturált problémahipotéziseket ment, majd determinisztikusan keresi a több cégnél ismétlődő mintázatokat. Az eredmény csak `candidate` piaci minta és `draft` SaaS-jelölt; validálás, pontozás és jóváhagyás emberi döntés. Részletek: [Opportunity Engine pipeline](docs/OPPORTUNITY_ENGINE.md).
