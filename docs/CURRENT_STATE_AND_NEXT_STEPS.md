@@ -427,3 +427,16 @@ A Leadkezelő első UI-stílus commitja: `1e933a81dc1c3812ff408f32702d942bc10d03
 ### Munkamód és tiltott automatikus lépések
 
 A felhasználó kérésére külön teszteket nem futtatunk. A kódolvasás és GitHub-fájl-visszaolvasás nem helyettesíti a böngészős ellenőrzést. Production adatbázis módosítása, migration futtatása, Auth/RLS éles változtatása, PR merge, deploy és e-mail küldés külön, konkrét engedély nélkül nem történhet. Részletes terv: [LEAD_INTELLIGENCE_CENTER.md](LEAD_INTELLIGENCE_CENTER.md).
+
+
+### P1 architektúra-ellenőrzés – pontosított hiányzó összekötések
+
+A részletes kódáttekintés alapján a meglévő kutatási worker nem kapcsolható közvetlenül a Leadkezelő gombjához:
+
+- A `company_research_job_create` RPC csak `service_role` számára engedélyezett; `authenticated` nem hívhatja.
+- A `run_company_research_worker_once()` explicit backend függvény, de dashboard-trigger/scheduler nincs igazolva.
+- A worker snapshot-persister elmenti a dossier-t, a pain hipotéziseket és pattern discoveryt, de nem írja vissza a Lead pontozási bemenetét.
+- A Lead pontozója jelenleg a globális leadkutatás által írt `Leadkutatás;` notes-kontraktust vár; a worker dossier prompt nem állít elő ilyen fit assessmentet.
+- A globális leadkutatás meglévő új-cég-felderítő útja nem helyettesíti a kiválasztott meglévő lead célzott újrakutatását.
+
+Ezért P1 első fejlesztési egysége nem egy UI-gomb, hanem a szűkített admin/operator enqueue határ, a kontrollált one-shot worker indítás, az egységes grounded assessment adatkontraktus és az idempotens snapshot→Lead dashboard visszacsatolás. Részletesen: [P1 architektúra és végrehajtási terv](LEAD_INTELLIGENCE_CENTER.md#p1--részletes-architektúra-ellenőrzés-2026-11-27).
