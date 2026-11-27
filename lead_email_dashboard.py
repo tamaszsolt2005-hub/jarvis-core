@@ -147,6 +147,18 @@ def render_email_center(
         st.caption(f"Hibatípus: {type(exc).__name__}")
         return
 
+    # Inbox alerts are read-only application-log projections. A missing log
+    # permission must not make draft review unavailable.
+    try:
+        inbound_alerts = [
+            row for row in _rows(db, "logs", "module,level,message,created_at", 1000)
+            if str(row.get("module") or "") == "email_inbox"
+            and str(row.get("message") or "").startswith("ÜGYFÉL VÁLASZ:")
+        ]
+    except Exception:
+        inbound_alerts = []
+    inbound_alerts.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+
     approved_ids = {
         str(row.get("lead_id")) for row in states
         if row.get("lead_id") and row.get("review_status") == "approved"
@@ -179,6 +191,7 @@ def render_email_center(
         "personalization": "high", "assertiveness": "balanced",
     }
     tabs = st.tabs([
+        f"Beérkezett válaszok ({len(inbound_alerts)})",
         f"Piszkozatok ({len(waiting) + len(missing)})",
         f"Jóváhagyott e-mailek ({len(approved_drafts)})",
         f"Elutasított ({len(rejected_drafts)})",
@@ -187,6 +200,19 @@ def render_email_center(
     ])
 
     with tabs[0]:
+        st.caption("A beérkező ügyfélválaszokat JARVIS csak jelzi és kategorizálja. Automatikus válaszadás nincs.")
+        if not inbound_alerts:
+            st.info("Még nincs feldolgozott ügyfélválasz.")
+        else:
+            for index, alert in enumerate(inbound_alerts):
+                message = str(alert.get("message") or "")
+                interested = "kategória=interested" in message.casefold()
+                heading = "Érdeklődő ügyfél válaszolt" if interested else "Ügyfélválasz érkezett"
+                with st.expander(f"{'🟢' if interested else '✉️'} {heading} · {alert.get('created_at') or 'időpont nélkül'}", expanded=index == 0):
+                    st.write(message)
+                    st.caption("Te döntesz a következő lépésről. JARVIS nem küld választ.")
+
+    with tabs[1]:
         if missing and can_edit:
             st.warning(f"{len(missing)} jóváhagyott leadhez még nem készült e-mail-piszkozat.")
             if st.button("Hiányzó piszkozatok generálása", type="primary", key="email_generate_missing"):
