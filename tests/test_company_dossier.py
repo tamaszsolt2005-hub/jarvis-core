@@ -2,7 +2,11 @@ from company_dossier import build_company_dossier, render_company_dossier, stamp
 
 
 def test_company_dossier_keeps_only_grounded_public_business_facts():
-    grounded = {"example.com", "industry.test"}
+    grounded = {
+        "https://www.example.com/products",
+        "https://industry.test/news",
+        "https://example.com/leadership",
+    }
     item = {
         "company_facts": [
             {
@@ -24,6 +28,11 @@ def test_company_dossier_keeps_only_grounded_public_business_facts():
                 "category": "private_personal_data",
                 "fact": "Not an allowed business fact.",
                 "source_url": "https://example.com/about",
+            },
+            {
+                "category": "public_news",
+                "fact": "Same-domain but not grounded at this exact URL.",
+                "source_url": "https://www.example.com/unverified-page",
             },
         ],
         "decision_maker": {
@@ -70,7 +79,7 @@ def test_company_dossier_rejects_untrusted_urls_and_unknown_categories():
                 "source_url": "https://not-grounded.test/profile",
             },
         },
-        {"example.com"},
+        {"https://example.com/about"},
     )
     assert dossier == {"facts": [], "decision_maker": {}}
     assert render_company_dossier(dossier) == ""
@@ -101,7 +110,7 @@ def test_company_dossier_snapshot_metadata_is_versioned_and_content_addressed():
             "fact": "Builds industrial software.",
             "source_url": "https://example.com/about",
         }]},
-        {"example.com"},
+        {"https://example.com/about"},
     )
     first = stamp_company_dossier(dossier)
     second = stamp_company_dossier(dossier)
