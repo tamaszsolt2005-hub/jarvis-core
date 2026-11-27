@@ -41,7 +41,10 @@ A JARVIS egy Python 3.11 / Streamlit alkalmazás Gemini API-val és Supabase/Pos
 | `opportunity_models.py` | Opportunity score-számítás és forrásbizonyíték-validáció |
 | `opportunity_evaluator.py` | Provider-neutral, bizonyítékhoz kötött SaaS-jelölt értékelési előnézet |
 | `lead_identity.py` | Cégazonosítási és deduplikációs logika |
-| `lead_scoring.py` | Lead pontozása |
+| `lead_scoring.py` | Régi, adatmező-teljességi Lead heurisztika |
+| `intelligent_lead_scoring.py` | Kutatásalapú Lead prioritás |
+| `scoring_core.py` | Közös súlyozott pontszámítási és validációs mag |
+| `opportunity_models.py` | SaaS Opportunity értékelés a közös scoring maggal |
 | `lead_workflow.py` | Belső következő lépések javaslata |
 | `task_actions.py` | Jóváhagyásos task-műveletek |
 | `reply_analyzer.py` | Bejövő válasz kategorizálásának alapjai |

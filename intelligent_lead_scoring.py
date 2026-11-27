@@ -8,12 +8,20 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from scoring_core import calculate_weighted_score
+
 
 _FIT = re.compile(
     r"AI üzleti illeszkedési becslés:\s*(\d{1,3})/100;\s*bizonyosság:\s*(high|medium|low)",
     re.I,
 )
 _EVIDENCE = re.compile(r"alátámasztó jelek:\s*(.*?);\s*javasolt kutatási lépés:", re.I)
+
+LEAD_PRIORITY_WEIGHTS = {
+    "business_fit": 0.60,
+    "research_confidence": 0.25,
+    "evidence_strength": 0.15,
+}
 
 
 def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
@@ -32,7 +40,16 @@ def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
     confidence_points = {"high": 100, "medium": 65, "low": 30}[confidence]
     evidence_points = min(100, len(evidence) * 25)
     # Fit dominates; confidence and explicit evidence reduce over-ranking weak research.
-    priority = round(fit * 0.60 + confidence_points * 0.25 + evidence_points * 0.15)
+    priority = calculate_weighted_score(
+        {
+            "business_fit": fit,
+            "research_confidence": confidence_points,
+            "evidence_strength": evidence_points,
+        },
+        LEAD_PRIORITY_WEIGHTS,
+        precision=0,
+    )
+    assert priority is not None
     if confidence == "low":
         priority = min(priority, 69)
     reasons = [

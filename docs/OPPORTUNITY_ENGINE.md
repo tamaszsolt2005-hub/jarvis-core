@@ -43,6 +43,17 @@ weighted_score =
 
 A számítás két tizedesre kerekít. Hiányos dimenziók esetén nincs összpontszám; a hiányzó értéket nem helyettesíti nullával. Minden dimenzióhoz külön, nem üres indoklás és forrásbizonyíték szükséges. Az értékelés confidence értéke külön mező, 0–1 tartományban; nem azonos a weighted score értékével.
 
+## Kapcsolat a Lead scoringgal
+
+A JARVIS két külön üzleti kérdést értékel, ezért a két eredmény nem vonható össze egyetlen pontszámmá:
+
+- **Lead prioritás (intelligent_lead_scoring.py):** mely cégek kutatása/üzleti illeszkedése érdemel előbb figyelmet? Súlyok: üzleti illeszkedés 60%, kutatási bizonyosság 25%, bizonyíték-erősség 15%. Ez nem vásárlási szándék vagy fizetőképesség.
+- **Opportunity Score (opportunity_models.py):** mennyire értékes és újraértékesíthető egy több cégnél visszatérő probléma megoldása? A hat Opportunity-dimenzió saját súlyozását használja.
+
+A két pontozás közös, determinisztikus számítási magot (scoring_core.py) használ: 0–100 tartományellenőrzés, hiányzó dimenzió esetén nincs összpontszám, súlyösszeg-validáció, fordított dimenzió és egységes kerekítés. A dimenziók, súlyok és üzleti értelmezések külön maradnak. Így a számítási szabályok közösek, de a Lead prioritás nem keveredik a SaaS-lehetőség értékével.
+
+A régebbi lead_scoring.py::score_lead egyszerű adatmező-teljességi heurisztika; nem a kutatásalapú Lead prioritás és nem Opportunity Score. Nem szabad e három eredményt egyetlen rangsorként kezelni.
+
 ## Bizonyítékok
 
 A score evidence minden dimenziójához legalább egy forrásreferencia szükséges. A referencia tartalmazza:

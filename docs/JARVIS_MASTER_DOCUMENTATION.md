@@ -65,6 +65,9 @@ A PR #28 a #27-re, a #27 pedig a #26-ra épülő stacked pull request. Integrál
 
 ## 3. Jelenlegi architektúra – fő komponensek
 
+### Közös pontozási alap
+A scoring_core.py közös számítási magot biztosít a Lead prioritás és az Opportunity Score számára. A két domain külön dimenziókat és súlyokat használ: a Lead score a cégek kutatási prioritását, az Opportunity score a több cégnél ismétlődő probléma SaaS-megoldásának értékét méri. A közös mag azonosan kezeli a 0–100 validációt, a hiányzó értékeket, a súlyösszeget és a fordított dimenziókat; a két eredmény nem összeadható és nem helyettesíti egymást.
+
 ### 3.1 Felhasználói felület és chat
 - `dashboard.py`: Streamlit felület és routing.
 - Gemini-alapú magyar nyelvű válaszgenerálás és korlátozott beszélgetési kontextus.

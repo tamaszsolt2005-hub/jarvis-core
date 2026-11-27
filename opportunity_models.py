@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from scoring_core import calculate_weighted_score
+
 
 def _required_text(value: Any, field: str, limit: int = 500) -> str:
     if not isinstance(value, str) or not value.strip() or len(value.strip()) > limit:
@@ -145,28 +147,13 @@ def calculate_opportunity_score(scores: dict[str, Any]) -> float | None:
     """Return a 0-100 score, or None until all dimensions have evidence.
 
     Risk is reverse-scored: higher risk lowers the final opportunity score.
-    Missing dimensions are never silently treated as zero.
     """
-    if not isinstance(scores, dict):
-        raise ValueError("scores must be an object")
-    if any(key not in scores or scores[key] is None for key in OPPORTUNITY_SCORE_WEIGHTS):
-        return None
-    values: dict[str, float] = {}
-    for key in OPPORTUNITY_SCORE_WEIGHTS:
-        value = scores[key]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
-            raise ValueError(f"{key} must be a number between 0 and 100")
-        values[key] = float(value)
-    total = (
-        values["problem_evidence"] * 0.25
-        + values["business_value"] * 0.20
-        + values["willingness_to_pay"] * 0.15
-        + values["feasibility"] * 0.15
-        + values["reusability"] * 0.15
-        + (100 - values["risk"]) * 0.10
+    return calculate_weighted_score(
+        scores,
+        OPPORTUNITY_SCORE_WEIGHTS,
+        reverse_scored=("risk",),
+        precision=2,
     )
-    return round(total, 2)
-
 
 SCORE_EVIDENCE_DIMENSIONS = tuple(OPPORTUNITY_SCORE_WEIGHTS)
 

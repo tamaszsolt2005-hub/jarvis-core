@@ -110,6 +110,10 @@ A policy önmagában nem küld üzenetet, nem módosít lead státuszt, és ninc
 - CI zöld státusza csak az adott SHA-ra és az adott tesztkörnyezetre érvényes.
 
 
+## Közös pontozási modell
+
+A Lead prioritás és az Opportunity Score közös scoring_core.py számítási magot használ, de külön súlyozott dimenzumokkal és eltérő üzleti jelentéssel. A Lead prioritás cégek kutatási sorrendjét segíti; az Opportunity Score a több cégnél visszatérő probléma SaaS-megoldásának értékét becsüli. Hiányos dimenzió esetén egyik sem ad végső pontszámot. A régi lead_scoring.py::score_lead csak adatmező-teljességi heurisztika.
+
 ## Opportunity Engine – aktuális fejlesztési állapot
 
 A PR #35-ben a C stratégiához illeszkedő első Opportunity Engine-szelet készült el: egyedi céges problémákból indul, több cégen át ismétlődő mintázatokat kapcsol össze, majd SaaS-jelölteket rangsorol. A dashboard az Opportunity Center oldalon biztosítja a céges problémák, piaci mintázatok, SaaS-ötletek, értékelési előnézet és döntési előzmények áttekintését.
