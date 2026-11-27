@@ -1,5 +1,5 @@
 """Tests for safe lead-linked email draft helpers; no delivery is invoked."""
-from lead_email_dashboard import _email, _safe_public_source, _split_draft
+from lead_email_dashboard import _email, _safe_public_source, _source_facts, _split_draft
 
 
 def test_split_draft_extracts_subject_and_body():
@@ -25,3 +25,20 @@ def test_public_source_rejects_local_and_private_urls():
     assert _safe_public_source("http://127.0.0.1/admin") is None
     assert _safe_public_source("http://localhost/about") is None
     assert _safe_public_source("file:///etc/passwd") is None
+
+
+
+def test_source_facts_only_returns_facts_with_safe_public_sources():
+    snapshot = {
+        "dossier": {
+            "facts": [
+                {"category": "Vezetőség", "fact": "Nyilvános ügyvezetői adat", "source_url": "https://example.com/team"},
+                {"category": "Belső", "fact": "Nem biztonságos forrás", "source_url": "http://127.0.0.1/private"},
+                {"category": "Hiányos", "fact": "Forrás nélküli állítás"},
+            ]
+        }
+    }
+    facts = _source_facts(snapshot)
+    assert len(facts) == 1
+    assert facts[0]["category"] == "Vezetőség"
+    assert facts[0]["source_url"] == "https://example.com/team"
