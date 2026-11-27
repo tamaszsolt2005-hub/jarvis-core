@@ -72,3 +72,13 @@ There is no sender worker, scheduler, provider dispatch, automatic retry loop or
 ### Latest CI observation
 
 For PR #35 HEAD `bd8be5a87ce92b3934626e13351a50279e78fd34`, automatic workflow run [46010157939](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/46010157939) was observed in progress. At that observation, the PostgreSQL research integration and backup/restore jobs had succeeded; the main test job was still installing Playwright browsers and had not yet reached compile/test steps. This is a point-in-time observation, not a final CI result. No local tests or manual workflow dispatch were run.
+
+
+## Bejövő ügyfélválaszok – emberi döntés kötelező
+
+- Az ütemezett `.github/workflows/email-automation.yml` csak akkor futtat inbox-ellenőrzést, ha az `EMAIL_INBOX_MONITOR_ENABLED=true` és a szükséges IMAP/Supabase titkok rendelkezésre állnak.
+- Az `email_inbox.py` a bejövő üzenetet a feladó e-mail-címe alapján leadhez kapcsolja, osztályozza (`interested`, `later`, `rejected`, `opt_out`, `unknown`), és leállítja a további utánkövetést.
+- A feldolgozott válaszról naplóbejegyzés készül. Az E-mail központ **Beérkezett válaszok** füle megjeleníti az új eseményeket; az érdeklődő válasz külön kiemelést kap.
+- **Automatikus válaszadás tilos:** JARVIS nem ír vissza, nem küld ajánlatot, nem indít új megkeresést és nem folytatja az utánkövetést. A következő lépésről kizárólag a felhasználó dönthet.
+- Ez az értesítés jelenleg az alkalmazáson belül érhető el, amikor megnyitod az E-mail központot. E-mailes, mobil push vagy más külső értesítési csatorna nincs bekapcsolva.
+- A levél előnézete rövidített naplóbejegyzés; a teljes levelezési szál és válaszküldő felület nem része ennek a változtatásnak.
