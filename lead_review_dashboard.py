@@ -712,8 +712,6 @@ def render_lead_review_page(
                     compact_signals.append("Kockázat: " + "; ".join(str(x) for x in assessment["risk_signals"][:2]))
                 if compact_signals:
                     st.caption(" · ".join(compact_signals)[:260])
-                if row_score is None:
-                    st.caption(row["_score"].get("reason") or "A pontozáshoz még nincs elegendő forrásolt értékelés.")
     with detail_col:
         selected_row = next((row for row in filtered_rows if str(row["id"]) == selected_id), None)
         if selected_row:
