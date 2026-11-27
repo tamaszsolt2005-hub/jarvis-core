@@ -18,6 +18,7 @@ ALTER TABLE public.market_pattern_review_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.market_pattern_review_events FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.market_pattern_review_events TO authenticated;
 GRANT ALL ON TABLE public.market_pattern_review_events TO service_role;
+DROP POLICY IF EXISTS market_pattern_review_events_shared_read ON public.market_pattern_review_events;
 CREATE POLICY market_pattern_review_events_shared_read
   ON public.market_pattern_review_events FOR SELECT TO authenticated
   USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator','reader'));
