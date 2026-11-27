@@ -219,7 +219,7 @@ jobs:
           test -n "$container_id"
           docker exec -u root "$container_id" bash -lc 'apt-get update && apt-get install --yes postgresql-17-pgtap postgresql-contrib-17'
       - name: Install pinned Supabase CLI for isolated migration-history tests
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
           version: 3.4.0
       - name: Validate 20261117 migration drift and legacy data preservation
