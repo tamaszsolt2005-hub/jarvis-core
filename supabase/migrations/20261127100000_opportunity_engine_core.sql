@@ -86,6 +86,32 @@ BEGIN
 END;
 $opportunity_function$;
 
+CREATE OR REPLACE FUNCTION public.downgrade_market_pattern_if_under_supported(p_market_pattern_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SET search_path = ''
+AS $opportunity_function$
+DECLARE
+  v_status text;
+  v_company_count integer;
+BEGIN
+  SELECT status INTO v_status
+  FROM public.market_problem_patterns
+  WHERE id = p_market_pattern_id;
+  IF v_status = 'validated' THEN
+    SELECT count(DISTINCT pain.lead_id) INTO v_company_count
+    FROM public.market_pattern_pains link
+    JOIN public.business_pain_hypotheses pain ON pain.id = link.company_pain_id
+    WHERE link.market_pattern_id = p_market_pattern_id;
+    IF v_company_count < 2 THEN
+      UPDATE public.market_problem_patterns
+      SET status = 'under_review', updated_at = now()
+      WHERE id = p_market_pattern_id AND status = 'validated';
+    END IF;
+  END IF;
+END;
+$opportunity_function$;
+
 CREATE OR REPLACE FUNCTION public.check_market_pattern_company_count_trigger()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -96,7 +122,7 @@ BEGIN
     PERFORM public.assert_market_pattern_company_count(NEW.id);
   ELSE
     IF TG_OP <> 'INSERT' THEN
-      PERFORM public.assert_market_pattern_company_count(OLD.market_pattern_id);
+      PERFORM public.downgrade_market_pattern_if_under_supported(OLD.market_pattern_id);
     END IF;
     IF TG_OP <> 'DELETE' THEN
       PERFORM public.assert_market_pattern_company_count(NEW.market_pattern_id);
@@ -117,8 +143,10 @@ AFTER INSERT OR UPDATE OR DELETE ON public.market_pattern_pains
 FOR EACH ROW EXECUTE FUNCTION public.check_market_pattern_company_count_trigger();
 
 REVOKE ALL ON FUNCTION public.assert_market_pattern_company_count(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.downgrade_market_pattern_if_under_supported(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.check_market_pattern_company_count_trigger() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.assert_market_pattern_company_count(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.downgrade_market_pattern_if_under_supported(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.check_market_pattern_company_count_trigger() TO service_role;
 
 DO $opportunity_security$

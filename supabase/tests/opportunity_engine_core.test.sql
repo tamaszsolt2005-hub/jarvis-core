@@ -1,6 +1,6 @@
 -- Run only against the isolated PostgreSQL integration fixtures.
 BEGIN;
-SELECT plan(16);
+SELECT plan(17);
 
 SELECT is(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -76,6 +76,10 @@ VALUES (:'pattern_id', :'pain2_id');
 UPDATE public.market_problem_patterns SET status='validated' WHERE id=:'pattern_id';
 SELECT is((SELECT status FROM public.market_problem_patterns WHERE id=:'pattern_id'),
           'validated', 'pattern can be validated after two distinct companies are linked');
+DELETE FROM public.market_pattern_pains
+WHERE market_pattern_id=:'pattern_id' AND company_pain_id=:'pain2_id';
+SELECT is((SELECT status FROM public.market_problem_patterns WHERE id=:'pattern_id'),
+          'under_review', 'removing a company downgrades a validated pattern instead of blocking deletion');
 
 INSERT INTO public.saas_opportunities (market_pattern_id, name, summary)
 VALUES (:'pattern_id','Reconciliation SaaS','A product candidate linked to a recurring pattern');
