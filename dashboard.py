@@ -78,6 +78,7 @@ from intelligence_graph import build_graph_snapshot, to_graphviz_dot
 from lead_review_dashboard import render_lead_review_page
 from lead_customer_dashboard import render_lead_customer_page
 from lead_email_dashboard import render_email_center
+from company_research_ops_dashboard import render_company_research_ops_page
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -2516,6 +2517,14 @@ with st.sidebar:
         type="primary" if current_page == "research" else "secondary",
         width="stretch",
     )
+    research_ops_clicked = False
+    if _auth_login_enabled() and has_permission(st.session_state.get("_jarvis_user_role"), "research.read"):
+        research_ops_clicked = st.button(
+            "⚙   Kutatási műveletek",
+            key="jarvis_nav_research_ops",
+            type="primary" if current_page == "research_ops" else "secondary",
+            width="stretch",
+        )
     opportunity_clicked = st.button(
         "✧   Opportunity Center",
         key="jarvis_nav_opportunities",
@@ -2562,6 +2571,9 @@ if analytics_clicked:
     st.rerun()
 if research_clicked:
     st.session_state["jarvis_page"] = "research"
+    st.rerun()
+if research_ops_clicked:
+    st.session_state["jarvis_page"] = "research_ops"
     st.rerun()
 if opportunity_clicked:
     st.session_state["jarvis_page"] = "opportunities"
@@ -2704,6 +2716,26 @@ if st.session_state.get("jarvis_page") == "analytics":
         report_error(exc, module="dashboard", operation="render_analytics", severity="error", db=analytics_db if "analytics_db" in locals() else None)
         st.error("Az Analitika oldal nem tudott betöltődni.")
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "research_ops":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    ops_role = st.session_state.get("_jarvis_user_role")
+    if not _auth_login_enabled() or not has_permission(ops_role, "research.read"):
+        st.error("A kutatási műveletek megtekintéséhez ellenőrzött Auth-fiók szükséges.")
+    else:
+        try:
+            ops_db = st.session_state.get("_jarvis_db")
+            if ops_db is None:
+                ops_db = _get_dashboard_supabase()
+                st.session_state["_jarvis_db"] = ops_db
+            render_company_research_ops_page(
+                ops_db, auth_enabled=True, role=ops_role
+            )
+        except Exception as exc:
+            report_error(exc, module="dashboard", operation="render_company_research_ops_page", severity="error")
+            st.error("A Kutatási műveletek oldal nem tudott betöltődni.")
+            st.caption(user_facing_error(exc))
     st.stop()
 
 if st.session_state.get("jarvis_page") == "research":
