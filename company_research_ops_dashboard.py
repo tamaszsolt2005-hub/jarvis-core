@@ -125,7 +125,7 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
     if state.get("note"):
         st.caption(f"Utolsó vezérlési indok: {state['note']}")
     st.caption(f"Utolsó vezérlési módosítás: {state['updated_at']}")
-    st.markdown("#### Legutóbbi kutatási feladatok")
+    st.markdown("#### Legutóbbi kutatási jobok leadenként")
     jobs = state.get("recent_jobs") if isinstance(state.get("recent_jobs"), list) else []
     if jobs:
         st.dataframe(pd.DataFrame(jobs), width="stretch", hide_index=True)
