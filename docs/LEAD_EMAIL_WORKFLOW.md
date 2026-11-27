@@ -31,3 +31,10 @@ The E-mail központ is a lead-linked drafting workspace. It does not send mail.
 ## Dashboard
 
 The sidebar has a dedicated E-mail központ page with Piszkozatok, Jóváhagyott e-mailek, Elutasított and Stílusprofil tabs. The approved tab is a review archive only; it does not send or enqueue messages.
+
+## Források és verzióelőzmények a dashboardon
+
+- A piszkozat kártyáján lenyitható cégdosszié mutatja a kutatási jegyzeteket és kizárólag a biztonságos, nyilvános URL-lel rendelkező tényeket.
+- A jóváhagyott e-mail listában külön megnyitható a címzett e-mail-címének megadott forrása, valamint a személyre szabáshoz használt dossier-források.
+- A piszkozatoknál az utolsó öt mentett verzió megtekinthető; a verziótörténet append-only.
+- A forráslinkek csak HTTP(S) URL-ek lehetnek, localhost és privát IP címek nem jeleníthetők meg hivatkozásként.
