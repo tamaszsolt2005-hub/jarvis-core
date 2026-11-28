@@ -834,7 +834,9 @@ def render_opportunity_center_page(db: Any) -> None:
                                 )
                     current_idea_status = str(item.get("status") or "draft")
                     reviewer_role = str(st.session_state.get("_jarvis_user_role") or "")
-                    if current_idea_status == "rejected":
+                    if idea_review_events_status.get("error"):
+                        st.warning("A SaaS-jelölt felülvizsgálati workflow nincs telepítve vagy nem olvasható; döntést nem indítok.")
+                    elif current_idea_status == "rejected":
                         st.caption("Az elutasított SaaS-jelölt lezárt állapotú; nem nyitható újra.")
                     elif _auth_login_enabled() and reviewer_role in {"admin", "operator"}:
                         review_note = st.text_area(
