@@ -553,6 +553,17 @@ def render_opportunity_center_page(db: Any) -> None:
         "id,market_pattern_id,name,summary,status,created_at",
         300, status=ideas_status,
     )
+    idea_review_events_status: dict[str, Any] = {}
+    idea_review_events = _safe_rows(
+        db, "saas_opportunity_review_events",
+        "id,opportunity_id,decision,note,reviewed_by,reviewed_at", 500,
+        status=idea_review_events_status,
+    )
+    review_events_by_idea: dict[str, list[dict[str, Any]]] = {}
+    for event in idea_review_events:
+        opportunity_id = str(event.get("opportunity_id") or "")
+        if opportunity_id:
+            review_events_by_idea.setdefault(opportunity_id, []).append(event)
 
     cols = st.columns(4)
     cols[0].metric("Forrásolt bizonyítékok", len(intelligence_records) if not intelligence_status.get("error") else "—")
@@ -811,6 +822,61 @@ def render_opportunity_center_page(db: Any) -> None:
                         f"Státusz: {item.get('status') or '—'} · "
                         f"Kapcsolt piaci mintázat: {item.get('market_pattern_id') or '—'}"
                     )
+                    idea_id = str(item.get("id") or "")
+                    prior_idea_reviews = review_events_by_idea.get(idea_id, [])
+                    if prior_idea_reviews:
+                        with st.expander("SaaS-jelölt felülvizsgálati előzményei", expanded=False):
+                            for event in prior_idea_reviews[:10]:
+                                st.write(
+                                    f"{event.get('decision') or '—'} · "
+                                    f"{event.get('reviewed_at') or '—'} · "
+                                    f"{event.get('note') or ''}"
+                                )
+                    current_idea_status = str(item.get("status") or "draft")
+                    reviewer_role = str(st.session_state.get("_jarvis_user_role") or "")
+                    if _auth_login_enabled() and reviewer_role in {"admin", "operator"}:
+                        review_note = st.text_area(
+                            "Felülvizsgálati indoklás",
+                            key=f"jarvis_saas_review_note_{idea_id}",
+                            max_chars=2000,
+                            height=80,
+                        )
+                        review_columns = st.columns(3)
+                        review_actions = [
+                            ("under_review", "Vizsgálat alá helyezés"),
+                            ("shortlisted", "Shortlist"),
+                            ("rejected", "Jelölt elutasítása"),
+                        ]
+                        for column, (decision, label) in zip(review_columns, review_actions):
+                            if column.button(
+                                label,
+                                key=f"jarvis_saas_review_{decision}_{idea_id}",
+                                disabled=current_idea_status == "rejected",
+                            ):
+                                if len(review_note.strip()) < 5:
+                                    st.error("A felülvizsgálati indoklás kötelező, legalább 5 karakter.")
+                                else:
+                                    try:
+                                        db.rpc("review_saas_opportunity", {
+                                            "p_opportunity_id": idea_id,
+                                            "p_decision": decision,
+                                            "p_note": review_note.strip(),
+                                        }).execute()
+                                        st.success("A SaaS-jelölt döntése és indoklása naplózva lett.")
+                                        st.rerun()
+                                    except Exception as review_exc:
+                                        report_error(
+                                            review_exc, module="dashboard",
+                                            operation="saas_opportunity_review",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A SaaS-jelölt felülvizsgálata nem sikerült. Ellenőrizd a jogosultságot és a migrációt.")
+                    elif not _auth_login_enabled():
+                        st.caption("A SaaS-jelölt megtekinthető; a felülvizsgálathoz egyéni Supabase Auth-belépés szükséges.")
+                    elif reviewer_role not in {"admin", "operator"}:
+                        st.caption("A SaaS-jelöltet megtekintheted, de felülvizsgálni csak admin vagy operator szerepkörrel lehet.")
+                    elif current_idea_status == "rejected":
+                        st.caption("Az elutasított SaaS-jelölt lezárt állapotú.")
                     scoring_status = str(item.get("scoring_status") or "insufficient_evidence")
                     if scoring_status == "scored" and item.get("weighted_score") is not None:
                         st.metric("Magyarázható üzleti pontszám", f"{float(item['weighted_score']):.2f}/100")
