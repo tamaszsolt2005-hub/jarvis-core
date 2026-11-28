@@ -53,3 +53,20 @@ def test_crm_owner_assignment_migration_is_fail_closed_and_audited():
     assert "owner_assigned" in migration
     assert "REVOKE ALL ON FUNCTION public.assign_lead_customer_owner" in migration
     assert "GRANT EXECUTE ON FUNCTION public.assign_lead_customer_owner" in migration
+
+
+@pytest.mark.parametrize(
+    ("state", "selected_owner", "expected"),
+    [
+        ({"assigned_to": "operator-1"}, "all", True),
+        ({"assigned_to": "operator-1"}, "operator-1", True),
+        ({"assigned_to": "operator-1"}, "operator-2", False),
+        ({}, "unassigned", True),
+        ({"assigned_to": None}, "unassigned", True),
+        ({"assigned_to": "operator-1"}, "unassigned", False),
+    ],
+)
+def test_crm_owner_filter_matches_assigned_and_unassigned_records(state, selected_owner, expected):
+    from lead_customer_dashboard import _matches_owner_filter
+
+    assert _matches_owner_filter(state, selected_owner) is expected

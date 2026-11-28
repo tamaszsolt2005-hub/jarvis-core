@@ -59,6 +59,16 @@ def _is_overdue(state: dict[str, Any], *, today: date | None = None) -> bool:
     return due < reference_day
 
 
+def _matches_owner_filter(state: dict[str, Any], selected_owner: str) -> bool:
+    """Match the CRM owner selector without treating missing state as an assigned owner."""
+    if selected_owner == "all":
+        return True
+    assigned_to = str((state or {}).get("assigned_to") or "")
+    if selected_owner == "unassigned":
+        return not assigned_to
+    return assigned_to == selected_owner
+
+
 def _parse_due_date(value: str) -> str | None:
     if not value.strip():
         return None
@@ -167,6 +177,23 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         ),
         key="lead_customer_stage_filter",
     )
+    owner_filter = "all"
+    if can_manage and assignable_users:
+        owner_options = ["all", "unassigned", *assignable_user_by_id]
+        owner_filter = st.selectbox(
+            "Felelős szűrése",
+            options=owner_options,
+            format_func=lambda value: (
+                "Minden felelős" if value == "all"
+                else "Nincs felelős" if value == "unassigned"
+                else str(
+                    assignable_user_by_id[value].get("display_name")
+                    or assignable_user_by_id[value].get("email")
+                    or "Ismeretlen felhasználó"
+                ),
+            ),
+            key="lead_customer_owner_filter",
+        )
     ordered = sorted(
         approved_leads,
         key=lambda lead: (
@@ -177,9 +204,14 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
     )
     visible = [
         lead for lead in ordered
-        if stage_filter == "all"
-        or (stage_filter == "overdue" and str(lead["id"]) in overdue_ids)
-        or str(state_by_lead.get(str(lead["id"]), {}).get("stage") or "approved_lead") == stage_filter
+        if (
+            (
+                stage_filter == "all"
+                or (stage_filter == "overdue" and str(lead["id"]) in overdue_ids)
+                or str(state_by_lead.get(str(lead["id"]), {}).get("stage") or "approved_lead") == stage_filter
+            )
+            and _matches_owner_filter(state_by_lead.get(str(lead["id"]), {}), owner_filter)
+        )
     ]
     if not visible:
         st.info("Ebben a státuszban nincs jóváhagyott lead.")
