@@ -406,8 +406,30 @@ jobs:
           audit_url="postgresql://postgres:postgres@127.0.0.1:5432/audit_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres audit_test
           cat > "$RUNNER_TEMP/audit-test-setup.sql" <<'SQL'
+          DO $roles$
+          BEGIN
+            CREATE ROLE anon NOLOGIN;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
+          DO $roles$
+          BEGIN
+            CREATE ROLE authenticated NOLOGIN;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
+          DO $roles$
+          BEGIN
+            CREATE ROLE service_role NOLOGIN BYPASSRLS;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
           CREATE SCHEMA auth;
           CREATE SCHEMA extensions;
+          CREATE TABLE auth.users (
+            id uuid PRIMARY KEY,
+            email text UNIQUE,
+            confirmed_at timestamptz,
+            raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+            raw_app_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
+          );
           CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
           CREATE EXTENSION pgtap;
           CREATE OR REPLACE FUNCTION auth.jwt()
@@ -679,6 +701,17 @@ jobs:
           fi
           grep -q '1..8' <<< "$crm_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127210000_lead_customer_lifecycle.sql
+          # Add secure, Auth-backed CRM owner assignment and verify its authorization/audit contract.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128120000_crm_owner_assignment.sql
+          crm_owner_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/crm_owner_assignment.test.sql)"
+          printf '%s\\n' "$crm_owner_output"
+          if grep -q '^not ok ' <<< "$crm_owner_output"; then
+            echo "pgTAP reported failed CRM owner assignment assertions."
+            exit 1
+          fi
+          grep -q '1..12' <<< "$crm_owner_output"
+          # Replay to prove the additive owner schema and RPCs are idempotent.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128120000_crm_owner_assignment.sql
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
