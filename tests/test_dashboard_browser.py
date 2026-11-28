@@ -153,8 +153,11 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
 
                 page.route("**/*", route_without_external_network)
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60000)
+                login_password = page.get_by_label("Dashboard jelszó")
+                login_password.wait_for(state="visible", timeout=30000)
+                page.get_by_role("button", name="Belépés").wait_for(state="visible", timeout=30000)
                 page.screenshot(path=str(screenshot_dir / "login-desktop.png"), full_page=True)
-                page.get_by_label("Dashboard jelszó").fill("browser-test-password")
+                login_password.fill("browser-test-password")
                 page.get_by_role("button", name="Belépés").click()
                 page.get_by_text("Üdvözöllek!").wait_for(timeout=30000)
 
@@ -166,6 +169,10 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.wait_for_timeout(350)
                 assert page.locator('[data-testid="stChatInput"]').is_visible()
+                welcome_heading = page.locator(".jarvis-welcome h1")
+                if welcome_heading.count():
+                    heading_box = welcome_heading.bounding_box()
+                    assert heading_box is not None and heading_box["y"] >= 72, ("mobile welcome heading overlaps Streamlit header", heading_box)
                 page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
                 page.set_viewport_size({"width": 1440, "height": 960})
                 page.wait_for_timeout(350)
