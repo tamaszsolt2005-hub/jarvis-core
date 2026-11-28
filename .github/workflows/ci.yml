@@ -712,6 +712,16 @@ jobs:
           grep -q '1..12' <<< "$crm_owner_output"
           # Replay to prove the additive owner schema and RPCs are idempotent.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128120000_crm_owner_assignment.sql
+          # Add idempotent inbound email-to-CRM lifecycle events.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128130000_crm_inbound_reply_events.sql
+          crm_inbound_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/crm_inbound_reply_events.test.sql)"
+          printf '%s\\n' "$crm_inbound_output"
+          if grep -q '^not ok ' <<< "$crm_inbound_output"; then
+            echo "pgTAP reported failed CRM inbound reply assertions."
+            exit 1
+          fi
+          grep -q '1..9' <<< "$crm_inbound_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128130000_crm_inbound_reply_events.sql
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
           scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"

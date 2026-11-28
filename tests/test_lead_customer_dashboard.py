@@ -70,3 +70,17 @@ def test_crm_owner_filter_matches_assigned_and_unassigned_records(state, selecte
     from lead_customer_dashboard import _matches_owner_filter
 
     assert _matches_owner_filter(state, selected_owner) is expected
+
+
+def test_crm_inbound_reply_is_a_structured_lifecycle_event_and_advances_responded_stage():
+    from pathlib import Path
+
+    migration = Path(
+        "supabase/migrations/20261128130000_crm_inbound_reply_events.sql"
+    ).read_text(encoding="utf-8")
+    assert "record_crm_inbound_reply" in migration
+    assert "source_message_id" in migration
+    assert "inbound_reply_recorded" in migration
+    assert "GRANT EXECUTE ON FUNCTION public.record_crm_inbound_reply" in migration
+    assert "TO service_role" in migration
+    assert "TO authenticated" not in migration

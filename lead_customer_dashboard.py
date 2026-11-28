@@ -254,6 +254,7 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
                         "interaction_logged": f"Interakció ({_CHANNELS.get(str(event.get('channel') or ''), 'Egyéb')})",
                         "next_action_set": "Következő teendő",
                         "owner_assigned": "Felelős-hozzárendelés",
+                        "inbound_reply_recorded": "Beérkező e-mail-válasz",
                     }.get(str(event.get("event_type") or ""), "Esemény")
                     stage_label = _STAGES.get(str(event.get("to_stage") or ""), "")
                     st.write(f"**{label} · {event.get('created_at') or '—'}**")

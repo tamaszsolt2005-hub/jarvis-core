@@ -38,7 +38,7 @@ Minden esemény append-only előzményként kerül tárolásra. A CRM aktuális 
 - A CRM nem küld e-mailt, nem indít follow-upot és nem változtat kapcsolatfelvételi engedélyt.
 - Az e-mail csatorna kiválasztása csak egy korábban megtörtént, kézzel rögzített interakció naplózása.
 - A kimenő e-mailküldés EMAIL_DELIVERY_ENABLED = False hard gate változatlanul aktív.
-- A bejövő ügyfélválaszokat JARVIS külön jelzi; válaszadás csak a felhasználó későbbi utasítására történhet.
+- A bejövő ügyfélválaszokat JARVIS külön jelzi és a jóváhagyott lead CRM-előzményébe is rögzíti; válaszadás csak a felhasználó későbbi utasítására történhet. Az IMAP Message-ID egyedi kulcs, így az ismételt feldolgozás nem hoz létre duplikált CRM-eseményt.
 
 ## Felelős-hozzárendelés
 
@@ -73,3 +73,14 @@ A Feladatközpont külön CRM-teendő nézetben olvassa a jóváhagyott leadek `
 - A feladat létrehozása/módosítása továbbra is a chat külön jóváhagyási folyamatán keresztül történik.
 
 A felelős-hozzárendelés kódja és migrációja a feature ágon elkészült. A külön pgTAP biztonsági teszt az izolált PostgreSQL CI-ben fut; production alkalmazás csak sikeres CI után következhet.
+
+
+## Bejövő e-mail és CRM eseménykapcsolat
+
+- A bejövő IMAP-válaszok a `record_crm_inbound_reply` service-role RPC-n keresztül kerülnek a CRM eseménytörténetébe.
+- Csak jóváhagyott leadhez készül CRM lifecycle esemény; a nem jóváhagyott lead továbbra is az e-mail-feldolgozásban és naplóban szerepel.
+- A Message-ID egyedi idempotenciakulcs. Az ismételt feldolgozás ugyanazt az eseményt adja vissza.
+- Az `approved_lead` és `contacted` státusz `responded` értékre lép; későbbi státuszok nem kerülnek vissza.
+- A rendszer csak eseményt rögzít és a follow-upot leállítja; automatikus válasz vagy új kimenő levél nem indul.
+- A rendszer által rögzített esemény `00000000-0000-0000-0000-000000000000` actor UUID-t használ, amely a naplóban a JARVIS inbox workert jelenti.
+- Migráció: `supabase/migrations/20261128130000_crm_inbound_reply_events.sql`.

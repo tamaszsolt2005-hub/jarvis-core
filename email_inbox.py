@@ -157,6 +157,17 @@ def _run() -> int:
                 raise RuntimeError(
                     "A bejövő e-mail feldolgozása leállt: a pending auditbejegyzés nem menthető."
                 )
+            preview = " ".join(body.split())[:1000]
+            crm_summary = (
+                f"Bejövő e-mail-válasz · kategória: {reply_category}; "
+                f"tárgy: {subject[:180]}; előnézet: {preview}"
+            )[:2000]
+            db.rpc("record_crm_inbound_reply", {
+                "p_lead_id": lead["id"],
+                "p_message_id": message_id,
+                "p_category": reply_category,
+                "p_summary": crm_summary,
+            }).execute()
             db.table("leads").update(values).eq("id", lead["id"]).execute()
             if not audit_event(db, status="success", **audit_fields):
                 raise RuntimeError(
@@ -166,7 +177,6 @@ def _run() -> int:
             lead["last_inbound_message_id"] = message_id
             lead["opted_out"] = bool(opted_out)
             company = str(lead.get("company_name") or "Ismeretlen cég").strip()[:180]
-            preview = " ".join(body.split())[:500]
             log_event(
                 db,
                 "email_inbox",
