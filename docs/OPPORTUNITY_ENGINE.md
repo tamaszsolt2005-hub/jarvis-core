@@ -115,13 +115,14 @@ Az Opportunity Center fő részei:
 - **SaaS-ötletek:** a piaci mintázatokhoz kapcsolt termékjelöltek, admin/operator felülvizsgálati műveletek (vizsgálat, shortlist, elutasítás), kötelező indoklás és append-only döntési előzmények.
 - **Értékelési előnézet:** validált mintázat és hozzá tartozó jelölt kiválasztása, majd explicit gombbal evaluator futtatása.
 - **Döntési előzmények:** korábban jóváhagyott értékelések listája.
+- **SaaS-jelölt review:** admin/operator státuszváltás, kötelező indoklás és append-only döntéstörténet.
 - **Cégdossziék:** a meglévő dosszié-előzmények külön hozzáférési modellje.
 
 A preview nem automatikus mentés. Elégtelen bizonyíték esetén nem készül pontszám és nem jelenik meg jóváhagyható scored eredmény. A jóváhagyás végleges, ezért a felület figyelmeztetést jelenít meg előtte. A sikeres mentés után a döntési előzmények fül olvassa vissza a rekordot.
 
 ## CI és ellenőrzési korlátok
 
-A CI workflow izolált PostgreSQL környezetben futtatja a migrációkat és a pgTAP teszteket. A jóváhagyási tesztfájl: `supabase/tests/opportunity_assessment_approvals.test.sql` (10 assertion a jelenlegi implementáció szerint). A scoring és source-evidence migrációk a jóváhagyási migráció előtt kerülnek alkalmazásra; a migrációk idempotencia-ellenőrzése is része a workflow-nak.
+A CI workflow izolált PostgreSQL környezetben futtatja a migrációkat és a pgTAP teszteket. A jóváhagyási tesztfájl: `supabase/tests/opportunity_assessment_approvals.test.sql` (11 assertion), továbbá a SaaS-jelölt review életciklusát a `supabase/tests/saas_opportunity_review.test.sql` (8 assertion) ellenőrzi. A scoring és source-evidence migrációk a jóváhagyási migráció előtt kerülnek alkalmazásra; a migrációk idempotencia-ellenőrzése is része a workflow-nak.
 
 A CI az `intelligence_evidence_store.test.sql` 12 pgTAP assertionjével ellenőrzi a központi tábla RLS-jogosultságait, a három domain triggeres indexelését és a reader olvasási útvonalát; a migrációt ismételten is lefuttatja idempotencia-ellenőrzésként.
 
