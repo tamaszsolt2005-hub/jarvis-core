@@ -27,6 +27,8 @@ $rejected_opportunity_guard$;
 
 REVOKE ALL ON FUNCTION public.reject_assessment_for_rejected_opportunity()
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reject_assessment_for_rejected_opportunity()
+  TO service_role;
 
 DROP TRIGGER IF EXISTS opportunity_assessment_rejected_candidate_guard
   ON public.opportunity_assessments;
