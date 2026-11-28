@@ -45,3 +45,8 @@ Minden esemény append-only előzményként kerül tárolásra. A CRM aktuális 
 supabase/migrations/20261127210000_lead_customer_lifecycle.sql
 
 A migráció kizárólag a PR #35 fejlesztési ágban van; production adatbázison nem futott le.
+
+
+## Lejárt következő teendők
+
+A CRM dashboard a rögzített `next_action` és `next_action_due` mezőkből külön lejárt teendő számlálót és szűrőt képez. Csak akkor jelöl egy sort lejártnak, ha tényleges teendő szöveg és múltbeli dátum is van; a mai határidő még nem lejárt, a hibás dátumot pedig nem minősíti automatikusan késedelmesnek. A dátum-összehasonlítás Europe/Budapest helyi naptári nap szerint történik. A listában a lejárt teendők kerülnek előre, a lead részlete pedig figyelmeztetést jelenít meg. Ez megjelenítési és prioritási funkció, nem küld automatikus értesítést vagy e-mailt.
