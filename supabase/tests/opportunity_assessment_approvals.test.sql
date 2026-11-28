@@ -1,6 +1,6 @@
 -- Isolated PostgreSQL integration test for human-approved opportunity snapshots.
 BEGIN;
-SELECT plan(10);
+SELECT plan(11);
 
 SELECT has_table('public','opportunity_assessments',
   'append-only opportunity assessment history exists');
