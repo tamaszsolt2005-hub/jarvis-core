@@ -102,7 +102,8 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
         f"napi keretből lekötött összeg: **${committed:,.4f}** · "
         f"tényleges költség: **${actual:,.4f}**"
     )
-    st.caption(f"Mai kutatási jobok: {_nonnegative_int(budget.get("jobs_today", 0))}")
+    jobs_today = _nonnegative_int(budget.get("jobs_today", 0))
+    st.caption(f"Mai kutatási jobok: {jobs_today}")
     daily_limit = _nonnegative_int(budget.get("limit_microusd", 0)) / 1_000_000
     if budget.get("over_budget") is True:
         st.error(
