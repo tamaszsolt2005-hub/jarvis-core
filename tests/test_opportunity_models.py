@@ -160,6 +160,7 @@ def _evaluator_fixture():
     candidate = {
         "id": "candidate-1", "market_pattern_id": "pattern-validated",
         "name": "Reconciliation SaaS", "summary": "Automates repeatable reconciliation.",
+        "status": "shortlisted",
     }
     evidence = {}
     for dimension in (
@@ -249,6 +250,21 @@ def test_evaluator_rejects_provider_evidence_not_matching_a_stored_source():
             market_pattern=pattern, candidate=candidate, company_pains=pains,
             provider=lambda _prompt: forged,
         )
+
+@pytest.mark.parametrize("status", ["draft", "under_review"])
+def test_evaluator_requires_shortlisted_candidate_before_calling_provider(status):
+    from opportunity_evaluator import OpportunityEvaluationError, evaluate_opportunity_candidate
+
+    pattern, candidate, pains, _response = _evaluator_fixture()
+    candidate["status"] = status
+    called = []
+    with pytest.raises(OpportunityEvaluationError, match="must_be_shortlisted"):
+        evaluate_opportunity_candidate(
+            market_pattern=pattern, candidate=candidate, company_pains=pains,
+            provider=lambda _prompt: called.append(True) or {},
+        )
+    assert called == []
+
 
 def test_evaluator_refuses_rejected_candidate_before_calling_provider():
     from opportunity_evaluator import OpportunityEvaluationError, evaluate_opportunity_candidate
