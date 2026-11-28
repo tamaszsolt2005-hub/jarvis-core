@@ -93,7 +93,7 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         )
         events = _rows(
             db, "lead_customer_lifecycle_events",
-            "id,lead_id,event_type,from_stage,to_stage,channel,summary,next_action,next_action_due,actor_id,created_at",
+            "id,lead_id,event_type,from_stage,to_stage,channel,summary,next_action,next_action_due,actor_id,assigned_to_user_id,created_at",
             3000,
         )
     except Exception as exc:
@@ -134,6 +134,11 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
             st.warning("A felelőslista nem érhető el; a CRM többi funkciója tovább használható.")
             st.caption("Hibatípus: " + type(exc).__name__)
 
+    assignable_user_by_id = {
+        str(user.get("user_id")): user
+        for user in assignable_users
+        if user.get("user_id")
+    }
     counts = {stage: 0 for stage in _STAGES}
     for lead in approved_leads:
         state = state_by_lead.get(str(lead["id"]), {})
@@ -216,11 +221,26 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
                         "stage_changed": "Státuszváltozás",
                         "interaction_logged": f"Interakció ({_CHANNELS.get(str(event.get('channel') or ''), 'Egyéb')})",
                         "next_action_set": "Következő teendő",
+                        "owner_assigned": "Felelős-hozzárendelés",
                     }.get(str(event.get("event_type") or ""), "Esemény")
                     stage_label = _STAGES.get(str(event.get("to_stage") or ""), "")
                     st.write(f"**{label} · {event.get('created_at') or '—'}**")
                     if stage_label:
                         st.caption(f"Új státusz: {stage_label}")
+                    if str(event.get("event_type") or "") == "owner_assigned":
+                        historical_assignee_id = str(event.get("assigned_to_user_id") or "")
+                        historical_assignee = assignable_user_by_id.get(historical_assignee_id)
+                        if historical_assignee:
+                            assignee_name = str(
+                                historical_assignee.get("display_name")
+                                or historical_assignee.get("email")
+                                or "Ismeretlen felhasználó"
+                            )
+                            st.caption(f"Felelős az esemény után: {assignee_name}")
+                        elif historical_assignee_id:
+                            st.caption("A történeti felelős már nem aktív vagy nem hozzárendelhető.")
+                        else:
+                            st.caption("A felelősség visszavonásra került.")
                     st.write(str(event.get("summary") or ""))
                     if event.get("next_action"):
                         st.caption(f"Teendő: {event['next_action']} · {event.get('next_action_due') or 'határidő nélkül'}")

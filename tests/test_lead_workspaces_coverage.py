@@ -231,6 +231,31 @@ def test_crm_admin_page_renders_edit_forms_without_submitting_or_writing(monkeyp
     assert db.rpc_calls == [("list_crm_assignable_users", {})]
 
 
+def test_crm_owner_assignment_history_shows_historical_assignee_and_reason(monkeypatch):
+    import lead_customer_dashboard as crm
+
+    ui = _UI()
+    monkeypatch.setattr(crm, "st", ui)
+    db = _DB({
+        "leads": [{"id": "lead-1", "company_name": "Example Ltd", "website": "https://example.com"}],
+        "lead_review_states": [{"lead_id": "lead-1", "review_status": "approved"}],
+        "lead_customer_lifecycle": [{"lead_id": "lead-1", "stage": "qualified", "assigned_to": "user-operator"}],
+        "lead_customer_lifecycle_events": [{
+            "id": "event-1", "lead_id": "lead-1", "event_type": "owner_assigned",
+            "assigned_to_user_id": "user-operator", "summary": "Átadás az ügyfélkapcsolati csapatnak",
+            "created_at": "2026-11-28T10:00:00Z",
+        }],
+    })
+
+    crm.render_lead_customer_page(db, auth_enabled=True, role="admin")
+
+    rendered = " ".join(str(args) for _, args in ui.messages)
+    assert "Felelős-hozzárendelés" in rendered
+    assert "Felelős az esemény után: CRM Operator" in rendered
+    assert "Átadás az ügyfélkapcsolati csapatnak" in rendered
+    assert db.rpc_calls == [("list_crm_assignable_users", {})]
+
+
 def test_crm_owner_is_rendered_from_assignable_directory_without_writing(monkeypatch):
     import lead_customer_dashboard as crm
 

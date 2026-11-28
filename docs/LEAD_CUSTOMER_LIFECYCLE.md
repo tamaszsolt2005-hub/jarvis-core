@@ -42,10 +42,10 @@ Minden esemény append-only előzményként kerül tárolásra. A CRM aktuális 
 
 ## Felelős-hozzárendelés
 
-- A CRM-felelős kizárólag megerősített Supabase Auth-fiók lehet, amelynek megbízható JWT `app_metadata.role` értéke; a névjegyzék az Auth `raw_app_meta_data` mezőből olvassa a szerver által kezelt szerepkört `admin` vagy `operator`.
+- Felelősnek csak megerősített Supabase Auth-fiók választható, amelynek megbízható JWT-jében az `app_metadata.role` értéke `admin` vagy `operator`. A névjegyzék a szerver által kezelt Auth `raw_app_meta_data` mezőből olvassa a szerepkört.
 - A felhasználói névjegyzéket a `list_crm_assignable_users` RPC szolgáltatja; közvetlen `auth.users` lekérdezés a dashboardból nincs.
 - A hozzárendelést az `assign_lead_customer_owner` RPC végzi, és adatbázis-oldalon ellenőrzi a végrehajtó szerepét, a célfelhasználó jogosultságát és a lead jóváhagyott állapotát.
-- Minden változás az append-only `lead_customer_lifecycle_events` táblában `owner_assigned` eseményként, indoklással kerül rögzítésre. A történeti célfelhasználó UUID-ja auditadatként marad meg, nem idegen kulcsként, így egy Auth-fiók törlése sem írhatja át a naplót.
+- Minden változás az append-only `lead_customer_lifecycle_events` táblában `owner_assigned` eseményként, indoklással kerül rögzítésre. A CRM eseménytörténete a még aktív, hozzárendelhető felelős nevét is megjeleníti; a már nem aktív célfiókot történeti, nem hozzárendelhető szereplőként jelzi. A történeti célfelhasználó UUID-ja auditadatként marad meg, nem idegen kulcsként, így egy Auth-fiók törlése sem írhatja át a naplót.
 - A felelős törlése a hozzárendelés visszavonása; Auth-fiók törlése esetén az FK `ON DELETE SET NULL` módon oldja fel a hivatkozást.
 - A régi, közös jelszavas munkamenet nem kap felelős-hozzárendelési írási lehetőséget.
 
