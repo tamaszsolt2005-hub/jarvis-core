@@ -172,3 +172,130 @@ def test_snapshot_fingerprint_includes_grounded_pain_hypotheses():
     assert db.rows[0]["dossier"]["pain_hypotheses"] == dossier["pain_hypotheses"]
     assert db.rows[0]["content_sha256"] == dossier["content_sha256"]
     assert saved["snapshot_id"] == db.rows[0]["snapshot_id"]
+
+
+def test_snapshot_persister_connects_grounded_pains_to_pattern_and_saas_candidate_idempotently():
+    from company_research_store import make_company_research_snapshot_persister
+
+    class PipelineQuery:
+        def __init__(self, db, table):
+            self.db = db
+            self.table_name = table
+            self.filters = {}
+            self.insert_rows = None
+            self.limit_value = None
+
+        def select(self, *_args, **_kwargs):
+            return self
+
+        def eq(self, key, value):
+            self.filters[key] = value
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, value):
+            self.limit_value = value
+            return self
+
+        def insert(self, rows):
+            self.insert_rows = rows if isinstance(rows, list) else [rows]
+            return self
+
+        def execute(self):
+            from uuid import uuid4
+
+            rows = self.db.tables.setdefault(self.table_name, [])
+            if self.insert_rows is not None:
+                inserted = []
+                for item in self.insert_rows:
+                    row = dict(item)
+                    if self.table_name in {"market_problem_patterns", "saas_opportunities"}:
+                        row.setdefault("id", str(uuid4()))
+                    if self.table_name == "market_pattern_pains" and any(
+                        existing.get("market_pattern_id") == row.get("market_pattern_id")
+                        and existing.get("company_pain_id") == row.get("company_pain_id")
+                        for existing in rows
+                    ):
+                        continue
+                    rows.append(row)
+                    inserted.append(row)
+                return Response(inserted)
+            selected = [
+                row for row in rows
+                if all(row.get(key) == value for key, value in self.filters.items())
+            ]
+            if self.limit_value is not None:
+                selected = selected[:self.limit_value]
+            return Response(selected)
+
+    class PipelineDB:
+        def __init__(self):
+            self.tables = {"company_research_snapshots": []}
+
+        def table(self, name):
+            return PipelineQuery(self, name)
+
+    lead_id = str(uuid4())
+    dossier = make_dossier()
+    dossier["pain_hypotheses"] = [
+        {
+            "statement": "Manual invoice reconciliation takes several days",
+            "category": "finance",
+            "confidence": 0.62,
+            "evidence": [{
+                "source_url": "https://example.com/finance-process",
+                "excerpt": "Invoices are reconciled manually over several days.",
+                "evidence_type": "supporting",
+            }],
+        }
+    ]
+    content = {
+        "facts": dossier["facts"],
+        "decision_maker": dossier["decision_maker"],
+        "pain_hypotheses": dossier["pain_hypotheses"],
+    }
+    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    dossier["content_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    # A second company supplies the independent evidence required for a pattern.
+    db = PipelineDB()
+    db.tables["business_pain_hypotheses"] = [{
+        "id": "pain-existing",
+        "lead_id": str(uuid4()),
+        "statement": "Manual invoice reconciliation requires several days",
+        "category": "finance",
+        "confidence": 0.58,
+        "status": "hypothesis",
+        "evidence": [{
+            "source_url": "https://other.example.com/finance-process",
+            "excerpt": "Invoices are reconciled manually and take several days.",
+            "evidence_type": "supporting",
+        }],
+    }]
+    persist = make_company_research_snapshot_persister(db)
+    job = {
+        "operation_id": "research:pipeline:123456",
+        "lead_id": lead_id,
+        "payload": {"company_domain": "example.com"},
+    }
+    result = {"company_domain": "example.com", "company_dossier": dossier}
+
+    first = persist(job, result)
+    second = persist(job, result)
+
+    assert first["snapshot_persisted"] is True
+    assert first["pain_hypotheses_created"] == 1
+    assert first["market_pattern_discovery"]["patterns_created"] == 1
+    assert first["market_pattern_discovery"]["saas_candidates_created"] == 1
+    assert second["pain_hypotheses_created"] == 0
+    assert second["market_pattern_discovery"]["patterns_created"] == 0
+    assert second["market_pattern_discovery"]["saas_candidates_created"] == 0
+    assert len(db.tables["company_research_snapshots"]) == 1
+    assert len(db.tables["business_pain_hypotheses"]) == 2
+    assert len(db.tables["market_problem_patterns"]) == 1
+    assert db.tables["market_problem_patterns"][0]["status"] == "candidate"
+    assert len(db.tables["market_pattern_pains"]) == 2
+    assert len(db.tables["saas_opportunities"]) == 1
+    assert db.tables["saas_opportunities"][0]["status"] == "draft"
