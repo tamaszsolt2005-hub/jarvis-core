@@ -556,4 +556,4 @@ def render_email_center(
         for item in feedback[:20]:
             st.caption(f"{_FEEDBACK_LABELS.get(item.get('category'), item.get('category'))}: {item.get('note')}")
 
-    st.caption(f"AI-modell: {str(model_name_fn())[:120]}. E-mail-küldés nincs végrehajtva ezen az oldalon.")
+    st.caption(f"AI-modell: {str(model_name_fn())[:120]}. Küldés nincs bekapcsolva; e-mail-küldés nincs végrehajtva ezen az oldalon.")
