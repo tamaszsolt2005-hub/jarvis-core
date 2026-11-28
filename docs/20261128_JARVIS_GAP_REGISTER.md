@@ -27,9 +27,9 @@ A P1 vertical slice felülvizsgálatakor kiderült, hogy az evaluator a `draft` 
 - Az `OPPORTUNITY_ENGINE.md` folyamatleírása frissült.
 - A változás a feature branchben van; a CI még folyamatban van, staging/production validáció nem történt.
 
-A következő Opportunity P1 ellenőrzési lépés a teljes lánc CI-ben történő igazolása, majd külön stagingben provider nélküli/fixture-alapú UI és DB workflow smoke. Ez nem indítja el a Gemini workert vagy az ütemezőt.
+A következő Opportunity P1 ellenőrzési lépés a teljes lánc CI-ben történő igazolása, majd CI izolált PostgreSQL-ben provider nélküli/fixture-alapú UI és DB workflow smoke. Ez nem indítja el a Gemini workert vagy az ütemezőt.
 
-## Friss állapotfelvétel – 2026-11-28, HEAD ca6ba3919df766e4bc5bf6cf5a53e793e428f643
+## Korábbi állapotfelvétel – ca6ba391 (történeti napló)
 
 **PR #35:** nyitott, draft; merge és production deploy nincs igazolva.
 
@@ -118,7 +118,7 @@ Az alábbiak a vizsgált feature branchben dokumentált és implementált épít
 5. **UI smoke.** A fő oldalak, üres állapotok, hibás adatforrások, reader/admin/operator jogosultságok böngészős ellenőrzése.
 6. **Release dokumentáció.** Migrációs sorrend, backup/restore, rollback, környezeti változók és operátori ellenőrzőlista.
 
-**Elfogadási feltétel:** minden kötelező CI check zöld a legfrissebb HEAD-en, coverage legalább 82%, a migrációk review-zva, a staging smoke jegyzőkönyvezve. Csak ezután merge/release.
+**Elfogadási feltétel:** minden kötelező CI check zöld a legfrissebb HEAD-en, coverage legalább 82%, a migrációk review-zva, a CI UI smoke és a production release-ellenőrzőlista jegyzőkönyvezve. Csak ezután merge/release.
 
 ### P1 – Az üzleti folyamatok tényleges összekapcsolása
 
@@ -154,7 +154,7 @@ Az alábbiak a vizsgált feature branchben dokumentált és implementált épít
 | Sorrend | Munkacsomag | Miért ebben a sorrendben? | Késznek tekinthető, ha |
 |---:|---|---|---|
 | 1 | PR #35 CI + security/migration review | Release előtt minden más erre épül | Friss HEAD zöld, coverage ≥82%, review lezárva |
-| 2 | Staging környezet + Auth/RLS/UI smoke | Production kockázat nélkül igazolja a valós működést | Migráció, role-mátrix és böngészős smoke dokumentált |
+| 2 | CI izolált PostgreSQL + Auth/RLS/UI smoke | Fizetős staging DB nélkül igazolja a migrációs és UI útvonalakat | Migrációs tesztek, role-mátrix és böngészős smoke dokumentált |
 | 3 | Opportunity Discovery E2E | A JARVIS megkülönböztető üzleti képessége | Egy végigkövethető, forrásolt minta teljes életciklusa működik |
 | 4 | Ügyfélinterjú és pilot validáció | A technikai score nem helyettesíti a piacot | Strukturált interjú/pilot eredmény és fizetési jel rögzíthető |
 | 5 | CRM owner/follow-up és inbound email integráció | A kutatásból végrehajtható értékesítési folyamatot csinál | Minden leadnek felelőse, következő lépése és mérhető outcome-ja van |
@@ -181,3 +181,38 @@ Az alábbiak a vizsgált feature branchben dokumentált és implementált épít
 - [CRM lifecycle](LEAD_CUSTOMER_LIFECYCLE.md)
 - [Email workflow](LEAD_EMAIL_WORKFLOW.md)
 - [Research worker operations](RESEARCH_WORKER_OPERATIONS.md)
+
+
+## Irányadó állapotfrissítés – 2026-11-28 16:32 CET
+
+Ez a blokk felülírja a dokumentum korábbi, más HEAD-re, CI-futásra vagy release-állapotra vonatkozó „aktuális” pillanatképeit. A korábbi dátumozott részek történeti naplóként maradnak meg.
+
+- **Vizsgált ág:** `feature/opportunity-center-readonly`; **PR:** [#35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35), nyitott, draft, nem merge-ölt; **vizsgált HEAD:** `cb17d197b17325e86b78b9565f8ba95528f66e02`.
+- A PR API szerint a mergeability jelenleg `false`. A HEAD-hez a lekérdezéskor nem volt visszaadott PR workflow-run; ezért erre a commitra friss zöld CI, coverage, CodeQL vagy dependency-audit eredmény nem állítható.
+- A korábban mért 83,3%-os coverage és korábbi sikeres integrációs/security jobok **nem** bizonyítják a jelenlegi HEAD állapotát. A legutóbbi ismert mobil böngészőteszt-hiba javításának eredményét új, a jelenlegi HEAD-hez kötött futásból kell igazolni.
+- P1/P2 funkciók a feature branchben implementációs állapotúak; ez nem jelent production aktiválást. A PR migrációi nincsenek production adatbázison alkalmazva, a branch UI nincs production deployolva.
+- A P2 Research Ops dashboard helyi riasztásai: dead-letter, budget-kihasználtság/túllépés és lejárt/hiányzó lease. Külső értesítés nincs bekötve.
+- A scheduler kill switch kódban és workflow-ban fail-closed; a `JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED` nincs engedélyezve. A workert és schedulert nem indítottuk el.
+- A Gemini beépített Google Search grounding egyetlen kérésére nincs igazolt, konfigurálható query-count hard limit. A metadata utólagos elszámolásra használható, nem előzetes korlátozásra. A napi budget jelenlegi foglalása ezért nem garantálja az egyetlen hívás költségének plafonját.
+- A production Auth könyvtár korábban ellenőrzött állapotában 0 felhasználó volt; CRM owner assignmenthez nincs aktív assignable Auth user. Ezt nem szabad automatikus user-létrehozással vagy meghívóval megkerülni.
+
+### Környezeti döntés – nincs fizetős staging adatbázis
+
+A projektben **nem hozunk létre külön Supabase development/staging ágat vagy fizetős staging projektet**. A CI migrációs és SQL-tesztjeihez kizárólag a workflow által felállított ideiglenes, izolált PostgreSQL használható. Ez nem staging és nem production. A production Supabase projekt marad az egyetlen tartós adatbázis; azon nincs próbamigráció és nincs tesztadat-módosítás. Éles migráció csak a release gate-ek lezárása után, ellenőrzött sorrendben és backup/rollback tervvel történhet. Az alkalmazás böngészős smoke-ja jelenleg a CI-ben elérhető tesztkörnyezetre korlátozódik; nem állítunk be külön fizetős staging infrastruktúrát.
+
+### Következő kötelező munkák
+
+1. A jelenlegi HEAD-re automatikus JARVIS CI indítása/megérkezése és teljes sikerének ellenőrzése; coverage legalább 82%.
+2. A mobil login/chat és dashboard screenshotok friss artifactjainak ellenőrzése; a böngészőtesztek zöld eredménye önmagában nem helyettesíti a screenshot review-t.
+3. CodeQL és dependency audit futtatása és zöld eredményének igazolása ugyanezen a HEAD-en.
+4. Migrációs, RLS, GRANT, SECURITY DEFINER, search_path és Auth/JWT jogosultsági review.
+5. P2: provideroldali query-korlát helyett egyenként vezérelt keresőadapter vagy más, bizonyítható alkalmazásszintű query-budget; alert history; költség/latency/usage idősoros megfigyelés.
+6. P1 üzleti validáció: Opportunity Discovery végponttól végpontig, CRM owner/follow-up, ajánlat/pilot/outcome és valós ügyfélinterjúk. A technikai pontszám nem bizonyít fizetési hajlandóságot.
+7. Release után: production migráció és deploy csak külön ellenőrzött lépésben; scheduler és outbound e-mail továbbra is kikapcsolva marad, amíg külön jóváhagyás nincs.
+
+### Prioritási sorrend
+
+- **P0 – release gate:** friss teljes CI, coverage ≥82%, CodeQL, dependency audit, migráció/security review, UI smoke és rollback/backup runbook.
+- **P1 – üzleti folyamat:** Opportunity pain→pattern→SaaS candidate→review→assessment E2E; CRM owner és follow-up; inbound reply audit/CRM; ajánlat/pilot és valós WTP-validáció.
+- **P2 – üzemi megbízhatóság:** valódi query/cost limit, alert history/notification (külön döntés után), provider latency/usage monitoring, scheduler többciklusos ellenőrzése az aktiválás előtt. A scheduler marad opt-in.
+- **P3 – termékesítés:** PRD→backlog→prototípus→build/test/release, multi-tenant és billing csak akkor, ha külső SaaS értékesítési cél lesz.
