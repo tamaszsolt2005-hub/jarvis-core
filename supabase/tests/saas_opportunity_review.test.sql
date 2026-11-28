@@ -31,7 +31,7 @@ VALUES (:'saas_review_pattern_id',:'saas_review_pain_one_id'),
 INSERT INTO public.saas_opportunities (market_pattern_id,name,summary)
 VALUES (:'saas_review_pattern_id','Order reconciliation SaaS','Automates recurring order reconciliation')
 RETURNING id \gset saas_review_candidate_
-INSERT INTO public.saas_opportunities (market_pattern_id,name,summary)
+INSERT INTO public.saas_opportunities (market_pattern_id,name,summary,status)
 VALUES (:'saas_review_pattern_id','Rejected order candidate','Rejected product hypothesis','rejected')
 RETURNING id \gset saas_review_rejected_
 
@@ -66,10 +66,15 @@ SELECT is(
   (SELECT count(*)::integer FROM public.saas_opportunity_review_events WHERE opportunity_id=:'saas_review_candidate_id'),
   2,'each decision is stored in the append-only review history'
 );
+RESET ROLE;
 SELECT throws_ok(
   format('UPDATE public.saas_opportunity_review_events SET note=''tampered'' WHERE opportunity_id=%L', :'saas_review_candidate_id'),
   '55000',NULL,'review history cannot be updated'
 );
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000101","role":"authenticated","app_metadata":{"role":"operator"}}',true);
 SELECT throws_ok(
   format('SELECT public.review_saas_opportunity(%L,''under_review'',''Try to reopen rejected idea'')', :'saas_review_rejected_id'),
   '23514',NULL,'rejected candidates cannot be reopened'
