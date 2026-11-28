@@ -1,8 +1,15 @@
-## Frissítés – 2026-11-28
+## Aktuális irányadó állapot – 2026-11-28
 
-Az aktuális, teljes funkcióleltár, a már implementált és részleges képességek, a hiányzó részek és a priorizált fejlesztési terv külön irányadó dokumentumba került: [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md).
+A részletes, naprakész funkcióleltár, a legutóbbi javítás naplója és a priorizált hiánylista itt található: [JARVIS javítási napló és hiányregiszter](20261128_JARVIS_GAP_REGISTER.md). A teljes implementációs állapot és végrehajtási roadmap: [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md).
 
-A PR #35 aktuális CI-pillanatképe: a `b22635b` HEAD-en 1340 teszt sikeres, 2 tesztharness-hiba, 3 skipped; coverage 83,33%. A hibákat a teszt UI-fake-jében javítottuk, az új commit CI-je még nem igazolt. A 82%-os coverage cél elfogadott. Ne keverd össze a CI-t a staging vagy production működés igazolásával.
+- PR #35 a `feature/opportunity-center-readonly` ágról `main` felé nyitott, draft, nem merge-ölt.
+- A legutóbb ismert PR HEAD a dokumentációs frissítés előtt `d3e449e9acb39de6c4e83be75c495414b9f21a34`.
+- Az elutasított SaaS-jelöltek assessment guardja `FOR SHARE` zárolást használ; a kapcsolódó approval pgTAP teszt 12 assertiont tartalmaz.
+- A `ba210ce` kódcommit CI, CodeQL és dependency audit futásai megszakadtak. A dokumentációs HEAD zöld CI-je nincs igazolva.
+- A korábbi 83,33%-os coverage nem friss HEAD-eredmény; a jóváhagyott minimum 82%.
+- A feature migrációk production alkalmazása és a dashboard production deployja nem történt meg.
+
+A további munkák sorrendjét, elfogadási feltételeit és biztonsági határait az új hiányregiszter tartalmazza. A dokumentum alábbi régebbi dátumozott állapotai történeti feljegyzések.
 
 # JARVIS – képességhiány- és prioritási jelentés
 
