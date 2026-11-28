@@ -1,3 +1,9 @@
+## Frissített fejlesztési terv – 2026-11-28
+
+A teljes, aktuális funkcióleltár és prioritásos roadmap a [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md) dokumentumba került. A már meglévő cégkutatási, lead, CRM, e-mail, Opportunity és Intelligence funkciókat nem kell újraépíteni; a fő fókusz a teljes E2E összekapcsolás, a CRM follow-up/owner, a kapcsolattartó-duplikáció, a válaszok strukturált CRM-integrációja, az üzleti funnel analitika, a worker operáció és a staging/production bizonyíték.
+
+A PR #35 korábbi HEAD-jén a CI 83,33% coverage-t mutatott (1340 passed, 2 tesztharness failure, 3 skipped). A két tesztfaux hibát javítottuk; a friss commit CI-jét ellenőrizni kell. A 82%-os cél elfogadott, 90%-ra emelés nem cél.
+
 # JARVIS – fejlesztési backlog
 
 > **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A legutóbbi main commit: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
