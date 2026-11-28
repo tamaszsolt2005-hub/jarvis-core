@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ipaddress
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -23,19 +24,36 @@ def _domain(lead: dict[str, Any]) -> str:
     else:
         try:
             parsed = urlparse(website)
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            if (
+                parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password
+            ):
+                return ""
+            try:
+                _ = parsed.port
+            except ValueError:
                 return ""
             host = parsed.hostname.casefold().removeprefix("www.")
         except ValueError:
             return ""
+    try:
+        host = host.encode("idna").decode("ascii").casefold().rstrip(".")
+        ipaddress.ip_address(host.strip("[]"))
+        return ""
+    except ValueError:
+        pass
+    except UnicodeError:
+        return ""
+    labels = host.split(".")
     if (
         len(host) > 253
-        or not re.fullmatch(r"[a-z0-9.-]+", host)
-        or host.startswith(".")
-        or host.endswith(".")
-        or ".." in host
-        or host in {"localhost", "localhost.localdomain"}
-        or host.endswith(".local")
+        or len(labels) < 2
+        or any(
+            not label or len(label) > 63
+            or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+            for label in labels
+        )
+        or labels[-1] in {"localhost", "local", "internal", "test", "invalid"}
     ):
         return ""
     return host

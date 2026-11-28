@@ -153,8 +153,31 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
 
                 page.route("**/*", route_without_external_network)
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60000)
+                login_password = page.get_by_label("Dashboard jelszó")
+                login_password.wait_for(state="visible", timeout=30000)
+                login_heading = page.get_by_role("heading", name="JARVIS")
+                login_heading.wait_for(state="visible", timeout=30000)
+                login_button = page.get_by_role("button", name="Belépés")
+                login_button.wait_for(state="visible", timeout=30000)
+                assert login_password.is_visible() and login_button.is_visible()
                 page.screenshot(path=str(screenshot_dir / "login-desktop.png"), full_page=True)
-                page.get_by_label("Dashboard jelszó").fill("browser-test-password")
+                page.set_viewport_size({"width": 390, "height": 844})
+                page.wait_for_timeout(250)
+                password_box = login_password.bounding_box()
+                button_box = login_button.bounding_box()
+                assert password_box is not None and 0 <= password_box["x"] and password_box["x"] + password_box["width"] <= 390, ("mobile login password field overflows viewport", password_box)
+                assert button_box is not None and 0 <= button_box["x"] and button_box["x"] + button_box["width"] <= 390, ("mobile login button overflows viewport", button_box)
+                page.screenshot(path=str(screenshot_dir / "login-mobile.png"), full_page=True)
+                page.set_viewport_size({"width": 320, "height": 720})
+                page.wait_for_timeout(250)
+                small_password_box = login_password.bounding_box()
+                small_button_box = login_button.bounding_box()
+                assert small_password_box is not None and 0 <= small_password_box["x"] and small_password_box["x"] + small_password_box["width"] <= 320, ("small-mobile login password field overflows viewport", small_password_box)
+                assert small_button_box is not None and 0 <= small_button_box["x"] and small_button_box["x"] + small_button_box["width"] <= 320, ("small-mobile login button overflows viewport", small_button_box)
+                page.screenshot(path=str(screenshot_dir / "login-small-mobile.png"), full_page=True)
+                page.set_viewport_size({"width": 1440, "height": 960})
+                page.wait_for_timeout(250)
+                login_password.fill("browser-test-password")
                 page.get_by_role("button", name="Belépés").click()
                 page.get_by_text("Üdvözöllek!").wait_for(timeout=30000)
 
@@ -165,8 +188,38 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
                 page.screenshot(path=str(screenshot_dir / "chat-desktop.png"), full_page=True)
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.wait_for_timeout(350)
+                page.evaluate("window.scrollTo(0, 0)")
+                page.wait_for_function("window.scrollY === 0")
                 assert page.locator('[data-testid="stChatInput"]').is_visible()
+                welcome_heading = page.locator(".jarvis-welcome h1")
+                welcome_heading.wait_for(state="visible", timeout=10000)
+                page.evaluate("window.scrollTo(0, 0)")
+                heading_box = welcome_heading.bounding_box()
+                heading_metrics = page.evaluate("""() => {
+                    const heading = document.querySelector(".jarvis-welcome h1");
+                    const welcome = heading?.closest(".jarvis-welcome");
+                    const style = heading ? getComputedStyle(heading) : null;
+                    const parentStyle = welcome ? getComputedStyle(welcome) : null;
+                    const rect = heading?.getBoundingClientRect();
+                    return {
+                        innerWidth: window.innerWidth,
+                        headingMarginTop: style?.marginTop,
+                        welcomePaddingTop: parentStyle?.paddingTop,
+                        documentTop: rect ? rect.top + window.scrollY : null
+                    };
+                }""")
                 page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
+                assert heading_box is not None and heading_box["y"] >= 96, ("mobile welcome heading overlaps Streamlit header", heading_box, heading_metrics)
+                assert heading_box["x"] >= 0 and heading_box["x"] + heading_box["width"] <= 390, ("mobile welcome heading overflows viewport", heading_box, heading_metrics)
+                page.set_viewport_size({"width": 320, "height": 720})
+                page.wait_for_timeout(350)
+                page.evaluate("window.scrollTo(0, 0)")
+                page.wait_for_function("window.scrollY === 0")
+                page.evaluate("window.scrollTo(0, 0)")
+                small_mobile_box = welcome_heading.bounding_box()
+                page.screenshot(path=str(screenshot_dir / "chat-small-mobile.png"), full_page=True)
+                assert small_mobile_box is not None and small_mobile_box["y"] >= 96, ("small-mobile welcome heading overlaps Streamlit header", small_mobile_box)
+                assert small_mobile_box is not None and small_mobile_box["x"] >= 0 and small_mobile_box["x"] + small_mobile_box["width"] <= 320, ("small-mobile welcome heading overflows viewport", small_mobile_box)
                 page.set_viewport_size({"width": 1440, "height": 960})
                 page.wait_for_timeout(350)
 

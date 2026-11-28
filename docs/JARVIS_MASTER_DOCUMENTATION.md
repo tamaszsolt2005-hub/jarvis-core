@@ -1,18 +1,66 @@
+# Aktuális funkcióleltár és fejlesztési terv – 2026-11-28
+
+A teljes, frissített funkcióleltár, a megvalósított/részleges/nem igazolt képességek, a hiánylista és a P0–P3 fejlesztési javaslatok az [aktuális állapot- és roadmap dokumentumban](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md) találhatók. Ez a dokumentum a korábbi dátumozott összefoglalók mellett az aktuális PR #35 állapotát tekinti irányadónak.
+
+## CRM – ügyfél-életciklus első verzió
+
+- A jóváhagyott leadek külön Ügyfélkapcsolatok oldalon követhetők: kapcsolatfelvétel, válasz, minősítés, ajánlat, pilot, ügyfél vagy elvesztett státusz.
+- Admin/operator kézzel rögzíthet státuszváltozást, interakciót és következő teendőt határidővel.
+- Minden változás append-only eseménynaplóba kerül; reader csak olvashat.
+- A CRM nem küld levelet és nem válaszol az ügyfélnek. A kapcsolatfelvétel emberi művelet marad.
+- Migráció: 20261127210000_lead_customer_lifecycle.sql; részletek: [CRM dokumentáció](LEAD_CUSTOMER_LIFECYCLE.md).
+
+## Automatikus Opportunity Discovery – új fejlesztési állapot
+
+- A grounded cégkutatás strukturált pain hipotéziseket is gyűjt; csak pontos forrás URL-lel és kivonattal menthető.
+- A worker a dossier snapshot után elmenti a pain rekordokat, majd determinisztikus cross-company klaszterezést futtat.
+- Legalább két különböző cégből származó egyező, forrásolt probléma hozhat létre `candidate` piaci mintázatot és `draft` SaaS-jelöltet.
+- Nincs automatikus mintázat-validálás, scoring vagy approval. Az Opportunity Centerben admin/operator kötelező indoklással validálhat, további vizsgálatra tehet vagy elutasíthat mintázatot; a döntés append-only naplóba kerül.
+- Implementáció: `market_pattern_discovery.py`; migrációk: `20261127190000_cross_company_pattern_discovery.sql` és `20261127200000_market_pattern_review_workflow.sql`; részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
+- A migráció még csak a PR #35 ágban van, production DB-n nem futott le; staging validáció hátravan.
+
+## Bejövő ügyfélválaszok – kötelező emberi döntés
+
+- A bejövő leveleket az inbox workflow leadhez kapcsolja és kategorizálja.
+- Az E-mail központ Beérkezett válaszok füle az érdeklődő ügyfeleket kiemeli.
+- JARVIS nem küld automatikus választ és nem indít automatikus follow-upot; minden további kommunikációhoz a felhasználó döntése kell.
+- A jelzés jelenleg az alkalmazáson belüli; külső push értesítés nincs bekapcsolva.
+
+> **Rendszer-összeszerelési állapot – 2026-11-27 (frissítés).** A vizsgált JARVIS rendszer a PR #35 `feature/opportunity-center-readonly` ágán áll. A képességhiány- és prioritási felmérés külön dokumentumba került: [JARVIS Capability Gap Report](JARVIS_CAPABILITY_GAP_REPORT.md). A jelentés elkülöníti a kódban meglévő, CI-ben ellenőrzött, stagingben igazolt és production-kész funkciókat. Fő következtetés: a kutatási worker, Opportunity Engine, Leadkezelő és e-mail-előkészítés fontos építőelemei megvannak, de a folyamatos scheduleres kutatás, az end-to-end pain→pattern→SaaS discovery, az Auth/JWT/RLS staging-validáció, a valós Gemini smoke, az operációs monitoring és a release/deploy folyamat még nem tekinthető teljesen igazoltnak. A teljes CRM/ügyfél-életciklus, bejövő válaszok strukturált feldolgozása, ajánlat/pilot folyamat és valós piaci validáció további fontos termékfeladat.
+>
+> **Aktuális PR/CI pillanatkép a dokumentációs munka kezdetén:** PR #35 nyitott draft, nem merge-ölt; base `feature/daily-hard-budget-cap`. A `b0965a7ab384fe97ea759ddeb7b63316d7fbb995` commiton a JARVIS CI run `46010506152` futott: PostgreSQL research integration és backup/restore sikeres, compileall sikeres, a unit/AppTest/browser tesztlépés a lekérdezés pillanatában még futott. Ez nem végleges CI-eredmény, és nem igazolja az újabb dokumentációs commitot. Lokális tesztet és kézi CI-dispatch-et nem futtattunk.
+>
+> **Release- és biztonsági határ:** PR #35 migrációk production adatbázison nem futottak le; production deploy nincs igazolva; e-mailküldés továbbra is kódszinten hard-disabled. Merge, production migráció, secret/Auth/RLS változtatás és deploy külön, explicit engedélyt igényel.
+
+---
+
+> **HITeles, frissített állapot – 2026-11-27 13:37 CET.** Ez a státuszblokk a dokumentum alábbi korábbi, dátumozott állapotjelentéseit felülírja. A vizsgált kód a `feature/opportunity-center-readonly` branch PR #35-ös állapota, HEAD: `f90225235b804ca0d13930d11bbf1f1ae627e9f2`. PR #35 nyitott, Draft, nem merge-ölt; a PR #34-re épül. A HEAD-hez tartozó automatikus JARVIS CI run `45999509740` befejeződött `success` eredménnyel. A felhasználó kérésének megfelelően lokális tesztet és kézi CI-dispatch-et nem futtattunk. Ez a CI az izolált tesztkörnyezetet igazolja, nem production üzemet.
+>
+> **Kész a kódban (PR #35):** Opportunity Engine adatmodell és dashboard; céges problémahipotézisek és legalább két külön céghez kötött validált piaci mintázatok; SaaS-jelöltek; hatdimenziós, forrásbizonyítékhoz kötött scoring; evaluator preview session state-ben; explicit admin/operator jóváhagyás és append-only assessment history; közös `intelligence_engine.py` evidence/provenance szerződés és append-only `intelligence_evidence` index Lead-, dossier- és pain-forrásokhoz; Intelligence áttekintő; származtatott Intelligence Graph és Graphviz dashboardfül. A gráf forrásai a domain táblák, az AI által kitalált kapcsolatok nem válnak automatikusan igazolt élekké. A gráf Python projection determinisztikus, duplikált node ID esetén bemenet-sorrendtől függetlenül választ rekordot.
+>
+> **Biztonsági és release-határ:** a PR #35 migrációi csak a repository/CI részei; production adatbázison nem futottak le. A dashboard nincs production deployolva. Az assessment preview nem ment automatikusan; a mentés explicit admin/operator jóváhagyás. A dashboard authenticated/RLS útvonalat használ, nincs service-role write bypass. A PR merge, production migráció, Auth/RLS éles módosítás és deploy külön, konkrét engedélyt igényel.
+>
+> **Pontosítás a már meglévő kutatási pipeline-ról:** a cégfelderítés és a kutatási worker nem hiányzó funkció. A `global_lead_research.py` grounded, országválasztásos cégeket keres és leadként ment; a dossier/snapshot réteg forrásolt cégprofilt állít elő; a `company_research_worker.py` egy job queue/claim/lease/heartbeat/retry/dead-letter életciklust kezel; a `company_research_execution.py` a provider→dossier→snapshot→lead mentési útvonalat köti össze; a `company_research_runtime.py` explicit hívásra egy worker jobot futtat végig. Ezek kódoldali elemei CI-ben teszteltek, de schedulerből történő folyamatos futtatás és élő Gemini/staging smoke nincs igazolva. **A tényleges hiányzó összekötő réteg:** a már mentett Lead/dossier/pain adatokból automatikusan vagy egyértelműen indítható, end-to-end cross-company pattern discovery → SaaS candidate generation → evaluation/approval folyamat; különösen annak bizonyítása, hogy a pain-ek több cég között megbízhatóan csoportosulnak és a pattern/opp rekordok létrejönnek. Emellett hiányzik a folyamatos scheduleres kutatás, valós ügyfélinterjú/fizetési hajlandóság-validáció, élő staging/provider smoke és production release. A már meglévő cégkutatási/worker rendszert újraépíteni nem cél.
+>
+> **Javasolt következő sorrend:** (1) PR #34/#35 kód-, migráció-, RLS- és dokumentációs review, stacked PR függőség tisztázása; (2) izolált staging környezetben Auth/JWT/RLS és migráció smoke, production érintése nélkül; (3) Opportunity Discovery adatfolyam első, kézi/explicit indítású vertical slice-e: kiválasztott cégek → grounded kutatás → dossier/evidence → pain hypothesis → market pattern; (4) adatminőségi és evidence-minimum szabályok, mintázat deduplikáció és emberi validáció; (5) ügyfélinterjúk/fizetési hajlandóság validálása, majd SaaS-jelölt értékelés; (6) csak ezután scheduler/automatizálás és release-terv. Tesztet helyben nem futtatunk, kézi CI-dispatch nincs.
+
+---
+
 # JARVIS – központi projekt- és műszaki dokumentáció
 
-> **AKTUÁLIS, FELÜLÍRÓ ÁLLAPOT – 2026-11-27 (PR #34).** Ez a blokk felülírja a dokumentum alábbi részeiben szereplő korábbi PR-, branch-, CI-, budget-cap-, worker- és scheduler-státuszokat. Aktív fejlesztési ág: `feature/daily-hard-budget-cap`. PR: [#34](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/34), továbbra is **open + draft, merged=false**. Ellenőrzött PR HEAD: `52713c448a370b505ed700995eea2b231752a86b`. A `main` ellenőrzött SHA-ja: `477d73afa7d6ebd12eb7d1da7a2e52b68ff2abc0` (változatlan).
+> **AKTUÁLIS FEJLESZTÉSI ÁLLAPOT – 2026-11-27 (PR #34 és PR #35).** A `feature/daily-hard-budget-cap` ág PR #34-e továbbra is open + draft, merged=false. Az Opportunity Engine fejlesztése a `feature/opportunity-center-readonly` ágon, a [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) részeként található; PR #35 a PR #34-re épül, open + draft, merged=false. A PR aktuális HEAD-jét és a hozzá tartozó automatikus CI-állapotot a GitHub PR-oldalán kell ellenőrizni; korábbi SHA zöld CI-je nem igazolja az újabb commitokat. Egyik PR sem merge-ölhető külön, konkrét felhasználói engedély nélkül.
 >
-> **Kódban elkészült és CI-ben ellenőrzött:** napi hard budget ceiling per reservation; tranzakciós/advisory-lock alapú admission és actual-cost settlement; túlköltés esetén dead-letter és további foglalások megállítása; hiányzó, nem mérhető költségadatnál fail-closed viselkedés; közös modellhez kötött token- és Google Search grounding-árazási konfiguráció; prompt token-count ellenőrzés és output-token limit; Search query költség becslése és actual-cost elszámolása; paginált stale-lead refresh planner/queue/runtime; bounded refresh worker és napi GitHub Actions workflow. A provider- és job-retry egy próbálkozásra korlátozott, amíg a sikertelen próbák költsége nem mérhető megbízhatóan.
+> **PR #35-ben implementált:** központi, append-only `intelligence_evidence` bizonyítéktár a Lead-, cégdosszié- és Opportunity-forrásokhoz; pontos Google-grounding URL-ellenőrzés; Intelligence áttekintő dashboardfül; Opportunity Center dashboard; forrásolt céges problémahipotézisek; legalább két különböző vállalathoz kötött, validálható piaci mintázatok; SaaS-jelöltek; hatdimenziós, bizonyítékhoz kötött pontozás; provider-neutral evaluator és session-state előnézet; explicit admin/operator jóváhagyás; immutable, append-only döntési előzmény, idempotenciakulcs, actor/model/version/time és opportunity/pattern snapshot mezők.
 >
-> **CI-állapot:** a PR HEAD-hez tartozó JARVIS CI, PostgreSQL integrációs/race tesztek, compileall, unit, AppTest, böngészős tesztek, CodeQL és dependency audit sikeres. Ez izolált CI-ellenőrzés, nem production-validáció.
+> **Pontozás:** probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányzó score-dimenzió esetén nincs összpontszám. Minden dimenzióhoz rationale és source evidence szükséges; a hipotézis nem válik automatikusan ténnyé.
 >
-> **Még nincs beállítva / élesben igazolva:** a tényleges Gemini modellhez tartozó tokenárak és Search grounding ár; napi költségkeret és rate/domain/concurrency limitek GitHub Secrets/Variables értékei; élő, nem production Gemini staging smoke; production migration, deploy és scheduler-aktiválás. A napi workflow csak a PR merge-je után, main ágon, a kötelező konfigurációval válhat aktívvá. A Search query allowance foglalási becslés, nem szolgáltatói hard cap; a tényleges költség elszámolása és túllépéskezelése a DB settlement feladata.
+> **Jogosultság:** hitelesített `admin` és `operator` szerepkör explicit gombnyomással menthet; `reader` csak olvashat; anon nem fér hozzá. A DB trigger ellenőrzi a szerepkört, a validált mintázatot, a két külön céges alátámasztást és a forrás-egyezést. A jóváhagyási előzmény UPDATE/DELETE művelete tiltott. A dashboard user path nem használ service-role írási megkerülést.
 >
-> **PC-N ELVÉGZENDŐ – NE CHATBEN:** GitHub → Settings → Secrets and variables → Actions alatt a Gemini API kulcs és Supabase service-role kulcs meglétének ellenőrzése, majd a pontos modellnévhez tartozó input/output tokenár, Search grounding ár, napi hard budget, óránkénti joblimit, domainenkénti napi limit, párhuzamos joblimit, valamint Search query allowance beállítása. Titokértéket ne másolj chatbe, és árakat ne becsüljünk. A beállítás után először csak konfiguráció-validálás és külön jóváhagyott, korlátozott staging smoke következhet; production futtatás/deploy/migráció külön döntést igényel.
+> **Migrációk:** `20261127100000` core, `20261127110000` scoring, `20261127120000` score evidence, `20261127130000` approval history, `20261127140000` központi Intelligence evidence store. Ezek a PR branch részei; production adatbázison nem futottak le. A dashboard nincs production deployolva.
 >
-> **Következő sorrend:** (1) PR #34 kód- és dokumentációs review; (2) PC-s GitHub Secrets/Variables konfigurálás; (3) konfiguráció-validálás és staging smoke, valós usage/grounding költség ellenőrzéssel; (4) Auth/JWT/RLS snapshot-hozzáférés és production migration drift külön felülvizsgálata; (5) csak ezek után release-döntés. PR merge nem történt, és nem történhet explicit kérés nélkül. Production DB/infrastruktúra nem módosult, Gemini éles hívás és scheduled workflow dispatch nem történt.
-
-
+> **CI és tesztelés:** a felhasználó kérésére lokális tesztet és kézi CI-dispatch-et nem futtattunk. A kód commitján a GitHub Actions automatikusan indult; a korábbi ellenőrzéskor run `45987043894` folyamatban volt, ez nem jelent zöld CI-t. A dokumentációs commit után az aktuális PR HEAD-hez tartozó legfrissebb CI-t külön kell ellenőrizni. A CI izolált adatbázis, nem production-validáció.
+>
+> **Következő lépések:** dokumentációs és kód review; a legfrissebb CI eredmény megvárása; Auth/JWT/RLS és migrációk izolált környezetű felülvizsgálata; külön jóváhagyás után staging smoke. Production migration, Auth/RLS éles módosítás, deploy és PR merge továbbra is külön engedélyhez kötött.
 > **Aktuális állapot – 2026-11-26 (a korábbi státuszblokkokat felülírja).** A PR #26, #27 és #28 mind merge-ölve van a `main` ágba. A legutóbbi main commit: `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`. A PR #28 HEAD-hez tartozó CI #3187 (run `45900450820`) mindhárom jobja sikeres: Python/AppTest/browser tesztek, izolált PostgreSQL 17 worker-integráció, valamint backup–restore/security. A PR #26 HEAD-en a JARVIS CI, CodeQL és dependency audit sikeres; a PR #27 HEAD-en a JARVIS CI sikeres. A merge commiton külön post-merge workflow/státusz nem jelent meg, ezért a merge utáni újrafuttatás nem tekinthető igazoltnak.
 >
 > **Implementált és CI-vel tesztelt:** cégdosszié és append-only snapshot tárolás; read-only előzmény-dashboard; worker job lifecycle, repository/RPC adapter, queue bridge és worker; injektálható grounded Gemini provider adapter; snapshot mentés a job sikeres lezárása előtt; idempotencia; lease/heartbeat/retry/dead-letter; PostgreSQL lifecycle, kvóta, security és két-session konkurenciatesztek. A CI izolált adatbázist használ, nem productiont.
@@ -64,6 +112,9 @@ A hosszú távú cél egy kutatásvezérelt üzleti ügynök: a JARVIS önálló
 A PR #28 a #27-re, a #27 pedig a #26-ra épülő stacked pull request. Integrálásuk sorrendje: #26, #27, #28. Egyik PR sincs merge-ölve. A CI státuszt mindig a PR aktuális head SHA-ján kell ellenőrizni; korábbi zöld futás nem igazolja az újabb commitokat.
 
 ## 3. Jelenlegi architektúra – fő komponensek
+
+### Közös pontozási alap
+A scoring_core.py közös számítási magot biztosít a Lead prioritás és az Opportunity Score számára. A két domain külön dimenziókat és súlyokat használ: a Lead score a cégek kutatási prioritását, az Opportunity score a több cégnél ismétlődő probléma SaaS-megoldásának értékét méri. A közös mag azonosan kezeli a 0–100 validációt, a hiányzó értékeket, a súlyösszeget és a fordított dimenziókat; a két eredmény nem összeadható és nem helyettesíti egymást.
 
 ### 3.1 Felhasználói felület és chat
 - `dashboard.py`: Streamlit felület és routing.
@@ -246,6 +297,7 @@ Az adatbázis-migrációs és pgTAP teszteket a GitHub Actions CI izolált Postg
 - [Aktuális állapot és következő lépések](CURRENT_STATE_AND_NEXT_STEPS.md)
 - [Fejlesztési útiterv](JARVIS_DEVELOPMENT_ROADMAP.md)
 - [Rendszer- és architektúra-dokumentáció](JARVIS_DOCUMENTATION.md)
+- [Opportunity Engine – működés és biztonsági modell](OPPORTUNITY_ENGINE.md)
 - [Önálló SaaS-ügynök vízió](JARVIS_AUTONOMOUS_SAAS_VISION.md)
 - [Parancs- és kifejezéskalauz](JARVIS_COMMAND_GUIDE.md)
 - [Fejlesztési backlog](DEVELOPMENT_REVIEW_AND_RECOMMENDATIONS.md)
@@ -429,3 +481,48 @@ A JARVIS jelenleg nem autonóm SaaS-értékesítő vagy önálló SaaS-gyár. Ni
 ### PR és környezeti állapot
 
 PR #28 nyitott, nem merge-ölt, a base a `feature/company-research-phase-1` (stacked PR-lánc: #26 → #27 → #28; a merge sorrend kötelező). A JARVIS app helyi fejlesztés alatt van, nincs production app-host/deploy. A production DB-n nem történt módosítás; nincs production migration, deploy, secret-változtatás vagy e-mailküldés. A dokumentált CI nem jelent production readiness-t.
+
+
+## Intelligence Graph – központi kapcsolati réteg
+
+A JARVIS központi evidence indexére ráépült az `intelligence_entities` / `intelligence_relationships` gráfmodell. A Lead, cégdosszié-snapshot, céges problémahipotézis, piaci mintázat, SaaS-jelölt, jóváhagyott assessment és evidence rekordok külön csomópontok; az explicit FK-k, join táblák és evidence hivatkozások irányított éleket hoznak létre. A forrástáblák maradnak az igazság forrásai. A gráf read-only dashboard nézetet kapott, authenticated RLS olvasással; AI-javaslat önmagában nem válik hiteles kapcsolattá. A részletes modell, trigger- és jogosultsági leírás: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
+
+
+## Kutatási worker – operációs vezérlés
+
+A PR #35 fejlesztői ágán elkészült az admin/operator által vezérelhető szüneteltetés és újraindítás, valamint a Kutatási műveletek dashboard. A pause a queue-feltöltést és az atomikus job-claimet is blokkolja; a már futó lease-es feladat befejeződhet. A reader csak megtekintheti az állapotot. Részletek: [RESEARCH_WORKER_OPERATIONS.md](RESEARCH_WORKER_OPERATIONS.md).
+
+
+## Irányadó állapotfrissítés – 2026-11-28 16:32 CET
+
+Ez a blokk felülírja a dokumentum korábbi, más HEAD-re, CI-futásra vagy release-állapotra vonatkozó „aktuális” pillanatképeit. A korábbi dátumozott részek történeti naplóként maradnak meg.
+
+- **Vizsgált ág:** `feature/opportunity-center-readonly`; **PR:** [#35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35), nyitott, draft, nem merge-ölt; **vizsgált HEAD:** `cb17d197b17325e86b78b9565f8ba95528f66e02`.
+- A PR API szerint a mergeability jelenleg `false`. A HEAD-hez a lekérdezéskor nem volt visszaadott PR workflow-run; ezért erre a commitra friss zöld CI, coverage, CodeQL vagy dependency-audit eredmény nem állítható.
+- A korábban mért 83,3%-os coverage és korábbi sikeres integrációs/security jobok **nem** bizonyítják a jelenlegi HEAD állapotát. A legutóbbi ismert mobil böngészőteszt-hiba javításának eredményét új, a jelenlegi HEAD-hez kötött futásból kell igazolni.
+- P1/P2 funkciók a feature branchben implementációs állapotúak; ez nem jelent production aktiválást. A PR migrációi nincsenek production adatbázison alkalmazva, a branch UI nincs production deployolva.
+- A P2 Research Ops dashboard helyi riasztásai: dead-letter, budget-kihasználtság/túllépés és lejárt/hiányzó lease. Külső értesítés nincs bekötve.
+- A scheduler kill switch kódban és workflow-ban fail-closed; a `JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED` nincs engedélyezve. A workert és schedulert nem indítottuk el.
+- A Gemini beépített Google Search grounding egyetlen kérésére nincs igazolt, konfigurálható query-count hard limit. A metadata utólagos elszámolásra használható, nem előzetes korlátozásra. A napi budget jelenlegi foglalása ezért nem garantálja az egyetlen hívás költségének plafonját.
+- A production Auth könyvtár korábban ellenőrzött állapotában 0 felhasználó volt; CRM owner assignmenthez nincs aktív assignable Auth user. Ezt nem szabad automatikus user-létrehozással vagy meghívóval megkerülni.
+
+### Környezeti döntés – nincs fizetős staging adatbázis
+
+A projektben **nem hozunk létre külön Supabase development/staging ágat vagy fizetős staging projektet**. A CI migrációs és SQL-tesztjeihez kizárólag a workflow által felállított ideiglenes, izolált PostgreSQL használható. Ez nem staging és nem production. A production Supabase projekt marad az egyetlen tartós adatbázis; azon nincs próbamigráció és nincs tesztadat-módosítás. Éles migráció csak a release gate-ek lezárása után, ellenőrzött sorrendben és backup/rollback tervvel történhet. Az alkalmazás böngészős smoke-ja jelenleg a CI-ben elérhető tesztkörnyezetre korlátozódik; nem állítunk be külön fizetős staging infrastruktúrát.
+
+### Következő kötelező munkák
+
+1. A jelenlegi HEAD-re automatikus JARVIS CI indítása/megérkezése és teljes sikerének ellenőrzése; coverage legalább 82%.
+2. A mobil login/chat és dashboard screenshotok friss artifactjainak ellenőrzése; a böngészőtesztek zöld eredménye önmagában nem helyettesíti a screenshot review-t.
+3. CodeQL és dependency audit futtatása és zöld eredményének igazolása ugyanezen a HEAD-en.
+4. Migrációs, RLS, GRANT, SECURITY DEFINER, search_path és Auth/JWT jogosultsági review.
+5. P2: provideroldali query-korlát helyett egyenként vezérelt keresőadapter vagy más, bizonyítható alkalmazásszintű query-budget; alert history; költség/latency/usage idősoros megfigyelés.
+6. P1 üzleti validáció: Opportunity Discovery végponttól végpontig, CRM owner/follow-up, ajánlat/pilot/outcome és valós ügyfélinterjúk. A technikai pontszám nem bizonyít fizetési hajlandóságot.
+7. Release után: production migráció és deploy csak külön ellenőrzött lépésben; scheduler és outbound e-mail továbbra is kikapcsolva marad, amíg külön jóváhagyás nincs.
+
+### Prioritási sorrend
+
+- **P0 – release gate:** friss teljes CI, coverage ≥82%, CodeQL, dependency audit, migráció/security review, UI smoke és rollback/backup runbook.
+- **P1 – üzleti folyamat:** Opportunity pain→pattern→SaaS candidate→review→assessment E2E; CRM owner és follow-up; inbound reply audit/CRM; ajánlat/pilot és valós WTP-validáció.
+- **P2 – üzemi megbízhatóság:** valódi query/cost limit, alert history/notification (külön döntés után), provider latency/usage monitoring, scheduler többciklusos ellenőrzése az aktiválás előtt. A scheduler marad opt-in.
+- **P3 – termékesítés:** PRD→backlog→prototípus→build/test/release, multi-tenant és billing csak akkor, ha külső SaaS értékesítési cél lesz.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
 import time
 from uuid import uuid4
@@ -80,8 +81,16 @@ def _valid_http_url(value: Any) -> str | None:
             return None
         if parsed.username or parsed.password:
             return None
-        if parsed.hostname.lower() in {"localhost", "localhost.localdomain"}:
+        if (
+            parsed.hostname.lower() in {"localhost", "localhost.localdomain"}
+            or parsed.hostname.lower().endswith((".localhost", ".local"))
+        ):
             return None
+        try:
+            if not ipaddress.ip_address(parsed.hostname).is_global:
+                return None
+        except ValueError:
+            pass
         return raw
     except ValueError:
         return None
@@ -299,7 +308,11 @@ def research_global_companies(
     )
     companies = _parse_companies(_field(response, "text", "") or "")
     grounded_urls = _grounded_sources(response)
-    grounded_domains = {_domain(url) for url in grounded_urls if _valid_http_url(url)}
+    grounded_source_urls = {
+        valid_url for url in grounded_urls
+        if (valid_url := _valid_http_url(url))
+    }
+    grounded_domains = {_domain(url) for url in grounded_source_urls}
     if not grounded_domains:
         raise RuntimeError("A Google Search nem adott ellenőrizhető forráshivatkozásokat; lead nem került mentésre.")
 
@@ -317,7 +330,7 @@ def research_global_companies(
         source_domain = _domain(source_url)
         # Require both the official site and the supporting source to appear
         # in Google's grounding references; this reduces unsupported model output.
-        if site_domain not in grounded_domains or source_domain not in grounded_domains:
+        if site_domain not in grounded_domains or source_url not in grounded_source_urls:
             skipped += 1
             continue
         if name.casefold() in known_names or site_domain in known_sites:
@@ -330,7 +343,7 @@ def research_global_companies(
         confidence, fit_score, fit_evidence = _research_quality(item)
         business_need = str(item.get("business_need") or "A nyilvános forrásokból nem állapítható meg.")[:500]
         next_step = str(item.get("recommended_next_step") or "További nyilvános cégkutatás; kapcsolatfelvétel nélkül.")[:400]
-        dossier = stamp_company_dossier(build_company_dossier(item, grounded_domains))
+        dossier = stamp_company_dossier(build_company_dossier(item, grounded_source_urls))
         dossier_text = render_company_dossier(dossier)
         base_notes = (
             f"Leadkutatás; célpiac: {market_country}; tényleges ország: {country}; iparág: {industry}; "
@@ -363,6 +376,23 @@ def research_global_companies(
                 notes=notes,
                 source=f"{SOURCE_TAG}:{source_domain}"[:200],
             )
+            # Reuse only source-grounded dossier facts as Lead evidence.
+            # Model-written summary/fit prose is not promoted to a source excerpt.
+            lead_evidence = [
+                {
+                    "source_url": fact["source_url"],
+                    "excerpt": fact["fact"][:1200],
+                    "source_kind": "lead_research_note",
+                    "evidence_type": "supporting",
+                    "observed_at": dossier.get("researched_at", "undated"),
+                    "captured_at": dossier.get("researched_at", "undated"),
+                }
+                for fact in dossier.get("facts", [])
+                if isinstance(fact, dict) and fact.get("source_url") and fact.get("fact")
+            ][:12]
+            db.table("leads").update({
+                "research_evidence": lead_evidence,
+            }).eq("id", identity_result["lead_id"]).execute()
         except Exception as exc:
             audit_event(
                 db,

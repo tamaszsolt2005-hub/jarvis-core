@@ -192,18 +192,3 @@ FROM anon;
 
 COMMENT ON POLICY leads_shared_read ON public.leads IS
   'Single shared workspace: admin/operator/reader can read; this is not tenant isolation.';
-
- 
-
--- Supabase-managed owner roles exist on hosted Supabase, but are absent from
--- the plain PostgreSQL CI fixture. Harden them when present without making
--- the migration non-portable to local PostgreSQL.
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN
-    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated';
-    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated';
-    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated';
-  END IF;
-END
-$$;

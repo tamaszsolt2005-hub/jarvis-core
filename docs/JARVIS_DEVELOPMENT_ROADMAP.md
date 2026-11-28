@@ -1,18 +1,30 @@
+> **HITeles, frissített állapot – 2026-11-27 13:37 CET.** Ez a státuszblokk a dokumentum alábbi korábbi, dátumozott állapotjelentéseit felülírja. A vizsgált kód a `feature/opportunity-center-readonly` branch PR #35-ös állapota, HEAD: `f90225235b804ca0d13930d11bbf1f1ae627e9f2`. PR #35 nyitott, Draft, nem merge-ölt; a PR #34-re épül. A HEAD-hez tartozó automatikus JARVIS CI run `45999509740` befejeződött `success` eredménnyel. A felhasználó kérésének megfelelően lokális tesztet és kézi CI-dispatch-et nem futtattunk. Ez a CI az izolált tesztkörnyezetet igazolja, nem production üzemet.
+>
+> **Kész a kódban (PR #35):** Opportunity Engine adatmodell és dashboard; céges problémahipotézisek és legalább két külön céghez kötött validált piaci mintázatok; SaaS-jelöltek; hatdimenziós, forrásbizonyítékhoz kötött scoring; evaluator preview session state-ben; explicit admin/operator jóváhagyás és append-only assessment history; közös `intelligence_engine.py` evidence/provenance szerződés és append-only `intelligence_evidence` index Lead-, dossier- és pain-forrásokhoz; Intelligence áttekintő; származtatott Intelligence Graph és Graphviz dashboardfül. A gráf forrásai a domain táblák, az AI által kitalált kapcsolatok nem válnak automatikusan igazolt élekké. A gráf Python projection determinisztikus, duplikált node ID esetén bemenet-sorrendtől függetlenül választ rekordot.
+>
+> **Biztonsági és release-határ:** a PR #35 migrációi csak a repository/CI részei; production adatbázison nem futottak le. A dashboard nincs production deployolva. Az assessment preview nem ment automatikusan; a mentés explicit admin/operator jóváhagyás. A dashboard authenticated/RLS útvonalat használ, nincs service-role write bypass. A PR merge, production migráció, Auth/RLS éles módosítás és deploy külön, konkrét engedélyt igényel.
+>
+> **Pontosítás a már meglévő kutatási pipeline-ról:** a cégfelderítés és a kutatási worker nem hiányzó funkció. A `global_lead_research.py` grounded, országválasztásos cégeket keres és leadként ment; a dossier/snapshot réteg forrásolt cégprofilt állít elő; a `company_research_worker.py` egy job queue/claim/lease/heartbeat/retry/dead-letter életciklust kezel; a `company_research_execution.py` a provider→dossier→snapshot→lead mentési útvonalat köti össze; a `company_research_runtime.py` explicit hívásra egy worker jobot futtat végig. Ezek kódoldali elemei CI-ben teszteltek, de schedulerből történő folyamatos futtatás és élő Gemini/staging smoke nincs igazolva. **A tényleges hiányzó összekötő réteg:** a már mentett Lead/dossier/pain adatokból automatikusan vagy egyértelműen indítható, end-to-end cross-company pattern discovery → SaaS candidate generation → evaluation/approval folyamat; különösen annak bizonyítása, hogy a pain-ek több cég között megbízhatóan csoportosulnak és a pattern/opp rekordok létrejönnek. Emellett hiányzik a folyamatos scheduleres kutatás, valós ügyfélinterjú/fizetési hajlandóság-validáció, élő staging/provider smoke és production release. A már meglévő cégkutatási/worker rendszert újraépíteni nem cél.
+>
+> **Javasolt következő sorrend:** (1) PR #34/#35 kód-, migráció-, RLS- és dokumentációs review, stacked PR függőség tisztázása; (2) izolált staging környezetben Auth/JWT/RLS és migráció smoke, production érintése nélkül; (3) Opportunity Discovery adatfolyam első, kézi/explicit indítású vertical slice-e: kiválasztott cégek → grounded kutatás → dossier/evidence → pain hypothesis → market pattern; (4) adatminőségi és evidence-minimum szabályok, mintázat deduplikáció és emberi validáció; (5) ügyfélinterjúk/fizetési hajlandóság validálása, majd SaaS-jelölt értékelés; (6) csak ezután scheduler/automatizálás és release-terv. Tesztet helyben nem futtatunk, kézi CI-dispatch nincs.
+
+---
+
 # JARVIS – elsődleges fejlesztési útiterv
 
-> **AKTUÁLIS, FELÜLÍRÓ ÁLLAPOT – 2026-11-27 (PR #34).** Ez a blokk felülírja a dokumentum alábbi részeiben szereplő korábbi PR-, branch-, CI-, budget-cap-, worker- és scheduler-státuszokat. Aktív fejlesztési ág: `feature/daily-hard-budget-cap`. PR: [#34](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/34), továbbra is **open + draft, merged=false**. Ellenőrzött PR HEAD: `52713c448a370b505ed700995eea2b231752a86b`. A `main` ellenőrzött SHA-ja: `477d73afa7d6ebd12eb7d1da7a2e52b68ff2abc0` (változatlan).
+> **AKTUÁLIS FEJLESZTÉSI ÁLLAPOT – 2026-11-27 (PR #34 és PR #35).** A `feature/daily-hard-budget-cap` ág PR #34-e továbbra is open + draft, merged=false. Az Opportunity Engine fejlesztése a `feature/opportunity-center-readonly` ágon, a [PR #35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) részeként található; PR #35 a PR #34-re épül, open + draft, merged=false. A legutóbb ellenőrzött kód-HEAD `8cb080856f745dc5f8278f78a836791a75b48355`; a dokumentációs commitok ezt a HEAD-et tovább fogják mozgatni. Egyik PR sem merge-ölhető külön, konkrét felhasználói engedély nélkül.
 >
-> **Kódban elkészült és CI-ben ellenőrzött:** napi hard budget ceiling per reservation; tranzakciós/advisory-lock alapú admission és actual-cost settlement; túlköltés esetén dead-letter és további foglalások megállítása; hiányzó, nem mérhető költségadatnál fail-closed viselkedés; közös modellhez kötött token- és Google Search grounding-árazási konfiguráció; prompt token-count ellenőrzés és output-token limit; Search query költség becslése és actual-cost elszámolása; paginált stale-lead refresh planner/queue/runtime; bounded refresh worker és napi GitHub Actions workflow. A provider- és job-retry egy próbálkozásra korlátozott, amíg a sikertelen próbák költsége nem mérhető megbízhatóan.
+> **PR #35-ben implementált:** Opportunity Center dashboard; forrásolt céges problémahipotézisek; legalább két különböző vállalathoz kötött, validálható piaci mintázatok; SaaS-jelöltek; hatdimenziós, bizonyítékhoz kötött pontozás; provider-neutral evaluator és session-state előnézet; explicit admin/operator jóváhagyás; immutable, append-only döntési előzmény, idempotenciakulcs, actor/model/version/time és opportunity/pattern snapshot mezők.
 >
-> **CI-állapot:** a PR HEAD-hez tartozó JARVIS CI, PostgreSQL integrációs/race tesztek, compileall, unit, AppTest, böngészős tesztek, CodeQL és dependency audit sikeres. Ez izolált CI-ellenőrzés, nem production-validáció.
+> **Pontozás:** probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányzó score-dimenzió esetén nincs összpontszám. Minden dimenzióhoz rationale és source evidence szükséges; a hipotézis nem válik automatikusan ténnyé.
 >
-> **Még nincs beállítva / élesben igazolva:** a tényleges Gemini modellhez tartozó tokenárak és Search grounding ár; napi költségkeret és rate/domain/concurrency limitek GitHub Secrets/Variables értékei; élő, nem production Gemini staging smoke; production migration, deploy és scheduler-aktiválás. A napi workflow csak a PR merge-je után, main ágon, a kötelező konfigurációval válhat aktívvá. A Search query allowance foglalási becslés, nem szolgáltatói hard cap; a tényleges költség elszámolása és túllépéskezelése a DB settlement feladata.
+> **Jogosultság:** hitelesített `admin` és `operator` szerepkör explicit gombnyomással menthet; `reader` csak olvashat; anon nem fér hozzá. A DB trigger ellenőrzi a szerepkört, a validált mintázatot, a két külön céges alátámasztást és a forrás-egyezést. A jóváhagyási előzmény UPDATE/DELETE művelete tiltott. A dashboard user path nem használ service-role írási megkerülést.
 >
-> **PC-N ELVÉGZENDŐ – NE CHATBEN:** GitHub → Settings → Secrets and variables → Actions alatt a Gemini API kulcs és Supabase service-role kulcs meglétének ellenőrzése, majd a pontos modellnévhez tartozó input/output tokenár, Search grounding ár, napi hard budget, óránkénti joblimit, domainenkénti napi limit, párhuzamos joblimit, valamint Search query allowance beállítása. Titokértéket ne másolj chatbe, és árakat ne becsüljünk. A beállítás után először csak konfiguráció-validálás és külön jóváhagyott, korlátozott staging smoke következhet; production futtatás/deploy/migráció külön döntést igényel.
+> **Migrációk:** `20261127100000` core, `20261127110000` scoring, `20261127120000` score evidence, `20261127130000` approval history. Ezek a PR branch részei; production adatbázison nem futottak le. A dashboard nincs production deployolva.
 >
-> **Következő sorrend:** (1) PR #34 kód- és dokumentációs review; (2) PC-s GitHub Secrets/Variables konfigurálás; (3) konfiguráció-validálás és staging smoke, valós usage/grounding költség ellenőrzéssel; (4) Auth/JWT/RLS snapshot-hozzáférés és production migration drift külön felülvizsgálata; (5) csak ezek után release-döntés. PR merge nem történt, és nem történhet explicit kérés nélkül. Production DB/infrastruktúra nem módosult, Gemini éles hívás és scheduled workflow dispatch nem történt.
-
-
+> **CI és tesztelés:** a felhasználó kérésére lokális tesztet és kézi CI-dispatch-et nem futtattunk. A kód commitján a GitHub Actions automatikusan indult; a korábbi ellenőrzéskor run `45987043894` folyamatban volt, ez nem jelent zöld CI-t. A dokumentációs commit után az aktuális PR HEAD-hez tartozó legfrissebb CI-t külön kell ellenőrizni. A CI izolált adatbázis, nem production-validáció.
+>
+> **Következő lépések:** dokumentációs és kód review; a legfrissebb CI eredmény megvárása; Auth/JWT/RLS és migrációk izolált környezetű felülvizsgálata; külön jóváhagyás után staging smoke. Production migration, Auth/RLS éles módosítás, deploy és PR merge továbbra is külön engedélyhez kötött.
 **Aktuális ág:** `main`  
 **PR állapot:** #26, #27 és #28 merge-ölve.  
 **PR #28 merge commitja:** `9ceb2f7fdd0130240c15dc4e1701d3fba1bdb53c`  
@@ -57,10 +69,18 @@ Először DB- és külső API-független job-lifecycle modult kell készíteni. 
 Az első szelet tiszta Python logika és fake repository tesztek. Nem csatlakozik production Supabase-hez, nem futtat migrációt, nem hív Gemini API-t, nem ütemez automatikus munkát és nem küld üzenetet.
 
 ## Phase 2 – üzleti problémahipotézis
-A dosszié tényekből különítse el a bizonyítékot, következtetést és hipotézist. A problémákhoz confidence, forrás és ellenőrizendő kérdés tartozzon. Bizonyítékhiány esetén további kutatás legyen a kimenet, ne kitalált probléma.
 
-## Phase 3 – egyedi SaaS-termékötlet motor
-Cégenként több termékkoncepció; magyarázható értékelés üzleti érték, illeszkedés, bizonyítottság, megvalósíthatóság, kockázat, költség és differenciálás alapján; alternatívák és piaci megoldások vizsgálata; indokolt esetben tartózkodás az ajánlástól.
+**Állapot: első implementáció PR #35-ben.**
+
+A `business_pain_hypotheses` modell, confidence/státusz és forrás-evidence mezők, valamint az Opportunity Center céges probléma nézete elkészült. A hipotézis és bizonyított tény külön kezelendő. További feladat: a kutatási dosszié tényekből történő automatizált, ellenőrizhető hipotézis-képzés és az evidence minőségének mélyebb validálása. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
+
+## Phase 3 – ismétlődő piaci mintázatok és SaaS-termékötlet motor
+
+**Állapot: első implementáció PR #35-ben.**
+
+A több cég problémáit összekötő `market_problem_patterns` és `market_pattern_pains` modell, a legalább két különböző céges alátámasztást kikényszerítő validáció, a `saas_opportunities` jelöltek és a provider-neutral evaluator elkészült. A pontozás hat dimenziót használ: probléma bizonyítottsága 25%, üzleti érték 20%, fizetési hajlandóság 15%, megvalósíthatóság 15%, újraértékesíthetőség 15%, kockázat 10% fordított irányban. Hiányos bizonyíték esetén nincs pontszám.
+
+Az evaluator csak előnézetet készít; explicit emberi jóváhagyás szükséges a tartós mentéshez. Az append-only értékelési előzmény, az admin/operator írási és reader olvasási jogosultság, a forrás-egyezés és az idempotencia alapja PR #35-ben implementált. További feladat: piaci alternatívák, TAM/SAM/SOM, árképzés, unit economics, ügyfél-validáció és a pontozási dimenziók üzleti adatokkal történő kalibrálása. Részletek: [Opportunity Engine](OPPORTUNITY_ENGINE.md).
 
 ## Phase 4 – globális és cégenkénti termék-tiltó napló
 Globális, iparági és cégenkénti kizárások; elutasított ajánlatok és korábbi sikertelen ötletek; determinisztikus fingerprint és szemantikus hasonlóságvizsgálat; aktív projektek és ügyfélközi kizárólagosság ellenőrzése; auditált feloldás és emberi jóváhagyás.
@@ -278,3 +298,57 @@ PR #26, #27 és #28 merge-ölve a `main` ágba 2026-11-26-án. A JARVIS app tov�
 >
 > A dokumentum korábbi PR-állapotai, régi CI-run számai és „nincs worker” megjegyzései történeti feljegyzések; a fenti blokk az aktuális összefoglaló. Részletek: [PR #26](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/26), [PR #27](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/27), [PR #28](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/28), [CI #3187](https://github.com/tamaszsolt2005-hub/jarvis-core/actions/runs/45900450820).
 
+
+## Intelligence Graph – fejlesztési állapot
+
+Az Intelligence Graph első implementációja PR #35-ben elkészült: gráf-adatmodell, meglévő rekordok backfillje, triggeres szinkronizálás, Python-projekció és read-only dashboard. Következő validációs feladat a friss commitok CI-eredményének ellenőrzése, majd később a gráf-szűrés, iparági/entitás-alapú fókusz és a nagyobb adatmennyiségek lapozott vizsgálata. Production migráció és deploy nem történt. Részletek: [INTELLIGENCE_GRAPH.md](INTELLIGENCE_GRAPH.md).
+
+
+---
+
+## Prioritási frissítés – 2026-11-27 18:05 CET
+
+A roadmap következő iterációja az üzleti értékhez vezető, ellenőrizhető adatfolyamot priorizálja, nem újabb elszigetelt dashboard-modulokat.
+
+### P0 – Lead Intelligence Center UI-validálás
+- A már elkészült kétpaneles elrendezés böngészős ellenőrzése.
+- Keresés, státuszfilter, rendezés, leadkiválasztás és részletező panel összhangja.
+- Részletek / Források / Döntési előzmények információs hierarchiájának befejezése, ha a képernyőn valóban hiányzik.
+- Reszponzív viselkedés és üres/hiba/jogosultság állapotok.
+- A JARVIS oldalsáv és navigáció érintetlen marad.
+
+### P1 – Grounded lead vertical slice
+- Egy kiválasztott cég kutatása valós, nyilvános forrásokkal.
+- Dossier/snapshot és központi evidence index összhangja.
+- Strukturált research evidence és lead score csak bizonyíték alapján.
+- Forrás-URL, excerpt, megfigyelési idő, confidence és bizonytalanság visszamutatása.
+- Nincs automatikus lead approval vagy outreach.
+
+### P2 – Opportunity Discovery bizonyítása
+- Több cégnél ismétlődő pain hipotézisek minőségének ellenőrzése.
+- Candidate pattern és SaaS draft idempotens létrejötte.
+- Emberi pattern review és indoklás.
+- Téves klaszterezés, duplikáció és kevés bizonyíték kezelése.
+- Fizetési hajlandóságot csak ügyfélinterjú vagy más megfelelő bizonyíték támaszthatja alá.
+
+### P3 – CRM és feladatfolyamat összekapcsolása
+- Lead approval → CRM státusz → interakció → következő teendő.
+- Task javaslat és létrehozás explicit jóváhagyással.
+- Outcome-alapú workflow stage és lezárási ok.
+- CRM esemény és task kapcsolat visszakövethető legyen.
+- Nincs automatikus ügyfélválasz vagy kapcsolatfelvétel.
+
+### P4 – E-mail munkafolyamat lezárása küldés nélkül
+- Jóváhagyott leadhez piszkozat, emberi címzettforrás, külön szerkesztés és jóváhagyás.
+- Consent, suppression és queue eligibility külön állapot.
+- Bejövő válasz kategorizálása csak jelzés; automatikus válaszadás tiltott.
+- Az outbound hard gate maradjon kikapcsolva.
+
+### P5 – Üzemeltetési érettség
+- Auth/JWT/RLS staging ellenőrzés.
+- Worker scheduler és pause/resume.
+- Napi hard budget cap és provider usage accounting.
+- Observability: futások, retry, dead-letter, provider hibák, költség.
+- Production release csak külön migrációs/security/backup review és explicit engedély után.
+
+**Elfogadási elv:** egy fázis csak akkor tekinthető késznek, ha a felület, az adatmodell, a jogosultság, az audit és a hibás/üres állapot is összhangban van. A forráskód-visszaolvasás önmagában nem UI-smoke. Külön tesztfuttatás a jelenlegi felhasználói korlátozás mellett nem indítható; merge és deploy külön engedélyt igényel.

@@ -207,14 +207,15 @@ jobs:
           printf '%s\n' "$summary" | python3 -c '
           import json, sys
           result = json.loads(sys.stdin.read())
-          expected = {"email_drafts", "jarvis_memory", "jarvis_proactive_state", "leads", "logs", "posts", "settings", "tasks"}
+          required = {"email_drafts", "jarvis_memory", "jarvis_proactive_state", "leads", "logs", "posts", "settings", "tasks"}
           actual = set(result.get("tables") or [])
-          if actual != expected:
-              raise SystemExit(f"Restored table inventory mismatch: {sorted(actual)}")
+          missing = required - actual
+          if missing:
+              raise SystemExit(f"Restored core table inventory is incomplete: {sorted(missing)}")
           for table in ("leads", "logs", "settings"):
               if not isinstance(result.get(table), int):
                   raise SystemExit(f"Missing restored row-count check for {table}")
-          print("Separate PostgreSQL 17 restore verified: 8 expected public tables; row counts captured.")
+          print(f"Separate PostgreSQL 17 restore verified: {len(actual)} public tables; all core tables present; row counts captured.")
           '
           echo "## Separate-database restore drill passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Downloaded the encrypted S3 object, decrypted it, verified manifest hashes, and restored it to a fresh PostgreSQL 17 container." >> "$GITHUB_STEP_SUMMARY"

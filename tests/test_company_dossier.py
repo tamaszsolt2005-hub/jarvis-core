@@ -2,7 +2,11 @@ from company_dossier import build_company_dossier, render_company_dossier, stamp
 
 
 def test_company_dossier_keeps_only_grounded_public_business_facts():
-    grounded = {"example.com", "industry.test"}
+    grounded = {
+        "https://www.example.com/products",
+        "https://industry.test/news",
+        "https://example.com/leadership",
+    }
     item = {
         "company_facts": [
             {
@@ -24,6 +28,11 @@ def test_company_dossier_keeps_only_grounded_public_business_facts():
                 "category": "private_personal_data",
                 "fact": "Not an allowed business fact.",
                 "source_url": "https://example.com/about",
+            },
+            {
+                "category": "public_news",
+                "fact": "Same-domain but not grounded at this exact URL.",
+                "source_url": "https://www.example.com/unverified-page",
             },
         ],
         "decision_maker": {
@@ -62,6 +71,7 @@ def test_company_dossier_rejects_untrusted_urls_and_unknown_categories():
                 {"category": "business_model", "fact": "Fact", "source_url": "file:///etc/passwd"},
                 {"category": "unknown", "fact": "Fact", "source_url": "https://example.com"},
                 {"category": "markets", "fact": "Fact", "source_url": "https://localhost/private"},
+                {"category": "markets", "fact": "Fact", "source_url": "http://127.0.0.1/private"},
             ],
             "decision_maker": {
                 "name": "Unverified Person",
@@ -70,7 +80,7 @@ def test_company_dossier_rejects_untrusted_urls_and_unknown_categories():
                 "source_url": "https://not-grounded.test/profile",
             },
         },
-        {"example.com"},
+        {"https://example.com/about"},
     )
     assert dossier == {"facts": [], "decision_maker": {}}
     assert render_company_dossier(dossier) == ""
@@ -101,7 +111,7 @@ def test_company_dossier_snapshot_metadata_is_versioned_and_content_addressed():
             "fact": "Builds industrial software.",
             "source_url": "https://example.com/about",
         }]},
-        {"example.com"},
+        {"https://example.com/about"},
     )
     first = stamp_company_dossier(dossier)
     second = stamp_company_dossier(dossier)
@@ -148,3 +158,42 @@ def test_company_dossier_future_timestamp_is_stale():
 def test_company_dossier_freshness_rejects_invalid_age_configuration(age):
     with pytest.raises(ValueError):
         is_company_dossier_stale({"researched_at": "2026-11-01T00:00:00+00:00"}, max_age_days=age)
+
+
+
+def test_company_dossier_keeps_only_exact_grounded_pain_hypotheses():
+    source = "https://example.com/operations"
+    dossier = build_company_dossier({
+        "pain_hypotheses": [
+            {
+                "statement": "Manual invoice reconciliation may create delays.",
+                "category": "finance",
+                "confidence": 0.62,
+                "source_url": source,
+                "excerpt": "Invoices are reconciled manually and can take several days.",
+            },
+            {
+                "statement": "Unsupported problem",
+                "category": "finance",
+                "confidence": 0.7,
+                "source_url": "https://other.example.com/unverified",
+                "excerpt": "Unsupported excerpt",
+            },
+            {
+                "statement": "Overconfident problem",
+                "category": "finance",
+                "confidence": 0.95,
+                "source_url": source,
+                "excerpt": "Grounded excerpt",
+            },
+        ]
+    }, {source})
+
+    assert len(dossier["pain_hypotheses"]) == 1
+    pain = dossier["pain_hypotheses"][0]
+    assert pain["category"] == "finance"
+    assert pain["confidence"] == 0.62
+    assert pain["evidence"][0]["source_url"] == source
+    assert pain["evidence"][0]["excerpt"] == "Invoices are reconciled manually and can take several days."
+    first = stamp_company_dossier(dossier)
+    assert first["pain_hypotheses"] == dossier["pain_hypotheses"]

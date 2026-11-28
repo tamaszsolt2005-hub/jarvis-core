@@ -94,6 +94,27 @@ def run_company_research_refresh_cycle(
     models = getattr(client, "models", None)
     if not callable(getattr(models, "count_tokens", None)) or not callable(getattr(models, "generate_content", None)):
         raise ValueError("Gemini client must support token counting and content generation")
+    control_rows = _response_rows(
+        db.table("company_research_runtime_control")
+        .select("paused,note")
+        .eq("singleton", True)
+        .limit(1)
+        .execute(),
+        operation="checking company research worker pause state",
+    )
+    if len(control_rows) != 1:
+        raise RuntimeError("Company research worker control state is missing; refusing to enqueue work.")
+    if control_rows[0].get("paused") is True:
+        return {
+            "status": "paused",
+            "scanned_leads": 0,
+            "queued": 0,
+            "processed": 0,
+            "worker_outcomes": {},
+            "pause_note": str(control_rows[0].get("note") or ""),
+            "contact_permission": "unchanged",
+            "outreach": "disabled",
+        }
     leads, latest_dossiers = load_company_research_refresh_inputs(db)
     enqueued = enqueue_company_research_refreshes_with_config(
         _repository(db), leads, latest_dossiers, config=config
@@ -131,7 +152,22 @@ def _repository(db: Any):
     return SupabaseCompanyResearchJobRepository(db)
 
 
+def _schedule_enabled(environ: Any = None) -> bool:
+    """Require an explicit opt-in before the scheduled entrypoint can do any work."""
+    import os
+
+    source = os.environ if environ is None else environ
+    return str(source.get("JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED") or "").strip().lower() == "true"
+
+
 def main() -> None:
+    if not _schedule_enabled():
+        print(json.dumps({
+            "status": "disabled",
+            "reason": "schedule_not_enabled",
+        }, ensure_ascii=False, sort_keys=True))
+        return
+
     from jarvis_common import get_gemini_client, get_model_name, get_service_supabase
 
     config = CompanyResearchRuntimeConfig.from_env()

@@ -23,5 +23,12 @@ CREATE INDEX IF NOT EXISTS company_research_snapshots_domain_time_idx
 ALTER TABLE public.company_research_snapshots ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.company_research_snapshots FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON TABLE public.company_research_snapshots TO service_role;
+GRANT SELECT ON TABLE public.company_research_snapshots TO authenticated;
+DROP POLICY IF EXISTS company_research_snapshots_shared_read ON public.company_research_snapshots;
+CREATE POLICY company_research_snapshots_shared_read
+  ON public.company_research_snapshots
+  FOR SELECT
+  TO authenticated
+  USING ((SELECT auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','operator','reader'));
 
 COMMIT;

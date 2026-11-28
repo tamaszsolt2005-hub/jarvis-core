@@ -64,12 +64,12 @@ SELECT is(
      OR has_table_privilege('anon', relation_name, 'INSERT')
      OR has_table_privilege('anon', relation_name, 'UPDATE')
      OR has_table_privilege('anon', relation_name, 'DELETE')
-     OR has_table_privilege('authenticated', relation_name, 'SELECT')
      OR has_table_privilege('authenticated', relation_name, 'INSERT')
      OR has_table_privilege('authenticated', relation_name, 'UPDATE')
-     OR has_table_privilege('authenticated', relation_name, 'DELETE')),
+     OR has_table_privilege('authenticated', relation_name, 'DELETE')
+     OR NOT has_table_privilege('authenticated', relation_name, 'SELECT')),
   0::bigint,
-  'public API roles cannot access snapshot history'
+  'authenticated can read snapshots but cannot mutate them; anon has no access'
 );
 
 SELECT is(

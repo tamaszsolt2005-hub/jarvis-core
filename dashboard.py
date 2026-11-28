@@ -73,6 +73,13 @@ from safe_http import safe_get, close_response
 from decision_support import decision_support_instructions
 from health_check import run_self_diagnostics
 from company_research_store import get_company_research_history
+from opportunity_evaluator import evaluate_opportunity_candidate
+from intelligence_graph import build_graph_snapshot, to_graphviz_dot
+from lead_review_dashboard import render_lead_review_page
+from lead_customer_dashboard import render_lead_customer_page
+from lead_email_dashboard import render_email_center
+from company_research_ops_dashboard import render_company_research_ops_page
+from lead_research_actions import enqueue_single_lead_research
 
 
 def audit_event(*args: Any, **kwargs: Any) -> bool:
@@ -162,6 +169,7 @@ st.markdown(
     .jarvis-clock { color:#c4d2e8; }
     .jarvis-profile { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; color:white; font-size:1.1rem; font-weight:700; background:linear-gradient(145deg,#176ec4,#0b2e5a); border:1px solid #2879d0; }
     .jarvis-welcome { text-align:center; padding:clamp(78px,11vh,132px) 0 10px; }
+    .jarvis-welcome-mobile-spacer { height:clamp(0px,calc(760px - 100vw),96px); }
     .jarvis-welcome h1 { margin:0 0 10px; color:#f4f7ff; font-size:clamp(2.45rem,4.2vw,3.65rem); font-weight:760; letter-spacing:-.045em; line-height:1.12; }
     .jarvis-welcome p { margin:0; color:#b9c9e2; font-size:clamp(1.25rem,2.1vw,1.8rem); line-height:1.4; }
     .jarvis-welcome-rule { width:min(430px,60%); height:2px; margin:22px auto 0; background:linear-gradient(90deg,transparent,#168bff,#00cfff,#168bff,transparent); box-shadow:0 0 12px rgba(0,145,255,.42); }
@@ -226,7 +234,7 @@ st.markdown(
         .jarvis-sidebar-status { width:220px; left:16px; bottom:16px; }
         .jarvis-topbar { gap:10px; font-size:.82rem; }
         .jarvis-profile { width:36px; height:36px; }
-        .jarvis-welcome { padding:12vh 0 10px; }
+        .jarvis-welcome { padding:clamp(5.5rem,14vh,8rem) 0 10px !important; position:relative; z-index:1; }
         .jarvis-prompts { gap:8px; margin:20px auto 28px; }
         .jarvis-prompt { min-height:46px; padding:0 13px; font-size:.82rem; }
         [data-testid="stBottom"] { padding:.7rem 12px 1rem !important; }
@@ -261,6 +269,66 @@ st.markdown(
 
 
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
+
+
+def _build_crm_task_bridge_rows(
+    lifecycle_rows: list[dict[str, Any]],
+    approved_lead_ids: set[str],
+    leads: list[dict[str, Any]],
+    tasks: list[dict[str, Any]],
+    *,
+    today: Any = None,
+) -> list[dict[str, Any]]:
+    """Build a read-only CRM follow-up view joined to existing lead-linked tasks."""
+    reference_day = today or pd.Timestamp.now(tz="Europe/Budapest").date()
+    lead_names = {
+        str(item.get("id")): str(item.get("company_name") or "Névtelen cég")
+        for item in leads if item.get("id")
+    }
+    linked_tasks: dict[str, list[dict[str, Any]]] = {}
+    for task in tasks:
+        lead_id = str(task.get("lead_id") or "")
+        if lead_id:
+            linked_tasks.setdefault(lead_id, []).append(task)
+
+    rows = []
+    for state in lifecycle_rows:
+        lead_id = str(state.get("lead_id") or "")
+        action = str(state.get("next_action") or "").strip()
+        if not lead_id or lead_id not in approved_lead_ids or not action:
+            continue
+        due_raw = state.get("next_action_due")
+        due_day = None
+        if due_raw:
+            try:
+                due_day = pd.Timestamp(due_raw).date()
+            except (TypeError, ValueError, OverflowError):
+                due_day = None
+        related = linked_tasks.get(lead_id, [])
+        open_related = [
+            item for item in related
+            if str(item.get("status") or "open").strip().casefold()
+            not in {"done", "completed", "complete", "closed", "cancelled", "kész", "befejezett"}
+        ]
+        rows.append({
+            "Cég": lead_names.get(lead_id, "Ismeretlen cég"),
+            "CRM-teendő": action,
+            "Határidő": due_day.isoformat() if due_day else "Nincs",
+            "Állapot": "LEJÁRT" if due_day and due_day < reference_day else "Aktív",
+            "Kapcsolt nyitott feladat": len(open_related),
+            "Feladatcím": " · ".join(
+                str(item.get("title") or "Névtelen feladat") for item in open_related[:3]
+            ) or "Nincs",
+            "Leadazonosító": lead_id,
+        })
+    return sorted(
+        rows,
+        key=lambda item: (
+            0 if item["Állapot"] == "LEJÁRT" else 1,
+            item["Határidő"] if item["Határidő"] != "Nincs" else "9999-12-31",
+            item["Cég"].casefold(),
+        ),
+    )
 
 
 def render_tasks_page(db: Any) -> None:
@@ -371,6 +439,37 @@ def render_tasks_page(db: Any) -> None:
     if lead_status.get("error"):
         st.warning("Az utánkövetési sor nem érhető el; a leadadatok lekérdezése hibával leállt.")
     else:
+        crm_lifecycle_status: dict[str, Any] = {}
+        crm_review_status: dict[str, Any] = {}
+        crm_lifecycle = _safe_rows(
+            db, "lead_customer_lifecycle",
+            "lead_id,stage,next_action,next_action_due,last_interaction_at",
+            1500, status=crm_lifecycle_status,
+        )
+        crm_reviews = _safe_rows(
+            db, "lead_review_states", "lead_id,review_status", 1500,
+            status=crm_review_status,
+        )
+        st.subheader("CRM-teendők és kapcsolt feladatok")
+        if crm_lifecycle_status.get("error") or crm_review_status.get("error"):
+            st.warning("A CRM-teendők összekapcsolása nem teljes: a CRM állapot vagy a jóváhagyási lista nem olvasható.")
+        else:
+            approved_crm_ids = {
+                str(item.get("lead_id")) for item in crm_reviews
+                if item.get("lead_id") and item.get("review_status") == "approved"
+            }
+            crm_task_rows = _build_crm_task_bridge_rows(
+                crm_lifecycle, approved_crm_ids, follow_up_leads, tasks,
+            )
+            if crm_task_rows:
+                st.dataframe(pd.DataFrame(crm_task_rows), width="stretch", hide_index=True)
+                overdue_crm = sum(item["Állapot"] == "LEJÁRT" for item in crm_task_rows)
+                st.caption(
+                    f"{len(crm_task_rows)} jóváhagyott leadhez tartozó CRM-teendő · "
+                    f"{overdue_crm} lejárt · a kapcsolt feladatok csak olvasási egyeztetésre szolgálnak."
+                )
+            else:
+                st.info("Nincs rögzített CRM-következő teendő jóváhagyott leadhez.")
         follow_up_queue = build_follow_up_queue(follow_up_leads, days_ahead=7)
         if follow_up_queue:
             follow_up_rows = [{
@@ -460,6 +559,777 @@ def _safe_research_source_url(value: Any) -> str | None:
         return raw
     except ValueError:
         return None
+
+
+def render_opportunity_center_page(db: Any) -> None:
+    """Evidence-linked opportunity browser with explicit, RBAC-protected approval."""
+    st.title("Opportunity Center")
+    st.caption(
+        "Egyedi cégproblémákból indulunk, majd a több cégnél ismétlődő mintázatokat keressük. "
+        "Az értékelés előnézet; csak hitelesített admin/operator menthet külön jóváhagyással, append-only döntési naplóba."
+    )
+    pains_status: dict[str, Any] = {}
+    patterns_status: dict[str, Any] = {}
+    ideas_status: dict[str, Any] = {}
+    intelligence_status: dict[str, Any] = {}
+    intelligence_records = _safe_rows(
+        db, "intelligence_evidence",
+        "evidence_id,source_domain,source_kind,entity_type,entity_id,lead_id,snapshot_id,source_url,excerpt,evidence_type,observed_at,captured_at,created_at",
+        500, status=intelligence_status,
+    )
+    graph_entities_status: dict[str, Any] = {}
+    graph_relationships_status: dict[str, Any] = {}
+    graph_entities = _safe_rows(
+        db, "intelligence_entities",
+        "id,entity_type,source_id,lead_id,label,summary,status,confidence,metadata,created_at",
+        120, status=graph_entities_status,
+    )
+    graph_relationships = _safe_rows(
+        db, "intelligence_relationships",
+        "source_entity_id,target_entity_id,relationship_type,confidence,provenance,created_at",
+        240, status=graph_relationships_status,
+    )
+    graph_snapshot = build_graph_snapshot(
+        graph_entities, graph_relationships, max_nodes=80, max_edges=180
+    )
+    pains = _safe_rows(
+        db, "business_pain_hypotheses",
+        "id,lead_id,statement,confidence,status,evidence,created_at", 500, status=pains_status,
+    )
+    lead_name_status: dict[str, Any] = {}
+    lead_name_rows = _safe_rows(db, "leads", "id,company_name", 500, status=lead_name_status)
+    lead_names = {
+        str(lead.get("id")): str(lead.get("company_name") or "Névtelen cég")
+        for lead in lead_name_rows if lead.get("id")
+    }
+    patterns = _safe_rows(
+        db, "market_problem_patterns",
+        "id,title,description,confidence,status,created_at", 300, status=patterns_status,
+    )
+    review_events_status: dict[str, Any] = {}
+    review_events = _safe_rows(
+        db, "market_pattern_review_events",
+        "id,market_pattern_id,decision,note,reviewed_by,reviewed_at", 500,
+        status=review_events_status,
+    )
+    review_events_by_pattern: dict[str, list[dict[str, Any]]] = {}
+    for event in review_events:
+        pattern_id = str(event.get("market_pattern_id") or "")
+        if pattern_id:
+            review_events_by_pattern.setdefault(pattern_id, []).append(event)
+    pattern_links_status: dict[str, Any] = {}
+    pattern_links = _safe_rows(
+        db, "market_pattern_pains",
+        "market_pattern_id,company_pain_id", 1500, status=pattern_links_status,
+    )
+    pain_company_by_id = {
+        str(row.get("id")): str(row.get("lead_id"))
+        for row in pains if row.get("id") and row.get("lead_id")
+    }
+    links_by_pattern: dict[str, list[str]] = {}
+    for link in pattern_links:
+        pattern_id = str(link.get("market_pattern_id") or "")
+        pain_id = str(link.get("company_pain_id") or "")
+        if pattern_id and pain_id:
+            links_by_pattern.setdefault(pattern_id, []).append(pain_id)
+    assessments_status: dict[str, Any] = {}
+    assessments = _safe_rows(
+        db, "opportunity_assessments",
+        "id,opportunity_id,market_pattern_id,opportunity_name_snapshot,opportunity_summary_snapshot,market_pattern_title_snapshot,weighted_score,assessment_confidence,evaluator_model,evaluator_version,approved_by,approved_at,created_at",
+        200, status=assessments_status,
+    )
+    # Read only columns present in the core opportunity schema. Optional scoring
+    # fields are displayed via .get() below when a later scoring migration exists.
+    ideas = _safe_rows(
+        db, "saas_opportunities",
+        "id,market_pattern_id,name,summary,status,created_at",
+        300, status=ideas_status,
+    )
+    idea_review_events_status: dict[str, Any] = {}
+    idea_review_events = _safe_rows(
+        db, "saas_opportunity_review_events",
+        "id,opportunity_id,decision,note,reviewed_by,reviewed_at", 500,
+        status=idea_review_events_status,
+    )
+    review_events_by_idea: dict[str, list[dict[str, Any]]] = {}
+    for event in idea_review_events:
+        opportunity_id = str(event.get("opportunity_id") or "")
+        if opportunity_id:
+            review_events_by_idea.setdefault(opportunity_id, []).append(event)
+
+    cols = st.columns(4)
+    cols[0].metric("Forrásolt bizonyítékok", len(intelligence_records) if not intelligence_status.get("error") else "—")
+    cols[1].metric("Cégproblémák", len(pains) if not pains_status.get("error") else "—")
+    cols[2].metric("Piaci mintázatok", len(patterns) if not patterns_status.get("error") else "—")
+    cols[3].metric("SaaS-lehetőségek", len(ideas) if not ideas_status.get("error") else "—")
+
+    unavailable = [
+        label for label, status in (
+            ("Cégprobléma-adattábla", pains_status),
+            ("Piaci mintázat-adattábla", patterns_status),
+            ("SaaS-lehetőség-adattábla", ideas_status),
+        ) if status.get("error")
+    ]
+    if unavailable:
+        st.warning(
+            "Az Opportunity Engine adattáblái még nincsenek elérhető állapotban: "
+            + ", ".join(unavailable)
+            + ". Ez nem üres eredményt jelent; a tárolási séma és jogosultságok külön fejlesztési lépés."
+        )
+
+    intelligence_tab, graph_tab, pain_tab, pattern_tab, idea_tab, evaluation_tab, history_tab, dossier_tab = st.tabs(
+        ["Intelligence áttekintő", "Intelligence Graph", "Cégproblémák", "Ismétlődő mintázatok", "SaaS-ötletek", "Értékelési előnézet", "Döntési előzmények", "Cégdossziék"]
+    )
+    with intelligence_tab:
+        st.subheader("Közös bizonyíték- és forrásnyilvántartás")
+        st.caption(
+            "A Lead-, cégdosszié- és Opportunity-területek strukturált, forrásolt rekordjai "
+            "egy közös, időbélyegzett nézetben. A hipotézisek továbbra sem minősülnek bizonyított ténynek."
+        )
+        if intelligence_status.get("error"):
+            st.warning(
+                "A központi bizonyítéktár még nem olvasható. Ellenőrizd a "
+                "20261127140000_intelligence_evidence_store.sql migrációt és az RLS-jogosultságokat."
+            )
+        elif not intelligence_records:
+            st.info("Még nincs központilag indexelt, forrással alátámasztott bizonyíték.")
+        else:
+            domain_labels = {
+                "lead": "Lead",
+                "company_dossier": "Cégdosszié",
+                "opportunity": "Opportunity",
+            }
+            domain_counts: dict[str, int] = {}
+            for record in intelligence_records:
+                domain = str(record.get("source_domain") or "other")
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            summary_rows = [
+                {"Adatterület": domain_labels.get(domain, domain), "Bizonyítékok": count}
+                for domain, count in sorted(domain_counts.items())
+            ]
+            st.dataframe(pd.DataFrame(summary_rows), width="stretch", hide_index=True)
+            st.caption(
+                f"Az áttekintő legfeljebb 500 rekordot jelenít meg; "
+                f"egyedi források: {len({str(row.get('source_url') or '') for row in intelligence_records})}."
+            )
+            for record in intelligence_records:
+                domain = domain_labels.get(str(record.get("source_domain") or ""), "Egyéb")
+                excerpt = str(record.get("excerpt") or "")
+                with st.expander(f"{domain} · {excerpt[:110] or 'Forrásrekord'}", expanded=False):
+                    st.write(excerpt)
+                    source_url = _safe_research_source_url(record.get("source_url"))
+                    if source_url:
+                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                    st.caption(
+                        f"Jelleg: {record.get('evidence_type') or '—'} · "
+                        f"Forrástípus: {record.get('source_kind') or '—'} · "
+                        f"Megfigyelés: {record.get('observed_at') or '—'} · "
+                        f"Rögzítés: {record.get('captured_at') or record.get('created_at') or '—'}"
+                    )
+                    st.caption(
+                        f"Entitás: {record.get('entity_type') or '—'} / "
+                        f"{record.get('entity_id') or '—'} · "
+                        f"Evidence ID: {record.get('evidence_id') or '—'}"
+                    )
+
+    with graph_tab:
+        st.subheader("Kapcsolati háló")
+        st.caption(
+            "A gráf a meglévő Lead-, cégdosszié-, probléma-, mintázat-, SaaS- és "
+            "jóváhagyási rekordokból épül. Csak tárolt, forrással vagy adatkapcsolattal "
+            "alátámasztott éleket jelenít meg; AI-javaslat önmagában nem válik kapcsolattá."
+        )
+        if graph_entities_status.get("error") or graph_relationships_status.get("error"):
+            st.warning(
+                "Az Intelligence Graph táblái még nem olvashatók. Ellenőrizd a "
+                "20261127150000_intelligence_graph.sql migrációt és az RLS-jogosultságokat."
+            )
+        elif not graph_snapshot["nodes"]:
+            st.info("Még nincs indexelt gráf-entitás. A migráció után az új és meglévő üzleti rekordok automatikusan megjelennek.")
+        else:
+            metric_cols = st.columns(3)
+            metric_cols[0].metric("Entitások", graph_snapshot["node_count"])
+            metric_cols[1].metric("Kapcsolatok", graph_snapshot["edge_count"])
+            metric_cols[2].metric("Megjelenítési korlát", "80 entitás")
+            st.graphviz_chart(to_graphviz_dot(graph_snapshot), use_container_width=True)
+            if graph_snapshot["truncated"]:
+                st.caption("A nézet legfeljebb 80 entitást és 180 kapcsolatot jelenít meg; a gráf teljes adatait nem törli vagy korlátozza.")
+            labels_by_id = {node["id"]: node["label"] for node in graph_snapshot["nodes"]}
+            edge_rows = [
+                {
+                    "Kiinduló entitás": labels_by_id.get(edge["source_entity_id"], edge["source_entity_id"]),
+                    "Kapcsolat": edge["relationship_type"],
+                    "Cél entitás": labels_by_id.get(edge["target_entity_id"], edge["target_entity_id"]),
+                    "Bizonyosság": edge["confidence"],
+                    "Forrás": (edge.get("provenance") or {}).get("source_url", ""),
+                }
+                for edge in graph_snapshot["relationships"]
+            ]
+            if edge_rows:
+                st.dataframe(pd.DataFrame(edge_rows), width="stretch", hide_index=True)
+            node_rows = [
+                {
+                    "Típus": node["entity_type"],
+                    "Név": node["label"],
+                    "Státusz": node["status"] or "—",
+                    "Bizonyosság": node["confidence"],
+                    "Forrás": (node.get("metadata") or {}).get("source_url", ""),
+                }
+                for node in graph_snapshot["nodes"]
+            ]
+            with st.expander("Gráf-entitások részletei", expanded=False):
+                st.dataframe(pd.DataFrame(node_rows), width="stretch", hide_index=True)
+                for node in graph_snapshot["nodes"]:
+                    source_url = _safe_research_source_url(
+                        (node.get("metadata") or {}).get("source_url")
+                    )
+                    if source_url:
+                        st.markdown(f"[{node['label']} – forrás megnyitása]({source_url})")
+
+    with pain_tab:
+        if pains_status.get("error"):
+            st.info("A cégproblémák jelenleg nem olvashatók, mert az adattábla még nincs telepítve.")
+        elif not pains:
+            st.info("Még nincs rögzített problémahipotézis. A JARVIS nem jelenít meg kitalált problémákat.")
+        else:
+            for item in pains:
+                with st.expander(
+                    f"{str(item.get('statement') or 'Névtelen probléma')[:140]} · "
+                    f"{str(item.get('status') or 'ismeretlen státusz')}",
+                    expanded=False,
+                ):
+                    st.write(str(item.get("statement") or ""))
+                    lead_id = str(item.get("lead_id") or "")
+                    st.caption(
+                        f"Confidence: {item.get('confidence', '—')} · "
+                        f"Cég: {lead_names.get(lead_id, lead_id or '—')} · "
+                        f"Azonosító: {item.get('id') or '—'}"
+                    )
+                    evidence = item.get("evidence")
+                    if isinstance(evidence, list) and evidence:
+                        st.markdown("**Bizonyítékok**")
+                        for entry in evidence[:20]:
+                            if not isinstance(entry, dict):
+                                continue
+                            st.write(str(entry.get("excerpt") or ""))
+                            source_url = _safe_research_source_url(entry.get("source_url"))
+                            if source_url:
+                                st.markdown(f"[Forrás megnyitása]({source_url})")
+                            st.caption(
+                                f"Típus: {entry.get('evidence_type') or '—'} · "
+                                f"Megfigyelés: {entry.get('observed_at') or '—'}"
+                            )
+                    else:
+                        st.warning("Ehhez a hipotézishez nincs megjeleníthető bizonyíték.")
+
+    with pattern_tab:
+        if patterns_status.get("error"):
+            st.info("A piaci mintázatok még nem olvashatók; a tárolási séma nincs telepítve.")
+        elif not patterns:
+            st.info("Még nincs több cégen át igazolt vagy vizsgálat alatt álló mintázat.")
+        else:
+            for item in patterns:
+                with st.expander(str(item.get("title") or "Névtelen mintázat"), expanded=False):
+                    st.write(str(item.get("description") or ""))
+                    linked = links_by_pattern.get(str(item.get("id") or ""), [])
+                    linked_companies = {
+                        pain_company_by_id[pain_id]
+                        for pain_id in linked if pain_id in pain_company_by_id
+                    }
+                    st.caption(
+                        f"Státusz: {item.get('status') or '—'} · "
+                        f"Confidence: {item.get('confidence', '—')} · "
+                        f"Kapcsolt problémák: {len(linked)} · "
+                        f"Érintett cégek: {len(linked_companies)}"
+                    )
+                    prior_reviews = review_events_by_pattern.get(str(item.get("id") or ""), [])
+                    if prior_reviews:
+                        st.markdown("**Felülvizsgálati előzmények**")
+                        for event in prior_reviews[:10]:
+                            st.write(
+                                f"{event.get('decision') or '—'} · "
+                                f"{event.get('reviewed_at') or '—'} · "
+                                f"{event.get('note') or ''}"
+                            )
+                    if linked and pains:
+                        st.markdown("**Kapcsolódó cégproblémák**")
+                        linked_set = set(linked)
+                        for pain in pains:
+                            if str(pain.get("id") or "") not in linked_set:
+                                continue
+                            lead_id = str(pain.get("lead_id") or "")
+                            st.write(
+                                f"• {pain.get('statement') or 'Névtelen probléma'} "
+                                f"(cég: {lead_names.get(lead_id, lead_id or '—')}, "
+                                f"confidence: {pain.get('confidence', '—')})"
+                            )
+                    role = str(st.session_state.get("_jarvis_user_role") or "")
+                    can_review_pattern = _auth_login_enabled() and role in {"admin", "operator"}
+                    if can_review_pattern and str(item.get("status") or "") != "rejected":
+                        st.markdown("**Emberi mintázat-felülvizsgálat**")
+                        review_note = st.text_area(
+                            "Indoklás (kötelező, legalább 5 karakter)",
+                            key=f"jarvis_pattern_review_note_{item.get('id')}",
+                            max_chars=2000,
+                        )
+                        review_columns = st.columns(3)
+                        review_actions = [
+                            ("validated", "Mintázat validálása"),
+                            ("under_review", "További vizsgálat"),
+                            ("rejected", "Mintázat elutasítása"),
+                        ]
+                        for column, (decision, label) in zip(review_columns, review_actions):
+                            if column.button(label, key=f"jarvis_pattern_review_{decision}_{item.get('id')}"):
+                                if len(review_note.strip()) < 5:
+                                    st.error("A felülvizsgálati indoklás kötelező, legalább 5 karakter.")
+                                else:
+                                    try:
+                                        db.rpc("review_market_pattern", {
+                                            "p_market_pattern_id": str(item.get("id")),
+                                            "p_decision": decision,
+                                            "p_note": review_note.strip(),
+                                        }).execute()
+                                        st.success("A piaci mintázat döntése és indoklása naplózva lett.")
+                                        st.rerun()
+                                    except Exception as review_exc:
+                                        report_error(
+                                            review_exc, module="dashboard",
+                                            operation="market_pattern_review",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A mintázat felülvizsgálata nem sikerült. Ellenőrizd a jogosultságot és a migrációt.")
+                    elif not _auth_login_enabled():
+                        st.caption("A mintázatot megtekintheted; a döntéshez egyéni Supabase Auth-belépés szükséges.")
+
+    with idea_tab:
+        if ideas_status.get("error"):
+            st.info("A SaaS-ötletek nem olvashatók. Ellenőrizd a tábla elérhetőségét és az alapmezők jogosultságait.")
+        elif not ideas:
+            st.info("Még nincs rögzített SaaS-lehetőség. A rendszer nem minősít hipotézist kész terméknek.")
+        else:
+            for item in ideas:
+                with st.expander(str(item.get("name") or "Névtelen SaaS-ötlet"), expanded=False):
+                    st.write(str(item.get("summary") or ""))
+                    st.caption(
+                        f"Státusz: {item.get('status') or '—'} · "
+                        f"Kapcsolt piaci mintázat: {item.get('market_pattern_id') or '—'}"
+                    )
+                    idea_id = str(item.get("id") or "")
+                    prior_idea_reviews = review_events_by_idea.get(idea_id, [])
+                    if prior_idea_reviews:
+                        with st.expander("SaaS-jelölt felülvizsgálati előzményei", expanded=False):
+                            for event in prior_idea_reviews[:10]:
+                                st.write(
+                                    f"{event.get('decision') or '—'} · "
+                                    f"{event.get('reviewed_at') or '—'} · "
+                                    f"{event.get('note') or ''}"
+                                )
+                    current_idea_status = str(item.get("status") or "draft")
+                    reviewer_role = str(st.session_state.get("_jarvis_user_role") or "")
+                    if idea_review_events_status.get("error"):
+                        st.warning("A SaaS-jelölt felülvizsgálati workflow nincs telepítve vagy nem olvasható; döntést nem indítok.")
+                    elif current_idea_status == "rejected":
+                        st.caption("Az elutasított SaaS-jelölt lezárt állapotú; nem nyitható újra.")
+                    elif _auth_login_enabled() and reviewer_role in {"admin", "operator"}:
+                        review_note = st.text_area(
+                            "Felülvizsgálati indoklás",
+                            key=f"jarvis_saas_review_note_{idea_id}",
+                            max_chars=2000,
+                            height=80,
+                        )
+                        review_columns = st.columns(3)
+                        review_actions = [
+                            ("under_review", "Vizsgálat alá helyezés"),
+                            ("shortlisted", "Shortlist"),
+                            ("rejected", "Jelölt elutasítása"),
+                        ]
+                        for column, (decision, label) in zip(review_columns, review_actions):
+                            if column.button(
+                                label,
+                                key=f"jarvis_saas_review_{decision}_{idea_id}",
+                            ):
+                                if len(review_note.strip()) < 5:
+                                    st.error("A felülvizsgálati indoklás kötelező, legalább 5 karakter.")
+                                else:
+                                    try:
+                                        db.rpc("review_saas_opportunity", {
+                                            "p_opportunity_id": idea_id,
+                                            "p_decision": decision,
+                                            "p_note": review_note.strip(),
+                                        }).execute()
+                                        st.success("A SaaS-jelölt döntése és indoklása naplózva lett.")
+                                        st.rerun()
+                                    except Exception as review_exc:
+                                        report_error(
+                                            review_exc, module="dashboard",
+                                            operation="saas_opportunity_review",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A SaaS-jelölt felülvizsgálata nem sikerült. Ellenőrizd a jogosultságot és a migrációt.")
+                    elif not _auth_login_enabled():
+                        st.caption("A SaaS-jelölt megtekinthető; a felülvizsgálathoz egyéni Supabase Auth-belépés szükséges.")
+                    else:
+                        st.caption("A SaaS-jelöltet megtekintheted, de felülvizsgálni csak admin vagy operator szerepkörrel lehet.")
+                    scoring_status = str(item.get("scoring_status") or "insufficient_evidence")
+                    if scoring_status == "scored" and item.get("weighted_score") is not None:
+                        st.metric("Magyarázható üzleti pontszám", f"{float(item['weighted_score']):.2f}/100")
+                        st.caption(f"Értékelés bizonyossága: {item.get('assessment_confidence', '—')}")
+                        rationale = item.get("score_rationale")
+                        if isinstance(rationale, dict):
+                            for dimension, explanation in rationale.items():
+                                if isinstance(explanation, str) and explanation.strip():
+                                    st.write(f"**{dimension}:** {explanation}")
+                        score_evidence = item.get("score_evidence")
+                        if isinstance(score_evidence, dict):
+                            st.markdown("**Pontozáshoz felhasznált források**")
+                            dimension_labels = {
+                                "problem_evidence": "Probléma bizonyítottsága",
+                                "business_value": "Üzleti érték",
+                                "willingness_to_pay": "Fizetési hajlandóság",
+                                "feasibility": "Megvalósíthatóság",
+                                "reusability": "Újraértékesíthetőség",
+                                "risk": "Kockázat",
+                            }
+                            for dimension, references in score_evidence.items():
+                                if not isinstance(references, list):
+                                    continue
+                                st.markdown(f"**{dimension_labels.get(dimension, dimension)}**")
+                                for reference in references[:20]:
+                                    if not isinstance(reference, dict):
+                                        continue
+                                    excerpt = str(reference.get("excerpt") or "").strip()
+                                    if excerpt:
+                                        st.write(excerpt)
+                                    source_url = _safe_research_source_url(reference.get("source_url"))
+                                    if source_url:
+                                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                                    st.caption(
+                                        f"Cégprobléma: {reference.get('pain_hypothesis_id') or '—'} · "
+                                        f"Típus: {reference.get('evidence_type') or '—'} · "
+                                        f"Megfigyelés: {reference.get('observed_at') or '—'}"
+                                    )
+                    else:
+                        st.info(
+                            "Nincs elég bizonyíték a megbízható pontozáshoz. "
+                            "A rendszer nem helyettesíti a hiányzó adatokat nullával."
+                        )
+
+    with evaluation_tab:
+        st.subheader("Forrásalapú SaaS-értékelés")
+        st.caption(
+            "A JARVIS csak validált, legalább két különböző cég által alátámasztott "
+            "mintázatot értékel. A modell javaslatot készít; sem pontszámot, sem státuszt "
+            "nem ment el automatikusan."
+        )
+        validated_patterns = [
+            item for item in patterns
+            if str(item.get("status") or "").casefold() == "validated"
+            and item.get("id")
+        ]
+        if pains_status.get("error") or patterns_status.get("error") or ideas_status.get("error") or pattern_links_status.get("error"):
+            st.warning("Az értékeléshez szükséges valamelyik adatforrás nem olvasható. Előbb az adatkapcsolatot kell helyreállítani.")
+        elif not validated_patterns:
+            st.info("Nincs validált piaci mintázat. Az értékelő addig nem készít pontszámot.")
+        else:
+            pattern_labels = {
+                str(item["id"]): str(item.get("title") or item["id"])
+                for item in validated_patterns
+            }
+            selected_pattern_id = st.selectbox(
+                "Validált piaci mintázat",
+                list(pattern_labels),
+                format_func=lambda value: pattern_labels.get(str(value), str(value)),
+                key="jarvis_opportunity_eval_pattern",
+            )
+            selected_pattern = next(
+                item for item in validated_patterns
+                if str(item.get("id")) == str(selected_pattern_id)
+            )
+            linked_ids = list(dict.fromkeys(
+                links_by_pattern.get(str(selected_pattern_id), [])
+            ))
+            linked_pains = [
+                item for item in pains
+                if str(item.get("id") or "") in set(linked_ids)
+            ]
+            linked_company_ids = {
+                str(item.get("lead_id") or "")
+                for item in linked_pains if item.get("lead_id")
+            }
+            st.caption(
+                f"Kapcsolt problémák: {len(linked_pains)} · "
+                f"különböző cégek: {len(linked_company_ids)}"
+            )
+            candidate_rows = [
+                item for item in ideas
+                if str(item.get("market_pattern_id") or "") == str(selected_pattern_id)
+                and str(item.get("status") or "draft") == "shortlisted"
+                and item.get("id") and item.get("name") and item.get("summary")
+            ]
+            if len(linked_company_ids) < 2:
+                st.warning("Ehhez a mintázathoz nem érhető el legalább két különböző cégből származó probléma. Értékelés nem indítható.")
+            elif not candidate_rows:
+                st.info("Ehhez a mintázathoz még nincs shortlistelt SaaS-jelölt. Előbb az admin/operator felülvizsgálati részen kell shortlistre helyezni.")
+            else:
+                candidate_labels = {
+                    str(item["id"]): str(item.get("name") or item["id"])
+                    for item in candidate_rows
+                }
+                selected_candidate_id = st.selectbox(
+                    "SaaS-jelölt",
+                    list(candidate_labels),
+                    format_func=lambda value: candidate_labels.get(str(value), str(value)),
+                    key="jarvis_opportunity_eval_candidate",
+                )
+                selected_candidate = next(
+                    item for item in candidate_rows
+                    if str(item.get("id")) == str(selected_candidate_id)
+                )
+                if st.button(
+                    "Értékelési előnézet készítése",
+                    key="jarvis_opportunity_eval_run",
+                    type="primary",
+                ):
+                    pain_payload = []
+                    for pain in linked_pains:
+                        evidence_items = pain.get("evidence")
+                        pain_payload.append({
+                            "id": str(pain.get("id") or ""),
+                            "lead_id": str(pain.get("lead_id") or ""),
+                            "statement": str(pain.get("statement") or ""),
+                            "confidence": pain.get("confidence"),
+                            "status": str(pain.get("status") or "hypothesis"),
+                            "created_at": pain.get("created_at"),
+                            "evidence": evidence_items if isinstance(evidence_items, list) else [],
+                        })
+                    pattern_payload = {
+                        "id": str(selected_pattern.get("id") or ""),
+                        "title": str(selected_pattern.get("title") or ""),
+                        "company_pain_ids": [str(item.get("id") or "") for item in linked_pains],
+                        "confidence": selected_pattern.get("confidence"),
+                        "status": str(selected_pattern.get("status") or ""),
+                    }
+                    candidate_status = str(selected_candidate.get("status") or "draft")
+                    if candidate_status not in {"draft", "under_review", "shortlisted", "rejected"}:
+                        candidate_status = "draft"
+                    candidate_payload = {
+                        "id": str(selected_candidate.get("id") or ""),
+                        "market_pattern_id": str(selected_candidate.get("market_pattern_id") or ""),
+                        "name": str(selected_candidate.get("name") or ""),
+                        "summary": str(selected_candidate.get("summary") or ""),
+                        "status": candidate_status,
+                    }
+                    try:
+                        with st.spinner("A JARVIS ellenőrzi a forrásokat és elkészíti az értékelési javaslatot…"):
+                            def _opportunity_provider(prompt: str) -> dict[str, Any]:
+                                raw = generate_text(prompt, max_output_tokens=4096).strip()
+                                if raw.startswith("```"):
+                                    raw = raw.split("\n", 1)[-1]
+                                    if raw.rstrip().endswith("```"):
+                                        raw = raw.rstrip()[:-3].strip()
+                                parsed = json.loads(raw)
+                                if not isinstance(parsed, dict):
+                                    raise ValueError("A modell válasza nem JSON objektum.")
+                                return parsed
+
+                            preview = evaluate_opportunity_candidate(
+                                market_pattern=pattern_payload,
+                                candidate=candidate_payload,
+                                company_pains=pain_payload,
+                                provider=_opportunity_provider,
+                            )
+                        st.session_state["jarvis_opportunity_eval_preview"] = {
+                            "pattern_id": str(selected_pattern_id),
+                            "candidate_id": str(selected_candidate_id),
+                            "approval_key": str(uuid4()),
+                            "result": preview,
+                        }
+                    except (ValueError, json.JSONDecodeError) as exc:
+                        st.error(f"Az értékelés nem fogadható el: {exc}")
+                    except Exception as exc:
+                        report_error(
+                            exc, module="dashboard",
+                            operation="opportunity_evaluation_preview",
+                            severity="warning", db=db,
+                        )
+                        st.error("Az értékelési előnézet most nem készült el. Az adatbázis nem változott.")
+
+                stored_preview = st.session_state.get("jarvis_opportunity_eval_preview")
+                if (
+                    isinstance(stored_preview, dict)
+                    and stored_preview.get("pattern_id") == str(selected_pattern_id)
+                    and stored_preview.get("candidate_id") == str(selected_candidate_id)
+                    and isinstance(stored_preview.get("result"), dict)
+                ):
+                    result = stored_preview["result"]
+                    st.divider()
+                    st.markdown("**Értékelési javaslat**")
+                    st.caption("Jóváhagyott és mentett döntés" if st.session_state.get("jarvis_opportunity_eval_preview", {}).get("persisted") else "Előnézet · nincs mentve · emberi jóváhagyás szükséges")
+                    if result.get("status") == "insufficient_evidence":
+                        st.warning("Nincs elég bizonyíték a megbízható pontozáshoz.")
+                        st.write(str(result.get("reason") or ""))
+                        st.write("Hiányzó dimenziók: " + ", ".join(result.get("missing_dimensions") or []))
+                    elif result.get("status") == "scored":
+                        st.metric("Súlyozott pontszám", f"{float(result['weighted_score']):.2f}/100")
+                        st.caption(f"Értékelési bizonyosság: {float(result['assessment_confidence']):.0%}")
+                        labels = {
+                            "problem_evidence": "Probléma bizonyítottsága",
+                            "business_value": "Üzleti érték",
+                            "willingness_to_pay": "Fizetési hajlandóság",
+                            "feasibility": "Megvalósíthatóság",
+                            "reusability": "Újraértékesíthetőség",
+                            "risk": "Kockázat",
+                        }
+                        scores = result.get("scores") or {}
+                        rationale = result.get("score_rationale") or {}
+                        evidence_map = result.get("score_evidence") or {}
+                        for dimension, label in labels.items():
+                            with st.expander(f"{label} · {scores.get(dimension, '—')}/100", expanded=False):
+                                st.write(str(rationale.get(dimension) or ""))
+                                for reference in evidence_map.get(dimension, [])[:10]:
+                                    st.write(str(reference.get("excerpt") or ""))
+                                    source_url = _safe_research_source_url(reference.get("source_url"))
+                                    if source_url:
+                                        st.markdown(f"[Forrás megnyitása]({source_url})")
+                                    st.caption(
+                                        f"Problémaazonosító: {reference.get('pain_hypothesis_id') or '—'} · "
+                                        f"Típus: {reference.get('evidence_type') or '—'} · "
+                                        f"Megfigyelés: {reference.get('observed_at') or '—'}"
+                                    )
+                    if result.get("status") == "scored":
+                        role = str(st.session_state.get("_jarvis_user_role") or "")
+                        can_approve = _auth_login_enabled() and role in {"admin", "operator"}
+                        if not _auth_login_enabled():
+                            st.warning("A mentéshez egyéni Supabase Auth-belépés szükséges. A megosztott dashboard-jelszó nem ad jóváhagyási jogosultságot.")
+                        elif not can_approve:
+                            st.info("A javaslatot megtekintheted, de jóváhagyni csak admin vagy operator szerepkörrel lehet.")
+                        elif not stored_preview.get("persisted"):
+                            st.warning("A jóváhagyás végleges, append-only döntési rekordot hoz létre. A források és pontszámok pillanatképként kerülnek mentésre.")
+                            if st.button(
+                                "Jóváhagyom és véglegesen mentem",
+                                key=f"jarvis_opportunity_approve_{stored_preview.get('approval_key')}",
+                                type="primary",
+                            ):
+                                try:
+                                    score_values = result["scores"]
+                                    payload = {
+                                        "opportunity_id": str(selected_candidate_id),
+                                        "market_pattern_id": str(selected_pattern_id),
+                                        "idempotency_key": str(stored_preview["approval_key"]),
+                                        "evaluator_model": str(get_model_name())[:120],
+                                        "evaluator_version": "opportunity-evaluator-v1",
+                                        "score_problem_evidence": score_values["problem_evidence"],
+                                        "score_business_value": score_values["business_value"],
+                                        "score_willingness_to_pay": score_values["willingness_to_pay"],
+                                        "score_feasibility": score_values["feasibility"],
+                                        "score_reusability": score_values["reusability"],
+                                        "score_risk": score_values["risk"],
+                                        "assessment_confidence": result["assessment_confidence"],
+                                        "score_rationale": result["score_rationale"],
+                                        "score_evidence": result["score_evidence"],
+                                    }
+                                    db.table("opportunity_assessments").insert(payload).execute()
+                                    stored_preview["persisted"] = True
+                                    st.session_state["jarvis_opportunity_eval_preview"] = stored_preview
+                                    st.success("A jóváhagyott értékelés tartósan rögzítve lett.")
+                                    st.rerun()
+                                except Exception as save_exc:
+                                    # If the server committed but the response was lost,
+                                    # the unique idempotency key makes a retry safe.
+                                    try:
+                                        existing = (
+                                            db.table("opportunity_assessments")
+                                            .select("id,opportunity_id")
+                                            .eq("idempotency_key", str(stored_preview["approval_key"]))
+                                            .limit(1).execute().data or []
+                                        )
+                                    except Exception:
+                                        existing = []
+                                    if existing and str(existing[0].get("opportunity_id")) == str(selected_candidate_id):
+                                        stored_preview["persisted"] = True
+                                        st.session_state["jarvis_opportunity_eval_preview"] = stored_preview
+                                        st.success("Ez az értékelés már korábban rögzítésre került; nem hoztam létre második rekordot.")
+                                    else:
+                                        report_error(
+                                            save_exc, module="dashboard",
+                                            operation="opportunity_assessment_approval",
+                                            severity="error", db=db,
+                                        )
+                                        st.error("A jóváhagyás mentése nem sikerült. Ellenőrizd a jogosultságot és az adatbázis-migrációt; service_role kerülőutat nem használtam.")
+                    if stored_preview.get("persisted"):
+                        st.success("Ez az értékelés már jóváhagyott, tartós döntési rekordként szerepel.")
+                    else:
+                        st.info("Ez csak javaslat. Jóváhagyás és mentés még nem történt.")
+
+    with history_tab:
+        st.subheader("Jóváhagyott értékelések – változtathatatlan előzmények")
+        if assessments_status.get("error"):
+            st.info("A döntési előzmények még nem olvashatók. Ellenőrizd az opportunity_assessments migrációt és az RLS-jogosultságokat.")
+        elif not assessments:
+            st.info("Még nincs elmentett, ember által jóváhagyott értékelés.")
+        else:
+            history_rows = []
+            for item in assessments:
+                history_rows.append({
+                    "Jóváhagyás dátuma": str(item.get("approved_at") or item.get("created_at") or "—"),
+                    "SaaS-jelölt": str(item.get("opportunity_name_snapshot") or item.get("opportunity_id") or "—"),
+                    "Piaci mintázat": str(item.get("market_pattern_title_snapshot") or item.get("market_pattern_id") or "—"),
+                    "Pontszám": item.get("weighted_score"),
+                    "Bizonyosság": item.get("assessment_confidence"),
+                    "Modell": str(item.get("evaluator_model") or "—"),
+                    "Jóváhagyó": str(item.get("approved_by") or "—"),
+                    "Értékelésazonosító": str(item.get("id") or "—"),
+                })
+            st.dataframe(pd.DataFrame(history_rows), width="stretch", hide_index=True)
+            st.caption("Az előzmények legfeljebb 200 rekordot mutatnak; a jóváhagyott értékelések nem szerkeszthetők és nem törölhetők.")
+
+    with dossier_tab:
+        lead_status: dict[str, Any] = {}
+        leads = _safe_rows(db, "leads", "id,company_name,source", 500, status=lead_status)
+        if lead_status.get("error"):
+            st.error("A céglista nem olvasható; az adatforráshibát nem tekintem üres eredménynek.")
+        else:
+            researched = [
+                lead for lead in leads
+                if lead.get("id") and str(lead.get("source") or "").startswith("gemini_google_search_grounding:")
+            ]
+            if not researched:
+                st.info("Még nincs forrásolt cégkutatási dosszié.")
+            else:
+                labels = {
+                    str(lead["id"]): str(lead.get("company_name") or "Névtelen cég")
+                    for lead in researched
+                }
+                selected = st.selectbox(
+                    "Cég kiválasztása", list(labels),
+                    format_func=lambda value: labels.get(str(value), str(value)),
+                    key="jarvis_opportunity_dossier_company",
+                )
+                try:
+                    history = get_company_research_history(db, lead_id=str(selected), limit=20)
+                except Exception as exc:
+                    report_error(
+                        exc, module="dashboard", operation="opportunity_dossier_read",
+                        severity="warning", db=db,
+                    )
+                    st.error("A kiválasztott cég dossziéja nem olvasható.")
+                    return
+                for index, snapshot in enumerate(history):
+                    dossier = snapshot.get("dossier") if isinstance(snapshot, dict) else {}
+                    dossier = dossier if isinstance(dossier, dict) else {}
+                    with st.expander(
+                        f"{snapshot.get('researched_at', 'Ismeretlen dátum')} · "
+                        f"{snapshot.get('company_domain', 'ismeretlen domain')}",
+                        expanded=index == 0,
+                    ):
+                        for fact in dossier.get("facts", [])[:20]:
+                            if not isinstance(fact, dict):
+                                continue
+                            st.markdown(f"**{fact.get('category') or 'Tény'}**")
+                            st.write(str(fact.get("fact") or ""))
+                            url = _safe_research_source_url(fact.get("source_url"))
+                            if url:
+                                st.markdown(f"[Forrás megnyitása]({url})")
 
 
 def render_settings_page() -> None:
@@ -1222,6 +2092,28 @@ def _get_dashboard_supabase():
     return get_legacy_dashboard_supabase()
 
 
+def _enqueue_lead_research(lead_id: str) -> dict[str, Any]:
+    """Authorize a single-lead research enqueue before resolving service credentials."""
+    session = st.session_state.get("_jarvis_auth_session")
+
+    def authorize_research_request(current_session: dict[str, str] | None) -> Any:
+        authorization = get_enforced_user_supabase(
+            current_session,
+            "research.manage",
+            allowed_roles={"admin", "operator"},
+        )
+        if authorization is None:
+            raise PermissionError("An individual admin/operator Auth session is required.")
+        return authorization
+
+    return enqueue_single_lead_research(
+        lead_id,
+        auth_session=session,
+        authorize_user=authorize_research_request,
+        service_client_factory=get_service_supabase,
+    )
+
+
 def authenticated() -> bool:
     now = time.time()
     if _auth_login_enabled():
@@ -1772,6 +2664,24 @@ with st.sidebar:
         type="primary" if current_page == "chat" else "secondary",
         width="stretch",
     )
+    leads_clicked = st.button(
+        "▣   Leadkezelő",
+        key="jarvis_nav_leads",
+        type="primary" if current_page == "leads" else "secondary",
+        width="stretch",
+    )
+    email_center_clicked = st.button(
+        "✉   E-mail központ",
+        key="jarvis_nav_email_center",
+        type="primary" if current_page == "email_center" else "secondary",
+        width="stretch",
+    )
+    customer_clicked = st.button(
+        "♧   Ügyfélkapcsolatok",
+        key="jarvis_nav_customers",
+        type="primary" if current_page == "customers" else "secondary",
+        width="stretch",
+    )
     tasks_clicked = st.button(
         "☑   Feladatok",
         key="jarvis_nav_tasks",
@@ -1788,6 +2698,20 @@ with st.sidebar:
         "⌕   Cégkutatás",
         key="jarvis_nav_research",
         type="primary" if current_page == "research" else "secondary",
+        width="stretch",
+    )
+    research_ops_clicked = False
+    if _auth_login_enabled() and has_permission(st.session_state.get("_jarvis_user_role"), "research.read"):
+        research_ops_clicked = st.button(
+            "⚙   Kutatási műveletek",
+            key="jarvis_nav_research_ops",
+            type="primary" if current_page == "research_ops" else "secondary",
+            width="stretch",
+        )
+    opportunity_clicked = st.button(
+        "✧   Opportunity Center",
+        key="jarvis_nav_opportunities",
+        type="primary" if current_page == "opportunities" else "secondary",
         width="stretch",
     )
     audit_clicked = st.button(
@@ -1813,6 +2737,15 @@ with st.sidebar:
 if chat_clicked:
     st.session_state["jarvis_page"] = "chat"
     st.rerun()
+if leads_clicked:
+    st.session_state["jarvis_page"] = "leads"
+    st.rerun()
+if email_center_clicked:
+    st.session_state["jarvis_page"] = "email_center"
+    st.rerun()
+if customer_clicked:
+    st.session_state["jarvis_page"] = "customers"
+    st.rerun()
 if tasks_clicked:
     st.session_state["jarvis_page"] = "tasks"
     st.rerun()
@@ -1821,6 +2754,12 @@ if analytics_clicked:
     st.rerun()
 if research_clicked:
     st.session_state["jarvis_page"] = "research"
+    st.rerun()
+if research_ops_clicked:
+    st.session_state["jarvis_page"] = "research_ops"
+    st.rerun()
+if opportunity_clicked:
+    st.session_state["jarvis_page"] = "opportunities"
     st.rerun()
 if audit_clicked:
     st.session_state["jarvis_page"] = "audit"
@@ -1832,6 +2771,91 @@ if settings_clicked:
 if st.session_state.get("jarvis_page") == "settings":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     render_settings_page()
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "leads":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        lead_db = st.session_state.get("_jarvis_db")
+        if lead_db is None:
+            lead_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = lead_db
+        lead_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(lead_role, "leads.read"):
+            st.error("A leadek megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_lead_review_page(
+                lead_db,
+                auth_enabled=_auth_login_enabled(),
+                role=lead_role,
+                generate_text_fn=generate_text,
+                model_name_fn=get_model_name,
+                research_fn=_enqueue_lead_research,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_lead_review_page", severity="error", db=lead_db if "lead_db" in locals() else None)
+        st.error("A Leadkezelő oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "email_center":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        email_db = st.session_state.get("_jarvis_db")
+        if email_db is None:
+            email_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = email_db
+        email_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(email_role, "leads.read"):
+            st.error("Az e-mail központ megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_email_center(
+                email_db,
+                auth_enabled=_auth_login_enabled(),
+                role=email_role,
+                generate_text_fn=generate_text,
+                model_name_fn=get_model_name,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_email_center", severity="error", db=email_db if "email_db" in locals() else None)
+        st.error("Az E-mail központ oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "customers":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        customer_db = st.session_state.get("_jarvis_db")
+        if customer_db is None:
+            customer_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = customer_db
+        customer_role = st.session_state.get("_jarvis_user_role")
+        if _auth_login_enabled() and not has_permission(customer_role, "leads.read"):
+            st.error("Az ügyfélkapcsolatok megtekintéséhez nincs megfelelő jogosultság.")
+        else:
+            render_lead_customer_page(
+                customer_db,
+                auth_enabled=_auth_login_enabled(),
+                role=customer_role,
+            )
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_lead_customer_page", severity="error", db=customer_db if "customer_db" in locals() else None)
+        st.error("Az Ügyfélkapcsolatok oldal nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
+    st.stop()
+
+if st.session_state.get("jarvis_page") == "opportunities":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    try:
+        opportunity_db = st.session_state.get("_jarvis_db")
+        if opportunity_db is None:
+            opportunity_db = _get_dashboard_supabase()
+            st.session_state["_jarvis_db"] = opportunity_db
+        render_opportunity_center_page(opportunity_db)
+    except Exception as exc:
+        report_error(exc, module="dashboard", operation="render_opportunity_center_page", severity="error", db=opportunity_db if "opportunity_db" in locals() else None)
+        st.error("Az Opportunity Center nem tudott betöltődni.")
+        st.caption(user_facing_error(exc))
     st.stop()
 
 if st.session_state.get("jarvis_page") == "audit":
@@ -1878,6 +2902,26 @@ if st.session_state.get("jarvis_page") == "analytics":
         st.caption(f"Hibatípus: {type(exc).__name__}. A Chat működését ez nem érinti.")
     st.stop()
 
+if st.session_state.get("jarvis_page") == "research_ops":
+    st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
+    ops_role = st.session_state.get("_jarvis_user_role")
+    if not _auth_login_enabled() or not has_permission(ops_role, "research.read"):
+        st.error("A kutatási műveletek megtekintéséhez ellenőrzött Auth-fiók szükséges.")
+    else:
+        try:
+            ops_db = st.session_state.get("_jarvis_db")
+            if ops_db is None:
+                ops_db = _get_dashboard_supabase()
+                st.session_state["_jarvis_db"] = ops_db
+            render_company_research_ops_page(
+                ops_db, auth_enabled=True, role=ops_role
+            )
+        except Exception as exc:
+            report_error(exc, module="dashboard", operation="render_company_research_ops_page", severity="error")
+            st.error("A Kutatási műveletek oldal nem tudott betöltődni.")
+            st.caption(user_facing_error(exc))
+    st.stop()
+
 if st.session_state.get("jarvis_page") == "research":
     st.markdown('<style>[data-testid="stBottom"] { display:none !important; }</style>', unsafe_allow_html=True)
     try:
@@ -1911,7 +2955,7 @@ render_topbar_clock()
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
-        '<div class="jarvis-welcome">'
+        '<div class="jarvis-welcome" style="padding-top:calc(clamp(78px,11vh,132px) + clamp(0px,calc(760px - 100vw),96px))">'
         '<h1>Üdvözöllek!</h1>'
         '<p>Miben segíthetek ma?</p>'
         '<div class="jarvis-welcome-rule"></div>'

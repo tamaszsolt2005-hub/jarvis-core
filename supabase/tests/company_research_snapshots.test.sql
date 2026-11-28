@@ -18,9 +18,9 @@ BEGIN
 
   IF has_table_privilege('anon', 'public.company_research_snapshots', 'SELECT')
      OR has_table_privilege('anon', 'public.company_research_snapshots', 'INSERT')
-     OR has_table_privilege('authenticated', 'public.company_research_snapshots', 'SELECT')
-     OR has_table_privilege('authenticated', 'public.company_research_snapshots', 'INSERT') THEN
-    RAISE EXCEPTION 'public API roles must not access research snapshots';
+     OR has_table_privilege('authenticated', 'public.company_research_snapshots', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.company_research_snapshots', 'SELECT') THEN
+    RAISE EXCEPTION 'snapshots must be authenticated read-only and never anon-accessible';
   END IF;
 
   IF NOT has_table_privilege('service_role', 'public.company_research_snapshots', 'SELECT')

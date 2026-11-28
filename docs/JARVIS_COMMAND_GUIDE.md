@@ -2,7 +2,7 @@
 
 **Ez a dokumentum azt tanítja meg, mit írj be a JARVIS chatbe, ha konkrét műveletet szeretnél.** A példák a main ágba merge-ölt PR #26–#28 kódjának parser- és routing-szabályaira épülnek. A természetes nyelvű kérdések egy része elemzést indít, de nem minden kifejezés parancs. Ahol külön jóváhagyás szükséges, azt minden esetben feltüntetem.
 
-Kapcsolódó dokumentum: [rendszer- és architektúra-leírás](JARVIS_DOCUMENTATION.md).
+Kapcsolódó dokumentum: [rendszer- és architektúra-leírás](JARVIS_DOCUMENTATION.md). Az Opportunity Center dashboard használatát és jóváhagyási menetét az [Opportunity Center fejezet](#7-opportunity-center--dashboard-hasznalat) és a [részletes Opportunity Engine dokumentáció](OPPORTUNITY_ENGINE.md) írja le.
 
 ## 1. A legfontosabb szabály: javaslat és végrehajtás nem ugyanaz
 
@@ -185,7 +185,22 @@ Példák általános analitikai kérdésre:
 
 Ezek természetes nyelvű elemzési kérések, nem kötött parancsok. A JARVIS az elérhető és releváns adatok alapján válaszol; ha az adatforrás hibás vagy hiányos, azt jeleznie kell.
 
-## 7. Mit nem szabad parancsként kezelni?
+## 7. Opportunity Center – dashboard használat
+
+Az Opportunity Engine nem chat-parancsokkal működik, hanem a Streamlit dashboard külön **Opportunity Center** oldalán.
+
+1. **Cégproblémák:** nézd át a cégekhez kapcsolt hipotéziseket, confidence értékeket, státuszokat és forrásokat. A hipotézis nem bizonyított tény.
+2. **Ismétlődő mintázatok:** validált mintázat csak legalább két különböző cég problémájára támaszkodhat.
+3. **SaaS-ötletek:** a mintázatokhoz kapcsolt termékjelöltek és azok értékelési állapota.
+4. **Értékelési előnézet:** válassz validált mintázatot és az ahhoz kapcsolódó SaaS-jelöltet, majd az „Értékelési előnézet készítése” gombbal indítsd az értékelést. Ez külső Gemini-hívást indíthat, ezért csak tudatosan használd.
+5. **Jóváhagyás:** scored eredménynél hitelesített admin/operator explicit „Jóváhagyom és véglegesen mentem” gombbal rögzítheti a döntést. A mentés végleges, append-only előzményt hoz létre.
+6. **Döntési előzmények:** a korábbi jóváhagyások és pontszámok visszanézhetők, de nem szerkeszthetők.
+
+A reader szerepkör csak olvasási jogosultságot kap. Megosztott dashboard-jelszó vagy anon hozzáférés nem jogosít jóváhagyásra. A preview önmagában nem mentés; insufficient-evidence eredmény nem hagyható jóvá. A migrációkat productionben külön jóváhagyás és felülvizsgálat nélkül nem szabad futtatni.
+
+Részletes technikai leírás: [Opportunity Engine – működés és biztonsági modell](OPPORTUNITY_ENGINE.md).
+
+## 8. Mit nem szabad parancsként kezelni?
 
 - A „küldj e-mailt” kérés nem jelenti azt, hogy az e-mail valóban kimehet. A kimenő küldés kódszinten tiltott.
 - Az utánkövetési sor megjelenése nem indít follow-upot.
@@ -194,7 +209,7 @@ Ezek természetes nyelvű elemzési kérések, nem kötött parancsok. A JARVIS 
 - A „Jóváhagyom” csak az éppen függő, előnézetben megmutatott műveletre vonatkozhat.
 - A tetszőleges, természetes nyelvű mondat nem helyettesíti a strukturált task-parancs mezőit.
 
-## 8. Gyors hibakeresés
+## 9. Gyors hibakeresés
 
 | Helyzet | Mit ellenőrizz? |
 |---|---|

@@ -33,6 +33,14 @@ class Query:
         self.bounds = (start, end)
         return self
 
+    def eq(self, field, value):
+        self.filters.append((field, {value}))
+        return self
+
+    def limit(self, value):
+        self.bounds = (self.bounds[0], min(self.bounds[1], self.bounds[0] + value - 1))
+        return self
+
     def execute(self):
         rows = deepcopy(self.db.tables[self.table_name])
         for field, values in self.filters:
@@ -50,6 +58,9 @@ class FakeDB:
                 {"id": "lead-a", "company_name": "Alpha"},
                 {"id": "lead-b", "company_name": "Beta"},
                 {"id": "lead-c", "company_name": "Gamma"},
+            ],
+            "company_research_runtime_control": [
+                {"singleton": True, "paused": False, "note": "Initial operating state"}
             ],
             "company_research_snapshots": [
                 {"lead_id": "lead-a", "snapshot_id": "a1", "researched_at": "2026-01-01", "dossier": {"version": 1}},
@@ -129,3 +140,130 @@ def test_refresh_cycle_rejects_unbounded_client_before_database_access():
         run_company_research_refresh_cycle(
             object(), client=client, model="gemini-test", config=_runtime_config()
         )
+
+
+def test_refresh_cycle_does_not_enqueue_or_call_provider_when_paused():
+    db = FakeDB()
+    db.tables["company_research_runtime_control"][0]["paused"] = True
+    db.tables["company_research_runtime_control"][0]["note"] = "Scheduled maintenance"
+    result = run_company_research_refresh_cycle(
+        db,
+        client=SimpleNamespace(models=SimpleNamespace(count_tokens=lambda **_: 1, generate_content=lambda **_: None)),
+        model="gemini-test", config=_runtime_config()
+    )
+    assert result["status"] == "paused"
+    assert result["queued"] == 0
+    assert result["processed"] == 0
+    assert result["pause_note"] == "Scheduled maintenance"
+
+
+def test_refresh_cycle_requires_exactly_one_runtime_control_row():
+    db = FakeDB()
+    db.tables["company_research_runtime_control"] = []
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    with pytest.raises(RuntimeError, match="control state is missing"):
+        run_company_research_refresh_cycle(
+            db, client=client, model="gemini-test", config=_runtime_config()
+        )
+
+
+def test_refresh_cycle_enqueues_and_processes_only_until_idle(monkeypatch):
+    import company_research_refresh_job as refresh
+
+    db = FakeDB()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    monkeypatch.setattr(refresh, "_repository", lambda database: database)
+    monkeypatch.setattr(
+        refresh, "enqueue_company_research_refreshes_with_config",
+        lambda repository, leads, snapshots, *, config: [{"id": "job-1"}, {"id": "job-2"}],
+    )
+    outcomes = iter([
+        {"status": "succeeded"},
+        {"status": "retry_wait"},
+        {"status": "idle"},
+    ])
+    calls = []
+
+    def run_worker(repository, **kwargs):
+        calls.append((repository, kwargs))
+        return next(outcomes)
+
+    monkeypatch.setattr(refresh, "run_company_research_worker_with_config", run_worker)
+    result = run_company_research_refresh_cycle(
+        db, client=client, model="gemini-test", config=_runtime_config(),
+        worker_id="test-worker",
+    )
+    assert result["scanned_leads"] == 3
+    assert result["queued"] == 2
+    assert result["processed"] == 2
+    assert result["worker_outcomes"] == {"succeeded": 1, "retry_wait": 1}
+    assert result["contact_permission"] == "unchanged"
+    assert result["outreach"] == "disabled"
+    assert len(calls) == 3
+    assert all(call[1]["worker_id"] == "test-worker" for call in calls)
+
+
+def test_refresh_cycle_uses_generated_worker_identity_when_not_supplied(monkeypatch):
+    import company_research_refresh_job as refresh
+
+    db = FakeDB()
+    client = SimpleNamespace(models=SimpleNamespace(
+        count_tokens=lambda **_: 1, generate_content=lambda **_: None
+    ))
+    monkeypatch.setattr(refresh, "_repository", lambda database: database)
+    monkeypatch.setattr(refresh, "enqueue_company_research_refreshes_with_config", lambda *a, **k: [])
+    seen = []
+
+    def run_worker(_repository, **kwargs):
+        seen.append(kwargs["worker_id"])
+        return {"status": "idle"}
+
+    monkeypatch.setattr(refresh, "run_company_research_worker_with_config", run_worker)
+    run_company_research_refresh_cycle(
+        db, client=client, model="gemini-test", config=_runtime_config()
+    )
+    assert len(seen) == 1
+    assert seen[0].startswith("company-research-")
+
+
+def test_refresh_response_rows_rejects_malformed_database_payloads():
+    from company_research_refresh_job import _response_rows
+
+    with pytest.raises(RuntimeError, match="Unexpected database response"):
+        _response_rows(
+            SimpleNamespace(data=[{"singleton": True, "paused": False}, "bad"]),
+            operation="checking company research worker pause state",
+        )
+    with pytest.raises(RuntimeError, match="Unexpected database response"):
+        _response_rows(
+            SimpleNamespace(data=None),
+            operation="checking company research worker pause state",
+        )
+
+
+
+def test_schedule_flag_requires_explicit_true_value():
+    from company_research_refresh_job import _schedule_enabled
+
+    assert _schedule_enabled({}) is False
+    assert _schedule_enabled({"JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED": "false"}) is False
+    assert _schedule_enabled({"JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED": "TRUE"}) is True
+
+
+def test_scheduled_main_exits_before_loading_secrets_or_clients_when_disabled(monkeypatch, capsys):
+    import company_research_refresh_job as refresh
+
+    monkeypatch.delenv("JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED", raising=False)
+    monkeypatch.setattr(
+        refresh.CompanyResearchRuntimeConfig,
+        "from_env",
+        lambda: pytest.fail("disabled schedule must not load provider configuration"),
+    )
+    refresh.main()
+    import json
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"reason": "schedule_not_enabled", "status": "disabled"}

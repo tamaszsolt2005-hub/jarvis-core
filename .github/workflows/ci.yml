@@ -88,10 +88,21 @@ jobs:
           CREATE ROLE anon NOLOGIN;
           CREATE ROLE authenticated NOLOGIN;
           CREATE ROLE service_role NOLOGIN BYPASSRLS;
+          CREATE SCHEMA auth;
           CREATE SCHEMA extensions;
+          CREATE OR REPLACE FUNCTION auth.jwt()
+          RETURNS jsonb LANGUAGE sql STABLE
+          AS 'SELECT current_setting(''request.jwt.claims'', true)::jsonb';
+          CREATE OR REPLACE FUNCTION auth.uid()
+          RETURNS uuid LANGUAGE sql STABLE
+          AS 'SELECT nullif(current_setting(''request.jwt.claims'', true)::jsonb ->> ''sub'', '''')::uuid';
+          GRANT USAGE ON SCHEMA auth TO authenticated, service_role;
+          GRANT EXECUTE ON FUNCTION auth.jwt() TO authenticated, service_role;
+          GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated, service_role;
           CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
           CREATE EXTENSION pgtap WITH SCHEMA extensions;
           CREATE EXTENSION dblink WITH SCHEMA extensions;
+          GRANT USAGE ON SCHEMA extensions TO authenticated, service_role;
           CREATE TABLE public.leads (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             company_name text NOT NULL,
@@ -109,6 +120,7 @@ jobs:
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126153000_company_research_jobs.sql
           PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126170000_company_research_daily_hard_budget_cap.sql
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127220000_company_research_worker_ops.sql
       - name: Run snapshot, worker lifecycle/quota and true multi-session race tests
         shell: bash
         run: |
@@ -153,6 +165,14 @@ jobs:
             exit 1
           fi
           grep -q '1..14' <<< "$concurrency_output"
+          worker_ops_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$db_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_worker_ops.test.sql)"
+          printf '%s\n' "$worker_ops_output"
+          if grep -q '^not ok ' <<< "$worker_ops_output"; then
+            echo "pgTAP reported failed company research worker operations assertions."
+            exit 1
+          fi
+          grep -q '1..15' <<< "$worker_ops_output"
+          PGPASSWORD=postgres psql "$db_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127220000_company_research_worker_ops.sql
 
   backup-restore-integration:
     runs-on: ubuntu-24.04
@@ -191,6 +211,13 @@ jobs:
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          # GitHub-hosted Ubuntu images may include a Microsoft feed that intermittently returns 403.
+          # It is unrelated to these packages; disable only that feed for this ephemeral runner.
+          for source_file in /etc/apt/sources.list.d/*; do
+            if [ -f "$source_file" ] && sudo grep -q 'packages.microsoft.com/ubuntu/24.04/prod' "$source_file"; then
+              sudo mv "$source_file" "${source_file}.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-17 age
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
@@ -379,8 +406,30 @@ jobs:
           audit_url="postgresql://postgres:postgres@127.0.0.1:5432/audit_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres audit_test
           cat > "$RUNNER_TEMP/audit-test-setup.sql" <<'SQL'
+          DO $roles$
+          BEGIN
+            CREATE ROLE anon NOLOGIN;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
+          DO $roles$
+          BEGIN
+            CREATE ROLE authenticated NOLOGIN;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
+          DO $roles$
+          BEGIN
+            CREATE ROLE service_role NOLOGIN BYPASSRLS;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $roles$;
           CREATE SCHEMA auth;
           CREATE SCHEMA extensions;
+          CREATE TABLE auth.users (
+            id uuid PRIMARY KEY,
+            email text UNIQUE,
+            confirmed_at timestamptz,
+            raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+            raw_app_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
+          );
           CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
           CREATE EXTENSION pgtap;
           CREATE OR REPLACE FUNCTION auth.jwt()
@@ -609,6 +658,128 @@ jobs:
           # Install and verify append-only, service-role-only company dossier history.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261126140000_company_research_snapshot_history.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/company_research_snapshots.test.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
+          opportunity_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_engine_core.test.sql)"
+          printf '%s\n' "$opportunity_output"
+          if grep -q '^not ok ' <<< "$opportunity_output"; then
+            echo "pgTAP reported failed Opportunity Engine schema/security assertions."
+            exit 1
+          fi
+          grep -q '1..18' <<< "$opportunity_output"
+          # Replay once to verify migration idempotence in the isolated audit database.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127100000_opportunity_engine_core.sql
+          # Add idempotent company-pain and cross-company candidate discovery keys.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127190000_cross_company_pattern_discovery.sql
+          discovery_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/cross_company_pattern_discovery.test.sql)"
+          printf '%s\n' "$discovery_output"
+          if grep -q '^not ok ' <<< "$discovery_output"; then
+            echo "pgTAP reported failed cross-company pattern discovery assertions."
+            exit 1
+          fi
+          grep -q '1..3' <<< "$discovery_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127190000_cross_company_pattern_discovery.sql
+          # Add authenticated, append-only human review for market pattern candidates.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127200000_market_pattern_review_workflow.sql
+          market_review_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/market_pattern_review_workflow.test.sql)"
+          printf '%s\n' "$market_review_output"
+          if grep -q '^not ok ' <<< "$market_review_output"; then
+            echo "pgTAP reported failed market pattern review assertions."
+            exit 1
+          fi
+          grep -q '1..8' <<< "$market_review_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127200000_market_pattern_review_workflow.sql
+          # Install the approved-lead state required by the CRM lifecycle gate.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127160000_lead_review_workflow.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127160000_lead_review_workflow.sql
+          # Add the human-controlled CRM lifecycle and interaction history.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127210000_lead_customer_lifecycle.sql
+          crm_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/lead_customer_lifecycle.test.sql)"
+          printf '%s\n' "$crm_output"
+          if grep -q '^not ok ' <<< "$crm_output"; then
+            echo "pgTAP reported failed CRM lifecycle assertions."
+            exit 1
+          fi
+          grep -q '1..8' <<< "$crm_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127210000_lead_customer_lifecycle.sql
+          # Add secure, Auth-backed CRM owner assignment and verify its authorization/audit contract.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128120000_crm_owner_assignment.sql
+          crm_owner_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/crm_owner_assignment.test.sql)"
+          printf '%s\\n' "$crm_owner_output"
+          if grep -q '^not ok ' <<< "$crm_owner_output"; then
+            echo "pgTAP reported failed CRM owner assignment assertions."
+            exit 1
+          fi
+          grep -q '1..12' <<< "$crm_owner_output"
+          # Replay to prove the additive owner schema and RPCs are idempotent.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128120000_crm_owner_assignment.sql
+          # Add idempotent inbound email-to-CRM lifecycle events.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128130000_crm_inbound_reply_events.sql
+          crm_inbound_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/crm_inbound_reply_events.test.sql)"
+          printf '%s\\n' "$crm_inbound_output"
+          if grep -q '^not ok ' <<< "$crm_inbound_output"; then
+            echo "pgTAP reported failed CRM inbound reply assertions."
+            exit 1
+          fi
+          grep -q '1..10' <<< "$crm_inbound_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128130000_crm_inbound_reply_events.sql
+          # Add evidence-gated explainable opportunity scoring; replay for idempotence.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
+          scoring_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_scoring.test.sql)"
+          printf '%s\n' "$scoring_output"
+          if grep -q '^not ok ' <<< "$scoring_output"; then
+            echo "pgTAP reported failed Opportunity scoring assertions."
+            exit 1
+          fi
+          grep -q '1..9' <<< "$scoring_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
+          # Require source-linked evidence on every scored opportunity; replay for idempotence.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127120000_opportunity_score_evidence.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127120000_opportunity_score_evidence.sql
+          # Add authenticated, append-only human approval history and verify it.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
+          # Install the rejected-candidate assessment guard before its regression assertions.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128100000_reject_assessments_for_rejected_opportunities.sql
+          approval_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_assessment_approvals.test.sql)"
+          printf '%s\n' "$approval_output"
+          if grep -q '^not ok ' <<< "$approval_output"; then
+            echo "pgTAP reported failed Opportunity approval assertions."
+            exit 1
+          fi
+          grep -q '1..13' <<< "$approval_output"
+          # Replay both migrations to verify idempotence and preserve the guard.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128100000_reject_assessments_for_rejected_opportunities.sql
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
+          # Install and verify the authenticated SaaS opportunity review lifecycle.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128110000_saas_opportunity_review_workflow.sql
+          saas_review_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/saas_opportunity_review.test.sql)"
+          printf '%s\n' "$saas_review_output"
+          if grep -q '^not ok ' <<< "$saas_review_output"; then
+            echo "pgTAP reported failed SaaS opportunity review assertions."
+            exit 1
+          fi
+          grep -q '1..8' <<< "$saas_review_output"
+          # Replay the review migration to verify idempotence and preserve review history.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128110000_saas_opportunity_review_workflow.sql
+          # Persist canonical source evidence across Lead, dossier and Opportunity domains.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
+          intelligence_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/intelligence_evidence_store.test.sql)"
+          printf '%s\n' "$intelligence_output"
+          if grep -q '^not ok ' <<< "$intelligence_output"; then
+            echo "pgTAP reported failed shared Intelligence evidence assertions."
+            exit 1
+          fi
+          grep -q '1..12' <<< "$intelligence_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
+          # Build the canonical entity/relationship graph over the shared evidence and Opportunity records.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127150000_intelligence_graph.sql
+          graph_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/intelligence_graph.test.sql)"
+          printf '%s\n' "$graph_output"
+          if grep -q '^not ok ' <<< "$graph_output"; then
+            echo "pgTAP reported failed Intelligence Graph assertions."
+            exit 1
+          fi
+          grep -q '1..24' <<< "$graph_output"
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127150000_intelligence_graph.sql
           # Prove duplicate legacy rows stop the migration without modifying data.
           preflight_url="postgresql://postgres:postgres@127.0.0.1:5432/lead_email_preflight_test"
           PGPASSWORD=postgres createdb --host 127.0.0.1 --username postgres lead_email_preflight_test

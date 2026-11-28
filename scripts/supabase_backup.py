@@ -155,6 +155,34 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _extract_public_table_names(schema_sql: str) -> list[str]:
+    """Read public table names from pg_dump's schema-only SQL."""
+    pattern = re.compile(
+        r'^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?'
+        r'(?:"?public"?\.)"?(?P<name>[A-Za-z_][A-Za-z0-9_$]*)"?'
+        r'\s*(?:\(|PARTITION\s+OF\b)',
+        re.IGNORECASE | re.MULTILINE,
+    )
+    return sorted({match.group("name") for match in pattern.finditer(schema_sql)})
+
+
+def _local_supabase_auth_compatibility_sql() -> str:
+    """Supply only the Supabase auth helpers needed for an isolated local restore."""
+    return (
+        "-- Local restore compatibility only; never applied to a Supabase target.\n"
+        "CREATE SCHEMA IF NOT EXISTS auth;\n"
+        "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid "
+        "LANGUAGE sql STABLE SET search_path = pg_catalog "
+        "AS $auth_uid$ SELECT NULL::uuid $auth_uid$;\n"
+        "CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb "
+        "LANGUAGE sql STABLE SET search_path = pg_catalog "
+        "AS $auth_jwt$ SELECT '{}'::jsonb $auth_jwt$;\n"
+        "GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;\n"
+        "GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;\n"
+        "GRANT EXECUTE ON FUNCTION auth.jwt() TO anon, authenticated, service_role;\n"
+    )
+
+
 def create_backup(output_dir: Path) -> Path:
     db_url = os.environ.get("SUPABASE_DB_URL", "")
     recipient = os.environ.get("BACKUP_AGE_RECIPIENT", "")
@@ -370,8 +398,10 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
         combined = work / "restore.sql"
         schema_text = (work / "schema.sql").read_text(encoding="utf-8")
         data_text = (work / "data.sql").read_text(encoding="utf-8")
+        auth_compatibility = _local_supabase_auth_compatibility_sql() if local_test else ""
         combined.write_text(
-            "-- Restrict default table privileges before restoring the public schema." + chr(10)
+            auth_compatibility
+            + "-- Restrict default table privileges before restoring the public schema." + chr(10)
             + "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;" + chr(10)
             + "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;" + chr(10)
             + _restore_sql_text(schema_text, data_text),
@@ -383,6 +413,23 @@ def restore_backup(archive_path: Path, target_ref: str, confirmed: bool = False)
             "--file", str(combined),
             "--dbname", safe_url,
         ], env=db_env)
+
+        expected_tables = set(manifest.get("public_tables") or _extract_public_table_names(schema_text))
+        if not expected_tables:
+            raise BackupError("A mentés public tábláinak leltára hiányzik.")
+        restored_tables = run_checked([
+            "psql", "--no-psqlrc", "--tuples-only", "--no-align",
+            "--command",
+            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;",
+            "--dbname", safe_url,
+        ], env=db_env)
+        actual_tables = {line.strip() for line in restored_tables.splitlines() if line.strip()}
+        if actual_tables != expected_tables:
+            missing = sorted(expected_tables - actual_tables)
+            unexpected = sorted(actual_tables - expected_tables)
+            raise BackupError(
+                f"A visszaállított public táblaleltár eltér (hiányzó: {missing}; többlet: {unexpected})."
+            )
 
 
 def main() -> int:

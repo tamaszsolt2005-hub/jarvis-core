@@ -39,10 +39,15 @@ CREATE TABLE IF NOT EXISTS public.company_research_budget_reservations (
   budget_date date NOT NULL,
   reserved_cost_microusd bigint NOT NULL CHECK (reserved_cost_microusd >= 0),
   actual_cost_microusd bigint CHECK (actual_cost_microusd IS NULL OR actual_cost_microusd >= 0),
+  daily_budget_microusd bigint CHECK (daily_budget_microusd IS NULL OR daily_budget_microusd > 0),
   reservation_status text NOT NULL DEFAULT 'reserved'
     CHECK (reservation_status IN ('reserved', 'settled')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.company_research_budget_reservations
+  ADD COLUMN IF NOT EXISTS daily_budget_microusd bigint
+  CHECK (daily_budget_microusd IS NULL OR daily_budget_microusd > 0);
+
 CREATE INDEX IF NOT EXISTS company_research_budget_reservations_daily_idx
   ON public.company_research_budget_reservations (budget_date);
 
@@ -170,9 +175,9 @@ BEGIN
   ) RETURNING * INTO v_existing;
 
   INSERT INTO public.company_research_budget_reservations (
-    operation_id, budget_date, reserved_cost_microusd
+    operation_id, budget_date, reserved_cost_microusd, daily_budget_microusd
   ) VALUES (
-    v_existing.operation_id, v_budget_date, p_estimated_cost_microusd
+    v_existing.operation_id, v_budget_date, p_estimated_cost_microusd, p_daily_budget_microusd
   );
 
   INSERT INTO public.company_research_job_audit (
@@ -304,6 +309,10 @@ SET search_path = ''
 AS $$
 DECLARE
   v_transition public.company_research_jobs%ROWTYPE;
+  v_budget_date date;
+  v_daily_budget bigint;
+  v_committed_cost bigint;
+  v_budget_overrun bigint := 0;
 BEGIN
   IF p_actual_cost_microusd IS NOT NULL AND p_actual_cost_microusd < 0 THEN
     RAISE EXCEPTION 'invalid actual research cost';
@@ -322,16 +331,29 @@ BEGIN
       SET reserved_cost_microusd = p_actual_cost_microusd,
           actual_cost_microusd = p_actual_cost_microusd,
           reservation_status = 'settled'
-      WHERE operation_id = p_operation_id AND reservation_status = 'reserved';
+      WHERE operation_id = p_operation_id AND reservation_status = 'reserved'
+      RETURNING budget_date, daily_budget_microusd
+      INTO v_budget_date, v_daily_budget;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'research_budget_reservation_missing_or_settled';
+      END IF;
+      SELECT COALESCE(sum(reserved_cost_microusd), 0)
+      INTO v_committed_cost
+      FROM public.company_research_budget_reservations
+      WHERE budget_date = v_budget_date;
+      IF v_daily_budget IS NOT NULL THEN
+        v_budget_overrun := GREATEST(0, v_committed_cost - v_daily_budget);
       END IF;
     END IF;
     INSERT INTO public.company_research_job_audit (operation_id, event_type, worker_id, metadata)
     VALUES (
       p_operation_id, 'succeeded', p_worker_id,
       CASE WHEN p_actual_cost_microusd IS NULL THEN '{}'::jsonb
-           ELSE jsonb_build_object('actual_cost_microusd', p_actual_cost_microusd) END
+           ELSE jsonb_build_object(
+             'actual_cost_microusd', p_actual_cost_microusd,
+             'daily_committed_cost_microusd', v_committed_cost,
+             'daily_budget_overrun_microusd', v_budget_overrun
+           ) END
     );
     RETURN NEXT v_transition;
   END IF;

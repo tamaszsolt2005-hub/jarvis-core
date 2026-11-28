@@ -1,0 +1,145 @@
+"""Explicit, authenticated enqueue path for a single existing lead research refresh.
+
+This module never starts a worker or calls an external provider. Privileged
+storage is resolved only after a fresh Supabase Auth + RBAC authorization.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from company_research_config import CompanyResearchRuntimeConfig
+from company_research_job_repository import SupabaseCompanyResearchJobRepository
+from company_research_refresh_queue import enqueue_company_research_refreshes
+
+
+class LeadResearchRequestError(RuntimeError):
+    """Raised when a single-lead research request cannot be safely queued."""
+
+
+def enqueue_single_lead_research(
+    lead_id: str,
+    *,
+    auth_session: dict[str, str] | None,
+    authorize_user: Callable[[dict[str, str] | None], Any],
+    service_client_factory: Callable[[], Any],
+) -> dict[str, Any]:
+    """Authorize admin/operator, then enqueue one existing lead with DB quotas.
+
+    The caller must provide an authorization callback that revalidates the
+    current Auth session and the research.manage permission. The service client
+    is deliberately created only after that callback succeeds.
+    """
+    normalized_id = str(lead_id or "").strip()
+    if not normalized_id or len(normalized_id) > 64:
+        raise LeadResearchRequestError("invalid_lead_id")
+
+    authorization = authorize_user(auth_session)
+    if authorization is None:
+        raise PermissionError("research_manage_permission_required")
+
+    # The privileged client is created only after the fresh Auth/RBAC check.
+    db = service_client_factory()
+
+    lead_response = (
+        db.table("leads")
+        .select("*")
+        .eq("id", normalized_id)
+        .limit(1)
+        .execute()
+    )
+    lead_rows = getattr(lead_response, "data", None)
+    if not isinstance(lead_rows, list) or len(lead_rows) != 1 or not isinstance(lead_rows[0], dict):
+        raise LeadResearchRequestError("lead_not_found_or_unavailable")
+    lead = lead_rows[0]
+    if not str(lead.get("company_name") or "").strip():
+        raise LeadResearchRequestError("lead_company_name_missing")
+
+    latest_job_response = (
+        db.table("company_research_jobs")
+        .select("operation_id,status,created_at,job_id")
+        .eq("lead_id", normalized_id)
+        .order("created_at", desc=True)
+        .order("job_id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    latest_job_rows = getattr(latest_job_response, "data", None)
+    if not isinstance(latest_job_rows, list):
+        raise LeadResearchRequestError("latest_job_state_unavailable")
+    if latest_job_rows and not isinstance(latest_job_rows[0], dict):
+        raise LeadResearchRequestError("latest_job_state_invalid")
+    latest_job = latest_job_rows[0] if latest_job_rows else None
+    if latest_job and (
+        not isinstance(latest_job.get("operation_id"), str)
+        or latest_job.get("status") not in {"queued", "running", "retry_wait", "succeeded", "dead_letter"}
+    ):
+        raise LeadResearchRequestError("latest_job_state_invalid")
+    if latest_job and latest_job.get("status") in {"queued", "running", "retry_wait"}:
+        return {
+            "status": str(latest_job["status"]),
+            "lead_id": normalized_id,
+            "operation_id": latest_job["operation_id"],
+            "created_at": str(latest_job.get("created_at") or ""),
+            "reason": "existing_research_job",
+        }
+
+    # Pricing, token limits, retry policy and quotas are mandatory. Check
+    # them only when a new queue record is actually needed.
+    config = CompanyResearchRuntimeConfig.from_env()
+
+    snapshot_response = (
+        db.table("company_research_snapshots")
+        .select("lead_id,snapshot_id,researched_at,dossier")
+        .eq("lead_id", normalized_id)
+        .order("researched_at", desc=True)
+        .order("snapshot_id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    snapshot_rows = getattr(snapshot_response, "data", None)
+    if not isinstance(snapshot_rows, list):
+        raise LeadResearchRequestError("latest_snapshot_unavailable")
+    latest_dossiers: dict[str, Any] = {}
+    if isinstance(snapshot_rows, list) and snapshot_rows and isinstance(snapshot_rows[0], dict):
+        latest_dossiers[normalized_id] = snapshot_rows[0]
+    # A dead-letter may have failed after the immutable snapshot was inserted
+    # (e.g. during pain/pattern persistence). An explicit user re-request must
+    # be able to replay the full vertical slice with a fresh reservation.
+    if latest_job and latest_job.get("status") == "dead_letter":
+        latest_dossiers = {}
+
+    repository = SupabaseCompanyResearchJobRepository(db)
+    jobs = enqueue_company_research_refreshes(
+        repository,
+        [lead],
+        latest_dossiers,
+        limits=config.limits,
+        input_price_microusd_per_million_tokens=config.input_price_microusd_per_million_tokens,
+        output_price_microusd_per_million_tokens=config.output_price_microusd_per_million_tokens,
+        search_price_microusd_per_thousand_queries=config.search_price_microusd_per_thousand_queries,
+        max_search_queries_per_attempt=config.max_search_queries_per_attempt,
+        max_input_tokens_per_attempt=config.max_input_tokens_per_attempt,
+        max_output_tokens_per_attempt=config.max_output_tokens_per_attempt,
+        max_attempts=config.max_attempts,
+        max_age_days=config.max_age_days,
+        limit=1,
+        operation_nonce_by_lead=(
+            {normalized_id: str(latest_job.get("operation_id"))}
+            if latest_job and latest_job.get("status") == "dead_letter"
+            else None
+        ),
+    )
+    if not jobs:
+        return {
+            "status": "not_eligible",
+            "lead_id": normalized_id,
+            "reason": "lead_is_not_eligible_or_dossier_is_fresh_or_website_is_invalid",
+        }
+    job = jobs[0]
+    return {
+        "status": str(job.get("status") or "queued"),
+        "lead_id": normalized_id,
+        "operation_id": str(job.get("operation_id") or ""),
+        "created_at": str(job.get("created_at") or ""),
+        "reason": str((job.get("payload") or {}).get("reason") or ""),
+    }

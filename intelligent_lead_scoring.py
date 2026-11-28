@@ -8,6 +8,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from intelligence_engine import evidence_records_from_lead
+from scoring_core import calculate_weighted_score
+
 
 _FIT = re.compile(
     r"AI üzleti illeszkedési becslés:\s*(\d{1,3})/100;\s*bizonyosság:\s*(high|medium|low)",
@@ -15,10 +18,16 @@ _FIT = re.compile(
 )
 _EVIDENCE = re.compile(r"alátámasztó jelek:\s*(.*?);\s*javasolt kutatási lépés:", re.I)
 
+LEAD_PRIORITY_WEIGHTS = {
+    "business_fit": 0.60,
+    "research_confidence": 0.25,
+    "evidence_strength": 0.15,
+}
+
 
 def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
     """Return a transparent 0-100 research-priority estimate or an unscored result."""
-    note = str(lead.get("research_intelligence") or "")
+    note = str(lead.get("research_intelligence") or lead.get("notes") or "")
     if not note.startswith("Leadkutatás;"):
         return {"scored": False, "priority_score": None, "reason": "Nincs strukturált, saját leadkutatási adat."}
     match = _FIT.search(note)
@@ -32,7 +41,16 @@ def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
     confidence_points = {"high": 100, "medium": 65, "low": 30}[confidence]
     evidence_points = min(100, len(evidence) * 25)
     # Fit dominates; confidence and explicit evidence reduce over-ranking weak research.
-    priority = round(fit * 0.60 + confidence_points * 0.25 + evidence_points * 0.15)
+    priority = calculate_weighted_score(
+        {
+            "business_fit": fit,
+            "research_confidence": confidence_points,
+            "evidence_strength": evidence_points,
+        },
+        LEAD_PRIORITY_WEIGHTS,
+        precision=0,
+    )
+    assert priority is not None
     if confidence == "low":
         priority = min(priority, 69)
     reasons = [
@@ -47,6 +65,7 @@ def score_researched_lead(lead: dict[str, Any]) -> dict[str, Any]:
         "research_confidence": confidence,
         "evidence_count": len(evidence),
         "evidence": evidence[:5],
+        "evidence_records": evidence_records_from_lead(lead),
         "reason": "; ".join(reasons),
         "interpretation": "Kutatási prioritás, nem vásárlási szándék, fizetőképesség vagy kapcsolatfelvételi engedély.",
     }

@@ -24,6 +24,9 @@ def test_research_parsers_and_quality_helpers_reject_untrusted_shapes():
     assert research._valid_http_url("https://user:pass@example.com") is None
     assert research._valid_http_url("file:///etc/passwd") is None
     assert research._valid_http_url("https://localhost") is None
+    assert research._valid_http_url("http://127.0.0.1/private") is None
+    assert research._valid_http_url("http://10.0.0.1/private") is None
+    assert research._valid_http_url("http://[::1]/private") is None
     assert research._domain("https://www.Example.com/path") == "example.com"
 
     confidence, score, evidence = research._research_quality({
@@ -74,6 +77,7 @@ class _ResearchDB:
     def __init__(self, existing=None):
         self.existing = existing or []
         self.inserted = []
+        self.updated = []
         self.snapshots = []
     def table(self, name):
         if name == "leads":
@@ -144,6 +148,9 @@ class _ResearchQuery:
     def __init__(self, db):
         self.db = db
         self.payload = None
+        self.update_payload = None
+        self.filters = {}
+        self.updated = False
     def select(self, *_args, **_kwargs):
         return self
     def limit(self, *_args, **_kwargs):
@@ -155,7 +162,16 @@ class _ResearchQuery:
     def insert(self, payload):
         self.payload = payload
         return self
+    def update(self, payload):
+        self.update_payload = payload
+        return self
+    def eq(self, key, value):
+        self.filters[key] = value
+        return self
     def execute(self):
+        if self.update_payload is not None:
+            self.db.updated.append({"payload": self.update_payload, "filters": self.filters})
+            return SimpleNamespace(data=[])
         if self.payload is not None:
             self.db.inserted.append(self.payload)
             return SimpleNamespace(data=[{"id": "123e4567-e89b-42d3-a456-426614174000"}])
@@ -210,6 +226,10 @@ def test_research_inserts_only_grounded_new_company_without_contact_permission(m
     assert saved["opted_out"] is False
     assert len(db.snapshots) == 1
     assert db.snapshots[0]["lead_id"] == "123e4567-e89b-42d3-a456-426614174000"
+    assert db.updated == [{
+        "payload": {"research_evidence": []},
+        "filters": {"id": "123e4567-e89b-42d3-a456-426614174000"},
+    }]
     # The per-company write is audited before insertion; the summary audit is last.
     assert audits[0]["action"] == "save_researched_company"
     assert audits[-1]["action"] == "research_companies"
