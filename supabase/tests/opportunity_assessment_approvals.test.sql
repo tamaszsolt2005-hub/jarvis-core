@@ -1,9 +1,15 @@
 -- Isolated PostgreSQL integration test for human-approved opportunity snapshots.
 BEGIN;
-SELECT plan(11);
+SELECT plan(12);
 
 SELECT has_table('public','opportunity_assessments',
   'append-only opportunity assessment history exists');
+
+SELECT like(
+  pg_get_functiondef('public.reject_assessment_for_rejected_opportunity()'::regprocedure),
+  '%FOR SHARE%',
+  'rejected-candidate guard locks the candidate row against concurrent review updates'
+);
 
 INSERT INTO public.leads (company_name, website)
 VALUES ('Approval fixture one','https://approval-one.invalid')
