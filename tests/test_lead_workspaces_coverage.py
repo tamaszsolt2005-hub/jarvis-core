@@ -84,7 +84,8 @@ class _UI:
     def text_input(self, *_args, **_kwargs):
         return ""
 
-    def text_area(self, *_args, **_kwargs):
+    def text_area(self, *_args, **kwargs):
+        self.messages.append(("text_area", (kwargs.get("value", ""),)))
         return ""
 
     def form_submit_button(self, *_args, **_kwargs):
