@@ -1,4 +1,7 @@
-## Frissített fejlesztési terv – 2026-11-28
+## Frissített fejlesztési terv – 2026-11-28 (PR #35 HEAD: fa0fa892a14b164c4ac3173578a177d455a20731)
+
+A mobil login/chat Playwright ellenőrzések és a Research Ops számláló/költség adatkezelés edge-case javításai elkészültek. A 8412057 commit CI-je f-string szintaktikai hibával bukott; a ca6ba391 javító commit után a friss CI-eredmény még nincs igazolva. A legfrissebb, részletes hiánylista a [2026-11-28 gap register](20261128_JARVIS_GAP_REGISTER.md), a prioritási sorrend az [implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md) dokumentumban van. Következő fókusz: friss CI/coverage/screenshot bizonyíték, Opportunity Discovery E2E, CRM owner/follow-up és inbound email integráció, provider hard cap és monitoring.
+
 
 A teljes, aktuális funkcióleltár és prioritásos roadmap a [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md) dokumentumba került. A már meglévő cégkutatási, lead, CRM, e-mail, Opportunity és Intelligence funkciókat nem kell újraépíteni; a fő fókusz a teljes E2E összekapcsolás, a CRM follow-up/owner, a kapcsolattartó-duplikáció, a válaszok strukturált CRM-integrációja, az üzleti funnel analitika, a worker operáció és a staging/production bizonyíték.
 
