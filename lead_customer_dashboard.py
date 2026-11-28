@@ -69,6 +69,69 @@ def _matches_owner_filter(state: dict[str, Any], selected_owner: str) -> bool:
     return assigned_to == selected_owner
 
 
+def _build_crm_conversion_funnel(
+    approved_lead_ids: set[str] | list[str],
+    lifecycle_rows: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build a deduplicated, history-aware funnel for approved leads only."""
+    stages = (
+        ("approved_lead", "Jóváhagyott"),
+        ("contacted", "Kapcsolatfelvétel"),
+        ("responded", "Válaszolt"),
+        ("qualified", "Minősített"),
+        ("proposal", "Ajánlat"),
+        ("pilot", "Pilot"),
+        ("customer", "Ügyfél"),
+    )
+    stage_rank = {stage: index for index, (stage, _label) in enumerate(stages)}
+    approved = {str(lead_id) for lead_id in approved_lead_ids if lead_id}
+    max_rank = {lead_id: 0 for lead_id in approved}
+    lost_ids: set[str] = set()
+
+    for row in lifecycle_rows:
+        lead_id = str(row.get("lead_id") or "")
+        if lead_id not in approved:
+            continue
+        stage = str(row.get("stage") or "approved_lead")
+        if stage == "lost":
+            lost_ids.add(lead_id)
+        elif stage in stage_rank:
+            max_rank[lead_id] = max(max_rank[lead_id], stage_rank[stage])
+
+    for event in events:
+        lead_id = str(event.get("lead_id") or "")
+        if lead_id not in approved:
+            continue
+        if event.get("event_type") == "inbound_reply_recorded":
+            max_rank[lead_id] = max(max_rank[lead_id], stage_rank["responded"])
+        for field in ("from_stage", "to_stage"):
+            stage = str(event.get(field) or "")
+            if stage == "lost":
+                lost_ids.add(lead_id)
+            elif stage in stage_rank:
+                max_rank[lead_id] = max(max_rank[lead_id], stage_rank[stage])
+
+    previous_count = len(approved)
+    rows: list[dict[str, Any]] = []
+    for index, (stage, label) in enumerate(stages):
+        reached = sum(1 for rank in max_rank.values() if rank >= index)
+        rows.append({
+            "Szakasz": label,
+            "Elért leadek": reached,
+            "Konverzió az elfogadott leadekből (%)": round(reached / len(approved) * 100, 1) if approved else 0.0,
+            "Konverzió az előző szakaszból (%)": round(reached / previous_count * 100, 1) if previous_count else 0.0,
+        })
+        previous_count = reached
+    rows.append({
+        "Szakasz": "Elvesztett",
+        "Elért leadek": len(lost_ids),
+        "Konverzió az elfogadott leadekből (%)": round(len(lost_ids) / len(approved) * 100, 1) if approved else 0.0,
+        "Konverzió az előző szakaszból (%)": 0.0,
+    })
+    return rows
+
+
 def _parse_due_date(value: str) -> str | None:
     if not value.strip():
         return None
@@ -166,6 +229,16 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
     metric_columns[2].metric("Minősített", counts["qualified"])
     metric_columns[3].metric("Ajánlat / pilot", counts["proposal"] + counts["pilot"])
     metric_columns[4].metric("Ügyfél", counts["customer"])
+
+    st.markdown("#### Értékesítési konverziós tölcsér")
+    funnel_rows = _build_crm_conversion_funnel(
+        {str(lead["id"]) for lead in approved_leads}, lifecycle_rows, events
+    )
+    st.dataframe(funnel_rows, width="stretch", hide_index=True)
+    st.caption(
+        "A szakaszokba jutást az aktuális CRM-státusz és az append-only eseménytörténet alapján, "
+        "lead-azonosítónként egyszer számolja. Az elvesztett leadek külön kimenetként láthatók."
+    )
 
     stage_filter = st.selectbox(
         "Folyamat szűrése",

@@ -30,6 +30,65 @@ def _nonnegative_int(value: Any) -> int:
         return 0
 
 
+def _build_ops_alerts(state: dict[str, Any], *, now: Any = None) -> list[dict[str, str]]:
+    """Derive actionable local alerts from the authenticated read-only ops snapshot."""
+    from datetime import datetime, timezone
+
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    counts = state.get("counts") if isinstance(state.get("counts"), dict) else {}
+    budget = state.get("budget_today") if isinstance(state.get("budget_today"), dict) else {}
+    alerts: list[dict[str, str]] = []
+
+    dead_letter = _nonnegative_int(counts.get("dead_letter", 0))
+    if dead_letter:
+        alerts.append({
+            "severity": "error",
+            "message": f"{dead_letter} kutatási feladat a hibazsákban vár operátori felülvizsgálatra.",
+        })
+    if budget.get("over_budget") is True:
+        alerts.append({
+            "severity": "error",
+            "message": "A napi kutatási költségfoglalás túllépte a rögzített keretet; új foglalást a DB-kapu blokkol.",
+        })
+
+    limit = _nonnegative_int(budget.get("limit_microusd", 0))
+    committed = _nonnegative_int(
+        budget.get("committed_microusd", budget.get("reserved_microusd", 0))
+    )
+    if limit > 0 and committed >= limit * 0.8 and budget.get("over_budget") is not True:
+        alerts.append({
+            "severity": "warning",
+            "message": f"A napi költségkeret legalább 80%-a lekötve ({committed / limit:.0%}).",
+        })
+
+    expired_leases = 0
+    for job in state.get("recent_jobs", []) if isinstance(state.get("recent_jobs"), list) else []:
+        if not isinstance(job, dict) or job.get("status") != "running":
+            continue
+        raw_expiry = job.get("lease_expires_at")
+        if not raw_expiry:
+            expired_leases += 1
+            continue
+        try:
+            expiry = raw_expiry if isinstance(raw_expiry, datetime) else datetime.fromisoformat(
+                str(raw_expiry).replace("Z", "+00:00")
+            )
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            if expiry <= reference:
+                expired_leases += 1
+        except (TypeError, ValueError, OverflowError):
+            expired_leases += 1
+    if expired_leases:
+        alerts.append({
+            "severity": "warning",
+            "message": f"{expired_leases} futó job lease-e lejárt vagy hiányos; worker-újrafelvétel szükséges lehet.",
+        })
+    return alerts
+
+
 def load_worker_control_state(db: Any) -> dict[str, Any]:
     if db is None or not callable(getattr(db, "rpc", None)):
         raise ValueError("An authenticated Supabase client is required.")
@@ -112,6 +171,16 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
         )
     elif daily_limit > 0:
         st.caption(f"Napi költségkeret: ${daily_limit:,.4f}")
+
+    st.markdown("#### Operátori riasztások")
+    alerts = _build_ops_alerts(state)
+    if not alerts:
+        st.success("Nincs aktív költség-, lease- vagy hibazsák-riasztás.")
+    for alert in alerts:
+        if alert["severity"] == "error":
+            st.error(alert["message"])
+        else:
+            st.warning(alert["message"])
 
     if role in {"admin", "operator"}:
         note = st.text_area(

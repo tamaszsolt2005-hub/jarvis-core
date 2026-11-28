@@ -1,5 +1,12 @@
 # JARVIS – aktuális funkcióleltár, hiánylista és fejlesztési terv
 
+## Kiegészítés – P1/P2 fejlesztési lépések (2026-11-28)
+
+- **P1 CRM konverziós tölcsér:** a státusz- és append-only eseménytörténetből számolt, deduplikált funnel-riport bekerült a CRM oldalra; az elvesztett leadek külön látszanak.
+- **P2 Research Ops helyi riasztások:** a hibazsák, napi budget-kihasználtság és lejárt/hiányzó worker lease-ek figyelmeztetése megjelenik az operátori oldalon. Külső push/email értesítés nincs bekapcsolva.
+- A friss mobilos üdvözlőfejléc-javítás és ezek az új változások csak a branch kódját jelentik addig, amíg az aktuális HEAD teljes CI-je nem zöld. Productionben nem aktívak.
+
+
 ## Frissítés – 2026-11-28, PR #35 HEAD ca6ba3919df766e4bc5bf6cf5a53e793e428f643
 
 A legfrissebb fejlesztési állapotot a javítási napló és hiányregiszter részletezi. Az azóta elkészült módosítások:

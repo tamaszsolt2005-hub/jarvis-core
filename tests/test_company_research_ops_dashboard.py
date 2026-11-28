@@ -170,3 +170,41 @@ def test_zero_committed_budget_is_not_replaced_by_reserved_amount(monkeypatch):
     page.render_company_research_ops_page(RenderDB(state), auth_enabled=True, role="reader")
     cost_lines = [str(args[0]) for name, args in ui.messages if name == "write"]
     assert any("napi keretből lekötött összeg: **$0.0000**" in line for line in cost_lines)
+
+
+
+def test_ops_alerts_cover_dead_letters_budget_and_expired_leases():
+    from datetime import datetime, timezone
+    from company_research_ops_dashboard import _build_ops_alerts
+
+    state = {
+        "counts": {"dead_letter": 2},
+        "budget_today": {
+            "over_budget": False,
+            "committed_microusd": 8500000,
+            "limit_microusd": 10000000,
+        },
+        "recent_jobs": [
+            {"status": "running", "lease_expires_at": "2026-11-28T14:00:00Z"},
+            {"status": "running", "lease_expires_at": None},
+            {"status": "succeeded", "lease_expires_at": "2020-01-01T00:00:00Z"},
+        ],
+    }
+    alerts = _build_ops_alerts(state, now=datetime(2026, 11, 28, 15, 0, tzinfo=timezone.utc))
+    messages = [alert["message"] for alert in alerts]
+    assert any("2 kutatási feladat" in message for message in messages)
+    assert any("80%-a lekötve" in message for message in messages)
+    assert any("2 futó job lease-e" in message for message in messages)
+
+
+def test_ops_alerts_fail_safe_on_over_budget_and_ignore_malformed_counters():
+    from company_research_ops_dashboard import _build_ops_alerts
+
+    alerts = _build_ops_alerts({
+        "counts": {"dead_letter": "bad"},
+        "budget_today": {"over_budget": True, "limit_microusd": "bad"},
+        "recent_jobs": "invalid",
+    })
+    assert len(alerts) == 1
+    assert alerts[0]["severity"] == "error"
+    assert "túllépte" in alerts[0]["message"]

@@ -84,3 +84,45 @@ def test_crm_inbound_reply_is_a_structured_lifecycle_event_and_advances_responde
     assert "GRANT EXECUTE ON FUNCTION public.record_crm_inbound_reply" in migration
     assert "TO service_role" in migration
     assert "TO authenticated" not in migration
+
+
+
+def test_crm_conversion_funnel_uses_history_deduplicates_and_excludes_unapproved_leads():
+    from lead_customer_dashboard import _build_crm_conversion_funnel
+
+    approved = {"a", "b", "c", "d", "e"}
+    lifecycle = [
+        {"lead_id": "a", "stage": "contacted"},
+        {"lead_id": "b", "stage": "responded"},
+        {"lead_id": "c", "stage": "qualified"},
+        {"lead_id": "d", "stage": "customer"},
+        {"lead_id": "e", "stage": "lost"},
+        {"lead_id": "not-approved", "stage": "customer"},
+    ]
+    events = [
+        {"lead_id": "e", "event_type": "stage_changed", "from_stage": "pilot", "to_stage": "lost"},
+        {"lead_id": "d", "event_type": "stage_changed", "from_stage": "pilot", "to_stage": "customer"},
+        {"lead_id": "d", "event_type": "stage_changed", "from_stage": "pilot", "to_stage": "customer"},
+        {"lead_id": "b", "event_type": "inbound_reply_recorded"},
+        {"lead_id": "not-approved", "event_type": "stage_changed", "from_stage": "pilot", "to_stage": "customer"},
+    ]
+
+    rows = _build_crm_conversion_funnel(approved, lifecycle, events)
+    by_stage = {row["Szakasz"]: row for row in rows}
+    assert by_stage["Jóváhagyott"]["Elért leadek"] == 5
+    assert by_stage["Kapcsolatfelvétel"]["Elért leadek"] == 5
+    assert by_stage["Válaszolt"]["Elért leadek"] == 4
+    assert by_stage["Minősített"]["Elért leadek"] == 3
+    assert by_stage["Ajánlat"]["Elért leadek"] == 2
+    assert by_stage["Pilot"]["Elért leadek"] == 2
+    assert by_stage["Ügyfél"]["Elért leadek"] == 1
+    assert by_stage["Elvesztett"]["Elért leadek"] == 1
+    assert by_stage["Ügyfél"]["Konverzió az elfogadott leadekből (%)"] == 20.0
+
+
+def test_crm_conversion_funnel_empty_input_is_safe():
+    from lead_customer_dashboard import _build_crm_conversion_funnel
+
+    rows = _build_crm_conversion_funnel(set(), [], [])
+    assert all(row["Elért leadek"] == 0 for row in rows)
+    assert all(row["Konverzió az elfogadott leadekből (%)"] == 0.0 for row in rows)

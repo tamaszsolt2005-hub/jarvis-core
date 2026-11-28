@@ -1,5 +1,13 @@
 # JARVIS – javítási napló és rendezett hiánylista
 
+## P1 CRM konverziós tölcsér és P2 Research Ops riasztások (2026-11-28)
+
+- A CRM konverziós riport a jóváhagyott leadeket kizárólag lead-azonosítónként egyszer számolja; az aktuális lifecycle státuszt és az append-only eseménytörténetből elért korábbi szakaszokat együtt veszi figyelembe.
+- A `responded` szakaszba a strukturált bejövő válasz-esemény is beleszámít. Az elvesztett lead külön kimenetként jelenik meg, és nem törli a korábban elért funnel-szakaszokat.
+- A Research Ops dashboard helyi operátori jelzéseket számol a hibazsák, a napi költségkeret és a futó jobok lejárt/hiányzó lease-e alapján. A jelzések a már létező, hitelesített read-only RPC pillanatképből készülnek.
+- Külső értesítés, scheduler-aktiválás, Gemini-hívás és adatbázis-módosítás nem része ennek a változásnak.
+- A változások feature branchben vannak; CI- és production-állapotukat külön kell igazolni.
+
 ## P1 CRM–Feladatközpont összekötés (2026-11-28)
 
 - A Feladatközpont külön, read-only CRM-teendő táblázatot jelenít meg a jóváhagyott leadek `lead_customer_lifecycle` állapotából.
