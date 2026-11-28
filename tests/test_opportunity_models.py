@@ -249,3 +249,16 @@ def test_evaluator_rejects_provider_evidence_not_matching_a_stored_source():
             market_pattern=pattern, candidate=candidate, company_pains=pains,
             provider=lambda _prompt: forged,
         )
+
+def test_evaluator_refuses_rejected_candidate_before_calling_provider():
+    from opportunity_evaluator import OpportunityEvaluationError, evaluate_opportunity_candidate
+
+    pattern, candidate, pains, _response = _evaluator_fixture()
+    candidate["status"] = "rejected"
+    called = []
+    with pytest.raises(OpportunityEvaluationError, match="rejected_opportunity"):
+        evaluate_opportunity_candidate(
+            market_pattern=pattern, candidate=candidate, company_pains=pains,
+            provider=lambda _prompt: called.append(True) or {},
+        )
+    assert called == []
