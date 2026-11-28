@@ -46,7 +46,7 @@ def test_crm_owner_assignment_migration_is_fail_closed_and_audited():
     ).read_text(encoding="utf-8")
     assert "REFERENCES auth.users(id) ON DELETE SET NULL" in migration
     assert "u.confirmed_at IS NOT NULL" in migration
-    assert "u.app_metadata ->> 'role'" in migration
+    assert "u.raw_app_meta_data ->> 'role'" in migration
     assert "crm_user_directory_requires_admin_or_operator" in migration
     assert "crm_owner_assignment_requires_admin_or_operator" in migration
     assert "crm_owner_assignment_target_not_assignable" in migration
