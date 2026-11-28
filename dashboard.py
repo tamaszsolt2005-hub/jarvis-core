@@ -234,7 +234,6 @@ st.markdown(
         .jarvis-topbar { gap:10px; font-size:.82rem; }
         .jarvis-profile { width:36px; height:36px; }
         .jarvis-welcome { padding:clamp(5.5rem,14vh,8rem) 0 10px !important; position:relative; z-index:1; }
-        .jarvis-welcome h1 { margin-top:96px !important; }
         .jarvis-prompts { gap:8px; margin:20px auto 28px; }
         .jarvis-prompt { min-height:46px; padding:0 13px; font-size:.82rem; }
         [data-testid="stBottom"] { padding:.7rem 12px 1rem !important; }
@@ -2955,7 +2954,8 @@ render_topbar_clock()
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
-        '<div class="jarvis-welcome" style="padding-top:clamp(96px,14vh,132px) !important;">'
+        '<div class="jarvis-welcome">'
+        '<div aria-hidden="true" style="display:block;height:clamp(0px,calc((760px - 100vw)*.26),96px);"></div>'
         '<h1>Üdvözöllek!</h1>'
         '<p>Miben segíthetek ma?</p>'
         '<div class="jarvis-welcome-rule"></div>'
