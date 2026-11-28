@@ -243,3 +243,27 @@ def test_refresh_response_rows_rejects_malformed_database_payloads():
             SimpleNamespace(data=None),
             operation="checking company research worker pause state",
         )
+
+
+
+def test_schedule_flag_requires_explicit_true_value():
+    from company_research_refresh_job import _schedule_enabled
+
+    assert _schedule_enabled({}) is False
+    assert _schedule_enabled({"JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED": "false"}) is False
+    assert _schedule_enabled({"JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED": "TRUE"}) is True
+
+
+def test_scheduled_main_exits_before_loading_secrets_or_clients_when_disabled(monkeypatch, capsys):
+    import company_research_refresh_job as refresh
+
+    monkeypatch.delenv("JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED", raising=False)
+    monkeypatch.setattr(
+        refresh.CompanyResearchRuntimeConfig,
+        "from_env",
+        lambda: pytest.fail("disabled schedule must not load provider configuration"),
+    )
+    refresh.main()
+    import json
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"reason": "schedule_not_enabled", "status": "disabled"}

@@ -152,7 +152,22 @@ def _repository(db: Any):
     return SupabaseCompanyResearchJobRepository(db)
 
 
+def _schedule_enabled(environ: Any = None) -> bool:
+    """Require an explicit opt-in before the scheduled entrypoint can do any work."""
+    import os
+
+    source = os.environ if environ is None else environ
+    return str(source.get("JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED") or "").strip().lower() == "true"
+
+
 def main() -> None:
+    if not _schedule_enabled():
+        print(json.dumps({
+            "status": "disabled",
+            "reason": "schedule_not_enabled",
+        }, ensure_ascii=False, sort_keys=True))
+        return
+
     from jarvis_common import get_gemini_client, get_model_name, get_service_supabase
 
     config = CompanyResearchRuntimeConfig.from_env()

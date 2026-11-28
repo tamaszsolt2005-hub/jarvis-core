@@ -8,6 +8,8 @@
 
 ## Mit tud most?
 
+**P2 scheduler kill switch – 2026-11-28:** a napi GitHub Actions job csak akkor futhat, ha a repository `JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED` változója explicit `true`. Ugyanezt a belépési pont Python-oldalon is ellenőrzi még a konfiguráció, Supabase-kliens vagy Gemini-kliens betöltése előtt. A változó nincs bekapcsolva; az ütemezett futtatás jelenleg szándékosan tiltott.
+
 - A meglévő napi `company-research-refresh.yml` workflow továbbra is időzítetten indítja a bounded kutatási ciklust.
 - Az új vezérlőállapot egyetlen, adatbázisban tárolt pause/resume kapcsoló.
 - Szüneteltetéskor a ciklus már a queue feltöltése előtt leáll; a claim RPC atomikusan is ellenőrzi a pause állapotot.
