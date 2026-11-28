@@ -15,6 +15,9 @@ class _Query:
     def limit(self, *_args, **_kwargs):
         return self
 
+    def eq(self, *_args, **_kwargs):
+        return self
+
     def execute(self):
         return SimpleNamespace(data=self.rows)
 
