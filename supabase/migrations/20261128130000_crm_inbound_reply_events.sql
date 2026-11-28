@@ -82,7 +82,11 @@ BEGIN
     SELECT id INTO v_event_id
     FROM public.lead_customer_lifecycle_events
     WHERE event_type = 'inbound_reply_recorded'
-      AND source_message_id = btrim(p_message_id);
+      AND source_message_id = btrim(p_message_id)
+      AND lead_id = p_lead_id;
+    IF v_event_id IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '23505', MESSAGE = 'crm_inbound_message_id_conflict';
+    END IF;
     RETURN v_event_id;
   END IF;
 

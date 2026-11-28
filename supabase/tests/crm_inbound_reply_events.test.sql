@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(9);
+SELECT plan(10);
 
 SELECT ok(
   EXISTS (
@@ -31,6 +31,13 @@ VALUES (:'inbound_lead_id','approved');
 INSERT INTO public.leads (company_name,website)
 VALUES ('CRM inbound unapproved fixture','https://crm-inbound-unapproved.invalid')
 RETURNING id \gset inbound_unapproved_lead_
+INSERT INTO public.leads (company_name,website)
+VALUES ('CRM inbound customer fixture','https://crm-inbound-customer.invalid')
+RETURNING id \gset inbound_customer_lead_
+INSERT INTO public.lead_review_states (lead_id,review_status)
+VALUES (:'inbound_customer_lead_id','approved');
+INSERT INTO public.lead_customer_lifecycle (lead_id,stage,updated_by)
+VALUES (:'inbound_customer_lead_id','customer','00000000-0000-0000-0000-000000000001');
 
 SET LOCAL ROLE service_role;
 SELECT set_config('request.jwt.claims','{"role":"service_role"}',true);
@@ -81,6 +88,19 @@ SELECT is(
   ),
   NULL::uuid,
   'unapproved leads are not inserted into the CRM lifecycle'
+);
+SELECT lives_ok(
+  'SELECT public.record_crm_inbound_reply(' ||
+  quote_literal(:'inbound_customer_lead_id') || '::uuid,' ||
+  quote_literal('<inbound-customer-1>') || ',' ||
+  quote_literal('later') || ',' ||
+  quote_literal('Customer replied while already an active customer') || ')',
+  'inbound replies are recorded without downgrading an existing customer'
+);
+SELECT is(
+  (SELECT stage FROM public.lead_customer_lifecycle WHERE lead_id=:'inbound_customer_lead_id'),
+  'customer',
+  'later lifecycle stages are never moved backwards by an inbound reply'
 );
 RESET ROLE;
 SELECT * FROM finish();
