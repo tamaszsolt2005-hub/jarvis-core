@@ -194,14 +194,29 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
                 welcome_heading = page.locator(".jarvis-welcome h1")
                 welcome_heading.wait_for(state="visible", timeout=10000)
                 heading_box = welcome_heading.bounding_box()
-                assert heading_box is not None and heading_box["y"] >= 96, ("mobile welcome heading overlaps Streamlit header", heading_box)
-                assert heading_box["x"] >= 0 and heading_box["x"] + heading_box["width"] <= 390, ("mobile welcome heading overflows viewport", heading_box)
                 page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
+                heading_metrics = page.evaluate("""() => {
+                    const heading = document.querySelector(".jarvis-welcome h1");
+                    const welcome = heading?.parentElement;
+                    const style = heading ? getComputedStyle(heading) : null;
+                    const parentStyle = welcome ? getComputedStyle(welcome) : null;
+                    const spacer = welcome?.querySelector(".jarvis-welcome-mobile-spacer");
+                    return {
+                        innerWidth: window.innerWidth,
+                        headingMarginTop: style?.marginTop,
+                        welcomePaddingTop: parentStyle?.paddingTop,
+                        spacerHeight: spacer ? getComputedStyle(spacer).height : null,
+                        headingTop: heading?.getBoundingClientRect().top
+                    };
+                }""")
+                assert heading_box is not None and heading_box["y"] >= 96, ("mobile welcome heading overlaps Streamlit header", heading_box, heading_metrics)
+                assert heading_box["x"] >= 0 and heading_box["x"] + heading_box["width"] <= 390, ("mobile welcome heading overflows viewport", heading_box, heading_metrics)
                 page.set_viewport_size({"width": 320, "height": 720})
                 page.wait_for_timeout(350)
                 page.evaluate("window.scrollTo(0, 0)")
                 page.wait_for_function("window.scrollY === 0")
                 small_mobile_box = welcome_heading.bounding_box()
+                page.screenshot(path=str(screenshot_dir / "chat-small-mobile.png"), full_page=True)
                 assert small_mobile_box is not None and small_mobile_box["y"] >= 96, ("small-mobile welcome heading overlaps Streamlit header", small_mobile_box)
                 assert small_mobile_box["x"] >= 0 and small_mobile_box["x"] + small_mobile_box["width"] <= 320, ("small-mobile welcome heading overflows viewport", small_mobile_box)
                 page.set_viewport_size({"width": 1440, "height": 960})

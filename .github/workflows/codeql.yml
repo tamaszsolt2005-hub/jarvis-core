@@ -2,7 +2,7 @@ name: JARVIS CodeQL security analysis
 
 on:
   push:
-    branches: ["main", "docs/pre-feature-readiness-gates"]
+    branches: ["main", "docs/pre-feature-readiness-gates", "feature/opportunity-center-readonly"]
   pull_request:
     branches: ["main"]
   schedule:

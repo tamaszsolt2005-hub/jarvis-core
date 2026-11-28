@@ -169,6 +169,7 @@ st.markdown(
     .jarvis-clock { color:#c4d2e8; }
     .jarvis-profile { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; color:white; font-size:1.1rem; font-weight:700; background:linear-gradient(145deg,#176ec4,#0b2e5a); border:1px solid #2879d0; }
     .jarvis-welcome { text-align:center; padding:clamp(78px,11vh,132px) 0 10px; }
+    .jarvis-welcome-mobile-spacer { height:clamp(0px,calc(760px - 100vw),96px); }
     .jarvis-welcome h1 { margin:0 0 10px; color:#f4f7ff; font-size:clamp(2.45rem,4.2vw,3.65rem); font-weight:760; letter-spacing:-.045em; line-height:1.12; }
     .jarvis-welcome p { margin:0; color:#b9c9e2; font-size:clamp(1.25rem,2.1vw,1.8rem); line-height:1.4; }
     .jarvis-welcome-rule { width:min(430px,60%); height:2px; margin:22px auto 0; background:linear-gradient(90deg,transparent,#168bff,#00cfff,#168bff,transparent); box-shadow:0 0 12px rgba(0,145,255,.42); }
@@ -234,8 +235,6 @@ st.markdown(
         .jarvis-topbar { gap:10px; font-size:.82rem; }
         .jarvis-profile { width:36px; height:36px; }
         .jarvis-welcome { padding:clamp(5.5rem,14vh,8rem) 0 10px !important; position:relative; z-index:1; }
-        .jarvis-welcome h1 { margin-top:96px !important; }
-        .jarvis-welcome::before { content:""; display:block; height:clamp(0px,calc(760px - 100vw),96px); }
         .jarvis-prompts { gap:8px; margin:20px auto 28px; }
         .jarvis-prompt { min-height:46px; padding:0 13px; font-size:.82rem; }
         [data-testid="stBottom"] { padding:.7rem 12px 1rem !important; }
@@ -2957,7 +2956,8 @@ render_topbar_clock()
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
         '<div class="jarvis-welcome">'
-        '<h1 style="margin-top:clamp(0px,calc(760px - 100vw),96px)">Üdvözöllek!</h1>'
+        '<div class="jarvis-welcome-mobile-spacer" aria-hidden="true"></div>'
+        '<h1>Üdvözöllek!</h1>'
         '<p>Miben segíthetek ma?</p>'
         '<div class="jarvis-welcome-rule"></div>'
         '</div>',

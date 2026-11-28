@@ -177,6 +177,23 @@ def test_connection_password_special_characters_are_decoded_once(tmp_path):
     assert env["PGPASSWORD"] == "pa:ss@word"
 
 
+def test_public_table_inventory_parser_reads_pg_dump_table_ddl():
+    schema = (
+        "CREATE TABLE public.leads (id uuid);" + chr(10)
+        + "CREATE TABLE IF NOT EXISTS public.\"CompanyNotes\" (id uuid);" + chr(10)
+        + "CREATE TABLE public.child PARTITION OF public.parent FOR VALUES IN (1);" + chr(10)
+    )
+    assert backup._extract_public_table_names(schema) == ["CompanyNotes", "child", "leads"]
+
+
+def test_local_restore_auth_compatibility_is_scoped_to_isolated_restore():
+    sql = backup._local_supabase_auth_compatibility_sql()
+    assert "CREATE SCHEMA IF NOT EXISTS auth" in sql
+    assert "FUNCTION auth.uid()" in sql
+    assert "FUNCTION auth.jwt()" in sql
+    assert "GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role" in sql
+
+
 def test_restore_sql_reuses_existing_public_schema():
     schema = "CREATE SCHEMA public;" + chr(10) + "ALTER SCHEMA public OWNER TO postgres;" + chr(10) + "CREATE TABLE public.sample(id integer);"
     data = "COPY public.sample (id) FROM stdin;" + chr(10) + "1" + chr(10) + "\\." + chr(10)
@@ -368,7 +385,8 @@ def test_restore_success_is_mocked_and_uses_single_transaction(monkeypatch, tmp_
             Path(args[args.index("--output") + 1]).write_bytes(b"decrypted archive")
             return ""
         if args[0] == "psql" and "--command" in args:
-            return "0"
+            command = args[args.index("--command") + 1]
+            return "0" if "count(*)" in command else "sample"
         if args[0] == "psql" and "--file" in args:
             sql = Path(args[args.index("--file") + 1]).read_text()
             assert "CREATE SCHEMA public" not in sql
@@ -381,10 +399,11 @@ def test_restore_success_is_mocked_and_uses_single_transaction(monkeypatch, tmp_
 
     backup.restore_backup(archive, target_ref, confirmed=True)
 
-    assert [command[0] for command in commands] == ["age", "psql", "psql"]
-    assert "--single-transaction" in commands[-1]
-    assert "--set" in commands[-1]
-    assert "ON_ERROR_STOP=1" in commands[-1]
+    assert [command[0] for command in commands] == ["age", "psql", "psql", "psql"]
+    assert "--single-transaction" in commands[2]
+    assert "--set" in commands[2]
+    assert "ON_ERROR_STOP=1" in commands[2]
+    assert "SELECT tablename FROM pg_tables" in commands[3][commands[3].index("--command") + 1]
 
 
 def test_restore_rejects_overly_permissive_age_identity_file(monkeypatch, tmp_path):
