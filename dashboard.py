@@ -270,6 +270,66 @@ st.markdown(
 AUTH_SESSION_TTL_SECONDS = 8 * 60 * 60
 
 
+def _build_crm_task_bridge_rows(
+    lifecycle_rows: list[dict[str, Any]],
+    approved_lead_ids: set[str],
+    leads: list[dict[str, Any]],
+    tasks: list[dict[str, Any]],
+    *,
+    today: Any = None,
+) -> list[dict[str, Any]]:
+    """Build a read-only CRM follow-up view joined to existing lead-linked tasks."""
+    reference_day = today or pd.Timestamp.now(tz="Europe/Budapest").date()
+    lead_names = {
+        str(item.get("id")): str(item.get("company_name") or "Névtelen cég")
+        for item in leads if item.get("id")
+    }
+    linked_tasks: dict[str, list[dict[str, Any]]] = {}
+    for task in tasks:
+        lead_id = str(task.get("lead_id") or "")
+        if lead_id:
+            linked_tasks.setdefault(lead_id, []).append(task)
+
+    rows = []
+    for state in lifecycle_rows:
+        lead_id = str(state.get("lead_id") or "")
+        action = str(state.get("next_action") or "").strip()
+        if not lead_id or lead_id not in approved_lead_ids or not action:
+            continue
+        due_raw = state.get("next_action_due")
+        due_day = None
+        if due_raw:
+            try:
+                due_day = pd.Timestamp(due_raw).date()
+            except (TypeError, ValueError, OverflowError):
+                due_day = None
+        related = linked_tasks.get(lead_id, [])
+        open_related = [
+            item for item in related
+            if str(item.get("status") or "open").strip().casefold()
+            not in {"done", "completed", "complete", "closed", "cancelled", "kész", "befejezett"}
+        ]
+        rows.append({
+            "Cég": lead_names.get(lead_id, "Ismeretlen cég"),
+            "CRM-teendő": action,
+            "Határidő": due_day.isoformat() if due_day else "Nincs",
+            "Állapot": "LEJÁRT" if due_day and due_day < reference_day else "Aktív",
+            "Kapcsolt nyitott feladat": len(open_related),
+            "Feladatcím": " · ".join(
+                str(item.get("title") or "Névtelen feladat") for item in open_related[:3]
+            ) or "Nincs",
+            "Leadazonosító": lead_id,
+        })
+    return sorted(
+        rows,
+        key=lambda item: (
+            0 if item["Állapot"] == "LEJÁRT" else 1,
+            item["Határidő"] if item["Határidő"] != "Nincs" else "9999-12-31",
+            item["Cég"].casefold(),
+        ),
+    )
+
+
 def render_tasks_page(db: Any) -> None:
     """Render a read-only task workspace; all mutations remain in chat approval flow."""
     st.title("Feladatközpont")
@@ -378,6 +438,37 @@ def render_tasks_page(db: Any) -> None:
     if lead_status.get("error"):
         st.warning("Az utánkövetési sor nem érhető el; a leadadatok lekérdezése hibával leállt.")
     else:
+        crm_lifecycle_status: dict[str, Any] = {}
+        crm_review_status: dict[str, Any] = {}
+        crm_lifecycle = _safe_rows(
+            db, "lead_customer_lifecycle",
+            "lead_id,stage,next_action,next_action_due,last_interaction_at",
+            1500, status=crm_lifecycle_status,
+        )
+        crm_reviews = _safe_rows(
+            db, "lead_review_states", "lead_id,review_status", 1500,
+            status=crm_review_status,
+        )
+        st.subheader("CRM-teendők és kapcsolt feladatok")
+        if crm_lifecycle_status.get("error") or crm_review_status.get("error"):
+            st.warning("A CRM-teendők összekapcsolása nem teljes: a CRM állapot vagy a jóváhagyási lista nem olvasható.")
+        else:
+            approved_crm_ids = {
+                str(item.get("lead_id")) for item in crm_reviews
+                if item.get("lead_id") and item.get("review_status") == "approved"
+            }
+            crm_task_rows = _build_crm_task_bridge_rows(
+                crm_lifecycle, approved_crm_ids, follow_up_leads, tasks,
+            )
+            if crm_task_rows:
+                st.dataframe(pd.DataFrame(crm_task_rows), width="stretch", hide_index=True)
+                overdue_crm = sum(item["Állapot"] == "LEJÁRT" for item in crm_task_rows)
+                st.caption(
+                    f"{len(crm_task_rows)} jóváhagyott leadhez tartozó CRM-teendő · "
+                    f"{overdue_crm} lejárt · a kapcsolt feladatok csak olvasási egyeztetésre szolgálnak."
+                )
+            else:
+                st.info("Nincs rögzített CRM-következő teendő jóváhagyott leadhez.")
         follow_up_queue = build_follow_up_queue(follow_up_leads, days_ahead=7)
         if follow_up_queue:
             follow_up_rows = [{
