@@ -33,6 +33,10 @@ INSERT INTO public.saas_opportunities (market_pattern_id,name,summary)
 VALUES (:'approval_pattern_id','Reconciliation SaaS','Automates recurring reconciliation')
 RETURNING id \gset approval_opportunity_
 
+INSERT INTO public.saas_opportunities (market_pattern_id,name,summary,status)
+VALUES (:'approval_pattern_id','Rejected reconciliation candidate','Previously rejected idea','rejected')
+RETURNING id \gset rejected_opportunity_
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"10000000-0000-0000-0000-000000000091","role":"authenticated","app_metadata":{"role":"operator"}}',true);
@@ -63,6 +67,14 @@ INSERT INTO public.opportunity_assessments (
 SELECT is((SELECT weighted_score FROM public.opportunity_assessments
            WHERE idempotency_key='10000000-0000-0000-0000-000000000092'),
           76.50::numeric,'approved snapshot calculates its own weighted score');
+
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.opportunity_assessments (opportunity_id,market_pattern_id,idempotency_key,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version) SELECT %L,market_pattern_id,%L,score_problem_evidence,score_business_value,score_willingness_to_pay,score_feasibility,score_reusability,score_risk,assessment_confidence,score_rationale,score_evidence,evaluator_model,evaluator_version FROM public.opportunity_assessments LIMIT 1',
+    :'rejected_opportunity_id','10000000-0000-0000-0000-000000000095'
+  ),
+  '23514',NULL,'rejected SaaS candidates cannot receive approved assessments'
+);
 SELECT is((SELECT approved_by::text FROM public.opportunity_assessments
            WHERE idempotency_key='10000000-0000-0000-0000-000000000092'),
           '10000000-0000-0000-0000-000000000091','approval actor is derived from the authenticated user');
