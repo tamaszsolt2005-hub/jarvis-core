@@ -13,7 +13,8 @@ BEGIN
   SELECT candidate.status
     INTO v_status
   FROM public.saas_opportunities AS candidate
-  WHERE candidate.id = NEW.opportunity_id;
+  WHERE candidate.id = NEW.opportunity_id
+  FOR SHARE;
 
   IF v_status = 'rejected' THEN
     RAISE EXCEPTION USING
