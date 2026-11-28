@@ -40,10 +40,10 @@ BEGIN
            NULLIF(btrim(u.raw_user_meta_data ->> 'name'), ''),
            u.email
          )::text,
-         u.app_metadata ->> 'role'
+         u.raw_app_meta_data ->> 'role'
   FROM auth.users AS u
   WHERE u.confirmed_at IS NOT NULL
-    AND COALESCE(u.app_metadata ->> 'role','') IN ('admin','operator')
+    AND COALESCE(u.raw_app_meta_data ->> 'role','') IN ('admin','operator')
   ORDER BY COALESCE(
     NULLIF(btrim(u.raw_user_meta_data ->> 'full_name'), ''),
     NULLIF(btrim(u.raw_user_meta_data ->> 'name'), ''),
@@ -83,7 +83,7 @@ BEGIN
     SELECT 1 FROM auth.users AS u
     WHERE u.id = p_assignee_id
       AND u.confirmed_at IS NOT NULL
-      AND COALESCE(u.app_metadata ->> 'role','') IN ('admin','operator')
+      AND COALESCE(u.raw_app_meta_data ->> 'role','') IN ('admin','operator')
   ) THEN
     RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'crm_owner_assignment_target_not_assignable';
   END IF;
