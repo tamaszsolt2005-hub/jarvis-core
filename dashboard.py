@@ -969,6 +969,7 @@ def render_opportunity_center_page(db: Any) -> None:
             candidate_rows = [
                 item for item in ideas
                 if str(item.get("market_pattern_id") or "") == str(selected_pattern_id)
+                and str(item.get("status") or "draft") != "rejected"
                 and item.get("id") and item.get("name") and item.get("summary")
             ]
             if len(linked_company_ids) < 2:
