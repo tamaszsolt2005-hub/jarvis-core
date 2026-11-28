@@ -1,5 +1,17 @@
 # JARVIS – javítási napló és rendezett hiánylista
 
+## P1 Opportunity Discovery – shortlist-kapu javítása (2026-11-28)
+
+A P1 vertical slice felülvizsgálatakor kiderült, hogy az evaluator a `draft` és `under_review` SaaS-jelölteket is provider-hívásra engedte. Ez megkerülte volna a jelölt emberi előszűrését és szükségtelen AI-költséget okozhatott.
+
+- Az `opportunity_evaluator.py` most csak `shortlisted` jelöltet enged értékelni; a tiltás a provider meghívása előtt történik.
+- A dashboard értékelési listája kizárólag shortlistelt jelölteket kínál fel.
+- Regressziós teszt ellenőrzi, hogy `draft` és `under_review` állapotban a provider nem fut le.
+- Az `OPPORTUNITY_ENGINE.md` folyamatleírása frissült.
+- A változás a feature branchben van; a CI még folyamatban van, staging/production validáció nem történt.
+
+A következő Opportunity P1 ellenőrzési lépés a teljes lánc CI-ben történő igazolása, majd külön stagingben provider nélküli/fixture-alapú UI és DB workflow smoke. Ez nem indítja el a Gemini workert vagy az ütemezőt.
+
 ## Friss állapotfelvétel – 2026-11-28, HEAD ca6ba3919df766e4bc5bf6cf5a53e793e428f643
 
 **PR #35:** nyitott, draft; merge és production deploy nincs igazolva.
