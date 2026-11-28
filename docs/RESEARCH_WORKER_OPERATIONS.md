@@ -1,6 +1,9 @@
 # JARVIS – kutatási worker műveletek
 
 **Állapot:** implementálva a PR #35 fejlesztői ágán; CI-ellenőrzés folyamatban.  
+**Frissítés – 2026-11-28:** a dashboard RPC-számlálóit biztonságos, nemnegatív egész normalizálás védi; a committed költség nulla értéke külön kezelődik, nem esik vissza a reserved összegre. A hibás értékek és nulla committed összeg regressziós tesztet kaptak. A 8412057 commit CI-je egy f-string szintaktikai hibán bukott; a ca6ba391 javította, de a javító HEAD CI-je még nem igazolt. A migration továbbra is branch-only, production DB-n nem alkalmaztuk.
+
+
 **Migráció:** `20261127220000_company_research_worker_ops.sql` – repository-only, production adatbázisra nem került fel.
 
 ## Mit tud most?
