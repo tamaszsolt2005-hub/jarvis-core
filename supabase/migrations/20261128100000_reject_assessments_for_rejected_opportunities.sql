@@ -5,6 +5,7 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.reject_assessment_for_rejected_opportunity()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = ''
 AS $rejected_opportunity_guard$
 DECLARE
