@@ -133,6 +133,8 @@ def evaluate_opportunity_candidate(
     )
     if opportunity.status == "rejected":
         raise OpportunityEvaluationError("rejected_opportunity_cannot_be_evaluated")
+    if opportunity.status != "shortlisted":
+        raise OpportunityEvaluationError("opportunity_must_be_shortlisted_before_evaluation")
     prompt_pains = [
         {
             "id": pain.id,
