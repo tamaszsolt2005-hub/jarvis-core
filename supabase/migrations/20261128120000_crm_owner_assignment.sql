@@ -12,8 +12,7 @@ ALTER TABLE public.lead_customer_lifecycle_events
   CHECK (event_type IN ('stage_changed','interaction_logged','next_action_set','owner_assigned'));
 
 ALTER TABLE public.lead_customer_lifecycle_events
-  ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid
-  REFERENCES auth.users(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid;
 
 CREATE INDEX IF NOT EXISTS lead_customer_lifecycle_assigned_to_idx
   ON public.lead_customer_lifecycle (assigned_to)
