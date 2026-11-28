@@ -148,8 +148,8 @@ A napi company research refresh worker sikeres dossier-mentése után:
 1. eltárolja a grounded `pain_hypotheses` rekordokat az immutable snapshot azonosítójához kötve;
 2. betölti a forrásolt, nem elutasított pain rekordokat;
 3. determinisztikusan klaszterez legalább két különböző vállalatot érintő hasonló problémákat;
-4. idempotens fingerprint alapján `candidate` piaci mintázatot és a kapcsolódó pain-linkeket hoz létre;
-5. egy `draft` SaaS-jelöltet készít a mintázathoz.
+4. idempotens fingerprint alapján `candidate` piaci mintázatot és a kapcsolódó pain-linkeket hoz létre; a párhuzamos worker-írások unique-constraint ütközését visszaolvasással kezeli;
+5. egy `draft` SaaS-jelöltet készít a mintázathoz; a jelölt- és kapcsolatbeszúrások szintén versenyhelyzetben idempotensek.
 
 A folyamat nem validál automatikusan mintázatot, nem pontoz, nem hagy jóvá assessmentet és nem állítja, hogy a fizetési hajlandóság bizonyított. A score preview és a végleges jóváhagyás továbbra is az Opportunity Center emberi workflow-ja. A klaszterezés heurisztikus; a hamis pozitív/negatív klaszterek dashboardos emberi ellenőrzést igényelnek. A `20261127190000_cross_company_pattern_discovery.sql` migráció kizárólag a feature branchben van; production adatbázison nem futott le.
 
