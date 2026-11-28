@@ -834,7 +834,9 @@ def render_opportunity_center_page(db: Any) -> None:
                                 )
                     current_idea_status = str(item.get("status") or "draft")
                     reviewer_role = str(st.session_state.get("_jarvis_user_role") or "")
-                    if _auth_login_enabled() and reviewer_role in {"admin", "operator"}:
+                    if current_idea_status == "rejected":
+                        st.caption("Az elutasított SaaS-jelölt lezárt állapotú; nem nyitható újra.")
+                    elif _auth_login_enabled() and reviewer_role in {"admin", "operator"}:
                         review_note = st.text_area(
                             "Felülvizsgálati indoklás",
                             key=f"jarvis_saas_review_note_{idea_id}",
@@ -851,7 +853,6 @@ def render_opportunity_center_page(db: Any) -> None:
                             if column.button(
                                 label,
                                 key=f"jarvis_saas_review_{decision}_{idea_id}",
-                                disabled=current_idea_status == "rejected",
                             ):
                                 if len(review_note.strip()) < 5:
                                     st.error("A felülvizsgálati indoklás kötelező, legalább 5 karakter.")
@@ -873,10 +874,8 @@ def render_opportunity_center_page(db: Any) -> None:
                                         st.error("A SaaS-jelölt felülvizsgálata nem sikerült. Ellenőrizd a jogosultságot és a migrációt.")
                     elif not _auth_login_enabled():
                         st.caption("A SaaS-jelölt megtekinthető; a felülvizsgálathoz egyéni Supabase Auth-belépés szükséges.")
-                    elif reviewer_role not in {"admin", "operator"}:
+                    else:
                         st.caption("A SaaS-jelöltet megtekintheted, de felülvizsgálni csak admin vagy operator szerepkörrel lehet.")
-                    elif current_idea_status == "rejected":
-                        st.caption("Az elutasított SaaS-jelölt lezárt állapotú.")
                     scoring_status = str(item.get("scoring_status") or "insufficient_evidence")
                     if scoring_status == "scored" and item.get("weighted_score") is not None:
                         st.metric("Magyarázható üzleti pontszám", f"{float(item['weighted_score']):.2f}/100")
