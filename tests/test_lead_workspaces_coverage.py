@@ -57,8 +57,10 @@ class _UI:
             "markdown", "write", "divider", "metric",
         }:
             return lambda *args, **kwargs: self.messages.append((name, args))
-        if name in {"container", "form", "expander"}:
+        if name in {"container", "form"}:
             return lambda *args, **kwargs: _Context()
+        if name == "expander":
+            return lambda *args, **kwargs: self.messages.append((name, args)) or _Context()
         raise AttributeError(name)
 
     def tabs(self, labels):
@@ -68,7 +70,7 @@ class _UI:
         count = spec if isinstance(spec, int) else len(spec)
         return [_Context() for _ in range(count)]
 
-    def selectbox(self, _label, *, options, index=0, **_kwargs):
+    def selectbox(self, *_args, options, index=0, **_kwargs):
         return options[index]
 
     def text_input(self, *_args, **_kwargs):
