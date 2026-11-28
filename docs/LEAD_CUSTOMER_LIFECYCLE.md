@@ -50,3 +50,14 @@ A migráció kizárólag a PR #35 fejlesztési ágban van; production adatbázis
 ## Lejárt következő teendők
 
 A CRM dashboard a rögzített `next_action` és `next_action_due` mezőkből külön lejárt teendő számlálót és szűrőt képez. Csak akkor jelöl egy sort lejártnak, ha tényleges teendő szöveg és múltbeli dátum is van; a mai határidő még nem lejárt, a hibás dátumot pedig nem minősíti automatikusan késedelmesnek. A dátum-összehasonlítás Europe/Budapest helyi naptári nap szerint történik. A listában a lejárt teendők kerülnek előre, a lead részlete pedig figyelmeztetést jelenít meg. Ez megjelenítési és prioritási funkció, nem küld automatikus értesítést vagy e-mailt.
+
+
+## Feladatközpont-integráció
+
+A Feladatközpont külön CRM-teendő nézetben olvassa a jóváhagyott leadek `lead_customer_lifecycle.next_action` és `next_action_due` mezőit. A nézet a meglévő `tasks.lead_id` kapcsolaton keresztül megmutatja, van-e már nyitott feladat az adott leadhez, és felsorolja annak címét. A lezárt feladat nem számít aktív kapcsoltnak.
+
+- A CRM-teendő és a JARVIS-feladat két külön rekord marad; a nézet nem hoz létre automatikusan feladatot és nem módosít adatot.
+- Csak jóváhagyott lead CRM-teendője jelenik meg.
+- A lejárt állapot a Europe/Budapest szerinti helyi naptári nap alapján készül.
+- Ha a CRM lifecycle vagy a lead review adatforrás hibás, a nézet figyelmeztetést mutat, nem tekinti üresnek az adatot.
+- A feladat létrehozása/módosítása továbbra is a chat külön jóváhagyási folyamatán keresztül történik.
