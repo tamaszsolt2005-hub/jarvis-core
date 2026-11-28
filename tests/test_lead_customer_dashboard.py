@@ -35,3 +35,21 @@ def test_crm_overdue_follow_up_requires_action_and_past_due_date():
         {"next_action": "Call customer", "next_action_due": "not-a-date"},
         today=today,
     )
+
+
+
+def test_crm_owner_assignment_migration_is_fail_closed_and_audited():
+    from pathlib import Path
+
+    migration = Path(
+        "supabase/migrations/20261128120000_crm_owner_assignment.sql"
+    ).read_text(encoding="utf-8")
+    assert "REFERENCES auth.users(id) ON DELETE SET NULL" in migration
+    assert "u.confirmed_at IS NOT NULL" in migration
+    assert "u.app_metadata ->> 'role'" in migration
+    assert "crm_user_directory_requires_admin_or_operator" in migration
+    assert "crm_owner_assignment_requires_admin_or_operator" in migration
+    assert "crm_owner_assignment_target_not_assignable" in migration
+    assert "owner_assigned" in migration
+    assert "REVOKE ALL ON FUNCTION public.assign_lead_customer_owner" in migration
+    assert "GRANT EXECUTE ON FUNCTION public.assign_lead_customer_owner" in migration
