@@ -720,7 +720,7 @@ jobs:
             echo "pgTAP reported failed CRM inbound reply assertions."
             exit 1
           fi
-          grep -q '1..9' <<< "$crm_inbound_output"
+          grep -q '1..10' <<< "$crm_inbound_output"
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128130000_crm_inbound_reply_events.sql
           # Add evidence-gated explainable opportunity scoring; replay for idempotence.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127110000_opportunity_scoring.sql
