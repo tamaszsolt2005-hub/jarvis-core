@@ -131,6 +131,8 @@ def evaluate_opportunity_candidate(
     pattern, opportunity, linked_pains = _validate_inputs(
         market_pattern, candidate, company_pains
     )
+    if opportunity.status == "rejected":
+        raise OpportunityEvaluationError("rejected_opportunity_cannot_be_evaluated")
     prompt_pains = [
         {
             "id": pain.id,
