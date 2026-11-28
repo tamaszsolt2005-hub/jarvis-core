@@ -49,8 +49,25 @@ def _safe_public_source(value: Any) -> str | None:
 
 
 def _email(value: Any) -> bool:
-    return bool(re.fullmatch(r"[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+", str(value or "").strip()))
-
+    address = str(value or "").strip()
+    if len(address) > 320 or address.count("@") != 1 or any(char.isspace() for char in address):
+        return False
+    local, domain = address.split("@", 1)
+    if not local or len(local) > 64 or not domain or len(domain) > 253:
+        return False
+    if local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    if not all(char.isalnum() or char in "._%+-" for char in local):
+        return False
+    labels = domain.split(".")
+    if len(labels) < 2 or len(labels[-1]) < 2:
+        return False
+    for label in labels:
+        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
+            return False
+        if not all(char.isalnum() or char == "-" for char in label):
+            return False
+    return True
 
 def _rpc_event(db: Any, draft_id: str, event: str, note: str | None = None, category: str | None = None) -> None:
     db.rpc("record_lead_email_event", {
