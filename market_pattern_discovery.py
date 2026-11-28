@@ -258,22 +258,40 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
                 continue
             pattern_id = str(existing_patterns[0]["id"])
         else:
-            inserted = _rows(
-                db.table("market_problem_patterns")
-                .insert({
-                    "fingerprint": candidate["fingerprint"],
-                    "title": candidate["title"],
-                    "description": candidate["description"],
-                    "confidence": candidate["confidence"],
-                    "status": "candidate",
-                })
-                .execute(),
-                operation="creating market pattern candidate",
-            )
-            if not inserted:
-                raise RuntimeError("Market pattern insert returned no row.")
-            pattern_id = str(inserted[0]["id"])
-            patterns_created += 1
+            try:
+                inserted = _rows(
+                    db.table("market_problem_patterns")
+                    .insert({
+                        "fingerprint": candidate["fingerprint"],
+                        "title": candidate["title"],
+                        "description": candidate["description"],
+                        "confidence": candidate["confidence"],
+                        "status": "candidate",
+                    })
+                    .execute(),
+                    operation="creating market pattern candidate",
+                )
+            except Exception:
+                # A concurrent worker may have inserted the unique fingerprint
+                # after our read. Reuse that row instead of failing the dossier job.
+                existing_after_race = _rows(
+                    db.table("market_problem_patterns")
+                    .select("id,fingerprint,status")
+                    .eq("fingerprint", candidate["fingerprint"])
+                    .limit(1)
+                    .execute(),
+                    operation="checking concurrently created market pattern",
+                )
+                if not existing_after_race:
+                    raise
+                if str(existing_after_race[0].get("status") or "") == "rejected":
+                    continue
+                pattern_id = str(existing_after_race[0]["id"])
+            else:
+                if not inserted:
+                    raise RuntimeError("Market pattern insert returned no row.")
+                pattern_id = str(inserted[0]["id"])
+                patterns_created += 1
 
         existing_links = _rows(
             db.table("market_pattern_pains")
@@ -285,11 +303,26 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
         linked_ids = {str(item.get("company_pain_id")) for item in existing_links}
         for pain_id in candidate["company_pain_ids"]:
             if pain_id not in linked_ids:
-                db.table("market_pattern_pains").insert({
-                    "market_pattern_id": pattern_id,
-                    "company_pain_id": pain_id,
-                }).execute()
-                links_created += 1
+                try:
+                    db.table("market_pattern_pains").insert({
+                        "market_pattern_id": pattern_id,
+                        "company_pain_id": pain_id,
+                    }).execute()
+                except Exception:
+                    # The composite primary key makes a concurrent duplicate safe.
+                    link_after_race = _rows(
+                        db.table("market_pattern_pains")
+                        .select("company_pain_id")
+                        .eq("market_pattern_id", pattern_id)
+                        .eq("company_pain_id", pain_id)
+                        .limit(1)
+                        .execute(),
+                        operation="checking concurrently created market pattern evidence link",
+                    )
+                    if not link_after_race:
+                        raise
+                else:
+                    links_created += 1
 
         existing_opportunities = _rows(
             db.table("saas_opportunities")
@@ -300,14 +333,29 @@ def discover_market_patterns(db: Any, *, pain_limit: int = 2000) -> dict[str, in
             operation="checking existing SaaS candidate",
         )
         if not existing_opportunities:
-            db.table("saas_opportunities").insert({
-                "market_pattern_id": pattern_id,
-                "discovery_fingerprint": candidate["fingerprint"],
-                "name": candidate["saas_name"],
-                "summary": candidate["saas_summary"],
-                "status": "draft",
-            }).execute()
-            opportunities_created += 1
+            try:
+                db.table("saas_opportunities").insert({
+                    "market_pattern_id": pattern_id,
+                    "discovery_fingerprint": candidate["fingerprint"],
+                    "name": candidate["saas_name"],
+                    "summary": candidate["saas_summary"],
+                    "status": "draft",
+                }).execute()
+            except Exception:
+                # The discovery fingerprint is unique; another worker may win
+                # between our existence check and insert.
+                opportunity_after_race = _rows(
+                    db.table("saas_opportunities")
+                    .select("id")
+                    .eq("discovery_fingerprint", candidate["fingerprint"])
+                    .limit(1)
+                    .execute(),
+                    operation="checking concurrently created SaaS candidate",
+                )
+                if not opportunity_after_race:
+                    raise
+            else:
+                opportunities_created += 1
     return {
         "pain_hypotheses": len(pains),
         "pattern_candidates": len(candidates),
