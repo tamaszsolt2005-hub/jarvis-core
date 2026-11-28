@@ -392,6 +392,8 @@ def test_restore_success_is_mocked_and_uses_single_transaction(monkeypatch, tmp_
             assert "CREATE SCHEMA public" not in sql
             assert "CREATE TABLE public.sample" in sql
             assert "ALTER DEFAULT PRIVILEGES IN SCHEMA public" in sql
+            assert "CREATE SCHEMA IF NOT EXISTS auth" in sql
+            assert "FUNCTION auth.uid()" in sql and "FUNCTION auth.jwt()" in sql
             return ""
         raise AssertionError(f"unexpected mocked command: {args[0]}")
 

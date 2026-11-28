@@ -197,15 +197,13 @@ def test_cross_browser_responsive_dashboard_and_analytics_interactions(tmp_path,
                 page.screenshot(path=str(screenshot_dir / "chat-mobile.png"), full_page=True)
                 heading_metrics = page.evaluate("""() => {
                     const heading = document.querySelector(".jarvis-welcome h1");
-                    const welcome = heading?.parentElement;
+                    const welcome = heading?.closest(".jarvis-welcome");
                     const style = heading ? getComputedStyle(heading) : null;
                     const parentStyle = welcome ? getComputedStyle(welcome) : null;
-                    const spacer = welcome?.querySelector(".jarvis-welcome-mobile-spacer");
                     return {
                         innerWidth: window.innerWidth,
                         headingMarginTop: style?.marginTop,
                         welcomePaddingTop: parentStyle?.paddingTop,
-                        spacerHeight: spacer ? getComputedStyle(spacer).height : null,
                         headingTop: heading?.getBoundingClientRect().top
                     };
                 }""")

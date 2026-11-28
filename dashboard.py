@@ -2955,8 +2955,7 @@ render_topbar_clock()
 
 if "chat" not in st.session_state or not st.session_state.chat:
     st.markdown(
-        '<div class="jarvis-welcome">'
-        '<div class="jarvis-welcome-mobile-spacer" aria-hidden="true"></div>'
+        '<div class="jarvis-welcome" style="padding-top:calc(clamp(78px,11vh,132px) + clamp(0px,calc(760px - 100vw),96px))">'
         '<h1>Üdvözöllek!</h1>'
         '<p>Miben segíthetek ma?</p>'
         '<div class="jarvis-welcome-rule"></div>'
