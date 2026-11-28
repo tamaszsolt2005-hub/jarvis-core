@@ -233,7 +233,7 @@ st.markdown(
         .jarvis-sidebar-status { width:220px; left:16px; bottom:16px; }
         .jarvis-topbar { gap:10px; font-size:.82rem; }
         .jarvis-profile { width:36px; height:36px; }
-        .jarvis-welcome { padding:12vh 0 10px; }
+        .jarvis-welcome { padding:clamp(5.5rem,14vh,8rem) 0 10px !important; position:relative; z-index:1; }
         .jarvis-prompts { gap:8px; margin:20px auto 28px; }
         .jarvis-prompt { min-height:46px; padding:0 13px; font-size:.82rem; }
         [data-testid="stBottom"] { padding:.7rem 12px 1rem !important; }
