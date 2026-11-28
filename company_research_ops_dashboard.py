@@ -20,6 +20,16 @@ def _rpc_payload(response: Any, *, operation: str) -> dict[str, Any]:
     raise RuntimeError(f"{operation} RPC returned an unexpected response shape.")
 
 
+def _nonnegative_int(value: Any) -> int:
+    """Normalize untrusted RPC counters without letting malformed values break the page."""
+    if isinstance(value, bool):
+        return 0
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def load_worker_control_state(db: Any) -> dict[str, Any]:
     if db is None or not callable(getattr(db, "rpc", None)):
         raise ValueError("An authenticated Supabase client is required.")
@@ -79,20 +89,21 @@ def render_company_research_ops_page(db: Any, *, auth_enabled: bool, role: str |
     )
     columns = st.columns(len(labels))
     for column, (label, key) in zip(columns, labels):
-        column.metric(label, int(counts.get(key, 0) or 0))
+        column.metric(label, _nonnegative_int(counts.get(key, 0)))
 
     budget = state.get("budget_today") if isinstance(state.get("budget_today"), dict) else {}
-    reserved = int(budget.get("reserved_microusd", 0) or 0) / 1_000_000
-    committed = int(budget.get("committed_microusd", reserved * 1_000_000) or 0) / 1_000_000
-    actual = int(budget.get("actual_microusd", 0) or 0) / 1_000_000
+    reserved = _nonnegative_int(budget.get("reserved_microusd", 0)) / 1_000_000
+    committed_raw = budget.get("committed_microusd", budget.get("reserved_microusd", 0))
+    committed = _nonnegative_int(committed_raw) / 1_000_000
+    actual = _nonnegative_int(budget.get("actual_microusd", 0)) / 1_000_000
     st.markdown("#### Mai költség")
     st.write(
         f"Függő foglalás: **${reserved:,.4f}** · "
         f"napi keretből lekötött összeg: **${committed:,.4f}** · "
         f"tényleges költség: **${actual:,.4f}**"
     )
-    st.caption(f"Mai kutatási jobok: {int(budget.get('jobs_today', 0) or 0)}")
-    daily_limit = int(budget.get("limit_microusd", 0) or 0) / 1_000_000
+    st.caption(f"Mai kutatási jobok: {_nonnegative_int(budget.get("jobs_today", 0))}")
+    daily_limit = _nonnegative_int(budget.get("limit_microusd", 0)) / 1_000_000
     if budget.get("over_budget") is True:
         st.error(
             f"A ténylegesen lekötött napi költség (${committed:,.4f}) meghaladta "
