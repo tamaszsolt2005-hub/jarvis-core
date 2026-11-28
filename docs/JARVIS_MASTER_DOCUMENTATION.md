@@ -1,3 +1,7 @@
+# Aktuális funkcióleltár és fejlesztési terv – 2026-11-28
+
+A teljes, frissített funkcióleltár, a megvalósított/részleges/nem igazolt képességek, a hiánylista és a P0–P3 fejlesztési javaslatok az [aktuális állapot- és roadmap dokumentumban](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md) találhatók. Ez a dokumentum a korábbi dátumozott összefoglalók mellett az aktuális PR #35 állapotát tekinti irányadónak.
+
 ## CRM – ügyfél-életciklus első verzió
 
 - A jóváhagyott leadek külön Ügyfélkapcsolatok oldalon követhetők: kapcsolatfelvétel, válasz, minősítés, ajánlat, pilot, ügyfél vagy elvesztett státusz.
