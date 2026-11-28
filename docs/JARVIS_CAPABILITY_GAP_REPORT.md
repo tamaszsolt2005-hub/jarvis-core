@@ -1,3 +1,9 @@
+## Frissítés – 2026-11-28
+
+Az aktuális, teljes funkcióleltár, a már implementált és részleges képességek, a hiányzó részek és a priorizált fejlesztési terv külön irányadó dokumentumba került: [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md).
+
+A PR #35 aktuális CI-pillanatképe: a `b22635b` HEAD-en 1340 teszt sikeres, 2 tesztharness-hiba, 3 skipped; coverage 83,33%. A hibákat a teszt UI-fake-jében javítottuk, az új commit CI-je még nem igazolt. A 82%-os coverage cél elfogadott. Ne keverd össze a CI-t a staging vagy production működés igazolásával.
+
 # JARVIS – képességhiány- és prioritási jelentés
 
 **Dátum:** 2026-11-27  
