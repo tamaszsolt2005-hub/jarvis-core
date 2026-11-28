@@ -4,6 +4,18 @@
 **Vizsgált ág:** `feature/opportunity-center-readonly`  
 **PR:** #35 → `main`, nyitott, draft; a PR állapotát és CI-jét minden új commit után külön kell ellenőrizni.
 
+## Friss dokumentációs állapot – 2026-11-28
+
+A részletes, priorizált hiánylista és a legutóbbi párhuzamossági javítás naplója külön dokumentumba került: [JARVIS javítási napló és hiányregiszter](20261128_JARVIS_GAP_REGISTER.md).
+
+- Legutóbbi ismert PR #35 HEAD a dokumentációs frissítés előtt: `d3e449e9acb39de6c4e83be75c495414b9f21a34`; PR nyitott, draft, nem merge-ölt.
+- A rejected-opportunity assessment guard most `FOR SHARE` zárolással olvassa a SaaS-jelöltet; az approval pgTAP terv 12 assertionre bővült.
+- A `ba210ce` kódcommit JARVIS CI, CodeQL és dependency audit futásai megszakadtak. A dokumentációs HEAD sikeres CI-je nincs igazolva; a korábbi 83,33%-os coverage nem friss HEAD-eredmény.
+- Production migráció, merge és deploy nem történt a most dokumentált javítás részeként.
+
+A hiányok végrehajtási sorrendje: (1) friss, zöld CI és migráció/security review; (2) staging Auth/RLS és UI smoke; (3) Opportunity Discovery teljes E2E; (4) ügyfélinterjú/pilot és fizetési hajlandóság; (5) CRM owner/follow-up és inbound email integráció; (6) scheduler, provider oldali hard budget és monitoring; (7) SaaS terméktervezési/fejlesztési pipeline. A részletes elfogadási feltételek a hiányregiszterben vannak.
+
+
 > Ez a dokumentum a repositoryban dokumentált és az aktuális PR-ágon azonosított képességeket választja szét. A „kódban megvan” nem jelent automatikusan CI-vel igazolt, stagingben élő vagy productionben működő állapotot. Ahol a bizonyíték hiányzik, ott ezt külön jelezzük.
 
 ## 1. Vezetői összefoglaló
@@ -136,6 +148,7 @@ A jelenlegi első munka a PR #35 CI tesztharness hibáinak javítása. Ezt köve
 - [JARVIS Master Documentation](JARVIS_MASTER_DOCUMENTATION.md)
 - [Current State and Next Steps](CURRENT_STATE_AND_NEXT_STEPS.md)
 - [Capability Gap Report](JARVIS_CAPABILITY_GAP_REPORT.md)
+- [JARVIS javítási napló és hiányregiszter](20261128_JARVIS_GAP_REGISTER.md)
 - [Opportunity Engine](OPPORTUNITY_ENGINE.md)
 - [CRM lifecycle](LEAD_CUSTOMER_LIFECYCLE.md)
 - [Email workflow](LEAD_EMAIL_WORKFLOW.md)
