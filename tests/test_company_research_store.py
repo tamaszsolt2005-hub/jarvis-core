@@ -211,7 +211,7 @@ def test_snapshot_persister_connects_grounded_pains_to_pattern_and_saas_candidat
                 inserted = []
                 for item in self.insert_rows:
                     row = dict(item)
-                    if self.table_name in {"market_problem_patterns", "saas_opportunities"}:
+                    if self.table_name in {"business_pain_hypotheses", "market_problem_patterns", "saas_opportunities"}:
                         row.setdefault("id", str(uuid4()))
                     if self.table_name == "market_pattern_pains" and any(
                         existing.get("market_pattern_id") == row.get("market_pattern_id")
