@@ -1,5 +1,14 @@
 # JARVIS – javítási napló és rendezett hiánylista
 
+## P1 CRM–Feladatközpont összekötés (2026-11-28)
+
+- A Feladatközpont külön, read-only CRM-teendő táblázatot jelenít meg a jóváhagyott leadek `lead_customer_lifecycle` állapotából.
+- A meglévő `tasks.lead_id` mezővel összekapcsolja a CRM-teendőt a kapcsolódó nyitott feladatokkal, és jelzi a kapcsolt feladat címét/számát.
+- A lejárt CRM-teendőket Budapest helyi dátuma szerint jelöli.
+- A CRM-teendő és a task külön rekord marad; nincs automatikus feladatlétrehozás, módosítás, e-mail vagy production DB változás.
+- Új helper regressziós teszt ellenőrzi az approved lead szűrést, a lejáratot és a lezárt feladat kizárását.
+- A változás CI-ellenőrzése még folyamatban van; valódi böngészős UI smoke még nem történt.
+
 ## P1 Opportunity Discovery – shortlist-kapu javítása (2026-11-28)
 
 A P1 vertical slice felülvizsgálatakor kiderült, hogy az evaluator a `draft` és `under_review` SaaS-jelölteket is provider-hívásra engedte. Ez megkerülte volna a jelölt emberi előszűrését és szükségtelen AI-költséget okozhatott.
