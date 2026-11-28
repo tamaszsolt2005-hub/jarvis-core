@@ -32,7 +32,12 @@ class _DB:
 
     def rpc(self, name, payload):
         self.rpc_calls.append((name, payload))
-        return SimpleNamespace(execute=lambda: SimpleNamespace(data={"ok": True}))
+        data = (
+            [{"user_id": "user-operator", "email": "operator@example.invalid",
+              "display_name": "CRM Operator", "role": "operator"}]
+            if name == "list_crm_assignable_users" else {"ok": True}
+        )
+        return SimpleNamespace(execute=lambda: SimpleNamespace(data=data))
 
 
 class _Context:
@@ -223,7 +228,30 @@ def test_crm_admin_page_renders_edit_forms_without_submitting_or_writing(monkeyp
     assert "Életciklus-státusz módosítása" in rendered
     assert "Ügyfélinterakció rögzítése" in rendered
     assert "Következő teendő beállítása" in rendered
-    assert db.rpc_calls == []
+    assert db.rpc_calls == [("list_crm_assignable_users", {})]
+
+
+def test_crm_owner_is_rendered_from_assignable_directory_without_writing(monkeypatch):
+    import lead_customer_dashboard as crm
+
+    ui = _UI()
+    monkeypatch.setattr(crm, "st", ui)
+    db = _DB({
+        "leads": [{"id": "lead-1", "company_name": "Example Ltd", "website": "https://example.com"}],
+        "lead_review_states": [{"lead_id": "lead-1", "review_status": "approved"}],
+        "lead_customer_lifecycle": [{
+            "lead_id": "lead-1", "stage": "qualified",
+            "assigned_to": "user-operator",
+        }],
+        "lead_customer_lifecycle_events": [],
+    })
+
+    crm.render_lead_customer_page(db, auth_enabled=True, role="admin")
+
+    rendered = " ".join(str(args) for _, args in ui.messages)
+    assert "Felelős:" in rendered
+    assert "CRM Operator" in rendered
+    assert db.rpc_calls == [("list_crm_assignable_users", {})]
 
 
 def test_research_enqueue_rejects_lead_without_company_name_before_loading_runtime_config():
