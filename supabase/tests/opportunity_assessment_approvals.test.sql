@@ -1,6 +1,6 @@
 -- Isolated PostgreSQL integration test for human-approved opportunity snapshots.
 BEGIN;
-SELECT plan(12);
+SELECT plan(13);
 
 SELECT has_table('public','opportunity_assessments',
   'append-only opportunity assessment history exists');
@@ -8,6 +8,11 @@ SELECT has_table('public','opportunity_assessments',
 SELECT ok(
   position('FOR SHARE' in pg_get_functiondef('public.reject_assessment_for_rejected_opportunity()'::regprocedure)) > 0,
   'rejected-candidate guard locks the candidate row against concurrent review updates'
+);
+
+SELECT ok(
+  (SELECT prosecdef FROM pg_proc WHERE oid = 'public.reject_assessment_for_rejected_opportunity()'::regprocedure),
+  'rejected-candidate trigger uses a narrowly scoped definer context for its protected lookup'
 );
 
 INSERT INTO public.leads (company_name, website)
