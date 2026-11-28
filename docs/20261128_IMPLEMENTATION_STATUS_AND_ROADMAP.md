@@ -61,7 +61,9 @@ A JARVIS már rendelkezik a belső üzleti asszisztens, leadkutatás, cégdosszi
 - Különböző cégek forrásolt problémáinak determinisztikus klaszterezése.
 - Candidate market pattern és draft SaaS candidate.
 - Hatdimenziós, bizonyítékhoz kötött scoring és evaluator preview.
-- Admin/operator validálás, további vizsgálat vagy elutasítás, kötelező indoklással és append-only előzményekkel.
+- Admin/operator pattern-validálás, további vizsgálat vagy elutasítás, kötelező indoklással és append-only előzményekkel.
+- SaaS-jelöltek külön emberi review életciklusa: `under_review`, `shortlisted`, `rejected`; shortlist csak validált patternből, elutasítás terminális, a döntések append-only naplózottak.
+- Elutasított SaaS-jelölt evaluator- és DB approval-védelemmel rendelkezik.
 - **Hiányos:** klaszterezési precision/recall és téves klaszterek mérése; teljes pain → pattern → candidate → evaluator E2E staging-validáció; valós ügyfélinterjúk, pilotok és fizetési hajlandóság rögzítése. A két céges alátámasztás önmagában nem bizonyít fizetőképes piacot.
 
 ### 2.7 Intelligence evidence és Graph
@@ -90,7 +92,7 @@ A JARVIS már rendelkezik a belső üzleti asszisztens, leadkutatás, cégdosszi
 4. A merge után a staging/production migráció és deploy külön release-gate marad.
 
 ### P1 – üzleti folyamatok összekapcsolása
-1. **Opportunity Discovery E2E:** pain → pattern → SaaS candidate → evaluator → emberi döntés; minden átmenet auditált és idempotens.
+1. **Opportunity Discovery E2E:** pain → pattern → SaaS candidate → candidate review → evaluator → emberi döntés; a candidate review és a rejected státusz DB-szinten is védett, minden döntés auditált.
 2. **CRM follow-up és owner:** felelős, határidő, lejárt teendő, következő belső task és outcome összekötése.
 3. **Kapcsolattartó- és cégcsoport-azonosítás:** e-mail/domain/név normalizálás, aliasok, leányvállalatok, kézi jóváhagyású összevonás és audit.
 4. **Bejövő e-mail → CRM:** válasz besorolásának és bizonyítékának biztonságos, ember által felülvizsgált strukturált rögzítése.
