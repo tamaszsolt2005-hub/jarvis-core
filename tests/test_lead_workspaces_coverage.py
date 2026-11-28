@@ -239,3 +239,34 @@ def test_research_enqueue_rejects_lead_without_company_name_before_loading_runti
             authorize_user=lambda _session: {"role": "admin"},
             service_client_factory=LeadOnlyDB,
         )
+
+
+def test_crm_task_bridge_joins_only_approved_leads_and_marks_overdue_items():
+    from datetime import date
+    from dashboard import _build_crm_task_bridge_rows
+
+    rows = _build_crm_task_bridge_rows(
+        [
+            {"lead_id": "lead-1", "next_action": "Call buyer", "next_action_due": "2026-11-27"},
+            {"lead_id": "lead-2", "next_action": "Send proposal", "next_action_due": "2026-12-02"},
+            {"lead_id": "lead-3", "next_action": "Not approved", "next_action_due": "2026-11-20"},
+            {"lead_id": "lead-4", "next_action": ""},
+        ],
+        {"lead-1", "lead-2"},
+        [
+            {"id": "lead-1", "company_name": "Alpha Ltd"},
+            {"id": "lead-2", "company_name": "Beta Ltd"},
+        ],
+        [
+            {"id": "task-1", "lead_id": "lead-1", "title": "Call Alpha", "status": "open"},
+            {"id": "task-2", "lead_id": "lead-1", "title": "Old call", "status": "completed"},
+        ],
+        today=date(2026, 11, 28),
+    )
+
+    assert [row["Leadazonosító"] for row in rows] == ["lead-1", "lead-2"]
+    assert rows[0]["Állapot"] == "LEJÁRT"
+    assert rows[0]["Kapcsolt nyitott feladat"] == 1
+    assert rows[0]["Feladatcím"] == "Call Alpha"
+    assert rows[1]["Állapot"] == "Aktív"
+    assert rows[1]["Kapcsolt nyitott feladat"] == 0
