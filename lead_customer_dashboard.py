@@ -89,7 +89,7 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         review_states = _rows(db, "lead_review_states", "lead_id,review_status")
         lifecycle_rows = _rows(
             db, "lead_customer_lifecycle",
-            "lead_id,stage,next_action,next_action_due,last_interaction_at,updated_at",
+            "lead_id,stage,next_action,next_action_due,last_interaction_at,updated_at,assigned_to",
         )
         events = _rows(
             db, "lead_customer_lifecycle_events",
@@ -122,6 +122,17 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
     if not approved_leads:
         st.info("Még nincs jóváhagyott lead az ügyfélkapcsolati folyamatban.")
         return
+
+    assignable_users: list[dict[str, Any]] = []
+    if can_manage:
+        try:
+            response = db.rpc("list_crm_assignable_users", {}).execute()
+            assignable_users = getattr(response, "data", None)
+            if not isinstance(assignable_users, list):
+                raise RuntimeError("Unexpected CRM user directory response.")
+        except Exception as exc:
+            st.warning("A felelőslista nem érhető el; a CRM többi funkciója tovább használható.")
+            st.caption("Hibatípus: " + type(exc).__name__)
 
     counts = {stage: 0 for stage in _STAGES}
     for lead in approved_leads:
@@ -180,6 +191,17 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         )
         with st.expander(f"{name} · {_STAGES.get(stage, stage)}", expanded=False):
             st.caption(str(lead.get("website") or "Nincs weboldal"))
+            assigned_to = str(state.get("assigned_to") or "")
+            assigned_user = next(
+                (user for user in assignable_users if str(user.get("user_id")) == assigned_to),
+                None,
+            )
+            if assigned_user:
+                st.write("**Felelős:** " + str(assigned_user.get("display_name") or assigned_user.get("email")))
+            elif assigned_to:
+                st.write("**Felelős:** Inaktív vagy már nem hozzárendelhető felhasználó")
+            else:
+                st.write("**Felelős:** Nincs hozzárendelve")
             st.write(f"**Következő teendő:** {state.get('next_action') or 'Nincs megadva'}")
             if lead_id in overdue_ids:
                 st.warning("A következő teendő határideje lejárt.")
@@ -206,6 +228,49 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
                 continue
 
             st.divider()
+            if assignable_users:
+                user_options = [""] + [str(user["user_id"]) for user in assignable_users]
+                current_assignment = assigned_to if assigned_to in user_options else ""
+                with st.form(f"crm_owner_form_{lead_id}"):
+                    st.markdown("**Felelős hozzárendelése**")
+                    selected_owner = st.selectbox(
+                        "Admin/operator felelős",
+                        options=user_options,
+                        index=user_options.index(current_assignment),
+                        format_func=lambda value: (
+                            "Nincs felelős" if not value else next(
+                                (
+                                    str(user.get("display_name") or user.get("email")) + " · " + str(user.get("role"))
+                                    for user in assignable_users
+                                    if str(user.get("user_id")) == value
+                                ),
+                                "Ismeretlen felhasználó",
+                            )
+                        ),
+                        key=f"crm_owner_{lead_id}",
+                    )
+                    owner_note = st.text_input(
+                        "Hozzárendelés indoka (kötelező)",
+                        max_chars=500,
+                        key=f"crm_owner_note_{lead_id}",
+                    )
+                    owner_submit = st.form_submit_button("Felelős mentése")
+                if owner_submit:
+                    if len(owner_note.strip()) < 5:
+                        st.warning("Legalább 5 karakteres indoklás szükséges.")
+                    else:
+                        try:
+                            db.rpc("assign_lead_customer_owner", {
+                                "p_lead_id": lead_id,
+                                "p_assignee_id": selected_owner or None,
+                                "p_note": owner_note.strip(),
+                            }).execute()
+                            st.success("A felelős-hozzárendelés elmentve.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error("A felelős nem rendelhető hozzá. Ellenőrizd a jogosultságot és a célfelhasználót.")
+                            st.caption("Hibatípus: " + type(exc).__name__)
+
             with st.form(f"crm_stage_form_{lead_id}"):
                 st.markdown("**Életciklus-státusz módosítása**")
                 new_stage = st.selectbox(
