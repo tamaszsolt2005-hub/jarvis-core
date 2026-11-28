@@ -88,7 +88,7 @@ A kapcsolódó migrációk időrendi sorrendben:
 - `20261127140000_intelligence_evidence_store.sql`: tartós, append-only központi bizonyítékindex, három domain forrás-triggerjei, backfill, RLS és olvasási jogosultságok.
 - `20261127190000_cross_company_pattern_discovery.sql`: snapshot-szintű pain idempotencia, market-pattern fingerprint és automatikus SaaS-jelölt idempotencia.
 - `20261127200000_market_pattern_review_workflow.sql`: admin/operator által hívható pattern review RPC, kötelező indoklás, append-only döntési események és RLS.
-- `20261128100000_reject_assessments_for_rejected_opportunities.sql`: DB-trigger, amely elutasított SaaS-jelölt assessmentének jóváhagyását is blokkolja.
+- `20261128100000_reject_assessments_for_rejected_opportunities.sql`: DB-trigger, amely elutasított SaaS-jelölt assessmentének jóváhagyását is blokkolja; a jelölt sorát `FOR SHARE` zárolással olvassa, hogy az assessment-beszúrás és az elutasítás párhuzamos tranzakciói sorosíthatók legyenek. A `supabase/tests/opportunity_assessment_approvals.test.sql` 12. assertionje a zárolás meglétét ellenőrzi.
 - `20261128110000_saas_opportunity_review_workflow.sql`: SaaS-jelölt review RPC, `under_review` / `shortlisted` / `rejected` státusz, indoklás, append-only review event és RLS.
 
 Az `opportunity_assessments` külön értékelési pillanatképet tárol: opportunity és market pattern azonosító, a jelölt és mintázat nevét/összefoglalóját rögzítő snapshot mezők, egyedi idempotenciakulcs, hat pontszám, generált összpontszám, confidence, rationale, evidence, evaluator modell/verzió, jóváhagyó Auth user UUID és jóváhagyási időpont. A score összpontszámát az adatbázis generált oszlopa számítja, nem a kliens küldi be.
