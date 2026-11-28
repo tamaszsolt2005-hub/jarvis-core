@@ -47,7 +47,12 @@ def _is_overdue(state: dict[str, Any], *, today: date | None = None) -> bool:
     if not due_value:
         return False
     try:
-        due = due_value if isinstance(due_value, date) else date.fromisoformat(str(due_value)[:10])
+        if isinstance(due_value, datetime):
+            due = due_value.date()
+        elif isinstance(due_value, date):
+            due = due_value
+        else:
+            due = date.fromisoformat(str(due_value)[:10])
     except (TypeError, ValueError):
         return False
     reference_day = today or datetime.now(ZoneInfo("Europe/Budapest")).date()
