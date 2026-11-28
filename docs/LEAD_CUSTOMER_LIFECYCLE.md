@@ -40,9 +40,19 @@ Minden esemény append-only előzményként kerül tárolásra. A CRM aktuális 
 - A kimenő e-mailküldés EMAIL_DELIVERY_ENABLED = False hard gate változatlanul aktív.
 - A bejövő ügyfélválaszokat JARVIS külön jelzi; válaszadás csak a felhasználó későbbi utasítására történhet.
 
+## Felelős-hozzárendelés
+
+- A CRM-felelős kizárólag megerősített Supabase Auth-fiók lehet, amelynek megbízható `app_metadata.role` értéke `admin` vagy `operator`.
+- A felhasználói névjegyzéket a `list_crm_assignable_users` RPC szolgáltatja; közvetlen `auth.users` lekérdezés a dashboardból nincs.
+- A hozzárendelést az `assign_lead_customer_owner` RPC végzi, és adatbázis-oldalon ellenőrzi a végrehajtó szerepét, a célfelhasználó jogosultságát és a lead jóváhagyott állapotát.
+- Minden változás az append-only `lead_customer_lifecycle_events` táblában `owner_assigned` eseményként, indoklással kerül rögzítésre.
+- A felelős törlése a hozzárendelés visszavonása; Auth-fiók törlése esetén az FK `ON DELETE SET NULL` módon oldja fel a hivatkozást.
+- A régi, közös jelszavas munkamenet nem kap felelős-hozzárendelési írási lehetőséget.
+
 ## Migráció
 
-supabase/migrations/20261127210000_lead_customer_lifecycle.sql
+- `supabase/migrations/20261127210000_lead_customer_lifecycle.sql`
+- `supabase/migrations/20261128120000_crm_owner_assignment.sql`
 
 A migráció kizárólag a PR #35 fejlesztési ágban van; production adatbázison nem futott le.
 
@@ -61,3 +71,5 @@ A Feladatközpont külön CRM-teendő nézetben olvassa a jóváhagyott leadek `
 - A lejárt állapot a Europe/Budapest szerinti helyi naptári nap alapján készül.
 - Ha a CRM lifecycle vagy a lead review adatforrás hibás, a nézet figyelmeztetést mutat, nem tekinti üresnek az adatot.
 - A feladat létrehozása/módosítása továbbra is a chat külön jóváhagyási folyamatán keresztül történik.
+
+A felelős-hozzárendelés kódja és migrációja a feature ágon elkészült; production alkalmazás és CI-igazolás még nem történt.
