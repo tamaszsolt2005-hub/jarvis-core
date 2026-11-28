@@ -45,6 +45,9 @@ class _Context:
     def metric(self, *_args, **_kwargs):
         pass
 
+    def button(self, *_args, **_kwargs):
+        return False
+
 
 class _UI:
     def __init__(self):
