@@ -5,6 +5,7 @@ import pytest
 from company_research_ops_dashboard import (
     load_worker_control_state,
     set_worker_paused,
+    _nonnegative_int,
 )
 
 
@@ -148,3 +149,24 @@ def test_render_worker_ops_page_requires_verified_auth(monkeypatch):
     monkeypatch.setattr(page, "st", ui)
     page.render_company_research_ops_page(RenderDB(_ops_state()), auth_enabled=False, role="admin")
     assert any("ellenőrzött Supabase Auth" in args[0] for name, args in ui.messages if name == "error")
+
+
+def test_nonnegative_int_handles_malformed_rpc_values():
+    assert _nonnegative_int(12) == 12
+    assert _nonnegative_int("7") == 7
+    assert _nonnegative_int(-4) == 0
+    assert _nonnegative_int(True) == 0
+    assert _nonnegative_int("not-a-number") == 0
+    assert _nonnegative_int(None) == 0
+
+
+def test_zero_committed_budget_is_not_replaced_by_reserved_amount(monkeypatch):
+    import company_research_ops_dashboard as page
+
+    ui = FakeUI()
+    monkeypatch.setattr(page, "st", ui)
+    state = _ops_state()
+    state["budget_today"]["committed_microusd"] = 0
+    page.render_company_research_ops_page(RenderDB(state), auth_enabled=True, role="reader")
+    cost_lines = [str(args[0]) for name, args in ui.messages if name == "write"]
+    assert any("napi keretből lekötött összeg: **$0.0000**" in line for line in cost_lines)
