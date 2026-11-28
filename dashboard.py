@@ -971,13 +971,13 @@ def render_opportunity_center_page(db: Any) -> None:
             candidate_rows = [
                 item for item in ideas
                 if str(item.get("market_pattern_id") or "") == str(selected_pattern_id)
-                and str(item.get("status") or "draft") != "rejected"
+                and str(item.get("status") or "draft") == "shortlisted"
                 and item.get("id") and item.get("name") and item.get("summary")
             ]
             if len(linked_company_ids) < 2:
                 st.warning("Ehhez a mintázathoz nem érhető el legalább két különböző cégből származó probléma. Értékelés nem indítható.")
             elif not candidate_rows:
-                st.info("Ehhez a mintázathoz még nincs rögzített SaaS-jelölt.")
+                st.info("Ehhez a mintázathoz még nincs shortlistelt SaaS-jelölt. Előbb az admin/operator felülvizsgálati részen kell shortlistre helyezni.")
             else:
                 candidate_labels = {
                     str(item["id"]): str(item.get("name") or item["id"])
