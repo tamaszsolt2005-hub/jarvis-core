@@ -83,7 +83,7 @@ BEGIN
   JOIN public.market_problem_patterns AS pattern
     ON pattern.id = candidate.market_pattern_id
   WHERE candidate.id = p_opportunity_id
-  FOR UPDATE OF candidate;
+  FOR UPDATE OF candidate, pattern;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION USING
@@ -137,6 +137,8 @@ REVOKE ALL ON FUNCTION public.reject_saas_opportunity_review_event_mutation()
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_saas_opportunity_review_event_mutation()
   TO service_role;
+GRANT EXECUTE ON FUNCTION public.review_saas_opportunity(uuid,text,text)
+  TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.review_saas_opportunity(uuid,text,text)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.review_saas_opportunity(uuid,text,text)
