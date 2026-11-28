@@ -6,6 +6,20 @@
 
 **Migráció:** `20261127220000_company_research_worker_ops.sql` – repository-only, production adatbázisra nem került fel.
 
+## P2 – provideroldali Google Search költségkorlát (2026-11-28)
+
+**Ellenőrzési eredmény: a jelenlegi Gemini Google Search grounding API-hívásban nincs dokumentált, kérésenkénti maximális keresési lekérdezésszám-paraméter.** A modell dönt arról, hogy indít-e keresést, és egyetlen promptból több keresési lekérdezést is generálhat. A válasz `grounding_metadata.web_search_queries` mezője utólag jelzi a tényleges lekérdezéseket; ez elszámolási/riasztási adat, nem előzetes korlátozó mechanizmus.
+
+A jelenlegi adapter ezért:
+- egy `generate_content` hívásban adja át a `google_search` eszközt;
+- a válasz metadata alapján méri a keresési lekérdezések számát;
+- a költségbecslésben szereplő `max_search_queries_per_attempt` értéket **foglalási feltételezésként**, nem provider hard limitként kezeli;
+- hiányzó keresési metadata esetén, ha a grounding díjköteles, nem véglegesíti a tényleges költséget, hanem a foglalást tartja fenn.
+
+**Következmény:** a napi budget és a foglalási becslés védi a queue további feladatait, de nem garantálja, hogy egyetlen Gemini kérés ne lépje túl a becsült keresési keretet. A metadata utólagos ellenőrzése sem tudja visszafordítani a már végrehajtott kereséseket.
+
+**Biztonságos következő architektúra, külön jóváhagyás és költségmodell-ellenőrzés után:** a beépített Google Search grounding helyett explicit, alkalmazás által vezérelt keresőadapter, amely egyenként indítja a kereséseket, minden keresés előtt atomikusan ellenőrzi és lefoglalja a maradék napi query-budgetet, majd a limit elérésekor nem küld újabb provider keresést. Ez külön provider/API és grounding-minőség változás; jelenleg nem kapcsoltuk be és nem indítottunk külső keresést.
+
 ## Mit tud most?
 
 **P2 scheduler kill switch – 2026-11-28:** a napi GitHub Actions job csak akkor futhat, ha a repository `JARVIS_COMPANY_RESEARCH_SCHEDULE_ENABLED` változója explicit `true`. Ugyanezt a belépési pont Python-oldalon is ellenőrzi még a konfiguráció, Supabase-kliens vagy Gemini-kliens betöltése előtt. A változó nincs bekapcsolva; az ütemezett futtatás jelenleg szándékosan tiltott.
