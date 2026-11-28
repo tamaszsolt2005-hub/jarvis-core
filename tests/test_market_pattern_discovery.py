@@ -208,3 +208,85 @@ def test_rejected_market_pattern_is_not_reopened_by_later_discovery():
     assert result["patterns_created"] == 0
     assert result["saas_candidates_created"] == 0
     assert db.tables.get("saas_opportunities", []) == []
+
+def test_discovery_recovers_from_concurrent_pattern_link_and_candidate_inserts():
+    from market_pattern_discovery import discover_market_patterns
+
+    class RaceQuery(_Query):
+        def execute(self):
+            from uuid import uuid4
+
+            rows = self.db.tables.setdefault(self.table_name, [])
+            if self.insert_rows is not None:
+                for item in self.insert_rows:
+                    if self.table_name == "market_problem_patterns" and any(
+                        row.get("fingerprint") == item.get("fingerprint") for row in rows
+                    ):
+                        raise RuntimeError("unique pattern fingerprint conflict")
+                    if self.table_name == "market_pattern_pains" and any(
+                        row.get("market_pattern_id") == item.get("market_pattern_id")
+                        and row.get("company_pain_id") == item.get("company_pain_id")
+                        for row in rows
+                    ):
+                        raise RuntimeError("duplicate pattern pain link")
+                    if self.table_name == "saas_opportunities" and any(
+                        row.get("discovery_fingerprint") == item.get("discovery_fingerprint")
+                        for row in rows
+                    ):
+                        raise RuntimeError("unique SaaS fingerprint conflict")
+                return super().execute()
+
+            if self.table_name == "market_problem_patterns" and "fingerprint" in self.filters:
+                fingerprint = self.filters["fingerprint"]
+                if fingerprint not in self.db.injected_patterns:
+                    self.db.injected_patterns.add(fingerprint)
+                    rows.append({
+                        "id": "concurrent-pattern",
+                        "fingerprint": fingerprint,
+                        "status": "candidate",
+                    })
+                    return _Response([])  # Simulate a read that raced the concurrent commit.
+            if self.table_name == "market_pattern_pains" and "market_pattern_id" in self.filters:
+                pattern_id = self.filters["market_pattern_id"]
+                if pattern_id not in self.db.injected_links:
+                    self.db.injected_links.add(pattern_id)
+                    first_pain = self.db.tables["business_pain_hypotheses"][0]
+                    rows.append({
+                        "market_pattern_id": pattern_id,
+                        "company_pain_id": first_pain["id"],
+                    })
+                    return _Response([])
+            if self.table_name == "saas_opportunities" and "discovery_fingerprint" in self.filters:
+                fingerprint = self.filters["discovery_fingerprint"]
+                if fingerprint not in self.db.injected_opportunities:
+                    self.db.injected_opportunities.add(fingerprint)
+                    rows.append({
+                        "id": "concurrent-opportunity",
+                        "discovery_fingerprint": fingerprint,
+                    })
+                    return _Response([])
+            return super().execute()
+
+    class RaceDB(_DB):
+        def __init__(self, pains):
+            super().__init__(pains)
+            self.injected_patterns = set()
+            self.injected_links = set()
+            self.injected_opportunities = set()
+
+        def table(self, name):
+            return RaceQuery(self, name)
+
+    db = RaceDB([
+        _pain("pain-1", "company-1", "Manual invoice reconciliation takes several days"),
+        _pain("pain-2", "company-2", "Manual invoice reconciliation requires several days"),
+    ])
+
+    result = discover_market_patterns(db)
+
+    assert result["patterns_created"] == 0
+    assert result["evidence_links_created"] == 1
+    assert result["saas_candidates_created"] == 0
+    assert len(db.tables["market_problem_patterns"]) == 1
+    assert len(db.tables["market_pattern_pains"]) == 2
+    assert len(db.tables["saas_opportunities"]) == 1
