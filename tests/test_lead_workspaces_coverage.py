@@ -70,7 +70,12 @@ class _UI:
         count = spec if isinstance(spec, int) else len(spec)
         return [_Context() for _ in range(count)]
 
-    def selectbox(self, *_args, options, index=0, **_kwargs):
+    def selectbox(self, *args, options=None, index=0, **_kwargs):
+        # Streamlit accepts options as the second positional argument or by keyword.
+        if options is None and len(args) > 1:
+            options = args[1]
+        if not isinstance(options, (list, tuple)) or not options:
+            return None
         return options[index]
 
     def text_input(self, *_args, **_kwargs):
