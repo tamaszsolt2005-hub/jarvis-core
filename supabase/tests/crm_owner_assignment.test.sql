@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(13);
+SELECT plan(12);
 
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid='public.lead_customer_lifecycle'::regclass)
@@ -93,12 +93,6 @@ SELECT throws_ok(
 
 SELECT set_config('request.jwt.claims',
  '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","app_metadata":{"role":"admin"}}',true);
-SELECT throws_ok(
- 'UPDATE public.lead_customer_lifecycle_events SET summary=summary WHERE lead_id=' ||
- quote_literal(:'owner_lead_id') || '::uuid',
- '55000','lead_customer_lifecycle_events_are_append_only',
- 'owner assignment audit remains append-only'
-);
 SELECT lives_ok(
  'SELECT public.assign_lead_customer_owner(' ||
  quote_literal(:'owner_lead_id') || '::uuid,NULL,' ||
@@ -107,5 +101,11 @@ SELECT lives_ok(
 );
 
 RESET ROLE;
+SELECT throws_ok(
+ 'UPDATE public.lead_customer_lifecycle_events SET summary=summary WHERE lead_id=' ||
+ quote_literal(:'owner_lead_id') || '::uuid',
+ '55000','lead_customer_lifecycle_events_are_append_only',
+ 'owner assignment audit remains append-only'
+);
 SELECT * FROM finish();
 ROLLBACK;
