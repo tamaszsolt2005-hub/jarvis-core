@@ -87,7 +87,9 @@ A kapcsolódó migrációk időrendi sorrendben:
 - `20261127130000_opportunity_assessment_approvals.sql`: jóváhagyott, append-only értékelési előzmények.
 - `20261127140000_intelligence_evidence_store.sql`: tartós, append-only központi bizonyítékindex, három domain forrás-triggerjei, backfill, RLS és olvasási jogosultságok.
 - `20261127190000_cross_company_pattern_discovery.sql`: snapshot-szintű pain idempotencia, market-pattern fingerprint és automatikus SaaS-jelölt idempotencia.
-- `20261127200000_market_pattern_review_workflow.sql`: admin/operator által hívható review RPC, kötelező indoklás, append-only döntési események és RLS.
+- `20261127200000_market_pattern_review_workflow.sql`: admin/operator által hívható pattern review RPC, kötelező indoklás, append-only döntési események és RLS.
+- `20261128100000_reject_assessments_for_rejected_opportunities.sql`: DB-trigger, amely elutasított SaaS-jelölt assessmentének jóváhagyását is blokkolja.
+- `20261128110000_saas_opportunity_review_workflow.sql`: SaaS-jelölt review RPC, `under_review` / `shortlisted` / `rejected` státusz, indoklás, append-only review event és RLS.
 
 Az `opportunity_assessments` külön értékelési pillanatképet tárol: opportunity és market pattern azonosító, a jelölt és mintázat nevét/összefoglalóját rögzítő snapshot mezők, egyedi idempotenciakulcs, hat pontszám, generált összpontszám, confidence, rationale, evidence, evaluator modell/verzió, jóváhagyó Auth user UUID és jóváhagyási időpont. A score összpontszámát az adatbázis generált oszlopa számítja, nem a kliens küldi be.
 
@@ -110,7 +112,7 @@ Az Opportunity Center fő részei:
 - **Intelligence áttekintő:** központi, forrásolt evidence rekordok domain-összesítése, forráslinkek, bizonyíték-jelleg és időbélyegek.
 - **Cégproblémák:** egyedi hipotézisek, confidence, státusz és források.
 - **Ismétlődő mintázatok:** a több cégnél megfigyelt problémák és a kapcsolódó céges bizonyítékok.
-- **SaaS-ötletek:** a piaci mintázatokhoz kapcsolt termékjelöltek és score állapot.
+- **SaaS-ötletek:** a piaci mintázatokhoz kapcsolt termékjelöltek, admin/operator felülvizsgálati műveletek (vizsgálat, shortlist, elutasítás), kötelező indoklás és append-only döntési előzmények.
 - **Értékelési előnézet:** validált mintázat és hozzá tartozó jelölt kiválasztása, majd explicit gombbal evaluator futtatása.
 - **Döntési előzmények:** korábban jóváhagyott értékelések listája.
 - **Cégdossziék:** a meglévő dosszié-előzmények külön hozzáférési modellje.
@@ -155,3 +157,8 @@ A folyamat nem validál automatikusan mintázatot, nem pontoz, nem hagy jóvá a
 
 A dashboard az admin/operator felhasználóknak validálás, további vizsgálat és elutasítás műveletet ad. Minden döntéshez legalább 5 karakteres indoklás szükséges. A `review_market_pattern` SECURITY DEFINER RPC újra ellenőrzi a JWT szerepkört, a pattern létezését, valamint validáláskor legalább két különböző, nem elutasított, forrásolt cégproblémát. A státuszváltozás és a megjegyzés egy append-only `market_pattern_review_events` rekordban is rögzül; az eseményeket a dashboard megjeleníti. A reader csak olvashat, anon nem fér hozzá, közvetlen authenticated írás nincs.
 
+
+
+## SaaS-jelöltek emberi felülvizsgálata
+
+A generált SaaS-jelölt alapállapota `draft`. Az admin/operator felhasználó a dashboardon `under_review`, `shortlisted` vagy `rejected` állapotba helyezheti, minden döntéshez legalább 5 karakteres indoklással. A shortlist csak validált piaci mintázat esetén engedélyezett, a döntés és indoklás append-only `saas_opportunity_review_events` rekordként is megmarad. Az elutasított jelölt terminális: a review RPC nem nyitja újra, az evaluator pedig provider-hívás előtt visszautasítja, a DB approval trigger pedig közvetlen beszúrásnál is tiltja az assessmentet. A migráció és a dashboard a PR #35 feature branchben van; production adatbázison nem futott le.
