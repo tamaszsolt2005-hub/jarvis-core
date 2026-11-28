@@ -384,6 +384,8 @@ def render_email_center(
             draft_id = str(draft.get("id") or "")
             with st.container(border=True):
                 st.markdown(f"**{lead.get('company_name') or 'Ismeretlen cég'}** — elutasított piszkozat")
+                st.write(f"Tárgy: {draft.get('subject') or '—'}")
+                st.write(str(draft.get("body") or ""))
                 if can_edit and st.button("Újraszerkesztés", key=f"email_reopen_{draft_id}"):
                     try:
                         _rpc_event(db, draft_id, "reopened", "Újraszerkesztésre visszanyitva.")
