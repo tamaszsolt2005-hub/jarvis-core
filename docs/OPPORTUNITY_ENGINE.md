@@ -122,7 +122,7 @@ A preview nem automatikus mentés. Elégtelen bizonyíték esetén nem készül 
 
 ## CI és ellenőrzési korlátok
 
-A CI workflow izolált PostgreSQL környezetben futtatja a migrációkat és a pgTAP teszteket. A jóváhagyási tesztfájl: `supabase/tests/opportunity_assessment_approvals.test.sql` (11 assertion), továbbá a SaaS-jelölt review életciklusát a `supabase/tests/saas_opportunity_review.test.sql` (8 assertion) ellenőrzi. A scoring és source-evidence migrációk a jóváhagyási migráció előtt kerülnek alkalmazásra; a migrációk idempotencia-ellenőrzése is része a workflow-nak.
+A CI workflow izolált PostgreSQL környezetben futtatja a migrációkat és a pgTAP teszteket. A jóváhagyási tesztfájl: `supabase/tests/opportunity_assessment_approvals.test.sql` (12 assertion), továbbá a SaaS-jelölt review életciklusát a `supabase/tests/saas_opportunity_review.test.sql` (8 assertion) ellenőrzi. A scoring és source-evidence migrációk a jóváhagyási migráció előtt kerülnek alkalmazásra; a migrációk idempotencia-ellenőrzése is része a workflow-nak.
 
 A CI az `intelligence_evidence_store.test.sql` 12 pgTAP assertionjével ellenőrzi a központi tábla RLS-jogosultságait, a három domain triggeres indexelését és a reader olvasási útvonalát; a migrációt ismételten is lefuttatja idempotencia-ellenőrzésként.
 
