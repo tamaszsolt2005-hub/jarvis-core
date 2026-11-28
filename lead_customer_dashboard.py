@@ -1,8 +1,9 @@
 """Human-controlled CRM lifecycle for approved leads; no outbound delivery."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -36,6 +37,21 @@ def _rows(db: Any, table: str, columns: str, limit: int = 1500) -> list[dict[str
 
 def _record(db: Any, **payload: Any) -> None:
     db.rpc("record_lead_customer_lifecycle_event", payload).execute()
+
+
+def _is_overdue(state: dict[str, Any], *, today: date | None = None) -> bool:
+    """Return true only for actionable follow-ups whose due date is in the past."""
+    if not isinstance(state, dict) or not str(state.get("next_action") or "").strip():
+        return False
+    due_value = state.get("next_action_due")
+    if not due_value:
+        return False
+    try:
+        due = due_value if isinstance(due_value, date) else date.fromisoformat(str(due_value)[:10])
+    except (TypeError, ValueError):
+        return False
+    reference_day = today or datetime.now(ZoneInfo("Europe/Budapest")).date()
+    return due < reference_day
 
 
 def _parse_due_date(value: str) -> str | None:
@@ -107,21 +123,33 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         state = state_by_lead.get(str(lead["id"]), {})
         stage = str(state.get("stage") or "approved_lead")
         counts[stage if stage in counts else "approved_lead"] += 1
-    metric_columns = st.columns(4)
+    today = datetime.now(ZoneInfo("Europe/Budapest")).date()
+    overdue_ids = {
+        str(lead["id"])
+        for lead in approved_leads
+        if _is_overdue(state_by_lead.get(str(lead["id"]), {}), today=today)
+    }
+    metric_columns = st.columns(5)
     metric_columns[0].metric("Jóváhagyott lead", len(approved_leads))
-    metric_columns[1].metric("Minősített", counts["qualified"])
-    metric_columns[2].metric("Ajánlat / pilot", counts["proposal"] + counts["pilot"])
-    metric_columns[3].metric("Ügyfél", counts["customer"])
+    metric_columns[1].metric("Lejárt teendő", len(overdue_ids))
+    metric_columns[2].metric("Minősített", counts["qualified"])
+    metric_columns[3].metric("Ajánlat / pilot", counts["proposal"] + counts["pilot"])
+    metric_columns[4].metric("Ügyfél", counts["customer"])
 
     stage_filter = st.selectbox(
         "Folyamat szűrése",
-        options=["all", *_STAGES.keys()],
-        format_func=lambda value: "Minden státusz" if value == "all" else _STAGES[value],
+        options=["all", "overdue", *_STAGES.keys()],
+        format_func=lambda value: (
+            "Minden státusz" if value == "all"
+            else "Lejárt teendők" if value == "overdue"
+            else _STAGES[value]
+        ),
         key="lead_customer_stage_filter",
     )
     ordered = sorted(
         approved_leads,
         key=lambda lead: (
+            0 if str(lead["id"]) in overdue_ids else 1,
             str(state_by_lead.get(str(lead["id"]), {}).get("next_action_due") or "9999-12-31"),
             str(lead.get("company_name") or "").casefold(),
         ),
@@ -129,6 +157,7 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
     visible = [
         lead for lead in ordered
         if stage_filter == "all"
+        or (stage_filter == "overdue" and str(lead["id"]) in overdue_ids)
         or str(state_by_lead.get(str(lead["id"]), {}).get("stage") or "approved_lead") == stage_filter
     ]
     if not visible:
@@ -147,6 +176,8 @@ def render_lead_customer_page(db: Any, *, auth_enabled: bool, role: str | None) 
         with st.expander(f"{name} · {_STAGES.get(stage, stage)}", expanded=False):
             st.caption(str(lead.get("website") or "Nincs weboldal"))
             st.write(f"**Következő teendő:** {state.get('next_action') or 'Nincs megadva'}")
+            if lead_id in overdue_ids:
+                st.warning("A következő teendő határideje lejárt.")
             st.caption(
                 f"Határidő: {state.get('next_action_due') or '—'} · "
                 f"Utolsó interakció: {state.get('last_interaction_at') or '—'}"
