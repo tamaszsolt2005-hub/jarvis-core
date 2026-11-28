@@ -1,5 +1,27 @@
 # JARVIS – javítási napló és rendezett hiánylista
 
+## Friss állapotfelvétel – 2026-11-28, HEAD ca6ba3919df766e4bc5bf6cf5a53e793e428f643
+
+**PR #35:** nyitott, draft; merge és production deploy nincs igazolva.
+
+### Az előző állapotfelvétel óta elkészült módosítások
+
+- A böngészős login smoke megvárja a JARVIS címet, jelszómezőt és belépés gombot, így a screenshot nem készülhet a Streamlit felület hidratálódása előtt.
+- A mobil chat fejléc tesztje 390 és 320 px szélességen is ellenőrzi a láthatóságot, a függőleges elhelyezkedést és a vízszintes túlcsordulást.
+- A login smoke 390 és 320 px szélességű mobil viewporton is ellenőrzi a jelszómező és gomb elhelyezkedését, és külön screenshotot készít.
+- A kutatási műveleti dashboard számlálóinak és költségmezőinek kezelése védi a felületet hibás, negatív vagy nem numerikus RPC-adatoktól. A nulla committed összeg nem helyettesítődik a reserved összeggel.
+- A kutatási műveleti dashboardhoz regressziós tesztek kerültek a hibás számlálóértékekre és a nulla committed költségre.
+
+### CI-pillanatkép és ismert javítandó pont
+
+- A korábbi 8412057ae366cadf24853b7e0f3e6f3ddf51de34 HEAD JARVIS CI runja 46146849978 hibával zárult. A research PostgreSQL integration és a backup/restore integration sikeres volt; CodeQL és dependency audit szintén sikeres volt.
+- A teszt job a company_research_ops_dashboard.py egyik f-string sorában szintaktikai hibát jelzett. A hibát a ca6ba3919df766e4bc5bf6cf5a53e793e428f643 commit külön változóba emelt számlálóértékkel javította.
+- **A javító commit friss CI-eredménye még nincs igazolva.** Coverage és browser screenshot artifact csak új, sikeres futásból fogadható el.
+- A korábban elkészült Playwright screenshot csomag 27 PNG-t tartalmazott; kézi áttekintéskor az analitika mobil elrendezése megfelelőnek látszott, a chat mobil fejléc részben a felső toolbar alá csúszott, a login screenshot pedig a teszt túl korai screenshot-időzítése miatt üres volt. A login timing és a chat elhelyezés tesztje/javítása azóta bekerült, de az új screenshotokon még nem igazolt.
+- Helyi tesztet nem futtattunk. Production DB-módosítás, e-mailküldés, Gemini worker futtatás és scheduler aktiválás nem történt.
+
+> Ez a friss állapotfelvétel felülírja a dokumentum korábbi, d3e449e / ba210ce HEAD-re és megszakított CI-re vonatkozó pillanatképét. A régebbi bejegyzések történeti naplóként maradnak meg.
+
 **Állapotfelvétel:** 2026-11-28  
 **Vizsgált ág:** `feature/opportunity-center-readonly`  
 **Pull request:** [#35](https://github.com/tamaszsolt2005-hub/jarvis-core/pull/35) → `main`  
