@@ -694,13 +694,17 @@ jobs:
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127120000_opportunity_score_evidence.sql
           # Add authenticated, append-only human approval history and verify it.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
+          # Install the rejected-candidate assessment guard before its regression assertions.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128100000_reject_assessments_for_rejected_opportunities.sql
           approval_output="$(PGPASSWORD=postgres psql --no-psqlrc --no-align --tuples-only "$audit_url" --set ON_ERROR_STOP=1 --file supabase/tests/opportunity_assessment_approvals.test.sql)"
           printf '%s\n' "$approval_output"
           if grep -q '^not ok ' <<< "$approval_output"; then
             echo "pgTAP reported failed Opportunity approval assertions."
             exit 1
           fi
-          grep -q '1..10' <<< "$approval_output"
+          grep -q '1..12' <<< "$approval_output"
+          # Replay both migrations to verify idempotence and preserve the guard.
+          PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261128100000_reject_assessments_for_rejected_opportunities.sql
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127130000_opportunity_assessment_approvals.sql
           # Persist canonical source evidence across Lead, dossier and Opportunity domains.
           PGPASSWORD=postgres psql "$audit_url" --set ON_ERROR_STOP=1 --file supabase/migrations/20261127140000_intelligence_evidence_store.sql
