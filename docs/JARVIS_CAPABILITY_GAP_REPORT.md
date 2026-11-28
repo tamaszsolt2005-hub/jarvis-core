@@ -1,15 +1,15 @@
-## Aktuális irányadó állapot – 2026-11-28
+## Aktuális irányadó állapot – 2026-11-28 (frissítve)
 
-A részletes, naprakész funkcióleltár, a legutóbbi javítás naplója és a priorizált hiánylista itt található: [JARVIS javítási napló és hiányregiszter](20261128_JARVIS_GAP_REGISTER.md). A teljes implementációs állapot és végrehajtási roadmap: [2026-11-28 implementation status and roadmap](20261128_IMPLEMENTATION_STATUS_AND_ROADMAP.md).
+A pillanatfelvétel alapja a PR #35 feature/opportunity-center-readonly ág ca6ba3919df766e4bc5bf6cf5a53e793e428f643 HEAD-je. PR #35 nyitott és draft; merge, production migráció és deploy nincs igazolva.
 
-- PR #35 a `feature/opportunity-center-readonly` ágról `main` felé nyitott, draft, nem merge-ölt.
-- A legutóbb ismert PR HEAD a dokumentációs frissítés előtt `d3e449e9acb39de6c4e83be75c495414b9f21a34`.
-- Az elutasított SaaS-jelöltek assessment guardja `FOR SHARE` zárolást használ; a kapcsolódó approval pgTAP teszt 12 assertiont tartalmaz.
-- A `ba210ce` kódcommit CI, CodeQL és dependency audit futásai megszakadtak. A dokumentációs HEAD zöld CI-je nincs igazolva.
-- A korábbi 83,33%-os coverage nem friss HEAD-eredmény; a jóváhagyott minimum 82%.
-- A feature migrációk production alkalmazása és a dashboard production deployja nem történt meg.
+- A böngészős teszt login állapotnál megvárja a látható címet, jelszómezőt és belépés gombot. A mobil chat fejléc 390 és 320 px-es viewporton is pozíció- és túlcsordulás-ellenőrzést kapott; a login mező és gomb is ellenőrzött mindkét mobilméreten.
+- A Research Ops dashboard a hibás/negatív számlálóadatokat biztonságosan normalizálja, és a nulla committed költséget külön kezeli; regressziós tesztek kerültek hozzá.
+- A 8412057 commit CI-je f-string szintaktikai hibával bukott a Research Ops dashboardon. A ca6ba391 commit ezt javította; a javító commit friss CI-eredménye még nincs igazolva.
+- Az előző futásban a PostgreSQL research integration és backup/restore integration, CodeQL és dependency audit sikeres volt, de a teljes JARVIS CI sikertelen volt. Coverage és az új böngészős screenshotok a javító HEAD-en még nem igazoltak.
+- A 82%-os coverage minimum változatlan; régi coverage-érték nem helyettesíti a friss HEAD riportját.
+- A PR migrációinak production alkalmazása és a dashboard production deployja nem történt meg.
 
-A további munkák sorrendjét, elfogadási feltételeit és biztonsági határait az új hiányregiszter tartalmazza. A dokumentum alábbi régebbi dátumozott állapotai történeti feljegyzések.
+A részletes prioritások és korlátok a JARVIS javítási naplóban és hiányregiszterben, valamint a friss implementációs roadmapben szerepelnek. Az alábbi korábbi dátumozott jelentés történeti állapotként marad meg.
 
 # JARVIS – képességhiány- és prioritási jelentés
 
