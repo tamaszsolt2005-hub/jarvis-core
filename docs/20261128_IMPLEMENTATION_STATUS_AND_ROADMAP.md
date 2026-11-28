@@ -1,5 +1,18 @@
 # JARVIS – aktuális funkcióleltár, hiánylista és fejlesztési terv
 
+## Frissítés – 2026-11-28, PR #35 HEAD ca6ba3919df766e4bc5bf6cf5a53e793e428f643
+
+A legfrissebb fejlesztési állapotot a javítási napló és hiányregiszter részletezi. Az azóta elkészült módosítások:
+
+- Playwright böngészős smoke: login felület megjelenésének explicit megvárása; mobil chat fejléc 390/320 px-es elhelyezésének és túlcsordulásának ellenőrzése; login mező/gomb 390/320 px-es ellenőrzése és kis mobil screenshot.
+- Research Ops dashboard: RPC-ből érkező számlálók biztonságos normalizálása; nulla committed budget helyes megjelenítése; regressziós tesztek.
+- A 8412057 commit CI-je f-string szintaktikai hibával bukott a Research Ops dashboardon. A hibát a ca6ba391 commit javította. **A javító HEAD CI-je még nem igazolt; a coverage és az új screenshotok nem tekinthetők kész bizonyítéknak.**
+- Az előző CI-futásban a PostgreSQL research integration, backup/restore integration, CodeQL és dependency audit sikeres volt; ez nem teszi sikeressé a teljes CI-t.
+
+**Aktuális fókusz:** (1) a friss HEAD CI-hibamentességének igazolása; (2) a 320/390 px login és chat, valamint az analitika screenshotok újraellenőrzése; (3) Research Ops költség- és számlálóadatok edge case-ei; (4) Opportunity Discovery E2E; (5) CRM owner/follow-up és inbound email integráció; (6) élő provider-korlátok, monitoring és staging/production release-runbook.
+
+A korábbi b22635b commitra vonatkozó CI/coverage pillanatkép történeti adat; nem a mostani HEAD eredménye. Production migráció, merge és deploy továbbra sincs igazolva.
+
 **Frissítve:** 2026-11-28  
 **Vizsgált ág:** `feature/opportunity-center-readonly`  
 **PR:** #35 → `main`, nyitott, draft; a PR állapotát és CI-jét minden új commit után külön kell ellenőrizni.
